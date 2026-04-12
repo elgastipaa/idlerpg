@@ -1,0 +1,90 @@
+export const SKILLS = [
+  {
+    id: "power_strike",
+    name: "Golpe Poderoso",
+    description: "Inflige un gran daño.",
+    classId: "warrior",
+    specId: null,
+    type: "active",
+    cooldown: 5,
+    effect: {
+      damageMultiplier: 1.6,
+    },
+  },
+  {
+    id: "berserker_rage",
+    name: "Furia Berserker",
+    description: "Más daño pero perdés vida.",
+    classId: "warrior",
+    specId: "berserker",
+    type: "active",
+    cooldown: 12,
+    effect: {
+      damageMultiplier: 1.9,
+      selfDamagePct: 0.12,
+    },
+  },
+
+  {
+    id: "backstab",
+    name: "Backstab",
+    description: "Gran daño con alta chance de crítico.",
+    classId: "rogue",
+    specId: null,
+    type: "active",
+    cooldown: 4,
+    effect: {
+      damageMultiplier: 1.5,
+      critBonus: 0.2,
+    },
+  },
+  {
+    id: "fireball",
+    name: "Bola de Fuego",
+    description: "Daño mágico alto.",
+    classId: "mage",
+    specId: null,
+    type: "active",
+    cooldown: 5,
+    effect: {
+      damageMultiplier: 2.0,
+    },
+  },
+  {
+    id: "precise_shot",
+    name: "Disparo Preciso",
+    description: "Aumenta el crítico del ataque.",
+    classId: "ranger",
+    specId: null,
+    type: "active",
+    cooldown: 4,
+    effect: {
+      critBonus: 0.15,
+    },
+  },
+  {
+    id: "heal",
+    name: "Curación",
+    description: "Recuperás vida.",
+    classId: "cleric",
+    specId: null,
+    type: "active",
+    cooldown: 6,
+    effect: {
+      heal: 30,
+    },
+  },
+  {
+    id: "execute",
+    name: "Ejecución",
+    description: "Más daño a enemigos débiles.",
+    classId: "assassin",
+    specId: null,
+    type: "active",
+    cooldown: 6,
+    effect: {
+      damageMultiplier: 1.6,
+      bonusVsLowHp: 0.5,
+    },
+  },
+];

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Idle RPG</title>
+    <style>
+      /* Eliminamos los colores oscuros y reseteamos al estándar del navegador */
+      * { 
+        box-sizing: border-box; 
+        margin: 0; 
+        padding: 0; 
+        -webkit-tap-highlight-color: transparent; 
+      }
+      
+      html, body { 
+        width: 100%; 
+        height: 100%; 
+        /* Usamos un color neutro por defecto, el CSS de tus componentes hará el resto */
+        background-color: #ffffff; 
+        overflow-x: hidden;
+        /* Evita el rebote elástico en móviles que genera márgenes blancos visuales */
+        position: relative;
+      }
+
+      #root { 
+        width: 100%; 
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Ajuste para que las imágenes y elementos no causen scroll horizontal */
+      img, canvas, video {
+        max-width: 100%;
+        height: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

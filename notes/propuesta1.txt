@@ -1,0 +1,845 @@
+Buen prompt de Gepito. Te lo respondo yo directamente ya que tengo todo el contexto del juego.
+
+1. DIAGNÓSTICO
+
+Los talentos actuales son mejoras flat sin jerarquía narrativa — el jugador no siente que está construyendo algo, solo comprando bonuses
+Sin nodos escalables infinitos, el jugador de nivel 77 acumula 50 puntos sin uso — el sistema no tiene dónde poner los puntos late game
+Los prereqs actuales son binarios (tenés el talento o no) sin mostrar visualmente el camino hacia adelante
+Los talentos "aura" se aplican al desbloquear pero el jugador no ve el impacto inmediato — feedback débil
+No hay diferencia de identidad entre un Berserker que tomó distintos caminos — todas las builds Berserker se sienten iguales
+Los talentos II existen pero son el mismo nodo mejorado, no una decisión real
+No hay sink de puntos para late game — el sistema no fue diseñado para nivel 77+
+La lectura del árbol en mobile es difícil porque los nodos son cards con demasiado texto
+No hay "builds imposibles de replicar" — cualquier jugador llega a los mismos talentos eventualmente
+El costo flat (1-2 TP) hace que todos los talentos se sientan igual de importantes
+
+
+2. TRES ENFOQUES
+Enfoque A — Árbol por Capas con Keystones
+Reglas de desbloqueo: el árbol tiene 4 capas. Para acceder a la capa siguiente necesitás haber gastado X puntos en la capa anterior (no en nodos específicos). Dentro de cada capa los nodos tienen prereqs entre sí.
+Cómo evita puntos sobrantes: la capa 4 tiene nodos infinitos (softcap con diminishing returns). Siempre hay dónde poner puntos.
+Cómo muestra precedencia: líneas visuales entre nodos + indicador "gastá 3 más en esta capa para desbloquear la siguiente".
+Pros: muy claro para el jugador, fácil de implementar, escala naturalmente.
+Contras: menos libertad de build, puede sentirse lineal.
+
+Enfoque B — Tracks por Rol con Puentes (RECOMENDADO)
+Reglas de desbloqueo: tres tracks paralelos (Daño / Sustain / Utilidad). Cada track tiene sus propios nodos. Los "puentes" son nodos especiales que requieren puntos de dos tracks distintos y dan sinergias únicas.
+TRACK DAÑO:        nodo1 → nodo2 → nodo3 → keystone
+TRACK SUSTAIN:     nodo1 → nodo2 → nodo3 → keystone
+TRACK UTILIDAD:    nodo1 → nodo2 → nodo3 → keystone
+                         ↘         ↙
+                       PUENTE (sinergia única)
+Cómo evita puntos sobrantes: cada track tiene 2-3 nodos infinitos al final. Los puentes cuestan muchos puntos. Las keystones son caras.
+Cómo muestra precedencia: tres columnas visuales con conexiones horizontales (puentes) destacadas en color distinto.
+Pros: decisiones de build reales, builds con identidad distinta, los puentes crean combinaciones memorables.
+Contras: más complejo de implementar, requiere balance cuidadoso de los puentes.
+
+Enfoque C — Nodos Clave + Infinitos
+Reglas de desbloqueo: 8-10 nodos clave con prereqs fijos. Alrededor de cada nodo clave hay 2-3 nodos infinitos (scalables hasta nivel 20) que amplifican ese nodo clave.
+Cómo evita puntos sobrantes: los nodos infinitos absorben todos los puntos de late game con diminishing returns.
+Cómo muestra precedencia: el nodo clave está en el centro, los infinitos alrededor en gris hasta que se desbloquea el clave.
+Pros: extremadamente claro, siempre hay dónde poner puntos.
+Contras: puede sentirse repetitivo stackear el mismo nodo infinito.
+
+3. RECOMENDACIÓN FINAL — Enfoque B (Tracks con Puentes)
+Justificación:
+
+Los tracks dan identidad de build inmediata — el jugador dice "soy un Berserker de Daño con toque de Sustain"
+Los puentes crean las combinaciones memorables que se comparten entre jugadores
+Los nodos infinitos al final de cada track resuelven el problema de puntos sobrantes
+Técnicamente es un grafo dirigido — tu estructura actual de prereqs[] ya lo soporta
+La UI de tres columnas es más legible en mobile que el árbol libre actual
+
+
+4. ÁRBOL COMPLETO
+WARRIOR CORE (disponible para todos los Warriors)
+Track Daño — Columna derecha
+js{
+  id: "w_dmg_1",
+  name: "Fuerza Bruta",
+  type: "passive",
+  description: "Aumenta tu daño base.",
+  baseEffect: "+4 daño plano",
+  scaling: "+4 daño plano por nivel",
+  maxLevel: 5,
+  baseCost: 1,
+  costFormula: "1 por nivel",
+  prereqs: [],
+  tier: 1,
+  tags: ["damage"],
+  impact: "bajo",
+},
+{
+  id: "w_dmg_2",
+  name: "Golpe Preciso",
+  type: "passive",
+  description: "Aumenta tu probabilidad de crítico.",
+  baseEffect: "+2% crit chance",
+  scaling: "+2% crit chance por nivel",
+  maxLevel: 5,
+  baseCost: 1,
+  costFormula: "1 por nivel",
+  prereqs: ["w_dmg_1"],
+  tier: 2,
+  tags: ["damage", "crit"],
+  impact: "medio",
+},
+{
+  id: "w_dmg_3",
+  name: "Golpe Devastador",
+  type: "triggered",
+  description: "Cada 5 kills, tu próximo ataque inflige daño triple.",
+  baseEffect: "x3 daño cada 5 kills",
+  scaling: "cada 4 kills en nivel 2, cada 3 kills en nivel 3",
+  maxLevel: 3,
+  baseCost: 2,
+  costFormula: "2 por nivel",
+  prereqs: ["w_dmg_2"],
+  tier: 3,
+  tags: ["damage", "tempo"],
+  impact: "alto",
+},
+{
+  id: "w_dmg_keystone",
+  name: "Señor de la Guerra",
+  type: "keystone",
+  description: "Cada kill acumula Poder de Guerra (+3% daño, máx 10 stacks). Se resetea al morir.",
+  baseEffect: "+3% daño por stack hasta 10 stacks",
+  scaling: "no escala — es keystone",
+  maxLevel: 1,
+  baseCost: 4,
+  costFormula: "costo fijo",
+  prereqs: ["w_dmg_3"],
+  tier: 4,
+  tags: ["damage", "stacking"],
+  impact: "alto",
+},
+{
+  id: "w_dmg_inf",
+  name: "Maestría de Combate",
+  type: "infinite",
+  description: "Aumenta el daño permanentemente con diminishing returns.",
+  baseEffect: "+3% daño en nivel 1",
+  scaling: "nivel N da +3% / (1 + nivel*0.15) — softcap en nivel 10",
+  maxLevel: 20,
+  baseCost: 2,
+  costFormula: "Math.floor(2 * Math.pow(1.3, nivel))",
+  prereqs: ["w_dmg_keystone"],
+  tier: 5,
+  tags: ["damage", "infinite"],
+  impact: "bajo por nivel, alto acumulado",
+},
+Track Sustain — Columna izquierda
+js{
+  id: "w_sus_1",
+  name: "Segundo Aliento",
+  type: "triggered",
+  description: "Al bajar del 30% HP, te curás un 20% de tu vida máxima. Cooldown: 30 ticks.",
+  baseEffect: "Curación del 20% HP máx al bajar del 30%",
+  scaling: "cooldown -5 ticks por nivel (mín 15)",
+  maxLevel: 3,
+  baseCost: 1,
+  costFormula: "1 por nivel",
+  prereqs: [],
+  tier: 1,
+  tags: ["survivability", "heal"],
+  impact: "alto en early game",
+},
+{
+  id: "w_sus_2",
+  name: "Voluntad de Hierro",
+  type: "passive",
+  description: "Aumenta tu defensa base permanentemente.",
+  baseEffect: "+5 defensa plana",
+  scaling: "+5 defensa por nivel",
+  maxLevel: 5,
+  baseCost: 1,
+  costFormula: "1 por nivel",
+  prereqs: ["w_sus_1"],
+  tier: 2,
+  tags: ["survivability", "defense"],
+  impact: "medio",
+},
+{
+  id: "w_sus_3",
+  name: "Regen de Batalla",
+  type: "passive",
+  description: "Regenerás HP adicional cada tick.",
+  baseEffect: "+2 HP/tick",
+  scaling: "+2 HP/tick por nivel",
+  maxLevel: 5,
+  baseCost: 2,
+  costFormula: "2 por nivel",
+  prereqs: ["w_sus_2"],
+  tier: 3,
+  tags: ["survivability", "regen"],
+  impact: "medio",
+},
+{
+  id: "w_sus_keystone",
+  name: "Fortaleza Inquebrantable",
+  type: "keystone",
+  description: "Tu defensa se suma parcialmente a tu daño (+1 daño por cada 5 de defensa).",
+  baseEffect: "+1 daño por cada 5 defensa",
+  scaling: "no escala — es keystone",
+  maxLevel: 1,
+  baseCost: 4,
+  costFormula: "costo fijo",
+  prereqs: ["w_sus_3"],
+  tier: 4,
+  tags: ["survivability", "damage", "synergy"],
+  impact: "alto — habilita build tanque que también pega",
+},
+{
+  id: "w_sus_inf",
+  name: "Resistencia Eterna",
+  type: "infinite",
+  description: "Aumenta el HP máximo permanentemente con diminishing returns.",
+  baseEffect: "+20 HP máx en nivel 1",
+  scaling: "nivel N da +20 / (1 + nivel*0.10)",
+  maxLevel: 20,
+  baseCost: 2,
+  costFormula: "Math.floor(2 * Math.pow(1.25, nivel))",
+  prereqs: ["w_sus_keystone"],
+  tier: 5,
+  tags: ["survivability", "infinite"],
+  impact: "bajo por nivel, alto acumulado",
+},
+Track Utilidad — Columna central
+js{
+  id: "w_util_1",
+  name: "Botín de Guerra",
+  type: "passive",
+  description: "Aumenta el oro obtenido por kill.",
+  baseEffect: "+5 oro plano por kill",
+  scaling: "+5 oro por nivel",
+  maxLevel: 5,
+  baseCost: 1,
+  costFormula: "1 por nivel",
+  prereqs: [],
+  tier: 1,
+  tags: ["economy", "gold"],
+  impact: "bajo en combat, alto en progresión",
+},
+{
+  id: "w_util_2",
+  name: "Mente de Estratega",
+  type: "passive",
+  description: "Aumenta la XP obtenida por kill.",
+  baseEffect: "+8% XP",
+  scaling: "+8% XP por nivel",
+  maxLevel: 5,
+  baseCost: 1,
+  costFormula: "1 por nivel",
+  prereqs: ["w_util_1"],
+  tier: 2,
+  tags: ["economy", "xp"],
+  impact: "medio — acelera el leveling",
+},
+{
+  id: "w_util_3",
+  name: "Velocidad de Ataque",
+  type: "passive",
+  description: "Reduce el intervalo entre ticks de ataque.",
+  baseEffect: "+4% attackSpeed",
+  scaling: "+4% por nivel (cap global 70%)",
+  maxLevel: 5,
+  baseCost: 2,
+  costFormula: "2 por nivel",
+  prereqs: ["w_util_2"],
+  tier: 3,
+  tags: ["utility", "tempo"],
+  impact: "alto — más ticks = más todo",
+},
+{
+  id: "w_util_keystone",
+  name: "El Gran Cazador",
+  type: "keystone",
+  description: "Al matar un boss, el siguiente enemy normal dropea como si fuera boss (garantizado loot, rarityFloor rare).",
+  baseEffect: "Primer enemy post-boss dropea como boss",
+  scaling: "no escala",
+  maxLevel: 1,
+  baseCost: 4,
+  costFormula: "costo fijo",
+  prereqs: ["w_util_3"],
+  tier: 4,
+  tags: ["economy", "loot", "utility"],
+  impact: "alto — excelente para farming de bosses",
+},
+{
+  id: "w_util_inf",
+  name: "Instinto del Veterano",
+  type: "infinite",
+  description: "Aumenta la suerte (luck) permanentemente, mejorando rareza de drops con diminishing returns.",
+  baseEffect: "+5 luck en nivel 1",
+  scaling: "nivel N da +5 / (1 + nivel*0.12)",
+  maxLevel: 20,
+  baseCost: 2,
+  costFormula: "Math.floor(2 * Math.pow(1.25, nivel))",
+  prereqs: ["w_util_keystone"],
+  tier: 5,
+  tags: ["economy", "loot", "infinite"],
+  impact: "bajo por nivel, alto acumulado",
+},
+PUENTES WARRIOR CORE
+js{
+  id: "w_bridge_dmg_sus",
+  name: "Golpe de Escudo",
+  type: "triggered",
+  description: "Cada 8 ataques, infligís daño extra igual a tu defensa total.",
+  baseEffect: "1x defensa como daño extra cada 8 ticks",
+  scaling: "cada 6 ticks en nivel 2",
+  maxLevel: 2,
+  baseCost: 3,
+  costFormula: "3 por nivel",
+  prereqs: ["w_dmg_2", "w_sus_2"], // requiere ambos tracks
+  tier: 3,
+  tags: ["damage", "survivability", "synergy"],
+  impact: "alto — conecta las dos builds",
+},
+{
+  id: "w_bridge_sus_util",
+  name: "Fortaleza Rentable",
+  type: "passive",
+  description: "Por cada 10 de defensa que tenés, ganás +1 oro extra por kill.",
+  baseEffect: "+1 oro por cada 10 defensa",
+  scaling: "+1 oro adicional por cada 10 defensa por nivel",
+  maxLevel: 3,
+  baseCost: 3,
+  costFormula: "3 por nivel",
+  prereqs: ["w_sus_2", "w_util_1"],
+  tier: 3,
+  tags: ["survivability", "economy", "synergy"],
+  impact: "medio — bueno para builds tank que farmean",
+},
+
+BERSERKER (requiere spec Berserker)
+js{
+  id: "bsk_1",
+  name: "Sed de Sangre",
+  type: "triggered",
+  description: "Al hacer crítico, recuperás HP.",
+  baseEffect: "+10 HP por crítico",
+  scaling: "+10 HP por nivel",
+  maxLevel: 5,
+  baseCost: 1,
+  costFormula: "1 por nivel",
+  prereqs: [],
+  tier: 1,
+  tags: ["crit", "heal", "berserker"],
+  impact: "alto — autosuficiencia en builds crit",
+},
+{
+  id: "bsk_2",
+  name: "Frenesí",
+  type: "triggered",
+  description: "Cada kill aumenta tu attackSpeed temporalmente.",
+  baseEffect: "+5% attackSpeed por 3 ticks",
+  scaling: "+5% por nivel adicional (máx +20%)",
+  maxLevel: 4,
+  baseCost: 1,
+  costFormula: "1 por nivel",
+  prereqs: ["bsk_1"],
+  tier: 2,
+  tags: ["tempo", "attackSpeed", "berserker"],
+  impact: "alto — snowball de velocidad",
+},
+{
+  id: "bsk_3",
+  name: "Heridas Abiertas",
+  type: "triggered",
+  description: "Tus críticos hacen que el enemigo reciba más daño por 2 ticks.",
+  baseEffect: "+20% daño recibido por enemigo por 2 ticks",
+  scaling: "+10% adicional por nivel, duración +1 tick en nivel 3",
+  maxLevel: 3,
+  baseCost: 2,
+  costFormula: "2 por nivel",
+  prereqs: ["bsk_2"],
+  tier: 3,
+  tags: ["crit", "damage", "debuff", "berserker"],
+  impact: "alto — amplifica toda la build crit",
+  // requiere soporte adicional: debuff en enemy en processTick
+},
+{
+  id: "bsk_keystone",
+  name: "Carnicería",
+  type: "keystone",
+  description: "Cada 3 kills consecutivas sin recibir daño, tu próximo ataque hace x4 daño.",
+  baseEffect: "x4 daño cada 3 kills sin daño recibido",
+  scaling: "no escala",
+  maxLevel: 1,
+  baseCost: 5,
+  costFormula: "costo fijo",
+  prereqs: ["bsk_3"],
+  tier: 4,
+  tags: ["damage", "tempo", "berserker", "keystone"],
+  impact: "muy alto — define la build Berserker Carnicero",
+},
+{
+  id: "bsk_inf",
+  name: "Hambre de Sangre",
+  type: "infinite",
+  description: "Aumenta el daño crítico permanentemente con diminishing returns.",
+  baseEffect: "+10% critDamage en nivel 1",
+  scaling: "nivel N da +10% / (1 + nivel*0.15)",
+  maxLevel: 20,
+  baseCost: 2,
+  costFormula: "Math.floor(2 * Math.pow(1.3, nivel))",
+  prereqs: ["bsk_keystone"],
+  tier: 5,
+  tags: ["crit", "damage", "infinite", "berserker"],
+  impact: "bajo por nivel, muy alto acumulado",
+},
+{
+  id: "bsk_alt_1",
+  name: "Deseo de Muerte",
+  type: "passive",
+  description: "Cuanto menor es tu HP, mayor es tu daño. Hasta +50% con 1% HP.",
+  baseEffect: "Hasta +50% daño escalando inversamente con HP",
+  scaling: "el máximo sube +10% por nivel",
+  maxLevel: 3,
+  baseCost: 3,
+  costFormula: "3 por nivel",
+  prereqs: ["bsk_1"], // rama alternativa desde tier 1
+  tier: 2,
+  tags: ["damage", "lowHp", "berserker", "highrisk"],
+  impact: "muy alto — habilita build glass cannon",
+  // requiere soporte adicional: missingHp scaling en calcStats
+},
+{
+  id: "bsk_bridge_core",
+  name: "Furia Vampírica",
+  type: "triggered",
+  description: "Tus críticos tienen lifesteal. Robás HP igual al 8% del daño crítico.",
+  baseEffect: "8% lifesteal en críticos",
+  scaling: "+4% por nivel",
+  maxLevel: 3,
+  baseCost: 3,
+  costFormula: "3 por nivel",
+  prereqs: ["bsk_1", "w_dmg_2"], // puente Berserker ↔ Warrior core
+  tier: 2,
+  tags: ["crit", "lifesteal", "synergy", "berserker"],
+  impact: "alto — define el Berserker Vampírico",
+},
+
+JUGGERNAUT (requiere spec Juggernaut)
+js{
+  id: "jug_1",
+  name: "Fortaleza Viviente",
+  type: "passive",
+  description: "Aumenta tu defensa base un 30% permanentemente.",
+  baseEffect: "+30% defensa base",
+  scaling: "+10% adicional por nivel",
+  maxLevel: 5,
+  baseCost: 1,
+  costFormula: "1 por nivel",
+  prereqs: [],
+  tier: 1,
+  tags: ["defense", "juggernaut"],
+  impact: "alto — base de toda build Juggernaut",
+},
+{
+  id: "jug_2",
+  name: "Piel de Hierro",
+  type: "stacking",
+  description: "Cada golpe recibido te da un stack de armadura (+2 def por stack, máx 10 stacks, duración 5 ticks).",
+  baseEffect: "+2 def por stack recibido, máx 10 stacks",
+  scaling: "+1 def por stack por nivel",
+  maxLevel: 5,
+  baseCost: 1,
+  costFormula: "1 por nivel",
+  prereqs: ["jug_1"],
+  tier: 2,
+  tags: ["defense", "stacking", "juggernaut"],
+  impact: "alto en combates largos",
+},
+{
+  id: "jug_3",
+  name: "Aguante",
+  type: "passive",
+  description: "Regenerás HP adicional por tick.",
+  baseEffect: "+3 HP/tick",
+  scaling: "+3 HP/tick por nivel",
+  maxLevel: 5,
+  baseCost: 2,
+  costFormula: "2 por nivel",
+  prereqs: ["jug_2"],
+  tier: 3,
+  tags: ["survivability", "regen", "juggernaut"],
+  impact: "medio-alto en tiers altos",
+},
+{
+  id: "jug_keystone",
+  name: "Imparable",
+  type: "keystone",
+  description: "La primera vez que un golpe te reduciría a menos del 10% HP, absorbés el daño completamente. Cooldown: 60 ticks.",
+  baseEffect: "Absorción de golpe letal una vez cada 60 ticks",
+  scaling: "no escala",
+  maxLevel: 1,
+  baseCost: 5,
+  costFormula: "costo fijo",
+  prereqs: ["jug_3"],
+  tier: 4,
+  tags: ["survivability", "juggernaut", "keystone"],
+  impact: "muy alto — permite sobrevivir picos de daño",
+  // requiere soporte adicional: absorb en processTick
+},
+{
+  id: "jug_inf",
+  name: "Resistencia Colosal",
+  type: "infinite",
+  description: "Aumenta el HP máximo permanentemente con diminishing returns.",
+  baseEffect: "+30 HP máx en nivel 1",
+  scaling: "nivel N da +30 / (1 + nivel*0.12)",
+  maxLevel: 20,
+  baseCost: 2,
+  costFormula: "Math.floor(2 * Math.pow(1.25, nivel))",
+  prereqs: ["jug_keystone"],
+  tier: 5,
+  tags: ["survivability", "infinite", "juggernaut"],
+  impact: "bajo por nivel, muy alto acumulado",
+},
+{
+  id: "jug_alt_1",
+  name: "Espinas",
+  type: "passive",
+  description: "Devolvés daño plano a cada enemigo que te golpea.",
+  baseEffect: "+5 thorns (daño devuelto por golpe recibido)",
+  scaling: "+5 thorns por nivel",
+  maxLevel: 5,
+  baseCost: 2,
+  costFormula: "2 por nivel",
+  prereqs: ["jug_1"], // rama alternativa
+  tier: 2,
+  tags: ["thorns", "retaliation", "juggernaut"],
+  impact: "medio — mejor en tiers con enemigos que atacan rápido",
+},
+{
+  id: "jug_alt_2",
+  name: "Coloso",
+  type: "passive",
+  description: "Tu HP máximo se suma parcialmente a tu daño (+1 daño por cada 20 HP máx).",
+  baseEffect: "+1 daño por cada 20 HP máx",
+  scaling: "ratio mejora a 1/18 en nivel 2, 1/15 en nivel 3",
+  maxLevel: 3,
+  baseCost: 3,
+  costFormula: "3 por nivel",
+  prereqs: ["jug_alt_1", "jug_2"],
+  tier: 3,
+  tags: ["damage", "survivability", "synergy", "juggernaut"],
+  impact: "alto — habilita build tanque que pega fuerte",
+  // requiere soporte adicional: maxHp scaling en calcStats
+},
+{
+  id: "jug_bridge_core",
+  name: "Muro de Hierro",
+  type: "passive",
+  description: "Tu defensa reduce el daño de espinas recibido de tus propias Heridas Abiertas.",
+  baseEffect: "Inmune a self-thorns",
+  scaling: "en nivel 2: además +10% al daño de tus espinas",
+  maxLevel: 2,
+  baseCost: 3,
+  costFormula: "3 por nivel",
+  prereqs: ["jug_alt_1", "w_sus_2"], // puente Juggernaut ↔ Warrior core
+  tier: 3,
+  tags: ["thorns", "defense", "synergy"],
+  impact: "medio — quality of life para builds espinas",
+},
+
+5. ECONOMÍA Y ESCALADO
+Ganancia de Talent Points:
+jsfunction getTalentPointsGained(level) {
+  // Niveles 1-20: 1 TP por nivel (20 TP totales)
+  if (level <= 20) return 1;
+  
+  // Niveles 21-40: 1 TP cada 2 niveles (10 TP adicionales)
+  if (level <= 40) return level % 2 === 0 ? 1 : 0;
+  
+  // Niveles 41-60: 1 TP cada 3 niveles (7 TP adicionales)
+  if (level <= 60) return level % 3 === 0 ? 1 : 0;
+  
+  // Niveles 61+: 1 TP cada 5 niveles
+  return level % 5 === 0 ? 1 : 0;
+}
+
+// Total aproximado a nivel 77: ~42 TP
+// Resuelve el exceso actual de 50 TP sin usar
+Costo por tier:
+Tier 1 (entrada):     1 TP por nivel
+Tier 2 (desarrollo):  1-2 TP por nivel
+Tier 3 (especialización): 2-3 TP por nivel
+Tier 4 (keystones):   4-5 TP (único nivel)
+Tier 5 (infinitos):   costo escala exponencial
+Puentes:              3 TP por nivel
+Nodos infinitos — fórmula de costo:
+jsfunction getInfiniteNodeCost(currentLevel) {
+  return Math.floor(2 * Math.pow(1.3, currentLevel));
+  // Nivel 1: 2 TP
+  // Nivel 5: 7 TP
+  // Nivel 10: 27 TP
+  // Nivel 15: 100 TP
+  // Nivel 20: 374 TP
+}
+Soft cap de nodos infinitos:
+jsfunction getInfiniteNodeEffect(baseEffect, currentLevel) {
+  return baseEffect / (1 + currentLevel * 0.15);
+  // Nivel 1: 100% del efecto base
+  // Nivel 5: 57% del efecto base
+  // Nivel 10: 40% del efecto base
+  // Nivel 20: 25% del efecto base
+}
+Total de TP necesarios para árbol completo (estimado):
+Warrior Core (sin infinitos): ~45 TP
+Berserker o Juggernaut (sin infinitos): ~30 TP
+Keystones: 9 TP (3 keystones a 3 TP promedio)
+Total sin infinitos: ~84 TP
+
+Infinitos hasta nivel 10 en los 3 tracks: ~60 TP adicionales
+Total full build nivel 10 infinitos: ~144 TP
+
+A nivel 77: ~42 TP disponibles
+→ El jugador puede completar el core + 1 spec + algún nodo infinito
+→ Para el árbol completo necesitaría nivel ~120+
+
+6. UX/UI DEL ÁRBOL
+Layout propuesto:
+DESKTOP:
+┌─────────────┬──────────────┬─────────────┐
+│  SUSTAIN    │  UTILIDAD    │   DAÑO      │
+│  (izq)      │  (centro)    │   (der)     │
+│             │              │             │
+│  [w_sus_1]  │  [w_util_1]  │  [w_dmg_1]  │
+│      │      │      │       │      │      │
+│  [w_sus_2]  │  [w_util_2]  │  [w_dmg_2]  │
+│      │   ╲  │  ╱   │       │  ╱   │      │
+│  [PUENTE]───┼───[PUENTE]   │             │
+│      │      │      │       │      │      │
+│  [w_sus_3]  │  [w_util_3]  │  [w_dmg_3]  │
+│      │      │      │       │      │      │
+│  [KEYSTONE] │  [KEYSTONE]  │  [KEYSTONE] │
+│      │      │      │       │      │      │
+│  [INFINITO] │  [INFINITO]  │  [INFINITO] │
+└─────────────┴──────────────┴─────────────┘
+
+SPEC (debajo del core, solo si spec activa):
+┌─────────────────────────────────────────┐
+│              BERSERKER / JUGGERNAUT     │
+│   [bsk_1] → [bsk_2] → [bsk_3] → [KEY] │
+│       ↘                                 │
+│   [bsk_alt_1] → [bsk_bridge_core]      │
+└─────────────────────────────────────────┘
+Estados visuales de nodos:
+BLOQUEADO:      círculo gris con candado, líneas de conexión grises punteadas
+DESBLOQUEABLE:  círculo con borde azul parpadeante, "¡disponible!" badge
+COMPRADO:       círculo lleno con color de track, checkmark
+MAXEADO:        círculo dorado con estrella, "MAX" badge
+INFINITO ACTIVO: círculo con borde animado, nivel actual / nivel max visible
+"Siguiente mejor paso" sin quitar libertad:
+Mostrar un punto naranja sobre el primer nodo desbloqueable de cada track. El jugador ve sus opciones disponibles sin que el juego le diga cuál elegir.
+Mobile:
+Los tres tracks se apilan verticalmente como acordeones colapsables. El jugador expande el track que quiere ver. Los puentes se muestran como badges en los nodos que los habilitan ("🔗 Conecta con Sustain").
+
+7. PLAN DE MIGRACIÓN
+Mapeo de talentos viejos a nuevos:
+jsexport const TALENT_MIGRATION_MAP = {
+  // Warrior Core
+  "warrior_battle_trance":   { newId: "w_dmg_1",     refundExtra: 0 },
+  "warrior_battle_trance_2": { newId: "w_dmg_1",     refundExtra: 1 }, // el nivel II se convierte en nivel 2 del mismo nodo
+  "warrior_rampage":         { newId: "w_dmg_3",     refundExtra: 0 },
+  "warrior_rampage_2":       { newId: "w_dmg_3",     refundExtra: 1 },
+  "warrior_second_wind":     { newId: "w_sus_1",     refundExtra: 0 },
+  "warrior_second_wind_2":   { newId: "w_sus_1",     refundExtra: 1 },
+  "warrior_warlord":         { newId: "w_dmg_keystone", refundExtra: 0 },
+  "warrior_warlord_2":       { newId: "w_dmg_keystone", refundExtra: 2 }, // keystone es nivel 1 máx, devolver extra
+
+  // Berserker
+  "berserker_bloodlust":     { newId: "bsk_1",       refundExtra: 0 },
+  "berserker_bloodlust_2":   { newId: "bsk_1",       refundExtra: 1 },
+  "berserker_frenzy":        { newId: "bsk_2",       refundExtra: 0 },
+  "berserker_frenzy_2":      { newId: "bsk_2",       refundExtra: 1 },
+  "berserker_open_wounds":   { newId: "bsk_3",       refundExtra: 0 },
+  "berserker_open_wounds_2": { newId: "bsk_3",       refundExtra: 1 },
+  "berserker_carnage":       { newId: "bsk_keystone", refundExtra: 0 },
+  "berserker_carnage_2":     { newId: "bsk_keystone", refundExtra: 2 },
+
+  // Juggernaut
+  "juggernaut_fortress":     { newId: "jug_1",       refundExtra: 0 },
+  "juggernaut_fortress_2":   { newId: "jug_1",       refundExtra: 1 },
+  "juggernaut_iron_skin":    { newId: "jug_2",       refundExtra: 0 },
+  "juggernaut_iron_skin_2":  { newId: "jug_2",       refundExtra: 1 },
+  "juggernaut_endurance":    { newId: "jug_3",       refundExtra: 0 },
+  "juggernaut_endurance_2":  { newId: "jug_3",       refundExtra: 1 },
+  "juggernaut_unstoppable":  { newId: "jug_keystone", refundExtra: 0 },
+  "juggernaut_unstoppable_2":{ newId: "jug_keystone", refundExtra: 2 },
+};
+Estrategia de rollout:
+js// En stateInitializer.js — al cargar el save
+function migrateTalents(savedState) {
+  if (savedState.talentSystemVersion >= 2) return savedState;
+
+  const oldTalents = savedState.player.unlockedTalents || [];
+  let refundedPoints = 0;
+  const newTalentLevels = {};
+
+  for (const oldId of oldTalents) {
+    const migration = TALENT_MIGRATION_MAP[oldId];
+    if (!migration) {
+      // Talento eliminado — refund completo
+      refundedPoints += 2;
+      continue;
+    }
+    const { newId, refundExtra } = migration;
+    newTalentLevels[newId] = (newTalentLevels[newId] || 0) + 1;
+    refundedPoints += refundExtra;
+  }
+
+  return {
+    ...savedState,
+    talentSystemVersion: 2,
+    player: {
+      ...savedState.player,
+      talentLevels: newTalentLevels,       // nuevo formato: { nodeId: nivel }
+      talentPoints: (savedState.player.talentPoints || 0) + refundedPoints,
+      unlockedTalents: Object.keys(newTalentLevels), // compatibilidad
+    },
+  };
+}
+
+8. FORMATO TÉCNICO
+Estructura de datos:
+js// Nodo
+{
+  id: string,
+  name: string,
+  type: "passive" | "triggered" | "keystone" | "infinite" | "stacking" | "active-modifier",
+  description: string,
+  baseEffect: string,
+  scaling: string,
+  maxLevel: number,
+  baseCost: number,
+  costFormula: string,        // expresión evaluable
+  prereqs: string[],          // ids de nodos requeridos
+  prereqLevels: { [id]: number }, // nivel mínimo requerido del prereq (opcional)
+  tier: number,
+  track: "damage" | "sustain" | "utility" | "berserker" | "juggernaut" | "bridge",
+  tags: string[],
+  impact: "bajo" | "medio" | "alto" | "muy alto",
+  requiresEngine: boolean,    // true si necesita soporte adicional
+}
+
+// Edge (conexión visual)
+{
+  from: string,   // nodeId
+  to: string,     // nodeId
+  type: "requires" | "enables" | "bridge",
+}
+
+// State del jugador
+player.talentLevels = { [nodeId]: number }  // nivel actual de cada nodo
+player.talentPoints = number                 // TP disponibles
+Pseudocódigo de funciones:
+jsfunction canUnlockNode(state, nodeId) {
+  const node     = TALENT_NODES.find(n => n.id === nodeId);
+  const levels   = state.player.talentLevels || {};
+  const currentLevel = levels[nodeId] || 0;
+
+  if (currentLevel >= node.maxLevel) return false;
+
+  const cost = getNodeUpgradeCost(state, nodeId);
+  if (state.player.talentPoints < cost) return false;
+
+  // Verificar prereqs
+  for (const prereqId of (node.prereqs || [])) {
+    const reqLevel = node.prereqLevels?.[prereqId] || 1;
+    if ((levels[prereqId] || 0) < reqLevel) return false;
+  }
+
+  // Verificar clase y spec
+  if (node.classId && node.classId !== state.player.class) return false;
+  if (node.specId  && node.specId  !== state.player.specialization) return false;
+
+  return true;
+}
+
+function getNodeUpgradeCost(state, nodeId) {
+  const node         = TALENT_NODES.find(n => n.id === nodeId);
+  const currentLevel = (state.player.talentLevels || {})[nodeId] || 0;
+  return Math.floor(eval(node.costFormula.replace("nivel", currentLevel)));
+}
+
+function applyNodeUpgrade(state, nodeId) {
+  if (!canUnlockNode(state, nodeId)) return state;
+
+  const cost         = getNodeUpgradeCost(state, nodeId);
+  const currentLevel = (state.player.talentLevels || {})[nodeId] || 0;
+  const newLevel     = currentLevel + 1;
+
+  let p = {
+    ...state.player,
+    talentPoints: state.player.talentPoints - cost,
+    talentLevels: { ...(state.player.talentLevels || {}), [nodeId]: newLevel },
+    unlockedTalents: [...new Set([...(state.player.unlockedTalents || []), nodeId])],
+  };
+
+  // Aplicar efectos de aura/passive inmediatamente
+  p = applyTalentEffect(p, nodeId, newLevel);
+  return { ...state, player: refreshStats(p) };
+}
+
+function getAvailableNodes(state) {
+  return TALENT_NODES.filter(node => {
+    const currentLevel = (state.player.talentLevels || {})[node.id] || 0;
+    if (currentLevel >= node.maxLevel) return false;
+    return canUnlockNode(state, node.id);
+  });
+}
+
+9. BUILDS EJEMPLO
+Build 1 — Glass Cannon Berserker
+Concepto: máximo daño, cero sustain, morís o matás.
+Ruta de talentos (orden):
+1. w_dmg_1 (x3)           → daño base sólido
+2. bsk_1 (x2)             → lifesteal en crits para algo de sustain
+3. w_dmg_2 (x3)           → crit chance
+4. bsk_2 (x2)             → frenesí por velocidad
+5. bsk_alt_1 (x3)         → Deseo de Muerte (daño por HP bajo)
+6. w_dmg_3 (x2)           → Golpe Devastador
+7. w_dmg_keystone         → Señor de la Guerra
+8. bsk_bridge_core (x2)   → Furia Vampírica
+9. w_dmg_inf (x5+)        → Maestría de Combate
+
+TP totales aproximados: 35-40
+Trade-offs: muere si el boss tiene mecánica de burst. Destroza tiers medios pero en tiers altos necesita micro-gestión de HP. El Deseo de Muerte es mejor cuanto más bajo esté el HP — genera tensión constante.
+
+Build 2 — Bruiser Sostenible
+Concepto: daño moderado, altísima supervivencia, farmea indefinidamente.
+Ruta de talentos (orden):
+1. w_sus_1 (x2)           → Segundo Aliento como base
+2. w_sus_2 (x3)           → defensa sólida
+3. w_dmg_1 (x2)           → algo de daño base
+4. w_bridge_dmg_sus (x2)  → Golpe de Escudo (daño desde defensa)
+5. w_sus_3 (x3)           → regen por tick
+6. w_sus_keystone         → Fortaleza Inquebrantable
+7. jug_1 (x3)             → si spec Juggernaut
+8. jug_2 (x3)             → Piel de Hierro
+9. w_sus_inf (x5+)        → Resistencia Eterna
+
+TP totales aproximados: 35-42
+Trade-offs: DPS bajo — tarda más en matar. Ideal para farmear tiers donde el glass cannon moriría. El Golpe de Escudo hace que la defensa tenga doble valor (sobrevivir + pegar).
+
+Build 3 — Thorns Retaliation Juggernaut
+Concepto: que el enemigo se destruya solo atacándote. No necesitás daño activo.
+Ruta de talentos (orden):
+1. jug_1 (x5)             → defensa máxima como base
+2. jug_alt_1 (x5)         → Espinas al máximo
+3. w_sus_1 (x2)           → Segundo Aliento para emergencias
+4. w_sus_2 (x3)           → más defensa = más thorns effectiveness
+5. w_bridge_sus_util (x2) → Fortaleza Rentable (oro por defensa)
+6. jug_2 (x3)             → Piel de Hierro (más defensa reactiva)
+7. jug_alt_2 (x2)         → Coloso (HP a daño como backup)
+8. jug_bridge_core (x2)   → Muro de Hierro
+9. jug_keystone           → Imparable
+10. jug_inf (x5+)         → más HP = más buffer para thorns
+
+TP totales aproximados: 42-48
+Trade-offs: ineficaz contra enemies que pegan poco y tienen mucho HP (regen > thorns). Devastador contra enemies que atacan frecuentemente. En tiers altos donde el enemy daño es alto, los thorns escalan naturalmente. Genera mucho oro gracias al puente Fortaleza Rentable.

@@ -1,0 +1,661 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { getPlayerBuildTag } from "../utils/buildIdentity";
+import { getLootHighlights } from "../utils/lootHighlights";
+import { getRarityColor } from "../constants/rarity";
+import {
+  ITEM_STAT_LABELS as STAT_LABELS,
+  formatItemNumber as formatNumber,
+  formatItemStatValue as formatStatValue,
+  formatItemDiffValue as formatDiffValue,
+  getUpgradeDisplay,
+  getItemStats,
+  getImplicitEntries,
+  formatImplicitSummary,
+  getAffixEntries,
+  getAffixDots,
+  getPrioritizedStatEntries,
+  formatEconomySummary,
+  getTopCompareEntries,
+  getCompareSummary,
+  getItemLocation,
+  getWorkedLabel,
+} from "../utils/itemPresentation";
+
+const BULK_SELL_RARITIES = ["common", "magic", "rare", "epic"];
+const AUTO_LOOT_RARITIES = ["common", "magic", "rare", "epic"];
+
+function getCardHighlights(highlights = []) {
+  return highlights.filter(highlight => !["t1", "legendary", "epic"].includes(highlight.id));
+}
+
+export default function Inventory({ state, player, dispatch }) {
+  const [pendingBulkSell, setPendingBulkSell] = useState(null);
+  const [pendingSellId, setPendingSellId] = useState(null);
+  const [detailItemId, setDetailItemId] = useState(null);
+  const [showAffixFilters, setShowAffixFilters] = useState(false);
+  const [selectedAffixFilters, setSelectedAffixFilters] = useState([]);
+  const [showOnlyUpgrades, setShowOnlyUpgrades] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const isDarkMode = state?.settings?.theme === "dark";
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingBulkSell) return undefined;
+    const timer = setTimeout(() => setPendingBulkSell(null), 2200);
+    return () => clearTimeout(timer);
+  }, [pendingBulkSell]);
+
+  useEffect(() => {
+    if (!pendingSellId) return undefined;
+    const timer = setTimeout(() => setPendingSellId(null), 2200);
+    return () => clearTimeout(timer);
+  }, [pendingSellId]);
+
+  const inventory = player.inventory || [];
+  const equipment = player.equipment || { weapon: null, armor: null };
+  const activeBuildTag = getPlayerBuildTag(player);
+  const lootRules = state?.settings?.lootRules || { autoSellRarities: [], autoExtractRarities: [], wishlistAffixes: [] };
+  const wishlistAffixes = lootRules.wishlistAffixes || [];
+  const availableAffixFilters = ["damage", "attackSpeed", "critChance", "critDamage", "lifesteal", "defense", "healthMax", "healthRegen", "blockChance", "dodgeChance", "thorns", "goldBonus", "xpBonus", "essenceBonus", "lootBonus", "luck", "cooldownReduction", "skillPower"];
+
+  const sortedItems = useMemo(() => {
+    const filteredItems = inventory.filter(item => {
+      if (selectedAffixFilters.length === 0) return true;
+      const presentStats = new Set([
+        ...Object.keys(item.bonus || {}).filter(key => (item.bonus?.[key] || 0) > 0),
+        ...Object.keys(item.implicitBonus || {}).filter(key => (item.implicitBonus?.[key] || 0) > 0),
+        ...(item.affixes || []).map(affix => affix.stat),
+      ]);
+      if (!selectedAffixFilters.every(stat => presentStats.has(stat))) return false;
+      if (showOnlyUpgrades) {
+        const compareItem = item.type === "weapon" ? equipment.weapon : equipment.armor;
+        return (item.rating || 0) > (compareItem?.rating || 0);
+      }
+      return true;
+    });
+
+    return [...filteredItems].sort((a, b) => {
+      const ratingDiff = (b.rating || 0) - (a.rating || 0);
+      if (ratingDiff !== 0) return ratingDiff;
+      return (b.level || 0) - (a.level || 0);
+    });
+  }, [inventory, selectedAffixFilters, showOnlyUpgrades, equipment]);
+
+  const detailItem = [...inventory, ...(equipment.weapon ? [equipment.weapon] : []), ...(equipment.armor ? [equipment.armor] : [])]
+    .find(item => item.id === detailItemId) || null;
+  const detailItemLocation = detailItem ? getItemLocation(detailItem, equipment) : null;
+
+  const bulkSellGroups = BULK_SELL_RARITIES.map(rarity => {
+    const items = sortedItems.filter(item => item.rarity === rarity);
+    return {
+      rarity,
+      items,
+      gold: items.reduce((total, item) => total + (item.sellValue || 0), 0),
+    };
+  });
+
+  const upgradeCount = inventory.filter(item => {
+    const compareItem = item.type === "weapon" ? equipment.weapon : equipment.armor;
+    return (item.rating || 0) > (compareItem?.rating || 0);
+  }).length;
+
+  return (
+    <div style={{ padding: isMobile ? "0.9rem" : "1.25rem", maxWidth: "100%", display: "flex", flexDirection: "column", gap: "0.9rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+      <header style={{ borderBottom: "1px solid var(--color-border-primary, #e2e8f0)", paddingBottom: "0.8rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.7rem", gap: "12px" }}>
+          <div>
+            <div style={{ fontSize: "0.92rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>Mochila ({inventory.length}/50)</div>
+            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "2px" }}>
+              {upgradeCount > 0 ? `${upgradeCount} upgrades potenciales · ordenado por rating` : "Ordenado por rating · toca un item para verlo completo"}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section>
+        <div style={{ ...sectionTitleStyle, marginBottom: "0.7rem" }}>Equipado</div>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+          <EquippedCard title="Arma" item={equipment.weapon} activeBuildTag={activeBuildTag} wishlistAffixes={wishlistAffixes} isDarkMode={isDarkMode} onOpen={() => equipment.weapon && setDetailItemId(equipment.weapon.id)} />
+          <EquippedCard title="Armadura" item={equipment.armor} activeBuildTag={activeBuildTag} wishlistAffixes={wishlistAffixes} isDarkMode={isDarkMode} onOpen={() => equipment.armor && setDetailItemId(equipment.armor.id)} />
+        </div>
+      </section>
+
+      <section>
+        <div style={{ marginBottom: "0.8rem", background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "10px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+            <div style={{ ...sectionTitleStyle, marginBottom: 0 }}>Loot Filter / Auto Loot</div>
+            <button
+              onClick={() => setShowAffixFilters(current => !current)}
+              title="Filtrar por affixes"
+              style={{ border: "1px solid var(--color-border-secondary, #cbd5e1)", background: showAffixFilters ? "var(--color-background-tertiary, #e0f2fe)" : "var(--color-background-secondary, #fff)", color: showAffixFilters ? "#0369a1" : "var(--color-text-secondary, #475569)", borderRadius: "999px", width: "28px", height: "28px", fontSize: "1rem", fontWeight: "900", cursor: "pointer", lineHeight: 1 }}
+            >
+              +
+            </button>
+          </div>
+          <div style={{ display: "grid", gap: "8px" }}>
+            <AutoRuleRow
+              label="Auto-vender"
+              activeRarities={lootRules.autoSellRarities || []}
+              blockedRarities={lootRules.autoExtractRarities || []}
+              isDarkMode={isDarkMode}
+              onToggle={rarity => {
+                const current = new Set(lootRules.autoSellRarities || []);
+                if (current.has(rarity)) current.delete(rarity);
+                else current.add(rarity);
+                const nextExtract = (lootRules.autoExtractRarities || []).filter(item => item !== rarity);
+                dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { autoSellRarities: [...current], autoExtractRarities: nextExtract } });
+              }}
+            />
+            <AutoRuleRow
+              label="Auto-extraer"
+              activeRarities={lootRules.autoExtractRarities || []}
+              blockedRarities={lootRules.autoSellRarities || []}
+              isDarkMode={isDarkMode}
+              onToggle={rarity => {
+                const current = new Set(lootRules.autoExtractRarities || []);
+                if (current.has(rarity)) current.delete(rarity);
+                else current.add(rarity);
+                const nextSell = (lootRules.autoSellRarities || []).filter(item => item !== rarity);
+                dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { autoExtractRarities: [...current], autoSellRarities: nextSell } });
+              }}
+            />
+            {showAffixFilters && (
+              <div style={{ background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "10px", padding: "10px" }}>
+                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", fontWeight: "900", marginBottom: "8px" }}>Wishlist de affixes</div>
+                <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #64748b)", fontWeight: "700", marginBottom: "8px" }}>
+                  Marca stats que queres chasear: el loot con esos affixes se resalta automaticamente.
+                </div>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "10px" }}>
+                  {availableAffixFilters.map(stat => {
+                    const active = wishlistAffixes.includes(stat);
+                    return (
+                      <button
+                        key={`wish-${stat}`}
+                        onClick={() => {
+                          const next = active ? wishlistAffixes.filter(item => item !== stat) : [...wishlistAffixes, stat];
+                          dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { wishlistAffixes: next } });
+                        }}
+                        style={{
+                          border: "1px solid",
+                          borderColor: active ? (isDarkMode ? "rgba(45,212,191,0.45)" : "#99f6e4") : "var(--color-border-primary, #e2e8f0)",
+                          background: active ? (isDarkMode ? "rgba(13,148,136,0.16)" : "#f0fdfa") : "var(--color-background-secondary, #fff)",
+                          color: active ? (isDarkMode ? "#5eead4" : "#115e59") : "var(--color-text-secondary, #475569)",
+                          borderRadius: "999px",
+                          padding: "6px 9px",
+                          fontSize: "0.62rem",
+                          fontWeight: "900",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {STAT_LABELS[stat] || stat}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", fontWeight: "900", marginBottom: "8px" }}>Mostrar solo items con estos affixes</div>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {availableAffixFilters.map(stat => {
+                    const active = selectedAffixFilters.includes(stat);
+                    return (
+                      <button
+                        key={stat}
+                        onClick={() => {
+                          setSelectedAffixFilters(current => current.includes(stat) ? current.filter(item => item !== stat) : [...current, stat]);
+                        }}
+                        style={{
+                          border: "1px solid",
+                          borderColor: active ? (isDarkMode ? "rgba(125,211,252,0.42)" : "#bae6fd") : "var(--color-border-primary, #e2e8f0)",
+                          background: active ? (isDarkMode ? "rgba(3,105,161,0.18)" : "#f0f9ff") : "var(--color-background-secondary, #fff)",
+                          color: active ? (isDarkMode ? "#7dd3fc" : "#075985") : "var(--color-text-secondary, #475569)",
+                          borderRadius: "999px",
+                          padding: "6px 9px",
+                          fontSize: "0.62rem",
+                          fontWeight: "900",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {STAT_LABELS[stat] || stat}
+                      </button>
+                    );
+                  })}
+                  {selectedAffixFilters.length > 0 && (
+                    <button
+                      onClick={() => setSelectedAffixFilters([])}
+                      style={{ border: `1px solid ${isDarkMode ? "rgba(244,114,182,0.42)" : "#fecaca"}`, background: isDarkMode ? "rgba(190,24,93,0.18)" : "#fff1f2", color: isDarkMode ? "#fda4af" : "#be123c", borderRadius: "999px", padding: "6px 9px", fontSize: "0.62rem", fontWeight: "900", cursor: "pointer" }}
+                    >
+                      Limpiar
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", gap: "10px", flexWrap: "wrap" }}>
+          <div style={{ ...sectionTitleStyle, marginBottom: 0 }}>Inventario</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <button
+              onClick={() => setShowOnlyUpgrades(current => !current)}
+              style={{
+                border: "1px solid",
+                borderColor: showOnlyUpgrades ? (isDarkMode ? "rgba(16,185,129,0.45)" : "#86efac") : "var(--color-border-primary, #e2e8f0)",
+                background: showOnlyUpgrades ? (isDarkMode ? "rgba(4,120,87,0.18)" : "#ecfdf5") : "var(--color-background-secondary, #fff)",
+                color: showOnlyUpgrades ? (isDarkMode ? "#6ee7b7" : "#166534") : "var(--color-text-secondary, #64748b)",
+                borderRadius: "999px",
+                padding: "5px 10px",
+                fontSize: "0.62rem",
+                fontWeight: "900",
+                cursor: "pointer",
+              }}
+            >
+              {showOnlyUpgrades ? "Solo upgrades: ON" : "Solo upgrades"}
+            </button>
+            <span style={{ fontSize: "0.66rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>{sortedItems.length} visibles</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "0.8rem", alignItems: "center" }}>
+          <span style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #475569)", fontWeight: "900" }}>Vender:</span>
+          {bulkSellGroups.map(group => (
+            <button
+              key={group.rarity}
+              disabled={group.items.length === 0}
+              onClick={() => {
+                if (pendingBulkSell !== group.rarity) {
+                  setPendingBulkSell(group.rarity);
+                  return;
+                }
+                dispatch({ type: "SELL_ITEMS", itemIds: group.items.map(item => item.id) });
+                setPendingBulkSell(null);
+              }}
+              style={{
+                ...quickActionButtonStyle,
+                background: pendingBulkSell === group.rarity ? (isDarkMode ? "rgba(153,27,27,0.38)" : "#7f1d1d") : group.items.length > 0 ? (isDarkMode ? "rgba(154,52,18,0.18)" : "#fff8f1") : "var(--color-background-tertiary, #f8fafc)",
+                color: pendingBulkSell === group.rarity ? "#fff" : group.items.length > 0 ? (isDarkMode ? "#fdba74" : "#9a3412") : "var(--color-text-tertiary, #94a3b8)",
+                borderColor: pendingBulkSell === group.rarity ? "#ef4444" : group.items.length > 0 ? (isDarkMode ? "rgba(251,146,60,0.4)" : "#fed7aa") : "var(--color-border-primary, #e2e8f0)",
+                cursor: group.items.length > 0 ? "pointer" : "not-allowed",
+              }}
+            >
+              {pendingBulkSell === group.rarity
+                ? `Confirmar ${group.rarity} · ${group.items.length} · ${formatNumber(group.gold)}g`
+                : `${group.rarity} · ${group.items.length} · ${formatNumber(group.gold)}g`}
+            </button>
+          ))}
+        </div>
+
+        {inventory.length === 0 ? (
+          <div style={emptyStateStyle}>No tenes objetos en la mochila</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+            {sortedItems.map(item => (
+              <InventoryRow
+                key={item.id}
+                item={item}
+                equippedCompare={item.type === "weapon" ? equipment.weapon : equipment.armor}
+                activeBuildTag={activeBuildTag}
+                wishlistAffixes={wishlistAffixes}
+                isDarkMode={isDarkMode}
+                isMobile={isMobile}
+                pendingSell={pendingSellId === item.id}
+                onOpen={() => setDetailItemId(item.id)}
+                onEquip={() => dispatch({ type: "EQUIP_ITEM", item })}
+                onSell={() => {
+                  if (pendingSellId !== item.id) {
+                    setPendingSellId(item.id);
+                    return;
+                  }
+                  dispatch({ type: "SELL_ITEM", item });
+                  setPendingSellId(null);
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {detailItem && (
+        <ItemDetailModal
+          item={detailItem}
+          equippedCompare={detailItem.type === "weapon" ? equipment.weapon : equipment.armor}
+          activeBuildTag={activeBuildTag}
+          wishlistAffixes={wishlistAffixes}
+          isDarkMode={isDarkMode}
+          onClose={() => setDetailItemId(null)}
+          onEquip={() => dispatch({ type: "EQUIP_ITEM", item: detailItem })}
+          onSell={() => dispatch({ type: "SELL_ITEM", item: detailItem })}
+          canSell={!detailItemLocation}
+        />
+      )}
+    </div>
+  );
+}
+
+function AutoRuleRow({ label, activeRarities, blockedRarities, onToggle, isDarkMode = false }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+      <span style={{ fontSize: "0.7rem", fontWeight: "900", color: "var(--color-text-secondary, #475569)", minWidth: "88px" }}>{label}</span>
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+        {AUTO_LOOT_RARITIES.map(rarity => {
+          const active = activeRarities.includes(rarity);
+          const blocked = blockedRarities.includes(rarity);
+          return (
+            <button
+              key={rarity}
+              disabled={blocked}
+              onClick={() => onToggle(rarity)}
+              style={{
+                border: "1px solid",
+                borderColor: active ? (isDarkMode ? "rgba(45,212,191,0.45)" : "#86efac") : "var(--color-border-primary, #e2e8f0)",
+                background: active ? (isDarkMode ? "rgba(13,148,136,0.16)" : "#f0fdf4") : "var(--color-background-secondary, #fff)",
+                color: blocked ? "var(--color-text-tertiary, #cbd5e1)" : active ? (isDarkMode ? "#6ee7b7" : "#166534") : "var(--color-text-secondary, #475569)",
+                opacity: blocked ? 0.5 : 1,
+                borderRadius: "999px",
+                padding: "6px 9px",
+                fontSize: "0.62rem",
+                fontWeight: "900",
+                textTransform: "uppercase",
+                cursor: blocked ? "not-allowed" : "pointer",
+              }}
+            >
+              {rarity}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode = false, onOpen }) {
+  if (!item) {
+    return <div style={{ ...compactCardStyle, border: "1px dashed var(--color-border-secondary, #cbd5e1)", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--color-text-tertiary, #94a3b8)", justifyContent: "center", minHeight: "76px" }}><span style={{ fontSize: "0.72rem", fontWeight: "900", letterSpacing: "0.05em", textTransform: "uppercase" }}>{title} vacio</span></div>;
+  }
+
+  const stats = getItemStats(item);
+  const hasPerfect = (item.affixes || []).some(affix => affix.perfectRoll);
+  const affixDots = getAffixDots(item);
+  const implicitEntries = getImplicitEntries(item);
+  const topStats = getPrioritizedStatEntries(stats, 3);
+  const highlights = getCardHighlights(getLootHighlights({ item, equippedItem: item, activeBuildTag, wishlistAffixes })).slice(0, 2);
+  const workedLabel = getWorkedLabel(item);
+  const economySummary = formatEconomySummary(stats);
+
+  return (
+    <div
+      onClick={onOpen}
+      style={{ ...compactCardStyle, borderLeft: `4px solid ${getRarityColor(item.rarity)}`, cursor: "pointer", gap: "8px" }}
+      title="Ver detalle"
+    >
+      {hasPerfect && (
+        <div style={{ position: "absolute", top: "6px", right: "8px", fontSize: "0.8rem", color: "var(--tone-warning, #f59e0b)", textShadow: "0 1px 8px rgba(245,158,11,0.4)" }}>★</div>
+      )}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "8px" }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: "0.72rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", marginBottom: "2px" }}>{title}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+            <div style={{ fontWeight: "900", color: "var(--color-text-primary, #1e293b)", fontSize: "0.78rem", lineHeight: 1.2 }}>{item.name}</div>
+            {workedLabel && <span style={workedBadgeStyle(isDarkMode)}>{workedLabel}</span>}
+          </div>
+          <div style={{ fontSize: "0.58rem", color: getRarityColor(item.rarity), textTransform: "uppercase", fontWeight: "800", marginTop: "2px" }}>
+            {item.rarity}{getUpgradeDisplay(item.level) ? ` · ${getUpgradeDisplay(item.level)}` : ""}{item.familyName ? ` · ${item.familyName}` : ""}
+          </div>
+        </div>
+        <span style={{ color: "var(--tone-warning, #f59e0b)", fontSize: "0.78rem", fontWeight: "900", whiteSpace: "nowrap" }}>{formatNumber(item.rating || 0)}</span>
+      </div>
+
+      {highlights.length > 0 && (
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          {highlights.map(highlight => <span key={highlight.id} style={highlightBadgeStyle(highlight.tone, isDarkMode)}>{highlight.label}</span>)}
+        </div>
+      )}
+
+      {affixDots.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "0.52rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", marginRight: "2px" }}>
+            Affix
+          </span>
+          {affixDots.map(dot => (
+            <span key={dot.key} title={dot.label} style={{ fontSize: "0.62rem", fontWeight: "900", color: dot.color }}>
+              {dot.symbol}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {topStats.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+          {topStats.map(([key, value]) => (
+            <div key={key} style={miniStatPillStyle}>
+              {STAT_LABELS[key]} <strong style={{ color: "var(--color-text-primary, #1e293b)" }}>+{formatStatValue(key, value)}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+      {economySummary && <div style={{ fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>Eco: {economySummary}</div>}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap", fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
+        <span>{(item.affixes || []).length} affixes</span>
+        {implicitEntries.length > 0 && <span>Implicit: {formatImplicitSummary(item)}</span>}
+      </div>
+      <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", textTransform: "uppercase" }}>Toca para ver detalle</div>
+    </div>
+  );
+}
+
+function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, isDarkMode = false, isMobile = false, pendingSell, onOpen, onEquip, onSell }) {
+  const color = getRarityColor(item.rarity);
+  const compareItem = equippedCompare || { bonus: {}, rating: 0 };
+  const isBetter = (item.rating || 0) > (compareItem.rating || 0);
+  const hasPerfect = (item.affixes || []).some(affix => affix.perfectRoll);
+  const affixDots = getAffixDots(item);
+  const implicitEntries = getImplicitEntries(item);
+  const highlights = getCardHighlights(getLootHighlights({ item, equippedItem: equippedCompare, activeBuildTag, wishlistAffixes })).slice(0, 1);
+  const compareEntries = getTopCompareEntries(item, compareItem, isMobile ? 3 : 4);
+  const topStats = getPrioritizedStatEntries(item.bonus || {}, 3);
+  const compareSummary = getCompareSummary(item, compareItem);
+  const workedLabel = getWorkedLabel(item);
+  const economySummary = formatEconomySummary(item.bonus || {});
+  return (
+    <div style={{ ...compactCardStyle, borderLeft: `4px solid ${color}`, gap: "8px" }}>
+      {hasPerfect && (
+        <div style={{ position: "absolute", top: "6px", right: "8px", fontSize: "0.8rem", color: "var(--tone-warning, #f59e0b)", textShadow: "0 1px 8px rgba(245,158,11,0.4)" }}>★</div>
+      )}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px" }}>
+        <button onClick={onOpen} style={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", background: "none", padding: 0, cursor: "pointer" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+            <span style={{ fontWeight: "900", fontSize: "0.82rem", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.2 }}>{item.name}</span>
+            {isBetter && <span style={betterBadgeStyle(isDarkMode)}>MEJOR</span>}
+            {workedLabel && <span style={workedBadgeStyle(isDarkMode)}>{workedLabel}</span>}
+          </div>
+          <div style={{ fontSize: "0.58rem", color, textTransform: "uppercase", fontWeight: "800", marginTop: "2px" }}>
+            {item.rarity}{getUpgradeDisplay(item.level) ? ` · ${getUpgradeDisplay(item.level)}` : ""}{item.familyName ? ` · ${item.familyName}` : ""}
+          </div>
+        </button>
+        <div style={{ color: "var(--tone-warning, #f59e0b)", fontWeight: "900", fontSize: "0.86rem", whiteSpace: "nowrap" }}>{formatNumber(item.rating || 0)}</div>
+      </div>
+
+      {highlights.length > 0 && (
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          {highlights.map(highlight => <span key={highlight.id} style={highlightBadgeStyle(highlight.tone, isDarkMode)}>{highlight.label}</span>)}
+        </div>
+      )}
+
+      {affixDots.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "0.52rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", marginRight: "2px" }}>
+            Affix
+          </span>
+          {affixDots.map(dot => (
+            <span key={dot.key} title={dot.label} style={{ fontSize: "0.62rem", fontWeight: "900", color: dot.color }}>
+              {dot.symbol}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div style={{ borderTop: "1px solid var(--color-border-primary, #eef2f7)", paddingTop: "6px", display: "flex", flexDirection: "column", gap: "6px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap", fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
+          <span>{compareSummary}</span>
+          <span>{(item.affixes || []).length} affixes</span>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+          {(compareEntries.length > 0 ? compareEntries : topStats.map(([key, currentVal]) => ({ key, currentVal, diff: currentVal }))).map(entry => (
+            <span
+              key={`quick-${entry.key}`}
+              style={{
+                ...miniStatPillStyle,
+                color: entry.diff > 0 ? "var(--tone-success-strong, #166534)" : entry.diff < 0 ? "var(--tone-danger, #D85A30)" : "var(--color-text-secondary, #64748b)",
+                background: entry.diff > 0 ? "var(--tone-success-soft, #ecfdf5)" : entry.diff < 0 ? "var(--tone-danger-soft, #fff1f2)" : "var(--color-background-tertiary, #f1f5f9)",
+              }}
+            >
+              {STAT_LABELS[entry.key]} <strong>{entry.diff !== 0 ? formatDiffValue(entry.key, entry.diff) : `+${formatStatValue(entry.key, entry.currentVal)}`}</strong>
+            </span>
+          ))}
+        </div>
+        {economySummary && <div style={{ fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>Eco: {economySummary}</div>}
+      </div>
+
+      {implicitEntries.length > 0 && <div style={{ fontSize: "0.62rem", color: "var(--color-text-info, #4338ca)", fontWeight: "800" }}>Implicit: {formatImplicitSummary(item)}</div>}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+        <button onClick={onEquip} style={{ ...btnBase, background: "var(--tone-accent-soft, #ede9fe)", color: "var(--tone-accent, #534AB7)", padding: "8px 10px" }}>EQUIPAR</button>
+        <button onClick={onSell} style={{ ...btnBase, background: pendingSell ? "#7f1d1d" : "var(--color-background-secondary, #ffffff)", color: pendingSell ? "#fff" : "#D85A30", border: `1px solid ${pendingSell ? "#ef4444" : "#D85A30"}` }}>
+          {pendingSell ? `CONFIRMAR ${formatNumber(item.sellValue || 0)}g` : `VENDER ${formatNumber(item.sellValue || 0)}g`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ItemDetailModal({ item, equippedCompare, activeBuildTag, wishlistAffixes, isDarkMode = false, onClose, onEquip, onSell, canSell = true }) {
+  const compareItem = equippedCompare || { bonus: {}, rating: 0 };
+  const stats = getItemStats(item);
+  const affixes = getAffixEntries(item);
+  const highlights = getLootHighlights({ item, equippedItem: equippedCompare, activeBuildTag, wishlistAffixes });
+
+  return (
+    <div style={modalWrapStyle} onClick={onClose}>
+      <div style={modalCardStyle} onClick={event => event.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" }}>
+          <div>
+            <div style={{ fontSize: "0.6rem", color: getRarityColor(item.rarity), textTransform: "uppercase", fontWeight: "900" }}>{item.rarity} · {item.familyName || "Sin familia"}{getUpgradeDisplay(item.level) ? ` · ${getUpgradeDisplay(item.level)}` : ""}</div>
+            <div style={{ fontSize: "1rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", marginTop: "2px" }}>{item.name}{getUpgradeDisplay(item.level) ? ` ${getUpgradeDisplay(item.level)}` : ""}</div>
+            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>Rating {formatNumber(item.rating || 0)} · Comparado con equipado: {formatNumber((item.rating || 0) - (equippedCompare?.rating || 0))}</div>
+          </div>
+          <button onClick={onClose} style={{ border: "none", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", width: "32px", height: "32px", borderRadius: "999px", cursor: "pointer", fontWeight: "900" }}>×</button>
+        </div>
+
+        {highlights.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>{highlights.map(highlight => <span key={highlight.id} style={highlightBadgeStyle(highlight.tone, isDarkMode)}>{highlight.label}</span>)}</div>}
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px", maxHeight: "48vh", overflowY: "auto" }}>
+          {affixes.length > 0 && (
+            <section style={{ ...detailBlockStyle, background: isDarkMode ? "rgba(30,64,175,0.1)" : "#f8fbff", borderColor: isDarkMode ? "rgba(96,165,250,0.28)" : "#dbeafe" }}>
+              <div style={{ ...detailTitleStyle, color: isDarkMode ? "#93c5fd" : "#1d4ed8" }}>Affixes</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+                {affixes.map((affix, index) => (
+                  <div
+                    key={`${affix.id}-${index}`}
+                    style={{
+                      border: affix.perfectRoll ? (isDarkMode ? "1px solid rgba(245,158,11,0.52)" : "1px solid #f59e0b") : (isDarkMode ? "1px solid rgba(147,197,253,0.32)" : "1px solid #dbeafe"),
+                      borderRadius: "10px",
+                      padding: "8px",
+                      background: affix.perfectRoll ? (isDarkMode ? "rgba(217,119,6,0.18)" : "#fffbeb") : affix.tier === 1 ? (isDarkMode ? "rgba(37,99,235,0.16)" : "#eff6ff") : "var(--color-background-secondary, #ffffff)",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+                      <div style={{ fontSize: "0.74rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>{STAT_LABELS[affix.stat] || affix.stat}</div>
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        <span style={{ fontSize: "0.58rem", fontWeight: "900", color: affix.tier === 1 ? (isDarkMode ? "#fcd34d" : "#b45309") : (isDarkMode ? "#93c5fd" : "#1d4ed8"), background: affix.tier === 1 ? (isDarkMode ? "rgba(217,119,6,0.24)" : "#fef3c7") : (isDarkMode ? "rgba(30,64,175,0.24)" : "#dbeafe"), padding: "2px 6px", borderRadius: "999px" }}>T{affix.tier}</span>
+                        {affix.perfectRoll && <span style={{ fontSize: "0.58rem", fontWeight: "900", color: isDarkMode ? "#fde68a" : "#a16207", background: isDarkMode ? "rgba(161,98,7,0.28)" : "#fefce8", padding: "2px 6px", borderRadius: "999px" }}>PERFECT</span>}
+                        {wishlistAffixes.includes(affix.stat) && <span style={{ fontSize: "0.58rem", fontWeight: "900", color: isDarkMode ? "#5eead4" : "#0f766e", background: isDarkMode ? "rgba(13,148,136,0.24)" : "#ccfbf1", padding: "2px 6px", borderRadius: "999px" }}>WISHLIST</span>}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: "0.78rem", color: affix.perfectRoll ? "#b45309" : "var(--color-text-primary, #0f172a)", fontWeight: "900", marginTop: "4px" }}>+{formatStatValue(affix.stat, affix.rolledValue ?? affix.value ?? 0)}</div>
+                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>Rango del tier: {formatStatValue(affix.stat, affix.range?.min ?? 0)} - {formatStatValue(affix.stat, affix.range?.max ?? 0)}</div>
+                    <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "3px" }}>{affix.kind === "prefix" ? "Prefijo" : "Sufijo"} · {affix.label || affix.tierLabel || `T${affix.tier}`}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section style={detailBlockStyle}>
+            <div style={detailTitleStyle}>Item Stats</div>
+            {(() => {
+              const statKeys = Object.keys(STAT_LABELS).filter(key => (stats[key] || 0) > 0 || (compareItem.bonus?.[key] || 0) > 0);
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "7px" }}>
+                  {[0, 1].map(columnIndex => (
+                    <div key={columnIndex} style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "8px", padding: "6px", background: "var(--color-background-tertiary, #f8fafc)", display: "grid", gap: "6px", alignContent: "start" }}>
+                      {statKeys.filter((_, index) => index % 2 === columnIndex).map(key => {
+                        const currentVal = stats[key] || 0;
+                        const equippedVal = compareItem.bonus?.[key] || 0;
+                        const diff = currentVal - equippedVal;
+                        return (
+                          <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px", minWidth: 0 }}>
+                            <span style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #475569)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{STAT_LABELS[key]}</span>
+                            <div style={{ display: "flex", gap: "4px", alignItems: "center", flexShrink: 0 }}>
+                              <span style={{ color: "var(--color-text-primary, #1e293b)", fontWeight: "900", fontSize: "0.66rem" }}>{formatStatValue(key, currentVal)}</span>
+                              <span style={diffBadgeStyle(diff)}>{formatDiffValue(key, diff)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </section>
+
+          <section style={detailBlockStyle}>
+            <div style={detailTitleStyle}>Historial de Crafting</div>
+            <div style={detailRowStyle}><span>Rerolls</span><span style={{ fontWeight: "900" }}>{item.crafting?.rerollCount || 0}</span></div>
+            <div style={detailRowStyle}><span>Pulidos</span><span style={{ fontWeight: "900" }}>{item.crafting?.polishCount || 0}</span></div>
+            <div style={detailRowStyle}><span>Reforjas</span><span style={{ fontWeight: "900" }}>{item.crafting?.reforgeCount || 0}</span></div>
+          </section>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+          <button onClick={onEquip} style={{ ...btnBase, background: "var(--tone-accent-soft, #ede9fe)", color: "var(--tone-accent, #534AB7)", padding: "10px" }}>EQUIPAR</button>
+          <button
+            onClick={onSell}
+            disabled={!canSell}
+            style={{ ...btnBase, background: canSell ? "var(--color-background-secondary, #fff)" : "var(--color-background-tertiary, #f8fafc)", color: canSell ? "#D85A30" : "var(--color-text-tertiary, #94a3b8)", border: `1px solid ${canSell ? "#D85A30" : "var(--color-border-primary, #e2e8f0)"}`, cursor: canSell ? "pointer" : "not-allowed" }}
+          >
+            {canSell ? `VENDER ${formatNumber(item.sellValue || 0)}g` : "ITEM EQUIPADO"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const compactCardStyle = { background: "var(--color-background-secondary, #ffffff)", borderRadius: "12px", padding: "10px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 1px 2px var(--color-shadow, rgba(0,0,0,0.05))", display: "flex", flexDirection: "column", gap: "8px", minWidth: 0, position: "relative" };
+const miniStatPillStyle = { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", background: "var(--color-background-tertiary, #f1f5f9)", padding: "2px 6px", borderRadius: "999px", lineHeight: 1.2 };
+const betterBadgeStyle = isDarkMode => ({ background: isDarkMode ? "rgba(22,163,74,0.22)" : "var(--tone-success-soft, #ecfdf5)", color: isDarkMode ? "var(--tone-success, #86efac)" : "var(--tone-success-strong, #166534)", fontSize: "0.54rem", padding: "2px 6px", borderRadius: "999px", fontWeight: "900", letterSpacing: "0.03em", border: `1px solid ${isDarkMode ? "rgba(34,197,94,0.44)" : "var(--tone-success, #bbf7d0)"}` });
+const workedBadgeStyle = isDarkMode => ({ background: isDarkMode ? "rgba(59,130,246,0.2)" : "var(--tone-accent-soft, #eef2ff)", color: isDarkMode ? "var(--tone-accent, #bfdbfe)" : "var(--tone-accent, #4338ca)", fontSize: "0.54rem", padding: "2px 6px", borderRadius: "999px", fontWeight: "900", letterSpacing: "0.03em", border: `1px solid ${isDarkMode ? "rgba(96,165,250,0.4)" : "var(--tone-accent, #c7d2fe)"}` });
+const highlightBadgeStyle = (tone, isDarkMode = false) => {
+  const palette = isDarkMode
+    ? { legendary: { bg: "rgba(194,65,12,0.2)", color: "var(--tone-warning, #fdba74)", border: "rgba(251,146,60,0.45)" }, epic: { bg: "rgba(124,58,237,0.2)", color: "var(--tone-violet, #c4b5fd)", border: "rgba(167,139,250,0.45)" }, perfect: { bg: "rgba(161,98,7,0.2)", color: "var(--tone-warning, #fde68a)", border: "rgba(250,204,21,0.4)" }, t1: { bg: "rgba(37,99,235,0.2)", color: "var(--tone-info, #93c5fd)", border: "rgba(96,165,250,0.45)" }, upgrade: { bg: "rgba(4,120,87,0.22)", color: "var(--tone-success, #6ee7b7)", border: "rgba(16,185,129,0.42)" }, build: { bg: "rgba(3,105,161,0.22)", color: "var(--tone-info, #7dd3fc)", border: "rgba(56,189,248,0.4)" }, offense: { bg: "rgba(190,24,93,0.2)", color: "var(--tone-danger, #fda4af)", border: "rgba(244,114,182,0.42)" }, wishlist: { bg: "rgba(13,148,136,0.22)", color: "var(--tone-success, #5eead4)", border: "rgba(45,212,191,0.42)" }, masterwork: { bg: "rgba(154,52,18,0.24)", color: "var(--tone-warning, #fdba74)", border: "rgba(251,146,60,0.42)" }, forged: { bg: "rgba(67,56,202,0.24)", color: "var(--tone-accent, #c7d2fe)", border: "rgba(129,140,248,0.4)" }, crafted: { bg: "rgba(71,85,105,0.24)", color: "var(--color-text-tertiary, #cbd5e1)", border: "rgba(148,163,184,0.35)" } }
+    : { legendary: { bg: "var(--tone-warning-soft, #fff8f1)", color: "var(--tone-danger, #9a3412)", border: "var(--tone-warning, #fed7aa)" }, epic: { bg: "var(--tone-violet-soft, #faf6ff)", color: "var(--tone-violet, #6d28d9)", border: "var(--tone-violet, #ddd6fe)" }, perfect: { bg: "var(--tone-warning-soft, #fffceb)", color: "#92400e", border: "var(--tone-warning, #fde68a)" }, t1: { bg: "var(--tone-info-soft, #f5f9ff)", color: "var(--tone-info, #1e40af)", border: "var(--tone-info, #bfdbfe)" }, upgrade: { bg: "var(--tone-success-soft, #f0fdf7)", color: "var(--tone-success-strong, #065f46)", border: "var(--tone-success, #bbf7d0)" }, build: { bg: "var(--tone-info-soft, #f0f9ff)", color: "var(--tone-info, #075985)", border: "var(--tone-info, #bae6fd)" }, offense: { bg: "var(--tone-danger-soft, #fff5f7)", color: "var(--tone-danger-strong, #9f1239)", border: "var(--tone-danger, #fecdd3)" }, wishlist: { bg: "var(--tone-success-soft, #f0fdfa)", color: "var(--tone-success-strong, #115e59)", border: "var(--tone-success, #99f6e4)" }, masterwork: { bg: "var(--tone-warning-soft, #fff8f1)", color: "var(--tone-danger, #9a3412)", border: "var(--tone-warning, #fed7aa)" }, forged: { bg: "var(--tone-accent-soft, #f3f4ff)", color: "var(--tone-accent, #4338ca)", border: "var(--tone-accent, #c7d2fe)" }, crafted: { bg: "var(--tone-neutral-soft, #f8fafc)", color: "var(--color-text-secondary, #475569)", border: "var(--color-border-tertiary, #cbd5e1)" } };
+  const chosen = palette[tone] || (isDarkMode ? { bg: "rgba(148,163,184,0.16)", color: "var(--color-text-tertiary, #cbd5e1)", border: "rgba(148,163,184,0.35)" } : { bg: "var(--tone-neutral-soft, #f8fafc)", color: "var(--color-text-secondary, #475569)", border: "var(--color-border-tertiary, #cbd5e1)" });
+  return { fontSize: "0.56rem", fontWeight: "900", color: chosen.color, background: chosen.bg, border: `1px solid ${chosen.border}`, padding: "3px 7px", borderRadius: "999px" };
+};
+const btnBase = { border: "none", borderRadius: "10px", padding: "10px", fontSize: "0.68rem", cursor: "pointer", fontWeight: "900", textAlign: "center" };
+const quickActionButtonStyle = { border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "999px", padding: "7px 10px", fontSize: "0.64rem", fontWeight: "900" };
+const sectionTitleStyle = { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginBottom: "0.7rem", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: "800" };
+const emptyStateStyle = { textAlign: "center", padding: "2rem 1rem", color: "var(--color-text-tertiary, #94a3b8)", border: "2px dashed var(--color-border-primary, #e2e8f0)", borderRadius: "12px", fontSize: "0.82rem", background: "var(--color-background-tertiary, #f8fafc)" };
+const modalWrapStyle = { position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: "18px", zIndex: 7000 };
+const modalCardStyle = { width: "min(760px, 100%)", maxHeight: "85vh", background: "var(--color-background-secondary, #fff)", borderRadius: "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 20px 50px rgba(15,23,42,0.25)", padding: "14px", display: "flex", flexDirection: "column", gap: "12px" };
+const detailBlockStyle = { background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "10px" };
+const detailTitleStyle = { fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", fontWeight: "900", letterSpacing: "0.06em", marginBottom: "8px" };
+const detailRowStyle = { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", padding: "3px 0" };
+const diffBadgeStyle = diff => ({ fontSize: "0.62rem", color: diff > 0 ? "var(--tone-success, #1D9E75)" : diff < 0 ? "var(--tone-danger, #D85A30)" : "var(--color-text-tertiary, #94a3b8)", background: diff > 0 ? "var(--tone-success-soft, #ecfdf5)" : diff < 0 ? "var(--tone-danger-soft, #fff1f2)" : "var(--color-background-tertiary, #f1f5f9)", padding: "2px 5px", borderRadius: "6px", fontWeight: "900" });
+
+

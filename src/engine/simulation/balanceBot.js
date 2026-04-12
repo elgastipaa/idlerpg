@@ -1,0 +1,731 @@
+import { gameReducer } from "../../state/gameReducer";
+import { ACTIVE_GOALS } from "../../data/activeGoals";
+import { PLAYER_UPGRADES } from "../../data/playerUpgrades";
+import { TALENTS } from "../../data/talents";
+import { PRESTIGE_TREE_NODES } from "../../data/prestige";
+import { canPurchasePrestigeNode, calculatePrestigeEchoGain, canPrestige } from "../progression/prestigeEngine";
+import { isGoalCompleted } from "../progression/goalEngine";
+import { calcStats } from "../combat/statEngine";
+import { buildSessionTelemetryEntries, buildSessionTelemetryReport } from "../../utils/runTelemetry";
+import { getPlayerBuildTag } from "../../utils/buildIdentity";
+import { deriveReplayDecisionHints } from "../../utils/replayLog";
+import { buildReforgePreview } from "../crafting/craftingEngine";
+
+const BERSERKER_TALENT_PRIORITY = [
+  "warrior_battle_trance",
+  "warrior_second_wind",
+  "warrior_rampage",
+  "warrior_battle_trance_2",
+  "warrior_second_wind_2",
+  "warrior_rampage_2",
+  "warrior_warlord",
+  "warrior_warlord_2",
+  "warrior_iron_discipline",
+  "warrior_iron_discipline_2",
+  "warrior_veteran_instinct",
+  "warrior_veteran_instinct_2",
+  "warrior_tactical_recovery",
+  "warrior_tactical_recovery_2",
+  "warrior_stalwart_drive",
+  "warrior_stalwart_drive_2",
+  "warrior_precision_drill",
+  "warrior_precision_drill_2",
+  "warrior_campaign_mind",
+  "warrior_campaign_mind_2",
+  "warrior_war_tax",
+  "warrior_war_tax_2",
+  "berserker_bloodlust",
+  "berserker_frenzy",
+  "berserker_open_wounds",
+  "berserker_bloodlust_2",
+  "berserker_frenzy_2",
+  "berserker_open_wounds_2",
+  "berserker_carnage",
+  "berserker_carnage_2",
+  "berserker_razor_focus",
+  "berserker_razor_focus_2",
+  "berserker_butcher_stride",
+  "berserker_butcher_stride_2",
+  "berserker_last_laugh",
+  "berserker_last_laugh_2",
+  "berserker_blood_price",
+  "berserker_blood_price_2",
+  "berserker_reckless_blow",
+  "berserker_reckless_blow_2",
+  "berserker_wild_harvest",
+  "berserker_wild_harvest_2",
+  "berserker_predator_nerve",
+  "berserker_predator_nerve_2",
+  "berserker_riot_heart",
+  "berserker_riot_heart_2",
+];
+
+const JUGGERNAUT_TALENT_PRIORITY = [
+  "warrior_battle_trance",
+  "warrior_second_wind",
+  "warrior_rampage",
+  "warrior_second_wind_2",
+  "warrior_battle_trance_2",
+  "warrior_rampage_2",
+  "warrior_warlord",
+  "warrior_warlord_2",
+  "warrior_iron_discipline",
+  "warrior_iron_discipline_2",
+  "warrior_veteran_instinct",
+  "warrior_veteran_instinct_2",
+  "warrior_tactical_recovery",
+  "warrior_tactical_recovery_2",
+  "warrior_stalwart_drive",
+  "warrior_stalwart_drive_2",
+  "warrior_precision_drill",
+  "warrior_precision_drill_2",
+  "warrior_campaign_mind",
+  "warrior_campaign_mind_2",
+  "warrior_war_tax",
+  "warrior_war_tax_2",
+  "juggernaut_fortress",
+  "juggernaut_endurance",
+  "juggernaut_iron_skin",
+  "juggernaut_fortress_2",
+  "juggernaut_endurance_2",
+  "juggernaut_iron_skin_2",
+  "juggernaut_unstoppable",
+  "juggernaut_unstoppable_2",
+];
+
+const PRESTIGE_PRIORITY = [
+  "forge_tempered_hands",
+  "forge_chaos_script",
+  "forge_precision_file",
+  "forge_surgeon_mark",
+  "fortune_gilded_hands",
+  "fortune_chronicler",
+  "war_blade_doctrine",
+  "bulwark_heartwall",
+  "fortune_essence_mill",
+  "war_killer_instinct",
+  "bulwark_iron_marrows",
+  "fortune_lucky_smoke",
+  "war_battleflow",
+  "war_execution_litany",
+  "bulwark_second_skin",
+  "bulwark_shield_law",
+  "fortune_scavenger_map",
+  "fortune_market_memory",
+  "lineage_warrior_lineage",
+  "lineage_martial_memory",
+  "war_reaper_stride",
+  "war_blood_current",
+  "war_time_cleave",
+  "fortune_relic_scent",
+  "bulwark_bramble_crown",
+  "bulwark_echo_plating",
+  "forge_star_quench",
+  "forge_anvil_prophecy",
+  "forge_living_furnace",
+  "war_red_apex",
+  "fortune_golden_apex",
+  "bulwark_green_apex",
+  "forge_blue_apex",
+  "lineage_eternal_avatar",
+  "lineage_berserker_apex",
+  "lineage_juggernaut_apex",
+];
+
+function cloneState(state) {
+  return JSON.parse(JSON.stringify(state));
+}
+
+function reduceState(state, action) {
+  return gameReducer(state, {
+    ...action,
+    meta: {
+      ...(action?.meta || {}),
+      source: "simulation",
+    },
+  });
+}
+
+function logDecision(logs, tick, message) {
+  logs.push(`[${tick}] ${message}`);
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getHumanProfile(options = {}) {
+  return options.humanProfile || {};
+}
+
+function getReplaySource(state, options = {}) {
+  return options.replaySource || state.replay;
+}
+
+function ensureClass(state, logs, tick) {
+  if (!state.player.class) {
+    state = reduceState(state, { type: "SELECT_CLASS", classId: "warrior" });
+    logDecision(logs, tick, "Selecciona Warrior");
+  }
+  return state;
+}
+
+function maybeSelectSpec(state, logs, tick, options = {}) {
+  if (state.player.specialization) return state;
+  const stats = state.stats || {};
+  const level = state.player.level || 1;
+  const preferredSpec = options.preferredSpec || getHumanProfile(options).preferredSpec || null;
+
+  if (preferredSpec === "berserker" && (stats.kills || 0) >= 200) {
+    const nextState = reduceState(state, { type: "SELECT_SPECIALIZATION", specId: "berserker" });
+    if (nextState !== state) {
+      logDecision(logs, tick, "Elige Berserker");
+      return nextState;
+    }
+  }
+
+  if (preferredSpec === "juggernaut" && level >= 18) {
+    const nextState = reduceState(state, { type: "SELECT_SPECIALIZATION", specId: "juggernaut" });
+    if (nextState !== state) {
+      logDecision(logs, tick, "Elige Juggernaut");
+      return nextState;
+    }
+  }
+
+  if ((stats.kills || 0) >= 200) {
+    const nextState = reduceState(state, { type: "SELECT_SPECIALIZATION", specId: "berserker" });
+    if (nextState !== state) {
+      logDecision(logs, tick, "Elige Berserker");
+      return nextState;
+    }
+  }
+
+  if (level >= 18) {
+    const nextState = reduceState(state, { type: "SELECT_SPECIALIZATION", specId: "juggernaut" });
+    if (nextState !== state) {
+      logDecision(logs, tick, "Elige Juggernaut");
+      return nextState;
+    }
+  }
+
+  return state;
+}
+
+function ensureAutocast(state, logs, tick) {
+  const availableSkillIds = ["power_strike", "berserker_rage"];
+  let nextState = state;
+
+  for (const skillId of availableSkillIds) {
+    const enabled = nextState.combat?.skillAutocasts?.[skillId] === true;
+    if (!enabled) {
+      const updated = reduceState(nextState, { type: "TOGGLE_SKILL_AUTOCAST", skillId });
+      if (updated !== nextState) {
+        nextState = updated;
+        logDecision(logs, tick, `Activa autocast: ${skillId}`);
+      }
+    }
+  }
+
+  return nextState;
+}
+
+function claimGoals(state, logs, tick) {
+  let nextState = state;
+  for (const goal of ACTIVE_GOALS) {
+    if ((nextState.goals?.claimed || []).includes(goal.id)) continue;
+    if (!isGoalCompleted(nextState, goal)) continue;
+    nextState = reduceState(nextState, { type: "CLAIM_GOAL", goalId: goal.id });
+    logDecision(logs, tick, `Reclama objetivo: ${goal.name}`);
+  }
+  return nextState;
+}
+
+function getUpgradeHeuristic(state, upgrade) {
+  const currentLevel = state.player.upgrades?.[upgrade.id] || 0;
+  if (currentLevel >= upgrade.maxLevel) return null;
+
+  const cost = Math.floor(upgrade.baseCost * Math.pow(upgrade.costMultiplier, currentLevel));
+  if ((state.player.gold || 0) < cost) return null;
+
+  const stats = calcStats(state.player);
+  const weights = {
+    damage: stats.damage * 1.2 + 16,
+    maxHp: stats.maxHp * 0.12 + 12,
+    critChance: 220,
+    goldBonus: 18 + (state.combat.currentTier || 1) * 1.5,
+    xpBonus: 16 + (state.player.level || 1) * 0.8,
+    attackSpeed: 170,
+  };
+  const gain = (weights[upgrade.id] || 10) * (upgrade.valuePerLevel || 0);
+
+  return {
+    upgradeId: upgrade.id,
+    score: gain / Math.max(1, cost),
+    cost,
+  };
+}
+
+function buyEfficientUpgrade(state, logs, tick) {
+  const candidates = PLAYER_UPGRADES
+    .map(upgrade => getUpgradeHeuristic(state, upgrade))
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score);
+
+  if (!candidates.length) return state;
+  const best = candidates[0];
+  const nextState = reduceState(state, { type: "UPGRADE_PLAYER", upgradeId: best.upgradeId });
+  if (nextState !== state) {
+    logDecision(logs, tick, `Compra upgrade: ${best.upgradeId}`);
+  }
+  return nextState;
+}
+
+function unlockBestTalent(state, logs, tick) {
+  const priority =
+    state.player.specialization === "juggernaut"
+      ? JUGGERNAUT_TALENT_PRIORITY
+      : BERSERKER_TALENT_PRIORITY;
+
+  for (const talentId of priority) {
+    const before = state.player.unlockedTalents || [];
+    if (before.includes(talentId)) continue;
+    const nextState = reduceState(state, { type: "UNLOCK_TALENT", talentId });
+    if (nextState !== state) {
+      logDecision(logs, tick, `Desbloquea talento: ${TALENTS.find(t => t.id === talentId)?.name || talentId}`);
+      return nextState;
+    }
+  }
+
+  return state;
+}
+
+function equipBestItems(state, logs, tick, humanProfile = {}) {
+  let nextState = state;
+  const inventory = [...(state.player.inventory || [])];
+  const byType = {
+    weapon: inventory.filter(item => item.type === "weapon").sort((a, b) => (b.rating || 0) - (a.rating || 0))[0],
+    armor: inventory.filter(item => item.type === "armor").sort((a, b) => (b.rating || 0) - (a.rating || 0))[0],
+  };
+
+  for (const slot of ["weapon", "armor"]) {
+    const candidate = byType[slot];
+    const equipped = nextState.player.equipment?.[slot];
+    if (!candidate) continue;
+    const hpBias = clamp(Number(humanProfile.avgPushHpRatio || 0.7), 0.45, 0.9);
+    const equipThreshold = hpBias >= 0.72 ? 4 : 8;
+    if ((candidate.rating || 0) > ((equipped?.rating || 0) + equipThreshold)) {
+      nextState = reduceState(nextState, { type: "EQUIP_ITEM", item: candidate });
+      logDecision(logs, tick, `Equipa ${candidate.name}`);
+    }
+  }
+
+  return nextState;
+}
+
+function cleanupInventory(state, logs, tick) {
+  let nextState = state;
+  const inventory = [...(nextState.player.inventory || [])];
+  if (inventory.length < 42) return nextState;
+
+  const equippedIds = new Set([
+    nextState.player.equipment?.weapon?.id,
+    nextState.player.equipment?.armor?.id,
+  ]);
+
+  const sorted = inventory
+    .filter(item => !equippedIds.has(item.id))
+    .sort((a, b) => (a.rating || 0) - (b.rating || 0));
+
+  for (const item of sorted) {
+    if ((nextState.player.inventory || []).length <= 34) break;
+    if (item.rarity === "common" || item.rarity === "magic") {
+      nextState = reduceState(nextState, { type: "CRAFT_EXTRACT_ITEM", payload: { itemId: item.id } });
+      if (nextState !== state) {
+        logDecision(logs, tick, `Extrae ${item.name}`);
+        state = nextState;
+      }
+    }
+  }
+
+  return nextState;
+}
+
+function getAffixRollRatio(affix) {
+  const min = affix?.range?.min;
+  const max = affix?.range?.max;
+  const value = affix?.rolledValue ?? affix?.value ?? 0;
+  if (min == null || max == null || max <= min) return 1;
+  return (value - min) / (max - min);
+}
+
+function getPreferredAffixIndex(item) {
+  if (Number.isInteger(item?.crafting?.focusedAffixIndex)) {
+    return Number(item.crafting.focusedAffixIndex);
+  }
+
+  const priorities = item.type === "weapon"
+    ? ["damage", "attackSpeed", "critChance", "critDamage", "lifesteal"]
+    : ["defense", "healthMax", "healthRegen", "blockChance", "dodgeChance", "thorns"];
+
+  let bestIndex = null;
+  let bestScore = -Infinity;
+
+  (item.affixes || []).forEach((affix, index) => {
+    const statIndex = priorities.indexOf(affix.stat);
+    const priorityScore = statIndex === -1 ? 0 : (priorities.length - statIndex) * 100;
+    const tierScore = (affix.tier || 3) === 1 ? 250 : (affix.tier || 3) === 2 ? 120 : 40;
+    const rollScore = Math.round((1 - getAffixRollRatio(affix)) * 100);
+    const score = priorityScore + tierScore + rollScore;
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  });
+
+  return bestIndex;
+}
+
+function getPreferredStats(state, itemType, humanProfile = {}) {
+  const buildTag = getPlayerBuildTag(state.player);
+  const buildPrefs = buildTag?.reasons || [];
+  const spec = state.player.specialization;
+
+  const weaponDefaults =
+    spec === "juggernaut"
+      ? ["damage", "attackSpeed", "defense", "blockChance", "healthMax"]
+      : ["damage", "attackSpeed", "critChance", "critDamage", "lifesteal"];
+
+  const armorDefaults =
+    spec === "berserker"
+      ? ["healthMax", "lifesteal", "attackSpeed", "critChance", "damage"]
+      : ["defense", "healthMax", "healthRegen", "blockChance", "thorns"];
+
+  const base = itemType === "weapon" ? weaponDefaults : armorDefaults;
+  const resolved = buildPrefs
+    .flatMap(reason => {
+      const normalized = reason.toLowerCase();
+      if (normalized.includes("crit")) return ["critChance", "critDamage"];
+      if (normalized.includes("lifesteal")) return ["lifesteal"];
+      if (normalized.includes("attack speed")) return ["attackSpeed"];
+      if (normalized.includes("damage on kill")) return ["damageOnKill"];
+      if (normalized.includes("defensa")) return ["defense"];
+      if (normalized.includes("bloqueo") || normalized.includes("block")) return ["blockChance"];
+      if (normalized.includes("vida")) return ["healthMax", "healthRegen"];
+      if (normalized.includes("thorns")) return ["thorns"];
+      if (normalized.includes("cooldown")) return ["cooldownReduction", "skillPower"];
+      if (normalized.includes("oro") || normalized.includes("esencia") || normalized.includes("luck")) return ["goldBonus", "essenceBonus", "lootBonus", "luck"];
+      return [];
+    })
+    .filter(Boolean);
+
+  return [...new Set([...(humanProfile.wishlistStats || []), ...resolved, ...base])];
+}
+
+function getWorstAffixIndex(item, preferredStats) {
+  if (Number.isInteger(item?.crafting?.focusedAffixIndex)) {
+    return Number(item.crafting.focusedAffixIndex);
+  }
+
+  let worstIndex = null;
+  let worstScore = Infinity;
+
+  (item.affixes || []).forEach((affix, index) => {
+    const preferredIndex = preferredStats.indexOf(affix.stat);
+    const wantedScore = preferredIndex === -1 ? 0 : (preferredStats.length - preferredIndex) * 120;
+    const tierScore = affix.tier === 1 ? 260 : affix.tier === 2 ? 140 : 50;
+    const rollScore = Math.round(getAffixRollRatio(affix) * 100);
+    const score = wantedScore + tierScore + rollScore;
+    if (score < worstScore) {
+      worstScore = score;
+      worstIndex = index;
+    }
+  });
+
+  return worstIndex;
+}
+
+function maybeCraft(state, logs, tick, options = {}) {
+  const humanProfile = getHumanProfile(options);
+  const replayHints = deriveReplayDecisionHints(getReplaySource(state, options), state);
+  let nextState = state;
+  const equippedItems = [nextState.player.equipment?.weapon, nextState.player.equipment?.armor].filter(Boolean);
+
+  for (const item of equippedItems) {
+    if (!item) continue;
+    const preferredStats = getPreferredStats(nextState, item.type, humanProfile);
+    const craftMode = replayHints.preferredCraftMode || humanProfile.preferredCraftMode || null;
+
+    if ((item.level || 1) < 4) {
+      const upgraded = reduceState(nextState, { type: "CRAFT_UPGRADE_ITEM", payload: { itemId: item.id } });
+      if (upgraded !== nextState) {
+        logDecision(logs, tick, `Mejora ${item.name}`);
+        return upgraded;
+      }
+    }
+
+    if (item.rarity === "rare" && (item.level || 1) >= 6 && (item.rating || 0) >= 120) {
+      const ascended = reduceState(nextState, { type: "CRAFT_ASCEND_ITEM", payload: { itemId: item.id } });
+      if (ascended !== nextState) {
+        logDecision(logs, tick, `Asciende ${item.name}`);
+        return ascended;
+      }
+    }
+
+    if (item.rarity === "epic" && (item.level || 1) >= 8 && (item.rating || 0) >= 260) {
+      const ascended = reduceState(nextState, { type: "CRAFT_ASCEND_ITEM", payload: { itemId: item.id } });
+      if (ascended !== nextState) {
+        logDecision(logs, tick, `Asciende ${item.name} a legendario`);
+        return ascended;
+      }
+    }
+
+    const rerollCount = item.crafting?.rerollCount || 0;
+    const polishCount = item.crafting?.polishCount || 0;
+    const hasTierOne = (item.affixes || []).some(affix => affix.tier === 1);
+    if (
+      item.rarity === "rare" &&
+      (item.rating || 0) >= 90 &&
+      !hasTierOne &&
+      rerollCount < (craftMode === "reroll" ? 3 : 2)
+    ) {
+      const rerolled = reduceState(nextState, { type: "CRAFT_REROLL_ITEM", payload: { itemId: item.id } });
+      if (rerolled !== nextState) {
+        logDecision(logs, tick, `Reroll total sobre ${item.name}`);
+        return rerolled;
+      }
+    }
+
+    const worstAffixIndex = getWorstAffixIndex(item, preferredStats);
+    const worstAffix = worstAffixIndex == null ? null : item.affixes?.[worstAffixIndex];
+    const hasWishlistGap =
+      preferredStats.length > 0 &&
+      (item.affixes || []).every(affix => !preferredStats.includes(affix.stat));
+
+    const polishIndex = getPreferredAffixIndex(item);
+    const targetAffix = polishIndex == null ? null : item.affixes?.[polishIndex];
+    if (
+      targetAffix &&
+      targetAffix.tier === 1 &&
+      getAffixRollRatio(targetAffix) < 0.78 &&
+      polishCount < (craftMode === "polish" ? 4 : 3)
+    ) {
+      const polished = reduceState(nextState, {
+        type: "CRAFT_POLISH_ITEM",
+        payload: { itemId: item.id, affixIndex: polishIndex },
+      });
+      if (polished !== nextState) {
+        logDecision(logs, tick, `Pulido sobre ${item.name} (${targetAffix.stat})`);
+        return polished;
+      }
+    }
+
+    if (
+      preferredStats.length > 0 &&
+      worstAffix &&
+      (item.crafting?.reforgeCount || 0) < (craftMode === "reforge" ? 3 : 2) &&
+      item.rarity !== "common" &&
+      (item.rating || 0) >= 105 &&
+      (!preferredStats.includes(worstAffix.stat) || hasWishlistGap)
+    ) {
+      const options = buildReforgePreview(
+        item,
+        worstAffixIndex,
+        2 + Math.max(0, Math.floor(nextState.player?.prestigeBonuses?.reforgeOptionCount || 0)),
+        preferredStats
+      );
+      const chosen = options.find(option => preferredStats.includes(option.stat)) || options[0];
+      if (chosen) {
+        const reforged = reduceState(nextState, {
+          type: "CRAFT_REFORGE_ITEM",
+          payload: { itemId: item.id, affixIndex: worstAffixIndex, replacementAffix: chosen },
+        });
+        if (reforged !== nextState) {
+          logDecision(logs, tick, `Reforja ${item.name} (${worstAffix.stat} -> ${chosen.stat})`);
+          return reforged;
+        }
+      }
+    }
+  }
+
+  return nextState;
+}
+
+function maybeAdjustTier(state, logs, tick, options = {}) {
+  const humanProfile = getHumanProfile(options);
+  const replayHints = deriveReplayDecisionHints(getReplaySource(state, options), state);
+  const snapshot = state.combat.performanceSnapshot || {};
+  const hpRatio = (state.player.hp || 0) / Math.max(1, state.player.maxHp || 1);
+  const tier = state.combat.currentTier || 1;
+  const maxTier = state.combat.maxTier || 1;
+  const pressure = Math.max(10, Math.round(12 + tier * 10 + tier * tier * 1.5));
+  const pressureRatio = (snapshot.damagePerTick || 0) / Math.max(1, pressure);
+  const oneShotting = (snapshot.damagePerTick || 0) >= ((state.combat.enemy?.maxHp || 0) * 0.92);
+  const pushSimilarityBias = Number(replayHints.push.weight || 0) - Number(replayHints.drop.weight || 0);
+  const dropSimilarityBias = Number(replayHints.drop.weight || 0) - Number(replayHints.push.weight || 0);
+  const autoSimilarityBias = Number(replayHints.autoOn.weight || 0) - Number(replayHints.autoOff.weight || 0);
+  const pushHpTarget = clamp(Number(humanProfile.avgPushHpRatio || 0.7) - (pushSimilarityBias > 0.08 ? 0.05 : 0), 0.48, 0.88);
+  const dropHpTarget = clamp(Number(humanProfile.avgDropHpRatio || 0.32) + (dropSimilarityBias > 0.08 ? 0.04 : 0), 0.18, 0.6);
+  const autoAdvanceBias = Number(humanProfile.autoAdvanceBias || 0);
+  const contextualPush =
+    replayHints.push.count >= 2 &&
+    replayHints.pushConfidence >= 0.58 &&
+    hpRatio > Math.max(0.42, pushHpTarget - 0.08) &&
+    pressureRatio > 0.9;
+  const contextualDrop =
+    replayHints.drop.count >= 2 &&
+    replayHints.dropConfidence >= 0.58 &&
+    (hpRatio < Math.min(0.7, dropHpTarget + 0.05) || pressureRatio < 0.82);
+  const safeToPush = (hpRatio > pushHpTarget && (pressureRatio > 1.02 || oneShotting)) || contextualPush;
+  const unsafeToPush = hpRatio < Math.max(0.2, dropHpTarget) || pressureRatio < 0.72 || contextualDrop;
+
+  if (!state.combat.autoAdvance && tier >= maxTier && safeToPush && maxTier < 10 && (autoAdvanceBias + autoSimilarityBias * 4) >= -1) {
+    const pushing = reduceState(state, { type: "TOGGLE_AUTO_ADVANCE" });
+    if (pushing !== state) {
+      logDecision(logs, tick, `Activa auto-avance para empujar desde Tier ${tier} (similitud humana)`);
+      return pushing;
+    }
+  }
+
+  if (state.combat.autoAdvance && unsafeToPush && (replayHints.autoDisableConfidence >= 0.45 || pressureRatio < 0.6 || hpRatio < 0.18)) {
+    const safer = reduceState(state, { type: "TOGGLE_AUTO_ADVANCE" });
+    if (safer !== state) {
+      logDecision(logs, tick, `Desactiva auto-avance por presion en Tier ${tier} (similitud humana)`);
+      return safer;
+    }
+  }
+
+  if (tier < maxTier && (hpRatio < Math.max(0.16, dropHpTarget - 0.04) || pressureRatio < 0.65 || contextualDrop)) {
+    const next = reduceState(state, { type: "SET_TIER", tier: Math.max(1, tier - 1) });
+    if (next !== state) {
+      logDecision(logs, tick, `Retrocede a Tier ${Math.max(1, tier - 1)}${contextualDrop ? " por replay similar" : ""}`);
+      return next;
+    }
+  }
+
+  if (tier < maxTier && safeToPush) {
+    const next = reduceState(state, { type: "SET_TIER", tier: tier + 1 });
+    if (next !== state) {
+      logDecision(logs, tick, `Empuja a Tier ${tier + 1}${contextualPush ? " por replay similar" : ""}`);
+      return next;
+    }
+  }
+
+  return state;
+}
+
+function buyPrestigeNodes(state, logs, tick) {
+  let nextState = state;
+  const preferred = [...PRESTIGE_PRIORITY];
+
+  if (state.player.specialization === "berserker") {
+    preferred.unshift("lineage_berserker_fever", "lineage_berserker_mania", "lineage_berserker_apex");
+  }
+  if (state.player.specialization === "juggernaut") {
+    preferred.unshift("lineage_juggernaut_core", "lineage_juggernaut_throne", "lineage_juggernaut_apex");
+  }
+
+  for (const nodeId of preferred) {
+    const node = PRESTIGE_TREE_NODES.find(candidate => candidate.id === nodeId);
+    if (!node) continue;
+    const purchase = canPurchasePrestigeNode(nextState, node);
+    if (!purchase.ok) continue;
+    const updated = reduceState(nextState, { type: "BUY_PRESTIGE_NODE", nodeId });
+    if (updated !== nextState) {
+      nextState = updated;
+      logDecision(logs, tick, `Compra reliquia: ${node.name}`);
+    }
+  }
+
+  return nextState;
+}
+
+function maybePrestige(state, logs, tick, ticksRemaining, options = {}) {
+  const humanProfile = getHumanProfile(options);
+  const prestigeCheck = canPrestige(state);
+  const echoes = calculatePrestigeEchoGain(state);
+  if (!prestigeCheck.ok) return state;
+  if (ticksRemaining < 240) return state;
+  const prestigeFloor =
+    (humanProfile.avgPushHpRatio || 0) >= 0.76
+      ? 7
+      : (humanProfile.avgPushHpRatio || 0) > 0
+        ? 5
+        : 5;
+  if (echoes < prestigeFloor) return state;
+
+  const nextState = reduceState(state, { type: "PRESTIGE", resetClass: false });
+  if (nextState !== state) {
+    logDecision(logs, tick, `Hace prestige (+${echoes} ecos)`);
+  }
+  return nextState;
+}
+
+function runDecisionCycle(state, logs, tick, ticksRemaining, options = {}) {
+  const humanProfile = getHumanProfile(options);
+  let nextState = state;
+  nextState = ensureClass(nextState, logs, tick);
+  nextState = maybeSelectSpec(nextState, logs, tick, options);
+  nextState = ensureAutocast(nextState, logs, tick);
+  nextState = claimGoals(nextState, logs, tick);
+  nextState = equipBestItems(nextState, logs, tick, humanProfile);
+  nextState = maybeCraft(nextState, logs, tick, options);
+  nextState = buyEfficientUpgrade(nextState, logs, tick);
+  nextState = unlockBestTalent(nextState, logs, tick);
+  nextState = cleanupInventory(nextState, logs, tick);
+  nextState = maybeAdjustTier(nextState, logs, tick, options);
+  nextState = buyPrestigeNodes(nextState, logs, tick);
+  nextState = maybePrestige(nextState, logs, tick, ticksRemaining, options);
+  return nextState;
+}
+
+function buildBotSummary(state, logs, ticks, options = {}) {
+  const entries = buildSessionTelemetryEntries(state);
+  const analytics = state.combat?.analytics || {};
+  const stagnationReason =
+    (analytics.maxTierReached || 1) <= 1
+      ? "No logro romper early game"
+      : (analytics.couldAdvanceMoments || 0) > (analytics.tierAdvanceCount || 0)
+        ? "Tuvo ventanas de push desaprovechadas"
+        : "Progreso aceptable";
+  return {
+    ticksSimulated: ticks,
+    finalState: state,
+    telemetryEntries: entries,
+    telemetryText: buildSessionTelemetryReport(state),
+    decisions: logs,
+    summary: {
+      level: state.player.level || 1,
+      tier: state.combat.maxTier || state.combat.currentTier || 1,
+      specialization: state.player.specialization || "-",
+      gold: state.player.gold || 0,
+      essence: state.player.essence || 0,
+      prestigeLevel: state.prestige?.level || 0,
+      echoes: state.prestige?.echoes || 0,
+      bestDrop: state.combat?.analytics?.bestDropName || "-",
+      stagnationReason,
+      humanProfile: options?.humanProfile || null,
+    },
+  };
+}
+
+export function runBalanceBotSimulation(inputState, options = {}) {
+  const ticks = Math.max(60, Math.min(options.ticks || 1800, 7200));
+  let state = cloneState(inputState);
+  const logs = [];
+
+  state = ensureClass(state, logs, 0);
+  state = ensureAutocast(state, logs, 0);
+
+  for (let tick = 1; tick <= ticks; tick += 1) {
+    if (tick === 1 || tick % 10 === 0) {
+      state = runDecisionCycle(state, logs, tick, ticks - tick, options);
+    }
+    state = reduceState(state, { type: "TICK" });
+  }
+
+  state = claimGoals(state, logs, ticks);
+  state = equipBestItems(state, logs, ticks, getHumanProfile(options));
+  state = buyPrestigeNodes(state, logs, ticks);
+
+  return buildBotSummary(state, logs, ticks, options);
+}

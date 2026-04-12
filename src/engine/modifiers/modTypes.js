@@ -1,0 +1,15 @@
+export const MOD_TYPES = {
+  DAMAGE_MULT: "damageMult",
+  DAMAGE_FLAT: "damageFlat",
+  DEFENSE_MULT: "defenseMult",
+  DEFENSE_FLAT: "defenseFlat",
+  ATTACK_SPEED_FLAT: "attackSpeedFlat",
+  CRIT_CHANCE: "critChance",
+  REGEN_FLAT: "regenFlat",
+  HEAL_FLAT: "healFlat",
+  HEAL_PERCENT_MAX_HP: "healPercentMaxHp",
+  ENEMY_DAMAGE_TAKEN_MULT: "enemyDamageTakenMult",
+  GOLD_FLAT: "goldFlat",
+  LIFESTEAL_FLAT: "lifestealFlat",
+  LIFESTEAL_PERCENT_DAMAGE: "lifestealPercentDamage",
+};
