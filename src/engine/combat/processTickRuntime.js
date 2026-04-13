@@ -18,8 +18,9 @@ import {
 import { resolveLootRuleWishlist } from "../../utils/lootFilter";
 import { summarizeLootEvent } from "../../utils/lootHighlights";
 import { createEmptySessionAnalytics } from "../../utils/runTelemetry";
-import { recordCodexKill, recordLegendaryPowerDiscovery, syncCodexBonuses } from "../progression/codexEngine";
+import { recordCodexKill, recordCodexSighting, recordLegendaryPowerDiscovery, syncCodexBonuses } from "../progression/codexEngine";
 import { createEmptyPrestigeCycleProgress } from "../progression/prestigeEngine";
+import { getRunSigilCodexModifiers } from "../../data/runSigils";
 import {
   tickEffects,
   applyEffects,
@@ -229,8 +230,12 @@ function appendSkillDamageTimeline(previous = [], incoming = []) {
 }
 
 export function processTick(state) {
+  if (state.combat?.pendingRunSetup) return state;
   const enemy = state.combat.enemy;
   if (!enemy) return state;
+  const activeRunSigilId = state.combat?.activeRunSigilId || "free";
+  const runSigilCodexModifiers = getRunSigilCodexModifiers(activeRunSigilId);
+  const sightedCodex = recordCodexSighting(state.codex || {}, enemy);
   const lootRuleSet = buildLootRuleSet(state.settings?.lootRules, state.player, enemy);
   const enemyRuntime = enemy.runtime || {};
   const sessionAnalytics = getAnalyticsBase(state.combat.analytics);
@@ -540,6 +545,7 @@ export function processTick(state) {
     };
     return {
       ...state,
+      codex: sightedCodex,
       player: {
         ...state.player,
         hp: s.maxHp,
@@ -613,6 +619,7 @@ export function processTick(state) {
 
     return {
       ...state,
+      codex: sightedCodex,
       player: { ...state.player, hp: newPlayerHp },
       combat: {
         ...state.combat,
@@ -665,11 +672,12 @@ export function processTick(state) {
     enemy,
     playerStats: s,
     player: state.player,
-    codex: state.codex,
+    codex: sightedCodex,
     eventMods,
     prestige: state.prestige,
     isCrit: didCrit,
     unlockedTalents,
+    runSigilId: activeRunSigilId,
   });
 
   let newPlayer = {
@@ -701,7 +709,7 @@ export function processTick(state) {
   let autoExtractEssence = 0;
 
   if (loot) {
-    const previousPowerDiscoveries = Number(state.codex?.powerDiscoveries?.[loot.legendaryPowerId] || 0);
+    const previousPowerDiscoveries = Number(sightedCodex?.powerDiscoveries?.[loot.legendaryPowerId] || 0);
     const equippedItem = loot.type === "weapon" ? state.player.equipment?.weapon : state.player.equipment?.armor;
     latestLootEvent = summarizeLootEvent({
       item: loot,
@@ -941,8 +949,16 @@ export function processTick(state) {
     maxLevel: Math.max(prestigeCycle.maxLevel || 1, newPlayer.level || state.player.level || 1),
     bestItemRating: Math.max(prestigeCycle.bestItemRating || 0, loot?.rating || 0),
   });
-  const codexAfterKill = recordCodexKill(state.codex || {}, enemy);
-  const { codex: nextCodex, unlockedPower: unlockedPowerFromDrop } = recordLegendaryPowerDiscovery(codexAfterKill, loot);
+  const codexAfterKill = recordCodexKill(sightedCodex, enemy, {
+    familyGain: runSigilCodexModifiers.familyKillMult || 1,
+    bossGain: runSigilCodexModifiers.bossKillMult || 1,
+  });
+  const legendaryDiscoveryGain =
+    loot?.legendaryPowerId && Number(codexAfterKill?.powerDiscoveries?.[loot.legendaryPowerId] || 0) > 0
+      ? runSigilCodexModifiers.duplicatePowerGainMult || 1
+      : 1;
+  const { codex: nextCodex, unlockedPower: unlockedPowerFromDrop } =
+    recordLegendaryPowerDiscovery(codexAfterKill, loot, legendaryDiscoveryGain);
   newlyUnlockedLegendaryPower = unlockedPowerFromDrop || newlyUnlockedLegendaryPower;
   newPlayer = syncCodexBonuses(newPlayer, nextCodex);
 

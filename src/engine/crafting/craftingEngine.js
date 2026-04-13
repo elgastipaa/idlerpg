@@ -115,7 +115,14 @@ export function getCraftActionState({ item, player, mode, affixIndex = null, leg
   if (mode === "upgrade") {
     const currentLevel = item.level ?? 0;
     const rarityTier = getRarityTier(item.rarity);
-    const reduction = Math.max(0, Math.min(0.65, player?.prestigeBonuses?.upgradeCostReduction || 0));
+    const reduction = Math.max(
+      0,
+      Math.min(
+        0.65,
+        (player?.prestigeBonuses?.upgradeCostReduction || 0) +
+          (player?.runSigilBonuses?.upgradeCostReduction || 0)
+      )
+    );
     const costs = {
       gold: Math.floor(180 * (currentLevel + 1) * (currentLevel + 1) * rarityTier * (1 - reduction)),
       essence: 0,

@@ -661,9 +661,33 @@ function maybePrestige(state, logs, tick, ticksRemaining, options = {}) {
   return nextState;
 }
 
+function maybeStartRun(state, logs, tick, options = {}) {
+  if (!state.combat?.pendingRunSetup) return state;
+
+  const unlockedPowers = Object.values(state.codex?.powerDiscoveries || {}).filter(value => Number(value || 0) > 0).length;
+  let sigilId = "free";
+  if (unlockedPowers <= 1) {
+    sigilId = "hunt";
+  } else if ((state.player?.essence || 0) >= 1200) {
+    sigilId = "forge";
+  } else if ((state.prestige?.level || 0) >= 3 && unlockedPowers >= 4) {
+    sigilId = "dominion";
+  } else {
+    sigilId = "ascend";
+  }
+
+  let nextState = reduceState(state, { type: "SELECT_RUN_SIGIL", sigilId });
+  nextState = reduceState(nextState, { type: "START_RUN" });
+  if (nextState !== state) {
+    logDecision(logs, tick, `Inicia run con sigilo: ${sigilId}`);
+  }
+  return nextState;
+}
+
 function runDecisionCycle(state, logs, tick, ticksRemaining, options = {}) {
   const humanProfile = getHumanProfile(options);
   let nextState = state;
+  nextState = maybeStartRun(nextState, logs, tick, options);
   nextState = ensureClass(nextState, logs, tick);
   nextState = maybeSelectSpec(nextState, logs, tick, options);
   nextState = ensureAutocast(nextState, logs, tick);

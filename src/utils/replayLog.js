@@ -70,6 +70,7 @@ function summarizeAction(action = {}) {
   if (action.upgradeId) summary.upgradeId = action.upgradeId;
   if (action.classId) summary.classId = action.classId;
   if (action.specId) summary.specId = action.specId;
+  if (action.sigilId) summary.sigilId = action.sigilId;
   if (action.theme) summary.theme = action.theme;
   if (action.tier != null) summary.tier = Number(action.tier);
   if (action.source && !summary.source) summary.source = action.source;
@@ -413,6 +414,8 @@ const RECORDED_ACTION_TYPES = new Set([
   "RESET_TALENT_TREE",
   "SELECT_CLASS",
   "SELECT_SPECIALIZATION",
+  "SELECT_RUN_SIGIL",
+  "START_RUN",
   "BUY_PRESTIGE_NODE",
   "PRESTIGE",
   "CRAFT_REROLL_ITEM",

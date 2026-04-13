@@ -71,7 +71,13 @@ function getCraftingState(item) {
 }
 
 function getReduction(player, key) {
-  return Math.max(0, Math.min(0.65, player?.prestigeBonuses?.[key] || 0));
+  return Math.max(
+    0,
+    Math.min(
+      0.65,
+      (player?.prestigeBonuses?.[key] || 0) + (player?.runSigilBonuses?.[key] || 0)
+    )
+  );
 }
 
 function getTargetedTierMultiplier(affix) {

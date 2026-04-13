@@ -107,6 +107,10 @@ export const useGame = () => {
     const step = () => {
       const job = offlineJobRef.current;
       if (!job) return;
+      if (latestStateRef.current?.combat?.pendingRunSetup) {
+        offlineJobRef.current = null;
+        return;
+      }
 
       if (job.remaining <= 0) {
         const finalState = latestStateRef.current;
@@ -131,6 +135,7 @@ export const useGame = () => {
     const id = setInterval(() => {
       if (document.hidden) return;
       if (offlineJobRef.current) return;
+      if (latestStateRef.current?.combat?.pendingRunSetup) return;
       dispatch({ type: "TICK" });
     }, TICK_MS);
     return () => clearInterval(id);
@@ -140,6 +145,7 @@ export const useGame = () => {
     if (hydratedRef.current) return;
     hydratedRef.current = true;
     if (recoveryMode) return;
+    if (state.combat?.pendingRunSetup) return;
 
     const savedAt = state.savedAt;
     if (!savedAt) return;
@@ -162,6 +168,7 @@ export const useGame = () => {
       }
 
       if (!hiddenAtRef.current) return;
+      if (latestStateRef.current?.combat?.pendingRunSetup) return;
 
       const elapsedMs = Math.max(0, Date.now() - hiddenAtRef.current);
       hiddenAtRef.current = null;

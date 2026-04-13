@@ -8,8 +8,9 @@ import { calcItemRating } from "./inventory/inventoryEngine";
 import { spawnEnemy } from "./combat/enemyEngine";
 import { refreshStats } from "./combat/statEngine";
 import { normalizeActiveEvents } from "./eventEngine";
-import { createEmptyCodexState, normalizeCodexState, syncCodexBonuses } from "./progression/codexEngine";
+import { createEmptyCodexState, normalizeCodexState, recordCodexSighting, syncCodexBonuses } from "./progression/codexEngine";
 import { createEmptyPrestigeCycleProgress, normalizePrestigeState, syncPrestigeBonuses } from "./progression/prestigeEngine";
+import { getRunSigil, getRunSigilPlayerBonuses } from "../data/runSigils";
 import { migrateTalentsToV2, TALENT_SYSTEM_VERSION } from "./migrations/talentsV2Migration";
 
 const MAX_REWARD_GOLD = Math.max(
@@ -136,6 +137,7 @@ const freshState = {
     essence: 0,
     prestigeBonuses: {},
     codexBonuses: {},
+    runSigilBonuses: {},
     inventory: [],
     equipment: { weapon: null, armor: null },
   },
@@ -194,6 +196,9 @@ const freshState = {
     offlineSummary: null,
     latestLootEvent: null,
     reforgeSession: null,
+    pendingRunSetup: false,
+    pendingRunSigilId: "free",
+    activeRunSigilId: "free",
     craftingLog: [],
     analytics: createEmptySessionAnalytics(),
   },
@@ -246,7 +251,9 @@ const freshState = {
 };
 
 export function createFreshState() {
-  return JSON.parse(JSON.stringify(freshState));
+  const next = JSON.parse(JSON.stringify(freshState));
+  next.codex = recordCodexSighting(next.codex, next.combat.enemy);
+  return next;
 }
 
 const saved = loadGame();
@@ -327,6 +334,9 @@ function mergeStateWithDefaults(base, incoming) {
   const rawXp = Number(rawPlayer.xp ?? base.player.xp);
   const rawActiveEvents = rawCombat.activeEvents || [];
   const normalizedActiveEvents = normalizeActiveEvents(rawActiveEvents);
+  const pendingRunSetup = Boolean(rawCombat.pendingRunSetup) && Number(normalizedPrestige.level || 0) >= 1;
+  const pendingRunSigilId = getRunSigil(rawCombat.pendingRunSigilId || "free").id;
+  const activeRunSigilId = pendingRunSetup ? "free" : getRunSigil(rawCombat.activeRunSigilId || "free").id;
 
   const hasPlayerStatCorruption =
     !Number.isFinite(rawBaseDamage) ||
@@ -432,6 +442,7 @@ function mergeStateWithDefaults(base, incoming) {
         Number(rawPlayer.talentSystemVersion || TALENT_SYSTEM_VERSION),
       gold: sanitizedGold,
       essence: sanitizedEssence,
+      runSigilBonuses: pendingRunSetup ? {} : getRunSigilPlayerBonuses(activeRunSigilId),
       inventory: normalizedInventory,
       equipment: {
         ...base.player.equipment,
@@ -479,6 +490,9 @@ function mergeStateWithDefaults(base, incoming) {
       reforgeSession: rawCombat.reforgeSession || null,
       lastRunSummary: shouldResetRuntimeSession ? null : (rawCombat.lastRunSummary || null),
       latestLootEvent: shouldResetRuntimeSession ? null : (rawCombat.latestLootEvent || null),
+      pendingRunSetup,
+      pendingRunSigilId,
+      activeRunSigilId,
     },
     goals: {
       ...base.goals,
@@ -497,7 +511,7 @@ function mergeStateWithDefaults(base, incoming) {
       ...base.prestige,
       ...normalizedPrestige,
     },
-    codex: normalizedCodex,
+    codex: recordCodexSighting(normalizedCodex, normalizeEnemy(rawCombat.enemy, rawCombat.currentTier)),
     replay: normalizedReplay,
     replayLibrary: normalizedReplayLibrary,
   };

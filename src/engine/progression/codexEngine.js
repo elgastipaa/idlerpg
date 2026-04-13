@@ -166,6 +166,8 @@ function sanitizeWholeNumber(value, fallback = 0, max = 1_000_000) {
 
 export function createEmptyCodexState() {
   return {
+    familySeen: {},
+    bossSeen: {},
     familyKills: {},
     bossKills: {},
     powerDiscoveries: {},
@@ -173,6 +175,12 @@ export function createEmptyCodexState() {
 }
 
 export function normalizeCodexState(codex = {}, discoveredPowerIds = []) {
+  const familySeen = Object.fromEntries(
+    Object.keys(ENEMY_FAMILIES).map(familyId => [familyId, !!(codex?.familySeen?.[familyId] || Number(codex?.familyKills?.[familyId] || 0) > 0)])
+  );
+  const bossSeen = Object.fromEntries(
+    BOSSES.map(boss => [boss.id, !!(codex?.bossSeen?.[boss.id] || Number(codex?.bossKills?.[boss.id] || 0) > 0)])
+  );
   const familyKills = Object.fromEntries(
     Object.keys(ENEMY_FAMILIES).map(familyId => [familyId, sanitizeWholeNumber(codex?.familyKills?.[familyId] || 0, 0, 10_000_000)])
   );
@@ -190,6 +198,8 @@ export function normalizeCodexState(codex = {}, discoveredPowerIds = []) {
     powerDiscoveries[powerId] = Math.max(1, powerDiscoveries[powerId] || 0);
   }
   return {
+    familySeen,
+    bossSeen,
     familyKills,
     bossKills,
     powerDiscoveries,
@@ -235,24 +245,50 @@ export function syncCodexBonuses(player, codex) {
   };
 }
 
-export function recordCodexKill(codex = {}, enemy = {}) {
+export function recordCodexSighting(codex = {}, enemy = {}) {
+  const familyId = enemy?.familyTraitId || enemy?.family || null;
+  const bossId = enemy?.isBoss ? enemy?.id || null : null;
+  const familySeen = !!codex?.familySeen?.[familyId];
+  const bossSeen = !bossId || !!codex?.bossSeen?.[bossId];
+
+  if ((familyId ? familySeen : true) && bossSeen) return codex;
+
   const next = normalizeCodexState(codex);
+  if (familyId) next.familySeen[familyId] = true;
+  if (bossId) next.bossSeen[bossId] = true;
+  return next;
+}
+
+export function recordCodexKill(codex = {}, enemy = {}, { familyGain = 1, bossGain = 1 } = {}) {
+  const next = normalizeCodexState(recordCodexSighting(codex, enemy));
   const familyId = enemy?.familyTraitId || enemy?.family || null;
   if (familyId) {
-    next.familyKills[familyId] = sanitizeWholeNumber((next.familyKills[familyId] || 0) + 1, 0, 10_000_000);
+    next.familyKills[familyId] = sanitizeWholeNumber(
+      (next.familyKills[familyId] || 0) + Math.max(1, Math.floor(familyGain || 1)),
+      0,
+      10_000_000
+    );
   }
   if (enemy?.isBoss && enemy?.id) {
-    next.bossKills[enemy.id] = sanitizeWholeNumber((next.bossKills[enemy.id] || 0) + 1, 0, 100_000);
+    next.bossKills[enemy.id] = sanitizeWholeNumber(
+      (next.bossKills[enemy.id] || 0) + Math.max(1, Math.floor(bossGain || 1)),
+      0,
+      100_000
+    );
   }
   return next;
 }
 
-export function recordLegendaryPowerDiscovery(codex = {}, item = null) {
+export function recordLegendaryPowerDiscovery(codex = {}, item = null, gain = 1) {
   const powerId = item?.legendaryPowerId || null;
   if (!powerId) return { codex: normalizeCodexState(codex), unlockedPower: null };
   const next = normalizeCodexState(codex);
   const previousDiscoveries = Number(next.powerDiscoveries?.[powerId] || 0);
-  next.powerDiscoveries[powerId] = sanitizeWholeNumber(previousDiscoveries + 1, previousDiscoveries, 100_000);
+  next.powerDiscoveries[powerId] = sanitizeWholeNumber(
+    previousDiscoveries + Math.max(1, Math.floor(gain || 1)),
+    previousDiscoveries,
+    100_000
+  );
   return {
     codex: next,
     unlockedPower: previousDiscoveries <= 0 ? LEGENDARY_POWERS.find(power => power.id === powerId) || null : null,
@@ -335,6 +371,7 @@ export function getCodexFamilyEntries(codex = {}) {
     const nextMilestone = mastery.milestones.find(milestone => kills < milestone.kills) || null;
     return {
       id: familyId,
+      seen: !!codex?.familySeen?.[familyId],
       name: family.name,
       traitName: family.traitName,
       description: family.description,
@@ -354,6 +391,7 @@ export function getCodexBossEntries(codex = {}) {
     const nextMilestone = mastery.milestones.find(milestone => kills < milestone.kills) || null;
     return {
       id: boss.id,
+      seen: !!codex?.bossSeen?.[boss.id],
       name: boss.name,
       family: boss.family,
       tier: boss.tier,

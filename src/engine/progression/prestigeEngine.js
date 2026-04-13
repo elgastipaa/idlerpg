@@ -1,4 +1,5 @@
 import { PRESTIGE_RANKS, PRESTIGE_TREE_NODES } from "../../data/prestige";
+import { getRunSigilPrestigeModifiers } from "../../data/runSigils";
 import { refreshStats } from "../combat/statEngine";
 
 const BONUS_KEYS = [
@@ -145,14 +146,15 @@ function getPrestigeProgressSnapshot(state = {}) {
 
 export function getPrestigePreview(state = {}) {
   const progress = getPrestigeProgressSnapshot(state);
+  const runSigil = getRunSigilPrestigeModifiers(state?.combat?.activeRunSigilId || "free");
 
   const tierEchoes =
     progress.maxTier >= 2
-      ? 1 + Math.floor(Math.max(0, progress.maxTier - 2) / 4)
+      ? Math.max(0, Math.floor((1 + Math.floor(Math.max(0, progress.maxTier - 2) / 4)) * (runSigil.tierEchoMult || 1)))
       : 0;
   const levelEchoes =
     progress.maxLevel >= 8
-      ? 1 + Math.floor(Math.max(0, progress.maxLevel - 8) / 18)
+      ? Math.max(0, Math.floor((1 + Math.floor(Math.max(0, progress.maxLevel - 8) / 18)) * (runSigil.levelEchoMult || 1)))
       : 0;
   const lootEchoes =
     progress.bestItemRating >= 120

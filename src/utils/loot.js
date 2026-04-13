@@ -51,6 +51,7 @@ export function generateLoot({
   discoveredPowerIds = [],
   powerMasteryMap = {},
   discoveredPowerBias = 0,
+  powerHuntMultiplier = 1,
   favoredStatWeightMultiplier = 2.4,
   rarityFloor = null,
   rarityBonus = 0,
@@ -70,6 +71,7 @@ export function generateLoot({
     discoveredPowerIds,
     powerMasteryMap,
     discoveredPowerBias,
+    powerHuntMultiplier,
   });
   if (!baseItem) return null;
   const family = getFamilyForBaseItem(baseItem);
@@ -131,7 +133,17 @@ function rollRarity({ enemy, tier, luck, rarityFloor = null, rarityBonus = 0 }) 
   return minRank > 1 ? rarityFloor : "common";
 }
 
-function getDropBiasMultiplier(item, favoredFamilies = [], enemy = null, { discoveredPowerIds = [], powerMasteryMap = {}, discoveredPowerBias = 0 } = {}) {
+function getDropBiasMultiplier(
+  item,
+  favoredFamilies = [],
+  enemy = null,
+  {
+    discoveredPowerIds = [],
+    powerMasteryMap = {},
+    discoveredPowerBias = 0,
+    powerHuntMultiplier = 1,
+  } = {}
+) {
   let multiplier = 1;
   const huntSources = item?.huntSources || {};
   const discoveredSet = new Set(discoveredPowerIds || []);
@@ -151,6 +163,10 @@ function getDropBiasMultiplier(item, favoredFamilies = [], enemy = null, { disco
     if (totalBias > 0) {
       multiplier *= 1 + totalBias;
     }
+  }
+
+  if (targetedByEnemy && item?.legendaryPowerId) {
+    multiplier *= Math.max(0.1, Number(powerHuntMultiplier || 1));
   }
 
   if (favoredFamilies.length && favoredFamilies.includes(item.family)) {

@@ -1,10 +1,36 @@
 import { generateLoot } from "../../utils/loot";
 import { getLegendaryPowerMasteryMap } from "./codexEngine";
+import { getRunSigilRewardModifiers } from "../../data/runSigils";
 
 // Pipeline de recompensas al matar un enemigo.
 // Futuro: mapas y dungeons pueden agregar multiplicadores al context.
 
-export function calculateRewards({ enemy, playerStats, player = null, codex = null, eventMods, prestige, isCrit, unlockedTalents }) {
+function mergeRarityBonus(...bonusEntries) {
+  const merged = {};
+  for (const entry of bonusEntries) {
+    if (typeof entry === "number") {
+      merged.common = (merged.common || 0) + entry;
+      continue;
+    }
+    for (const [key, value] of Object.entries(entry || {})) {
+      merged[key] = (merged[key] || 0) + Number(value || 0);
+    }
+  }
+  return merged;
+}
+
+export function calculateRewards({
+  enemy,
+  playerStats,
+  player = null,
+  codex = null,
+  eventMods,
+  prestige,
+  isCrit,
+  unlockedTalents,
+  runSigilId = "free",
+}) {
+  const runSigil = getRunSigilRewardModifiers(runSigilId);
   const critGoldBonus = (isCrit && unlockedTalents.includes("rogue_opportunist")) ? 5 : 0;
   const discoveredPowerIds = Object.entries(codex?.powerDiscoveries || {})
     .filter(([, discoveries]) => Number(discoveries || 0) > 0)
@@ -17,12 +43,13 @@ export function calculateRewards({ enemy, playerStats, player = null, codex = nu
   );
 
   const xpGained = Math.floor(
-    enemy.xpReward * (1 + playerStats.xpPct) * (eventMods.xpMult || 1)
+    enemy.xpReward * (1 + playerStats.xpPct) * (eventMods.xpMult || 1) * (runSigil.xpMult || 1)
   );
 
   const essenceGained = Math.floor(
     Math.max(0, (enemy.isBoss ? 5 : 1) + (playerStats.essenceBonus || 0)) *
-      (eventMods.essenceMult || 1)
+      (eventMods.essenceMult || 1) *
+      (runSigil.essenceMult || 1)
   );
 
   const loot = generateLoot({
@@ -34,9 +61,10 @@ export function calculateRewards({ enemy, playerStats, player = null, codex = nu
     discoveredPowerIds,
     powerMasteryMap,
     discoveredPowerBias: player?.prestigeBonuses?.discoveredPowerBias || 0,
+    powerHuntMultiplier: runSigil.powerHuntMultiplier || 1,
     favoredStatWeightMultiplier: enemy?.isBoss ? 3.2 : 2.4,
     rarityFloor: enemy?.guaranteedRarityFloor || null,
-    rarityBonus: enemy?.dropRarityBonus || 0,
+    rarityBonus: mergeRarityBonus(enemy?.dropRarityBonus || 0, runSigil.rarityBonus || {}),
   });
 
   return { goldGained, xpGained, essenceGained, loot };

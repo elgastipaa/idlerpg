@@ -4,6 +4,7 @@ import Character from "./components/Character";
 import Combat from "./components/Combat";
 import Inventory from "./components/Inventory";
 import { getRarityColor } from "./constants/rarity";
+import { getRunSigil, RUN_SIGILS } from "./data/runSigils";
 
 const Skills = lazy(() => import("./components/Skills"));
 const Achievements = lazy(() => import("./components/Achievements"));
@@ -108,7 +109,7 @@ function renderCurrentTab(currentTab, state, dispatch) {
   if (currentTab === "prestige") return <Prestige state={state} dispatch={dispatch} />;
   if (currentTab === "achievements") return <Achievements state={state} />;
   if (currentTab === "stats") return <Stats state={state} dispatch={dispatch} />;
-  if (currentTab === "codex") return <Codex state={state} />;
+  if (currentTab === "codex") return <Codex state={state} dispatch={dispatch} />;
   return null;
 }
 
@@ -138,6 +139,8 @@ export default function App() {
   }).length;
   const theme = state.settings?.theme === "dark" ? "dark" : "light";
   const themeVars = THEMES[theme];
+  const activeRunSigil = getRunSigil(state.combat?.activeRunSigilId || "free");
+  const pendingRunSigil = getRunSigil(state.combat?.pendingRunSigilId || "free");
 
   useEffect(() => {
     document.body.style.margin = "0";
@@ -214,6 +217,14 @@ export default function App() {
                 </div>
               )}
               {isMobile && resourceSummary}
+              {Number(state.prestige?.level || 0) >= 1 && !state.combat?.pendingRunSetup && (
+                <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "0.62rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
+                  <span style={{ textTransform: "uppercase", letterSpacing: "0.06em" }}>Run</span>
+                  <span style={{ borderRadius: "999px", padding: "3px 8px", border: "1px solid var(--color-border-tertiary, #cbd5e1)", background: "var(--color-background-secondary, #fff)", color: "var(--tone-accent, #4338ca)" }}>
+                    {activeRunSigil.name}
+                  </span>
+                </div>
+              )}
             </div>
             <button
               onClick={() => dispatch({ type: "TOGGLE_THEME" })}
@@ -325,6 +336,16 @@ export default function App() {
         </main>
       </div>
 
+      {state.combat?.pendingRunSetup && (
+        <RunSigilOverlay
+          isMobile={isMobile}
+          pendingRunSigil={pendingRunSigil}
+          onSelect={(sigilId) => dispatch({ type: "SELECT_RUN_SIGIL", sigilId })}
+          onStart={() => dispatch({ type: "START_RUN" })}
+          prestigeLevel={state.prestige?.level || 0}
+        />
+      )}
+
       {isMobile && (
         <>
           {showMoreTabs && (
@@ -422,6 +443,104 @@ function HeaderResourcePill({ label, value, color, borderColor, background }) {
       <span style={{ fontSize: "0.78rem", fontWeight: "900", color, lineHeight: 1 }}>
         {value}
       </span>
+    </div>
+  );
+}
+
+function RunSigilOverlay({ isMobile, pendingRunSigil, onSelect, onStart, prestigeLevel }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,0.72)", zIndex: 9000, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", padding: isMobile ? "0" : "24px" }}>
+      <div style={{ width: "100%", maxWidth: "920px", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-primary, #1e293b)", borderRadius: isMobile ? "0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", display: "flex", flexDirection: "column", maxHeight: "100vh", overflow: "auto" }}>
+        <div style={{ padding: isMobile ? "18px 16px 12px" : "20px 22px 14px", borderBottom: "1px solid var(--color-border-primary, #e2e8f0)" }}>
+          <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+            {prestigeLevel <= 1 ? "Sigilos Desbloqueados" : "Proxima Run"}
+          </div>
+          <div style={{ fontSize: isMobile ? "1.05rem" : "1.18rem", fontWeight: "900", marginTop: "4px" }}>
+            Elegi como queres sesgar esta corrida
+          </div>
+          <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.45 }}>
+            El sigilo queda fijo hasta el proximo prestige. Si no queres especializar la run, usa <strong>Run Libre</strong>.
+          </div>
+        </div>
+
+        <div style={{ padding: isMobile ? "14px 16px 18px" : "18px 22px 22px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "12px" }}>
+          {RUN_SIGILS.map(sigil => {
+            const active = pendingRunSigil.id === sigil.id;
+            return (
+              <button
+                key={sigil.id}
+                onClick={() => onSelect(sigil.id)}
+                style={{
+                  textAlign: "left",
+                  border: "1px solid",
+                  borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
+                  background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-tertiary, #f8fafc)",
+                  color: "inherit",
+                  borderRadius: "14px",
+                  padding: "14px",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: "0.82rem", fontWeight: "900" }}>{sigil.name}</div>
+                    <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", marginTop: "3px" }}>
+                      {sigil.focus}
+                    </div>
+                  </div>
+                  <span style={{ minWidth: "18px", height: "18px", borderRadius: "999px", border: "2px solid", borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-tertiary, #cbd5e1)", background: active ? "var(--tone-accent, #4338ca)" : "transparent" }} />
+                </div>
+                <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #475569)", marginTop: "8px", lineHeight: 1.45 }}>
+                  {sigil.summary}
+                </div>
+                <div style={{ marginTop: "10px", display: "grid", gap: "6px" }}>
+                  <div style={{ fontSize: "0.6rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-success-strong, #047857)" }}>
+                    Ventajas
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                    {(sigil.strengths || []).map(line => (
+                      <span key={`${sigil.id}-plus-${line}`} style={{ fontSize: "0.62rem", fontWeight: "800", color: "var(--tone-success-strong, #047857)", background: "var(--tone-success-soft, #ecfdf5)", border: "1px solid rgba(16,185,129,0.18)", borderRadius: "999px", padding: "4px 7px" }}>
+                        {line}
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: "0.6rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-danger, #b91c1c)", marginTop: "4px" }}>
+                    Coste de oportunidad
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                    {(sigil.tradeoffs || []).map(line => (
+                      <span key={`${sigil.id}-minus-${line}`} style={{ fontSize: "0.62rem", fontWeight: "800", color: "var(--tone-danger, #b91c1c)", background: "var(--tone-danger-soft, #fff1f2)", border: "1px solid rgba(244,63,94,0.18)", borderRadius: "999px", padding: "4px 7px" }}>
+                        {line}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ padding: isMobile ? "0 16px 18px" : "0 22px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+          <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)" }}>
+            Seleccion actual: <strong style={{ color: "var(--color-text-primary, #1e293b)" }}>{pendingRunSigil.name}</strong>
+          </div>
+          <button
+            onClick={onStart}
+            style={{
+              border: "1px solid var(--tone-accent, #4338ca)",
+              background: "var(--tone-accent, #4338ca)",
+              color: "#fff",
+              borderRadius: "12px",
+              padding: "10px 14px",
+              fontSize: "0.72rem",
+              fontWeight: "900",
+              cursor: "pointer",
+            }}
+          >
+            Comenzar run
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

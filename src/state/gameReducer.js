@@ -7,7 +7,7 @@ import { addToInventory, syncEquipment } from "../engine/inventory/inventoryEngi
 import { sellItem, sellItems }      from "../engine/inventory/economyEngine";
 import { craftReroll, craftPolish, craftReforge, craftReforgePreview, craftUpgrade, craftAscend, craftExtract } from "../engine/crafting/craftingEngine";
 import { checkAchievements } from "../engine/progression/achievementEngine";
-import { getLegendaryPowerImprintReduction } from "../engine/progression/codexEngine";
+import { getLegendaryPowerImprintReduction, recordCodexSighting, syncCodexBonuses } from "../engine/progression/codexEngine";
 import { createEmptySessionAnalytics } from "../utils/runTelemetry";
 import { buildReplayLibraryEntry, createEmptyReplayLog, normalizeReplayLibrary, recordReplayState } from "../utils/replayLog";
 
@@ -27,6 +27,7 @@ import {
   syncPrestigeBonuses,
 } from "../engine/progression/prestigeEngine";
 import { PRESTIGE_TREE_NODES } from "../data/prestige";
+import { getRunSigil, getRunSigilPlayerBonuses, isRunSigilsUnlocked } from "../data/runSigils";
 
 import {
   upgradePlayer,
@@ -243,6 +244,54 @@ function baseGameReducer(state, action) {
           theme: action.theme === "dark" ? "dark" : "light",
         },
       };
+
+    case "SELECT_RUN_SIGIL": {
+      if (!state.combat?.pendingRunSetup || !isRunSigilsUnlocked(state)) return state;
+      const runSigil = getRunSigil(action.sigilId || "free");
+      return {
+        ...state,
+        combat: {
+          ...state.combat,
+          pendingRunSigilId: runSigil.id,
+        },
+      };
+    }
+
+    case "START_RUN": {
+      if (!state.combat?.pendingRunSetup) return state;
+      const runSigil = getRunSigil(state.combat?.pendingRunSigilId || "free");
+      const nextEnemy = spawnEnemy(state.combat?.currentTier || 1);
+      const nextCodex = recordCodexSighting(state.codex || {}, nextEnemy);
+      const nextPlayer = syncCodexBonuses(
+        syncPrestigeBonuses(
+          {
+            ...state.player,
+            runSigilBonuses: getRunSigilPlayerBonuses(runSigil.id),
+          },
+          state.prestige
+        ),
+        nextCodex
+      );
+
+      return {
+        ...state,
+        codex: nextCodex,
+        player: {
+          ...nextPlayer,
+          hp: nextPlayer.maxHp,
+        },
+        combat: {
+          ...state.combat,
+          pendingRunSetup: false,
+          activeRunSigilId: runSigil.id,
+          enemy: nextEnemy,
+          log: [
+            ...(state.combat.log || []),
+            `SIGILO: ${runSigil.name}. ${runSigil.summary}`,
+          ].slice(-20),
+        },
+      };
+    }
 
     case "TICK":
       return processTick(state);
@@ -478,6 +527,15 @@ function baseGameReducer(state, action) {
           ...newState,
           player: newPlayer,
           combat: { ...newState.combat, activeEvents: newActiveEvents, log: logs },
+        };
+      }
+
+      const sightedCodex = recordCodexSighting(newState.codex || state.codex || {}, newState.combat.enemy);
+      if (sightedCodex !== (newState.codex || state.codex)) {
+        newState = {
+          ...newState,
+          codex: sightedCodex,
+          player: syncCodexBonuses(newState.player, sightedCodex),
         };
       }
 
@@ -772,6 +830,7 @@ function baseGameReducer(state, action) {
         essence: state.player.essence || 0,
         prestigeBonuses: {},
         codexBonuses: state.player.codexBonuses || {},
+        runSigilBonuses: {},
         inventory:       [],
         equipment:       { weapon: null, armor: null },
         skills:          { dmg: 0, hp: 0, crit: 0 },
@@ -852,6 +911,9 @@ function baseGameReducer(state, action) {
           },
           latestLootEvent: null,
           reforgeSession: null,
+          pendingRunSetup: nextPrestigeLevel >= 1,
+          pendingRunSigilId: "free",
+          activeRunSigilId: "free",
           lastRunSummary:    null,
           offlineSummary:    null,
           prestigeCycle: createEmptyPrestigeCycleProgress(),
