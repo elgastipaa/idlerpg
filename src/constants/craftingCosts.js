@@ -1,15 +1,15 @@
 export const ASCEND_BASE_COSTS = {
-  common: { gold: 2500, essence: 40, minLevel: 2 },
-  magic: { gold: 9000, essence: 120, minLevel: 4 },
-  rare: { gold: 28000, essence: 320, minLevel: 6 },
-  epic: { gold: 90000, essence: 900, minLevel: 8 },
+  common: { gold: 0, essence: 40, minLevel: 3 },
+  magic: { gold: 0, essence: 120, minLevel: 5 },
+  rare: { gold: 0, essence: 320, minLevel: 7 },
+  epic: { gold: 0, essence: 900, minLevel: 9 },
 };
 
 export const ESSENCE_COST_MULTIPLIERS = {
-  reroll: 2.8,
-  polish: 6.0,
-  reforge: 7.0,
-  ascend: 4.5,
+  reroll: 8.0,
+  polish: 18.0,
+  reforge: 18.0,
+  ascend: 8.0,
 };
 
 function scaleEssenceCost(value, multiplier) {
@@ -27,9 +27,9 @@ export const ASCEND_COSTS = Object.fromEntries(
 );
 
 export const CRAFTING_BASE_COSTS = {
-  reroll: { gold: 1500, essence: scaleEssenceCost(25, ESSENCE_COST_MULTIPLIERS.reroll) },
-  polish: { gold: 1000, essence: scaleEssenceCost(15, ESSENCE_COST_MULTIPLIERS.polish) },
-  reforge: { gold: 3200, essence: scaleEssenceCost(50, ESSENCE_COST_MULTIPLIERS.reforge) },
+  reroll: { gold: 0, essence: scaleEssenceCost(55, ESSENCE_COST_MULTIPLIERS.reroll) },
+  polish: { gold: 0, essence: scaleEssenceCost(20, ESSENCE_COST_MULTIPLIERS.polish) },
+  reforge: { gold: 0, essence: scaleEssenceCost(45, ESSENCE_COST_MULTIPLIERS.reforge) },
 };
 
 export const REROLL_RARITY_MULTIPLIER = {
@@ -144,10 +144,18 @@ export function getReforgeCosts(item, player = {}, affix = null) {
   };
 }
 
-export function getAscendCosts(item, player = {}) {
+export function getAscendCosts(item, player = {}, { imprintPower = false, imprintReduction = 0 } = {}) {
   const ascendRule = ASCEND_COSTS[item?.rarity];
   if (!ascendRule) return null;
-  const reduction = getReduction(player, "ascendCostReduction");
+  const reduction = Math.max(
+    0,
+    Math.min(
+      0.8,
+      getReduction(player, "ascendCostReduction") +
+      (imprintPower ? Math.max(0, Math.min(0.6, player?.prestigeBonuses?.ascendImprintCostReduction || 0)) : 0) +
+      Math.max(0, Math.min(0.4, imprintReduction || 0))
+    )
+  );
   return {
     minLevel: ascendRule.minLevel,
     gold: Math.floor((ascendRule.gold || 0) * (1 - reduction)),

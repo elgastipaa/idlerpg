@@ -1,39 +1,45 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
 import { getLootHighlights } from "../utils/lootHighlights";
+import { AVAILABLE_HUNT_STATS, getHuntProfiles, resolveLootRuleWishlist } from "../utils/lootFilter";
 import { getRarityColor } from "../constants/rarity";
 import {
   ITEM_STAT_LABELS as STAT_LABELS,
+  ITEM_ECONOMY_STATS,
   formatItemNumber as formatNumber,
   formatItemStatValue as formatStatValue,
   formatItemDiffValue as formatDiffValue,
-  getUpgradeDisplay,
+  getItemDisplayName,
   getItemStats,
   getImplicitEntries,
   formatImplicitSummary,
   getAffixEntries,
   getAffixDots,
   getPrioritizedStatEntries,
-  formatEconomySummary,
   getTopCompareEntries,
   getCompareSummary,
   getItemLocation,
   getWorkedLabel,
+  getLegendaryPowerSummary,
 } from "../utils/itemPresentation";
 
 const BULK_SELL_RARITIES = ["common", "magic", "rare", "epic"];
 const AUTO_LOOT_RARITIES = ["common", "magic", "rare", "epic"];
-
 function getCardHighlights(highlights = []) {
   return highlights.filter(highlight => !["t1", "legendary", "epic"].includes(highlight.id));
+}
+
+function sameWishlist(left = [], right = []) {
+  if (left.length !== right.length) return false;
+  const leftSet = new Set(left);
+  return right.every(stat => leftSet.has(stat));
 }
 
 export default function Inventory({ state, player, dispatch }) {
   const [pendingBulkSell, setPendingBulkSell] = useState(null);
   const [pendingSellId, setPendingSellId] = useState(null);
   const [detailItemId, setDetailItemId] = useState(null);
-  const [showAffixFilters, setShowAffixFilters] = useState(false);
-  const [selectedAffixFilters, setSelectedAffixFilters] = useState([]);
+  const [showHuntEditor, setShowHuntEditor] = useState(false);
   const [showOnlyUpgrades, setShowOnlyUpgrades] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const isDarkMode = state?.settings?.theme === "dark";
@@ -59,19 +65,26 @@ export default function Inventory({ state, player, dispatch }) {
   const inventory = player.inventory || [];
   const equipment = player.equipment || { weapon: null, armor: null };
   const activeBuildTag = getPlayerBuildTag(player);
-  const lootRules = state?.settings?.lootRules || { autoSellRarities: [], autoExtractRarities: [], wishlistAffixes: [] };
-  const wishlistAffixes = lootRules.wishlistAffixes || [];
-  const availableAffixFilters = ["damage", "attackSpeed", "critChance", "critDamage", "lifesteal", "defense", "healthMax", "healthRegen", "blockChance", "dodgeChance", "thorns", "goldBonus", "xpBonus", "essenceBonus", "lootBonus", "luck", "cooldownReduction", "skillPower"];
+  const lootRules = state?.settings?.lootRules || {
+    autoSellRarities: [],
+    autoExtractRarities: [],
+    huntPreset: null,
+    protectHuntedDrops: true,
+    protectUpgradeDrops: true,
+    wishlistAffixes: [],
+  };
+  const currentEnemy = state?.combat?.enemy || null;
+  const wishlistAffixes = useMemo(
+    () => resolveLootRuleWishlist(lootRules, { activeBuildTag, enemy: currentEnemy }),
+    [lootRules, activeBuildTag, currentEnemy]
+  );
+  const huntProfiles = useMemo(
+    () => getHuntProfiles({ activeBuildTag, enemy: currentEnemy }),
+    [activeBuildTag, currentEnemy]
+  );
 
   const sortedItems = useMemo(() => {
     const filteredItems = inventory.filter(item => {
-      if (selectedAffixFilters.length === 0) return true;
-      const presentStats = new Set([
-        ...Object.keys(item.bonus || {}).filter(key => (item.bonus?.[key] || 0) > 0),
-        ...Object.keys(item.implicitBonus || {}).filter(key => (item.implicitBonus?.[key] || 0) > 0),
-        ...(item.affixes || []).map(affix => affix.stat),
-      ]);
-      if (!selectedAffixFilters.every(stat => presentStats.has(stat))) return false;
       if (showOnlyUpgrades) {
         const compareItem = item.type === "weapon" ? equipment.weapon : equipment.armor;
         return (item.rating || 0) > (compareItem?.rating || 0);
@@ -84,7 +97,7 @@ export default function Inventory({ state, player, dispatch }) {
       if (ratingDiff !== 0) return ratingDiff;
       return (b.level || 0) - (a.level || 0);
     });
-  }, [inventory, selectedAffixFilters, showOnlyUpgrades, equipment]);
+  }, [inventory, showOnlyUpgrades, equipment]);
 
   const detailItem = [...inventory, ...(equipment.weapon ? [equipment.weapon] : []), ...(equipment.armor ? [equipment.armor] : [])]
     .find(item => item.id === detailItemId) || null;
@@ -111,7 +124,7 @@ export default function Inventory({ state, player, dispatch }) {
           <div>
             <div style={{ fontSize: "0.92rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>Mochila ({inventory.length}/50)</div>
             <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "2px" }}>
-              {upgradeCount > 0 ? `${upgradeCount} upgrades potenciales · ordenado por rating` : "Ordenado por rating · toca un item para verlo completo"}
+              {upgradeCount > 0 ? `${upgradeCount} upgrades potenciales · ordenado por poder` : "Ordenado por poder · toca un item para verlo completo"}
             </div>
           </div>
         </div>
@@ -128,112 +141,193 @@ export default function Inventory({ state, player, dispatch }) {
       <section>
         <div style={{ marginBottom: "0.8rem", background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "10px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-            <div style={{ ...sectionTitleStyle, marginBottom: 0 }}>Loot Filter / Auto Loot</div>
+            <div>
+              <div style={{ ...sectionTitleStyle, marginBottom: "2px" }}>Loot Filter</div>
+              <div style={{ fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.3 }}>
+                Auto-loot por rareza, con proteccion de caza y upgrades.
+              </div>
+            </div>
             <button
-              onClick={() => setShowAffixFilters(current => !current)}
-              title="Filtrar por affixes"
-              style={{ border: "1px solid var(--color-border-secondary, #cbd5e1)", background: showAffixFilters ? "var(--color-background-tertiary, #e0f2fe)" : "var(--color-background-secondary, #fff)", color: showAffixFilters ? "#0369a1" : "var(--color-text-secondary, #475569)", borderRadius: "999px", width: "28px", height: "28px", fontSize: "1rem", fontWeight: "900", cursor: "pointer", lineHeight: 1 }}
+              onClick={() => setShowHuntEditor(current => !current)}
+              style={{
+                border: "1px solid var(--color-border-secondary, #cbd5e1)",
+                background: showHuntEditor ? (isDarkMode ? "rgba(30,64,175,0.18)" : "#eff6ff") : "var(--color-background-secondary, #fff)",
+                color: showHuntEditor ? (isDarkMode ? "#93c5fd" : "#1d4ed8") : "var(--color-text-secondary, #475569)",
+                borderRadius: "999px",
+                padding: "6px 10px",
+                fontSize: "0.62rem",
+                fontWeight: "900",
+                cursor: "pointer",
+              }}
             >
-              +
+              {showHuntEditor ? "Cerrar" : "Editar caza"}
             </button>
           </div>
           <div style={{ display: "grid", gap: "8px" }}>
-            <AutoRuleRow
-              label="Auto-vender"
-              activeRarities={lootRules.autoSellRarities || []}
-              blockedRarities={lootRules.autoExtractRarities || []}
-              isDarkMode={isDarkMode}
-              onToggle={rarity => {
-                const current = new Set(lootRules.autoSellRarities || []);
-                if (current.has(rarity)) current.delete(rarity);
-                else current.add(rarity);
-                const nextExtract = (lootRules.autoExtractRarities || []).filter(item => item !== rarity);
-                dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { autoSellRarities: [...current], autoExtractRarities: nextExtract } });
-              }}
-            />
-            <AutoRuleRow
-              label="Auto-extraer"
-              activeRarities={lootRules.autoExtractRarities || []}
-              blockedRarities={lootRules.autoSellRarities || []}
-              isDarkMode={isDarkMode}
-              onToggle={rarity => {
-                const current = new Set(lootRules.autoExtractRarities || []);
-                if (current.has(rarity)) current.delete(rarity);
-                else current.add(rarity);
-                const nextSell = (lootRules.autoSellRarities || []).filter(item => item !== rarity);
-                dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { autoExtractRarities: [...current], autoSellRarities: nextSell } });
-              }}
-            />
-            {showAffixFilters && (
-              <div style={{ background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "10px", padding: "10px" }}>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", fontWeight: "900", marginBottom: "8px" }}>Wishlist de affixes</div>
-                <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #64748b)", fontWeight: "700", marginBottom: "8px" }}>
-                  Marca stats que queres chasear: el loot con esos affixes se resalta automaticamente.
-                </div>
-                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "10px" }}>
-                  {availableAffixFilters.map(stat => {
-                    const active = wishlistAffixes.includes(stat);
-                    return (
-                      <button
-                        key={`wish-${stat}`}
-                        onClick={() => {
-                          const next = active ? wishlistAffixes.filter(item => item !== stat) : [...wishlistAffixes, stat];
-                          dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { wishlistAffixes: next } });
-                        }}
-                        style={{
-                          border: "1px solid",
-                          borderColor: active ? (isDarkMode ? "rgba(45,212,191,0.45)" : "#99f6e4") : "var(--color-border-primary, #e2e8f0)",
-                          background: active ? (isDarkMode ? "rgba(13,148,136,0.16)" : "#f0fdfa") : "var(--color-background-secondary, #fff)",
-                          color: active ? (isDarkMode ? "#5eead4" : "#115e59") : "var(--color-text-secondary, #475569)",
-                          borderRadius: "999px",
-                          padding: "6px 9px",
-                          fontSize: "0.62rem",
-                          fontWeight: "900",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {STAT_LABELS[stat] || stat}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", fontWeight: "900", marginBottom: "8px" }}>Mostrar solo items con estos affixes</div>
-                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                  {availableAffixFilters.map(stat => {
-                    const active = selectedAffixFilters.includes(stat);
-                    return (
-                      <button
-                        key={stat}
-                        onClick={() => {
-                          setSelectedAffixFilters(current => current.includes(stat) ? current.filter(item => item !== stat) : [...current, stat]);
-                        }}
-                        style={{
-                          border: "1px solid",
-                          borderColor: active ? (isDarkMode ? "rgba(125,211,252,0.42)" : "#bae6fd") : "var(--color-border-primary, #e2e8f0)",
-                          background: active ? (isDarkMode ? "rgba(3,105,161,0.18)" : "#f0f9ff") : "var(--color-background-secondary, #fff)",
-                          color: active ? (isDarkMode ? "#7dd3fc" : "#075985") : "var(--color-text-secondary, #475569)",
-                          borderRadius: "999px",
-                          padding: "6px 9px",
-                          fontSize: "0.62rem",
-                          fontWeight: "900",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {STAT_LABELS[stat] || stat}
-                      </button>
-                    );
-                  })}
-                  {selectedAffixFilters.length > 0 && (
-                    <button
-                      onClick={() => setSelectedAffixFilters([])}
-                      style={{ border: `1px solid ${isDarkMode ? "rgba(244,114,182,0.42)" : "#fecaca"}`, background: isDarkMode ? "rgba(190,24,93,0.18)" : "#fff1f2", color: isDarkMode ? "#fda4af" : "#be123c", borderRadius: "999px", padding: "6px 9px", fontSize: "0.62rem", fontWeight: "900", cursor: "pointer" }}
-                    >
-                      Limpiar
-                    </button>
-                  )}
-                </div>
+            <div style={{ background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "10px", padding: "10px", display: "grid", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                {huntProfiles.map(profile => (
+                  <button
+                    key={profile.id}
+                    onClick={() => dispatch({
+                      type: "UPDATE_LOOT_RULES",
+                      lootRules: {
+                        huntPreset: profile.id,
+                        wishlistAffixes: profile.wishlistAffixes,
+                      },
+                    })}
+                    style={{
+                      border: "1px solid",
+                      borderColor: lootRules.huntPreset === profile.id || sameWishlist(profile.wishlistAffixes, wishlistAffixes)
+                        ? (isDarkMode ? "rgba(45,212,191,0.45)" : "#99f6e4")
+                        : "var(--color-border-primary, #e2e8f0)",
+                      background: lootRules.huntPreset === profile.id || sameWishlist(profile.wishlistAffixes, wishlistAffixes)
+                        ? (isDarkMode ? "rgba(13,148,136,0.16)" : "#f0fdfa")
+                        : "var(--color-background-secondary, #fff)",
+                      color: lootRules.huntPreset === profile.id || sameWishlist(profile.wishlistAffixes, wishlistAffixes)
+                        ? (isDarkMode ? "#5eead4" : "#115e59")
+                        : "var(--color-text-secondary, #475569)",
+                      borderRadius: "999px",
+                      padding: "6px 10px",
+                      fontSize: "0.62rem",
+                      fontWeight: "900",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {profile.label}
+                  </button>
+                ))}
               </div>
-            )}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", lineHeight: 1.35 }}>
+                  Toca un stat cazado para sacarlo. Lo cazado se protege del auto-loot.
+                </div>
+                {wishlistAffixes.length > 0 && (
+                  <button
+                    onClick={() => dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { huntPreset: null, wishlistAffixes: [] } })}
+                    style={{ border: "none", background: "none", color: "var(--color-text-info, #2563eb)", fontSize: "0.62rem", fontWeight: "900", cursor: "pointer", padding: 0 }}
+                  >
+                    Limpiar
+                  </button>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                {wishlistAffixes.length > 0 ? wishlistAffixes.map(stat => (
+                  <button
+                    key={`active-wish-${stat}`}
+                    onClick={() => dispatch({
+                      type: "UPDATE_LOOT_RULES",
+                      lootRules: {
+                        huntPreset: null,
+                        wishlistAffixes: wishlistAffixes.filter(item => item !== stat),
+                      },
+                    })}
+                    title="Quitar de la caza"
+                    style={{
+                      border: "1px solid rgba(45,212,191,0.35)",
+                      background: isDarkMode ? "rgba(13,148,136,0.16)" : "#f0fdfa",
+                      color: isDarkMode ? "#5eead4" : "#115e59",
+                      borderRadius: "999px",
+                      padding: "4px 8px",
+                      fontSize: "0.6rem",
+                      fontWeight: "900",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {STAT_LABELS[stat] || stat}
+                  </button>
+                )) : (
+                  <span style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
+                    Sin caza activa
+                  </span>
+                )}
+              </div>
+              {showHuntEditor && (
+                <div style={{ borderTop: "1px solid var(--color-border-primary, #e2e8f0)", paddingTop: "8px", display: "grid", gap: "8px" }}>
+                  <div>
+                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #475569)", fontWeight: "900", marginBottom: "6px" }}>Elegi stats para cazar</div>
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                      {AVAILABLE_HUNT_STATS.map(stat => {
+                        const active = wishlistAffixes.includes(stat);
+                        return (
+                          <button
+                            key={`wish-${stat}`}
+                            onClick={() => {
+                              const next = active ? wishlistAffixes.filter(item => item !== stat) : [...wishlistAffixes, stat];
+                              dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { huntPreset: null, wishlistAffixes: next } });
+                            }}
+                            style={{
+                              border: "1px solid",
+                              borderColor: active ? (isDarkMode ? "rgba(45,212,191,0.45)" : "#99f6e4") : "var(--color-border-primary, #e2e8f0)",
+                              background: active ? (isDarkMode ? "rgba(13,148,136,0.16)" : "#f0fdfa") : "var(--color-background-secondary, #fff)",
+                              color: active ? (isDarkMode ? "#5eead4" : "#115e59") : "var(--color-text-secondary, #475569)",
+                              borderRadius: "999px",
+                              padding: "6px 9px",
+                              fontSize: "0.62rem",
+                              fontWeight: "900",
+                              cursor: "pointer",
+                            }}
+                          >
+                            {STAT_LABELS[stat] || stat}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "grid", gap: "8px" }}>
+              <AutoRuleRow
+                label="Auto-vender"
+                activeRarities={lootRules.autoSellRarities || []}
+                blockedRarities={lootRules.autoExtractRarities || []}
+                isDarkMode={isDarkMode}
+                onToggle={rarity => {
+                  const current = new Set(lootRules.autoSellRarities || []);
+                  if (current.has(rarity)) current.delete(rarity);
+                  else current.add(rarity);
+                  const nextExtract = (lootRules.autoExtractRarities || []).filter(item => item !== rarity);
+                  dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { autoSellRarities: [...current], autoExtractRarities: nextExtract } });
+                }}
+              />
+              <AutoRuleRow
+                label="Auto-extraer"
+                activeRarities={lootRules.autoExtractRarities || []}
+                blockedRarities={lootRules.autoSellRarities || []}
+                isDarkMode={isDarkMode}
+                onToggle={rarity => {
+                  const current = new Set(lootRules.autoExtractRarities || []);
+                  if (current.has(rarity)) current.delete(rarity);
+                  else current.add(rarity);
+                  const nextSell = (lootRules.autoSellRarities || []).filter(item => item !== rarity);
+                  dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { autoExtractRarities: [...current], autoSellRarities: nextSell } });
+                }}
+              />
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                <button
+                  onClick={() => dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { protectHuntedDrops: !(lootRules.protectHuntedDrops !== false) } })}
+                  style={togglePillStyle(lootRules.protectHuntedDrops !== false, isDarkMode)}
+                >
+                  Proteger caza
+                </button>
+                <button
+                  onClick={() => dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { protectUpgradeDrops: !(lootRules.protectUpgradeDrops !== false) } })}
+                  style={togglePillStyle(lootRules.protectUpgradeDrops !== false, isDarkMode)}
+                >
+                  Proteger upgrades
+                </button>
+              </div>
+              <div style={{ fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "8px", lineHeight: 1.35 }}>
+                Si un rarity entra en auto-vender o auto-extraer, los drops cazados y las mejoras claras pueden salvarse automaticamente.
+              </div>
+              {lootRules.huntPreset && (
+                <div style={{ fontSize: "0.58rem", color: "var(--color-text-info, #2563eb)", fontWeight: "800" }}>
+                  Preset vivo: {lootRules.huntPreset === "build" ? "Build" : lootRules.huntPreset === "enemy" ? "Enemigo actual" : lootRules.huntPreset}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -381,10 +475,10 @@ function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode
   const hasPerfect = (item.affixes || []).some(affix => affix.perfectRoll);
   const affixDots = getAffixDots(item);
   const implicitEntries = getImplicitEntries(item);
-  const topStats = getPrioritizedStatEntries(stats, 3);
+  const topStats = getPrioritizedStatEntries(stats, 2);
   const highlights = getCardHighlights(getLootHighlights({ item, equippedItem: item, activeBuildTag, wishlistAffixes })).slice(0, 2);
   const workedLabel = getWorkedLabel(item);
-  const economySummary = formatEconomySummary(stats);
+  const legendaryPower = getLegendaryPowerSummary(item);
 
   return (
     <div
@@ -399,14 +493,15 @@ function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: "0.72rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", marginBottom: "2px" }}>{title}</div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-            <div style={{ fontWeight: "900", color: "var(--color-text-primary, #1e293b)", fontSize: "0.78rem", lineHeight: 1.2 }}>{item.name}</div>
+            <div style={{ fontWeight: "900", color: "var(--color-text-primary, #1e293b)", fontSize: "0.78rem", lineHeight: 1.2 }}>{getItemDisplayName(item)}</div>
             {workedLabel && <span style={workedBadgeStyle(isDarkMode)}>{workedLabel}</span>}
+            {legendaryPower && <span style={powerBadgeStyle(isDarkMode)}>{legendaryPower.shortLabel}</span>}
           </div>
           <div style={{ fontSize: "0.58rem", color: getRarityColor(item.rarity), textTransform: "uppercase", fontWeight: "800", marginTop: "2px" }}>
-            {item.rarity}{getUpgradeDisplay(item.level) ? ` · ${getUpgradeDisplay(item.level)}` : ""}{item.familyName ? ` · ${item.familyName}` : ""}
+            {item.rarity}{item.familyName ? ` · ${item.familyName}` : ""}
           </div>
         </div>
-        <span style={{ color: "var(--tone-warning, #f59e0b)", fontSize: "0.78rem", fontWeight: "900", whiteSpace: "nowrap" }}>{formatNumber(item.rating || 0)}</span>
+        <span style={{ color: "var(--tone-warning, #f59e0b)", fontSize: "0.78rem", fontWeight: "900", whiteSpace: "nowrap" }}>P {formatNumber(item.rating || 0)}</span>
       </div>
 
       {highlights.length > 0 && (
@@ -437,7 +532,6 @@ function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode
           ))}
         </div>
       )}
-      {economySummary && <div style={{ fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>Eco: {economySummary}</div>}
       <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap", fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
         <span>{(item.affixes || []).length} affixes</span>
         {implicitEntries.length > 0 && <span>Implicit: {formatImplicitSummary(item)}</span>}
@@ -455,11 +549,11 @@ function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, 
   const affixDots = getAffixDots(item);
   const implicitEntries = getImplicitEntries(item);
   const highlights = getCardHighlights(getLootHighlights({ item, equippedItem: equippedCompare, activeBuildTag, wishlistAffixes })).slice(0, 1);
-  const compareEntries = getTopCompareEntries(item, compareItem, isMobile ? 3 : 4);
-  const topStats = getPrioritizedStatEntries(item.bonus || {}, 3);
+  const compareEntries = getTopCompareEntries(item, compareItem, isMobile ? 2 : 3);
+  const topStats = getPrioritizedStatEntries(item.bonus || {}, 2);
   const compareSummary = getCompareSummary(item, compareItem);
   const workedLabel = getWorkedLabel(item);
-  const economySummary = formatEconomySummary(item.bonus || {});
+  const legendaryPower = getLegendaryPowerSummary(item);
   return (
     <div style={{ ...compactCardStyle, borderLeft: `4px solid ${color}`, gap: "8px" }}>
       {hasPerfect && (
@@ -468,15 +562,16 @@ function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px" }}>
         <button onClick={onOpen} style={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", background: "none", padding: 0, cursor: "pointer" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-            <span style={{ fontWeight: "900", fontSize: "0.82rem", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.2 }}>{item.name}</span>
+            <span style={{ fontWeight: "900", fontSize: "0.82rem", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.2 }}>{getItemDisplayName(item)}</span>
             {isBetter && <span style={betterBadgeStyle(isDarkMode)}>MEJOR</span>}
             {workedLabel && <span style={workedBadgeStyle(isDarkMode)}>{workedLabel}</span>}
+            {legendaryPower && <span style={powerBadgeStyle(isDarkMode)}>{legendaryPower.shortLabel}</span>}
           </div>
           <div style={{ fontSize: "0.58rem", color, textTransform: "uppercase", fontWeight: "800", marginTop: "2px" }}>
-            {item.rarity}{getUpgradeDisplay(item.level) ? ` · ${getUpgradeDisplay(item.level)}` : ""}{item.familyName ? ` · ${item.familyName}` : ""}
+            {item.rarity}{item.familyName ? ` · ${item.familyName}` : ""}
           </div>
         </button>
-        <div style={{ color: "var(--tone-warning, #f59e0b)", fontWeight: "900", fontSize: "0.86rem", whiteSpace: "nowrap" }}>{formatNumber(item.rating || 0)}</div>
+        <div style={{ color: "var(--tone-warning, #f59e0b)", fontWeight: "900", fontSize: "0.86rem", whiteSpace: "nowrap" }}>P {formatNumber(item.rating || 0)}</div>
       </div>
 
       {highlights.length > 0 && (
@@ -517,7 +612,6 @@ function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, 
             </span>
           ))}
         </div>
-        {economySummary && <div style={{ fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>Eco: {economySummary}</div>}
       </div>
 
       {implicitEntries.length > 0 && <div style={{ fontSize: "0.62rem", color: "var(--color-text-info, #4338ca)", fontWeight: "800" }}>Implicit: {formatImplicitSummary(item)}</div>}
@@ -533,31 +627,92 @@ function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, 
 }
 
 function ItemDetailModal({ item, equippedCompare, activeBuildTag, wishlistAffixes, isDarkMode = false, onClose, onEquip, onSell, canSell = true }) {
+  const [showAllAffixes, setShowAllAffixes] = useState(false);
+  const [showFullStats, setShowFullStats] = useState(false);
   const compareItem = equippedCompare || { bonus: {}, rating: 0 };
   const stats = getItemStats(item);
   const affixes = getAffixEntries(item);
   const highlights = getLootHighlights({ item, equippedItem: equippedCompare, activeBuildTag, wishlistAffixes });
+  const legendaryPower = getLegendaryPowerSummary(item);
+  const quickStats = getPrioritizedStatEntries(stats, 4);
+  const compareEntries = getTopCompareEntries(item, compareItem, 6);
+  const visibleAffixes = showAllAffixes ? affixes : affixes.slice(0, 4);
+  const economyAffixes = affixes.filter(affix => ITEM_ECONOMY_STATS.has(affix.stat));
 
   return (
     <div style={modalWrapStyle} onClick={onClose}>
       <div style={modalCardStyle} onClick={event => event.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" }}>
           <div>
-            <div style={{ fontSize: "0.6rem", color: getRarityColor(item.rarity), textTransform: "uppercase", fontWeight: "900" }}>{item.rarity} · {item.familyName || "Sin familia"}{getUpgradeDisplay(item.level) ? ` · ${getUpgradeDisplay(item.level)}` : ""}</div>
-            <div style={{ fontSize: "1rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", marginTop: "2px" }}>{item.name}{getUpgradeDisplay(item.level) ? ` ${getUpgradeDisplay(item.level)}` : ""}</div>
-            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>Rating {formatNumber(item.rating || 0)} · Comparado con equipado: {formatNumber((item.rating || 0) - (equippedCompare?.rating || 0))}</div>
+            <div style={{ fontSize: "0.6rem", color: getRarityColor(item.rarity), textTransform: "uppercase", fontWeight: "900" }}>{item.rarity} · {item.familyName || "Sin familia"}</div>
+            <div style={{ fontSize: "1rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", marginTop: "2px" }}>{getItemDisplayName(item)}</div>
+            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>Poder {formatNumber(item.rating || 0)} · Comparado con equipado: {formatNumber((item.rating || 0) - (equippedCompare?.rating || 0))}</div>
           </div>
           <button onClick={onClose} style={{ border: "none", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", width: "32px", height: "32px", borderRadius: "999px", cursor: "pointer", fontWeight: "900" }}>×</button>
         </div>
 
         {highlights.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>{highlights.map(highlight => <span key={highlight.id} style={highlightBadgeStyle(highlight.tone, isDarkMode)}>{highlight.label}</span>)}</div>}
 
+        {legendaryPower && (
+          <section style={{ ...detailBlockStyle, background: isDarkMode ? "rgba(124,58,237,0.14)" : "#faf5ff", borderColor: isDarkMode ? "rgba(196,181,253,0.28)" : "#ddd6fe" }}>
+            <div style={{ ...detailTitleStyle, color: isDarkMode ? "#c4b5fd" : "#6d28d9" }}>Poder Legendario</div>
+            <div style={{ fontSize: "0.78rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>{legendaryPower.name}</div>
+            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.4 }}>{legendaryPower.description}</div>
+          </section>
+        )}
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px", maxHeight: "48vh", overflowY: "auto" }}>
+          <section style={detailBlockStyle}>
+            <div style={detailTitleStyle}>Lectura Rapida</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+              <div style={{ ...detailBlockStyle, padding: "8px", background: "var(--color-background-tertiary, #f8fafc)" }}>
+                <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" }}>Comparativa</div>
+                <div style={{ fontSize: "0.8rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", marginTop: "4px" }}>{getCompareSummary(item, compareItem)}</div>
+              </div>
+              <div style={{ ...detailBlockStyle, padding: "8px", background: "var(--color-background-tertiary, #f8fafc)" }}>
+                <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" }}>Resumen</div>
+                <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #475569)", fontWeight: "800", marginTop: "4px", lineHeight: 1.35 }}>
+                  {(item.affixes || []).length} affixes · {formatImplicitSummary(item) || "Sin implicit"} · {getWorkedLabel(item) || "Sin trabajo"}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
+              {(compareEntries.length > 0 ? compareEntries : quickStats.map(([key, currentVal]) => ({ key, currentVal, diff: currentVal }))).map(entry => (
+                <span
+                  key={`detail-quick-${entry.key}`}
+                  style={{
+                    ...miniStatPillStyle,
+                    fontWeight: "900",
+                    color: entry.diff > 0 ? "var(--tone-success-strong, #166534)" : entry.diff < 0 ? "var(--tone-danger, #D85A30)" : "var(--color-text-secondary, #64748b)",
+                    background: entry.diff > 0 ? "var(--tone-success-soft, #ecfdf5)" : entry.diff < 0 ? "var(--tone-danger-soft, #fff1f2)" : "var(--color-background-tertiary, #f1f5f9)",
+                  }}
+                >
+                  {STAT_LABELS[entry.key]} <strong>{entry.diff !== 0 ? formatDiffValue(entry.key, entry.diff) : `+${formatStatValue(entry.key, entry.currentVal)}`}</strong>
+                </span>
+              ))}
+            </div>
+            {economyAffixes.length > 0 && (
+              <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "8px", lineHeight: 1.35 }}>
+                Economia: {economyAffixes.map(affix => `${STAT_LABELS[affix.stat] || affix.stat} +${formatStatValue(affix.stat, affix.rolledValue ?? affix.value ?? 0)}`).join(" · ")}
+              </div>
+            )}
+          </section>
+
           {affixes.length > 0 && (
             <section style={{ ...detailBlockStyle, background: isDarkMode ? "rgba(30,64,175,0.1)" : "#f8fbff", borderColor: isDarkMode ? "rgba(96,165,250,0.28)" : "#dbeafe" }}>
-              <div style={{ ...detailTitleStyle, color: isDarkMode ? "#93c5fd" : "#1d4ed8" }}>Affixes</div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                <div style={{ ...detailTitleStyle, color: isDarkMode ? "#93c5fd" : "#1d4ed8", marginBottom: 0 }}>Affixes</div>
+                {affixes.length > 4 && (
+                  <button
+                    onClick={() => setShowAllAffixes(current => !current)}
+                    style={{ border: "1px solid var(--color-border-primary, #dbeafe)", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-info, #1d4ed8)", borderRadius: "999px", padding: "4px 8px", fontSize: "0.58rem", fontWeight: "900", cursor: "pointer" }}
+                  >
+                    {showAllAffixes ? "Ver menos" : `Ver ${affixes.length - 4} mas`}
+                  </button>
+                )}
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
-                {affixes.map((affix, index) => (
+                {visibleAffixes.map((affix, index) => (
                   <div
                     key={`${affix.id}-${index}`}
                     style={{
@@ -585,8 +740,16 @@ function ItemDetailModal({ item, equippedCompare, activeBuildTag, wishlistAffixe
           )}
 
           <section style={detailBlockStyle}>
-            <div style={detailTitleStyle}>Item Stats</div>
-            {(() => {
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <div style={{ ...detailTitleStyle, marginBottom: 0 }}>Tabla Completa</div>
+              <button
+                onClick={() => setShowFullStats(current => !current)}
+                style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #475569)", borderRadius: "999px", padding: "4px 8px", fontSize: "0.58rem", fontWeight: "900", cursor: "pointer" }}
+              >
+                {showFullStats ? "Ocultar" : "Mostrar"}
+              </button>
+            </div>
+            {showFullStats ? (() => {
               const statKeys = Object.keys(STAT_LABELS).filter(key => (stats[key] || 0) > 0 || (compareItem.bonus?.[key] || 0) > 0);
               return (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "7px" }}>
@@ -610,7 +773,11 @@ function ItemDetailModal({ item, equippedCompare, activeBuildTag, wishlistAffixe
                   ))}
                 </div>
               );
-            })()}
+            })() : (
+              <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
+                La lectura rapida ya muestra lo importante. Abri esta tabla solo si queres revisar todas las lineas y diferencias exactas.
+              </div>
+            )}
           </section>
 
           <section style={detailBlockStyle}>
@@ -640,10 +807,22 @@ const compactCardStyle = { background: "var(--color-background-secondary, #fffff
 const miniStatPillStyle = { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", background: "var(--color-background-tertiary, #f1f5f9)", padding: "2px 6px", borderRadius: "999px", lineHeight: 1.2 };
 const betterBadgeStyle = isDarkMode => ({ background: isDarkMode ? "rgba(22,163,74,0.22)" : "var(--tone-success-soft, #ecfdf5)", color: isDarkMode ? "var(--tone-success, #86efac)" : "var(--tone-success-strong, #166534)", fontSize: "0.54rem", padding: "2px 6px", borderRadius: "999px", fontWeight: "900", letterSpacing: "0.03em", border: `1px solid ${isDarkMode ? "rgba(34,197,94,0.44)" : "var(--tone-success, #bbf7d0)"}` });
 const workedBadgeStyle = isDarkMode => ({ background: isDarkMode ? "rgba(59,130,246,0.2)" : "var(--tone-accent-soft, #eef2ff)", color: isDarkMode ? "var(--tone-accent, #bfdbfe)" : "var(--tone-accent, #4338ca)", fontSize: "0.54rem", padding: "2px 6px", borderRadius: "999px", fontWeight: "900", letterSpacing: "0.03em", border: `1px solid ${isDarkMode ? "rgba(96,165,250,0.4)" : "var(--tone-accent, #c7d2fe)"}` });
+const powerBadgeStyle = isDarkMode => ({ background: isDarkMode ? "rgba(124,58,237,0.22)" : "#faf5ff", color: isDarkMode ? "#ddd6fe" : "#6d28d9", fontSize: "0.54rem", padding: "2px 6px", borderRadius: "999px", fontWeight: "900", letterSpacing: "0.03em", border: `1px solid ${isDarkMode ? "rgba(196,181,253,0.35)" : "#ddd6fe"}` });
+const togglePillStyle = (active, isDarkMode = false) => ({
+  border: "1px solid",
+  borderColor: active ? (isDarkMode ? "rgba(45,212,191,0.45)" : "#99f6e4") : "var(--color-border-primary, #e2e8f0)",
+  background: active ? (isDarkMode ? "rgba(13,148,136,0.16)" : "#f0fdfa") : "var(--color-background-secondary, #fff)",
+  color: active ? (isDarkMode ? "#5eead4" : "#115e59") : "var(--color-text-secondary, #475569)",
+  borderRadius: "999px",
+  padding: "6px 10px",
+  fontSize: "0.62rem",
+  fontWeight: "900",
+  cursor: "pointer",
+});
 const highlightBadgeStyle = (tone, isDarkMode = false) => {
   const palette = isDarkMode
-    ? { legendary: { bg: "rgba(194,65,12,0.2)", color: "var(--tone-warning, #fdba74)", border: "rgba(251,146,60,0.45)" }, epic: { bg: "rgba(124,58,237,0.2)", color: "var(--tone-violet, #c4b5fd)", border: "rgba(167,139,250,0.45)" }, perfect: { bg: "rgba(161,98,7,0.2)", color: "var(--tone-warning, #fde68a)", border: "rgba(250,204,21,0.4)" }, t1: { bg: "rgba(37,99,235,0.2)", color: "var(--tone-info, #93c5fd)", border: "rgba(96,165,250,0.45)" }, upgrade: { bg: "rgba(4,120,87,0.22)", color: "var(--tone-success, #6ee7b7)", border: "rgba(16,185,129,0.42)" }, build: { bg: "rgba(3,105,161,0.22)", color: "var(--tone-info, #7dd3fc)", border: "rgba(56,189,248,0.4)" }, offense: { bg: "rgba(190,24,93,0.2)", color: "var(--tone-danger, #fda4af)", border: "rgba(244,114,182,0.42)" }, wishlist: { bg: "rgba(13,148,136,0.22)", color: "var(--tone-success, #5eead4)", border: "rgba(45,212,191,0.42)" }, masterwork: { bg: "rgba(154,52,18,0.24)", color: "var(--tone-warning, #fdba74)", border: "rgba(251,146,60,0.42)" }, forged: { bg: "rgba(67,56,202,0.24)", color: "var(--tone-accent, #c7d2fe)", border: "rgba(129,140,248,0.4)" }, crafted: { bg: "rgba(71,85,105,0.24)", color: "var(--color-text-tertiary, #cbd5e1)", border: "rgba(148,163,184,0.35)" } }
-    : { legendary: { bg: "var(--tone-warning-soft, #fff8f1)", color: "var(--tone-danger, #9a3412)", border: "var(--tone-warning, #fed7aa)" }, epic: { bg: "var(--tone-violet-soft, #faf6ff)", color: "var(--tone-violet, #6d28d9)", border: "var(--tone-violet, #ddd6fe)" }, perfect: { bg: "var(--tone-warning-soft, #fffceb)", color: "#92400e", border: "var(--tone-warning, #fde68a)" }, t1: { bg: "var(--tone-info-soft, #f5f9ff)", color: "var(--tone-info, #1e40af)", border: "var(--tone-info, #bfdbfe)" }, upgrade: { bg: "var(--tone-success-soft, #f0fdf7)", color: "var(--tone-success-strong, #065f46)", border: "var(--tone-success, #bbf7d0)" }, build: { bg: "var(--tone-info-soft, #f0f9ff)", color: "var(--tone-info, #075985)", border: "var(--tone-info, #bae6fd)" }, offense: { bg: "var(--tone-danger-soft, #fff5f7)", color: "var(--tone-danger-strong, #9f1239)", border: "var(--tone-danger, #fecdd3)" }, wishlist: { bg: "var(--tone-success-soft, #f0fdfa)", color: "var(--tone-success-strong, #115e59)", border: "var(--tone-success, #99f6e4)" }, masterwork: { bg: "var(--tone-warning-soft, #fff8f1)", color: "var(--tone-danger, #9a3412)", border: "var(--tone-warning, #fed7aa)" }, forged: { bg: "var(--tone-accent-soft, #f3f4ff)", color: "var(--tone-accent, #4338ca)", border: "var(--tone-accent, #c7d2fe)" }, crafted: { bg: "var(--tone-neutral-soft, #f8fafc)", color: "var(--color-text-secondary, #475569)", border: "var(--color-border-tertiary, #cbd5e1)" } };
+    ? { legendary: { bg: "rgba(194,65,12,0.2)", color: "var(--tone-warning, #fdba74)", border: "rgba(251,146,60,0.45)" }, epic: { bg: "rgba(124,58,237,0.2)", color: "var(--tone-violet, #c4b5fd)", border: "rgba(167,139,250,0.45)" }, perfect: { bg: "rgba(161,98,7,0.2)", color: "var(--tone-warning, #fde68a)", border: "rgba(250,204,21,0.4)" }, t1: { bg: "rgba(37,99,235,0.2)", color: "var(--tone-info, #93c5fd)", border: "rgba(96,165,250,0.45)" }, upgrade: { bg: "rgba(4,120,87,0.22)", color: "var(--tone-success, #6ee7b7)", border: "rgba(16,185,129,0.42)" }, build: { bg: "rgba(3,105,161,0.22)", color: "var(--tone-info, #7dd3fc)", border: "rgba(56,189,248,0.4)" }, offense: { bg: "rgba(190,24,93,0.2)", color: "var(--tone-danger, #fda4af)", border: "rgba(244,114,182,0.42)" }, wishlist: { bg: "rgba(13,148,136,0.22)", color: "var(--tone-success, #5eead4)", border: "rgba(45,212,191,0.42)" }, enabler: { bg: "rgba(91,33,182,0.28)", color: "#ddd6fe", border: "rgba(196,181,253,0.42)" }, masterwork: { bg: "rgba(154,52,18,0.24)", color: "var(--tone-warning, #fdba74)", border: "rgba(251,146,60,0.42)" }, ascended: { bg: "rgba(250,204,21,0.18)", color: "#fde68a", border: "rgba(250,204,21,0.42)" }, forged: { bg: "rgba(67,56,202,0.24)", color: "var(--tone-accent, #c7d2fe)", border: "rgba(129,140,248,0.4)" }, crafted: { bg: "rgba(71,85,105,0.24)", color: "var(--color-text-tertiary, #cbd5e1)", border: "rgba(148,163,184,0.35)" } }
+    : { legendary: { bg: "var(--tone-warning-soft, #fff8f1)", color: "var(--tone-danger, #9a3412)", border: "var(--tone-warning, #fed7aa)" }, epic: { bg: "var(--tone-violet-soft, #faf6ff)", color: "var(--tone-violet, #6d28d9)", border: "var(--tone-violet, #ddd6fe)" }, perfect: { bg: "var(--tone-warning-soft, #fffceb)", color: "#92400e", border: "var(--tone-warning, #fde68a)" }, t1: { bg: "var(--tone-info-soft, #f5f9ff)", color: "var(--tone-info, #1e40af)", border: "var(--tone-info, #bfdbfe)" }, upgrade: { bg: "var(--tone-success-soft, #f0fdf7)", color: "var(--tone-success-strong, #065f46)", border: "var(--tone-success, #bbf7d0)" }, build: { bg: "var(--tone-info-soft, #f0f9ff)", color: "var(--tone-info, #075985)", border: "var(--tone-info, #bae6fd)" }, offense: { bg: "var(--tone-danger-soft, #fff5f7)", color: "var(--tone-danger-strong, #9f1239)", border: "var(--tone-danger, #fecdd3)" }, wishlist: { bg: "var(--tone-success-soft, #f0fdfa)", color: "var(--tone-success-strong, #115e59)", border: "var(--tone-success, #99f6e4)" }, enabler: { bg: "#faf5ff", color: "#6d28d9", border: "#ddd6fe" }, masterwork: { bg: "var(--tone-warning-soft, #fff8f1)", color: "var(--tone-danger, #9a3412)", border: "var(--tone-warning, #fed7aa)" }, ascended: { bg: "#fffbeb", color: "#a16207", border: "#fcd34d" }, forged: { bg: "var(--tone-accent-soft, #f3f4ff)", color: "var(--tone-accent, #4338ca)", border: "var(--tone-accent, #c7d2fe)" }, crafted: { bg: "var(--tone-neutral-soft, #f8fafc)", color: "var(--color-text-secondary, #475569)", border: "var(--color-border-tertiary, #cbd5e1)" } };
   const chosen = palette[tone] || (isDarkMode ? { bg: "rgba(148,163,184,0.16)", color: "var(--color-text-tertiary, #cbd5e1)", border: "rgba(148,163,184,0.35)" } : { bg: "var(--tone-neutral-soft, #f8fafc)", color: "var(--color-text-secondary, #475569)", border: "var(--color-border-tertiary, #cbd5e1)" });
   return { fontSize: "0.56rem", fontWeight: "900", color: chosen.color, background: chosen.bg, border: `1px solid ${chosen.border}`, padding: "3px 7px", borderRadius: "999px" };
 };

@@ -12,4 +12,5 @@ export const MOD_TYPES = {
   GOLD_FLAT: "goldFlat",
   LIFESTEAL_FLAT: "lifestealFlat",
   LIFESTEAL_PERCENT_DAMAGE: "lifestealPercentDamage",
+  THORNS_FLAT: "thornsFlat",
 };

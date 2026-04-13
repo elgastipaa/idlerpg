@@ -30,8 +30,9 @@ const BONUS_KEYS = [
   "polishCostReduction",
   "reforgeCostReduction",
   "ascendCostReduction",
-  "fuseRarityBonus",
+  "ascendImprintCostReduction",
   "reforgeOptionCount",
+  "discoveredPowerBias",
 ];
 
 function emptyBonuses() {
@@ -49,11 +50,14 @@ function addEffects(target, effects = {}, multiplier = 1) {
 }
 
 export function getPrestigeRank(level = 0) {
-  return PRESTIGE_RANKS.find(rank => rank.level === level) || null;
+  const numericLevel = Math.max(0, Number(level || 0));
+  const unlocked = PRESTIGE_RANKS.filter(rank => rank.level <= numericLevel);
+  return unlocked[unlocked.length - 1] || null;
 }
 
 export function getNextPrestigeRank(level = 0) {
-  return PRESTIGE_RANKS.find(rank => rank.level === level + 1) || null;
+  const numericLevel = Math.max(0, Number(level || 0));
+  return PRESTIGE_RANKS.find(rank => rank.level > numericLevel) || null;
 }
 
 export function getPrestigeNodeLevel(prestige, nodeId) {
@@ -62,6 +66,19 @@ export function getPrestigeNodeLevel(prestige, nodeId) {
 
 function getPrestigeTreeInvestedLevels(prestige = {}) {
   return Object.values(prestige?.nodes || {}).reduce((total, level) => total + Math.max(0, level || 0), 0);
+}
+
+function sanitizeWholeNumber(value, { fallback = 0, min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(numeric)));
+}
+
+function sanitizeReasonableWholeNumber(value, { fallback = 0, min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  if (numeric < min || numeric > max) return fallback;
+  return Math.floor(numeric);
 }
 
 function getNodeBaseCostAtLevel(node, level = 0) {
@@ -74,6 +91,30 @@ function getNodeBaseCostAtLevel(node, level = 0) {
   return Math.ceil(last * Math.pow(1.35, overflow));
 }
 
+function getPrestigeTreeMaxSpend() {
+  return PRESTIGE_TREE_NODES.reduce((total, node) => {
+    const maxLevel = Math.max(0, Number(node?.maxLevel || 0));
+    let nodeTotal = 0;
+    for (let level = 0; level < maxLevel; level += 1) {
+      nodeTotal += getNodeBaseCostAtLevel(node, level) || 0;
+    }
+    return total + nodeTotal;
+  }, 0);
+}
+
+const PRESTIGE_TREE_MAX_SPEND = getPrestigeTreeMaxSpend();
+const PRESTIGE_ECHO_STORAGE_CAP = Math.max(1000, PRESTIGE_TREE_MAX_SPEND * 8);
+
+export function createEmptyPrestigeCycleProgress(seed = {}) {
+  return {
+    kills: sanitizeReasonableWholeNumber(seed.kills, { fallback: 0, max: 1_000_000 }),
+    bossKills: sanitizeReasonableWholeNumber(seed.bossKills, { fallback: 0, max: 100_000 }),
+    maxTier: Math.max(1, sanitizeReasonableWholeNumber(seed.maxTier ?? 1, { fallback: 1, max: 250 })),
+    maxLevel: Math.max(1, sanitizeReasonableWholeNumber(seed.maxLevel ?? 1, { fallback: 1, max: 2_000 })),
+    bestItemRating: sanitizeReasonableWholeNumber(seed.bestItemRating, { fallback: 0, max: 100_000 }),
+  };
+}
+
 export function getPrestigeNodeCost(prestige, node) {
   const level = getPrestigeNodeLevel(prestige, node.id);
   if (level >= (node.maxLevel || 1)) return null;
@@ -81,40 +122,81 @@ export function getPrestigeNodeCost(prestige, node) {
   const baseCost = getNodeBaseCostAtLevel(node, level);
   if (baseCost == null) return null;
 
-  const tierMultiplier = 1 + Math.max(0, (node.tier || 1) - 1) * 0.28;
-  const levelMultiplier = 1 + level * 0.14;
+  const tierMultiplier = 1 + Math.max(0, (node.tier || 1) - 1) * 0.18;
+  const levelMultiplier = 1 + level * 0.1;
   const investedLevels = getPrestigeTreeInvestedLevels(prestige);
-  const progressionMultiplier = 1 + Math.max(0, investedLevels - 3) * 0.015;
+  const progressionMultiplier = 1 + Math.max(0, investedLevels - 6) * 0.01;
 
   return Math.max(1, Math.round(baseCost * tierMultiplier * levelMultiplier * progressionMultiplier));
 }
 
+function getPrestigeProgressSnapshot(state = {}) {
+  const player = state.player || {};
+  const cycle = createEmptyPrestigeCycleProgress(state.combat?.prestigeCycle || {
+    maxTier: state.combat?.maxTier || state.combat?.currentTier || 1,
+    maxLevel: player.level || 1,
+  });
+
+  return {
+    ...cycle,
+    currentHpRatio: Math.max(0, Math.min(1, Number((player.hp || 0) / Math.max(1, player.maxHp || 1)))),
+  };
+}
+
+export function getPrestigePreview(state = {}) {
+  const progress = getPrestigeProgressSnapshot(state);
+
+  const tierEchoes =
+    progress.maxTier >= 2
+      ? 1 + Math.floor(Math.max(0, progress.maxTier - 2) / 4)
+      : 0;
+  const levelEchoes =
+    progress.maxLevel >= 8
+      ? 1 + Math.floor(Math.max(0, progress.maxLevel - 8) / 18)
+      : 0;
+  const lootEchoes =
+    progress.bestItemRating >= 120
+      ? 1 + Math.floor(Math.max(0, progress.bestItemRating - 120) / 320)
+      : 0;
+  const momentumEchoes =
+    progress.maxTier >= 15
+      ? 2
+      : progress.maxTier >= 8
+        ? 1
+        : 0;
+
+  const echoes = Math.max(0, tierEchoes + levelEchoes + lootEchoes + momentumEchoes);
+  const hasMinimumRun =
+    progress.maxTier >= 3 ||
+    progress.maxLevel >= 10 ||
+    progress.kills >= 50;
+
+  return {
+    echoes,
+    ready: hasMinimumRun && echoes > 0,
+    progress,
+    breakdown: [
+      { id: "tier", label: "Tier maximo", value: progress.maxTier, echoes: tierEchoes },
+      { id: "level", label: "Nivel maximo", value: progress.maxLevel, echoes: levelEchoes },
+      { id: "loot", label: "Mejor item", value: progress.bestItemRating, echoes: lootEchoes },
+      { id: "momentum", label: "Momentum", value: progress.maxTier >= 18 ? "Late" : progress.maxTier >= 10 ? "Mid" : "-", echoes: momentumEchoes },
+    ],
+  };
+}
+
 export function calculatePrestigeEchoGain(state) {
-  const nextRank = getNextPrestigeRank(state.prestige?.level || 0);
-  if (!nextRank) return 0;
-
-  const extraTier = Math.max(0, (state.combat?.maxTier || 1) - nextRank.requiredTier);
-  const extraLevel = Math.max(0, (state.player?.level || 1) - nextRank.requiredLevel);
-  const bossPush = Math.floor((state.stats?.bossKills || 0) / 10);
-
-  return nextRank.echoBase + Math.floor(extraTier / 2) + Math.floor(extraLevel / 12) + Math.min(3, bossPush);
+  return getPrestigePreview(state).echoes;
 }
 
 export function canPrestige(state) {
-  const nextRank = getNextPrestigeRank(state.prestige?.level || 0);
-  if (!nextRank) {
-    return { ok: false, nextRank: null, reason: "max" };
-  }
-
-  if ((state.player?.level || 1) < nextRank.requiredLevel) {
-    return { ok: false, nextRank, reason: "level" };
-  }
-
-  if ((state.player?.gold || 0) < nextRank.goldCost) {
-    return { ok: false, nextRank, reason: "gold" };
-  }
-
-  return { ok: true, nextRank, reason: null };
+  const preview = getPrestigePreview(state);
+  return {
+    ok: preview.ready,
+    nextRank: getNextPrestigeRank(state.prestige?.level || 0),
+    reason: preview.ready ? null : "progress",
+    echoes: preview.echoes,
+    preview,
+  };
 }
 
 export function isPrestigeNodeActiveForPlayer(node, player) {
@@ -169,12 +251,27 @@ export function normalizePrestigeState(prestige = {}) {
   const level = prestige.level || 0;
   const hasTreeData = prestige.echoes != null || prestige.spentEchoes != null || prestige.nodes;
   const fallbackEchoes = hasTreeData ? 0 : level * 6;
+  const safeEchoes = sanitizeReasonableWholeNumber(prestige.echoes ?? fallbackEchoes, {
+    fallback: fallbackEchoes,
+    max: PRESTIGE_ECHO_STORAGE_CAP,
+  });
+  const safeSpentEchoes = sanitizeReasonableWholeNumber(prestige.spentEchoes || 0, {
+    fallback: 0,
+    max: PRESTIGE_TREE_MAX_SPEND,
+  });
+  const safeTotalEchoesEarned = sanitizeReasonableWholeNumber(
+    prestige.totalEchoesEarned ?? (safeEchoes + safeSpentEchoes),
+    {
+      fallback: safeEchoes + safeSpentEchoes,
+      max: PRESTIGE_ECHO_STORAGE_CAP + PRESTIGE_TREE_MAX_SPEND,
+    }
+  );
 
   return {
     level,
-    echoes: Math.max(0, prestige.echoes ?? fallbackEchoes),
-    spentEchoes: Math.max(0, prestige.spentEchoes || 0),
-    totalEchoesEarned: Math.max(0, prestige.totalEchoesEarned ?? ((prestige.echoes ?? fallbackEchoes) + (prestige.spentEchoes || 0))),
+    echoes: safeEchoes,
+    spentEchoes: safeSpentEchoes,
+    totalEchoesEarned: safeTotalEchoesEarned,
     nodes: { ...(prestige.nodes || {}) },
   };
 }

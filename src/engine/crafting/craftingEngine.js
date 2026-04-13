@@ -1,20 +1,29 @@
-// Sistema de crafting — reroll, upgrade, ascend, extract, fuse.
+// Sistema de crafting — reroll, upgrade, ascend y extract.
 // Futuro: recetas, materiales, estaciones de crafteo hookean acá.
 
-import { rerollAffixes, polishAffix, generateReforgeOptions, addAffix, mergeAffixes } from "../affixesEngine";
+import { rerollAffixes, polishAffix, generateReforgeOptions } from "../affixesEngine";
 import { buildBaseBonusForItem, buildItemFromAffixes, computeUpgradeBonus, mergeBonusMaps } from "../../utils/loot";
-import { calcItemRating, addToInventory, syncEquipment } from "../inventory/inventoryEngine";
+import { calcItemRating, syncEquipment } from "../inventory/inventoryEngine";
 import { ITEM_FAMILIES } from "../../data/itemFamilies";
 import { getAscendCosts, getPolishCosts, getReforgeCosts, getRerollCosts } from "../../constants/craftingCosts";
+import { getLegendaryPowerById } from "../../utils/legendaryPowers";
 
 const RARITY_TIERS = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
 const RARITY_NEXT  = { common: "magic", magic: "rare", rare: "epic", epic: "legendary" };
-const FUSE_RARITY_CHANCE = {
-  common: 0.12,
-  magic: 0.12,
-  rare: 0.08,
-  epic: 0.03,
-  legendary: 0,
+export const UPGRADE_FAIL_CHANCE = { 0: 0, 1: 0, 2: 0.02, 3: 0.06, 4: 0.12, 5: 0.18, 6: 0.24, 7: 0.31, 8: 0.38, 9: 0.45, 10: 0.52 };
+export const FORGING_POTENTIAL_RULES = {
+  max: 100,
+  levelPenalty: 5,
+  rerollPenalty: 12,
+  polishPenalty: 8,
+  reforgePenalty: 16,
+  ascendPenalty: 20,
+  minimumByMode: {
+    reroll: 25,
+    polish: 10,
+    reforge: 16,
+    ascend: 32,
+  },
 };
 function getRarityTier(rarity) {
   return RARITY_TIERS[rarity] || 1;
@@ -34,6 +43,7 @@ function getCraftingState(item) {
     rerollCount: item?.crafting?.rerollCount || 0,
     polishCount: item?.crafting?.polishCount || 0,
     reforgeCount: item?.crafting?.reforgeCount || 0,
+    ascendCount: item?.crafting?.ascendCount || 0,
     focusedAffixIndex:
       Number.isInteger(item?.crafting?.focusedAffixIndex) ? Number(item.crafting.focusedAffixIndex) : null,
     focusedAffixStat: item?.crafting?.focusedAffixStat || null,
@@ -50,6 +60,171 @@ function getTargetedAffixBlockLog(item) {
   if (craftingState.focusedAffixIndex == null) return null;
   const focusedAffix = item?.affixes?.[craftingState.focusedAffixIndex];
   return `LINEA FIJADA - ${item.name} ya tiene trabajada ${focusedAffix?.stat || craftingState.focusedAffixStat || "otra linea"}.`;
+}
+
+export function getItemForgingPotential(item) {
+  const craftingState = getCraftingState(item);
+  const levelPenalty = Math.max(0, (item?.level || 0) * FORGING_POTENTIAL_RULES.levelPenalty);
+  const rerollPenalty = craftingState.rerollCount * FORGING_POTENTIAL_RULES.rerollPenalty;
+  const polishPenalty = craftingState.polishCount * FORGING_POTENTIAL_RULES.polishPenalty;
+  const reforgePenalty = craftingState.reforgeCount * FORGING_POTENTIAL_RULES.reforgePenalty;
+  const ascendPenalty = craftingState.ascendCount * FORGING_POTENTIAL_RULES.ascendPenalty;
+  return Math.max(
+    0,
+    FORGING_POTENTIAL_RULES.max - levelPenalty - rerollPenalty - polishPenalty - reforgePenalty - ascendPenalty
+  );
+}
+
+function getForgingPotentialGate(item, mode) {
+  const potential = getItemForgingPotential(item);
+  const required = FORGING_POTENTIAL_RULES.minimumByMode?.[mode] || 0;
+  return {
+    potential,
+    required,
+    ok: potential >= required,
+  };
+}
+
+function getForgingPotentialBlock(item, mode) {
+  const gate = getForgingPotentialGate(item, mode);
+  if (gate.ok) return null;
+  return {
+    newPlayer: null,
+    blocked: true,
+    log: `POTENCIAL AGOTADO - ${item.name} necesita ${gate.required}% de potencial para ${mode}, pero solo tiene ${gate.potential}%.`,
+  };
+}
+
+export function getCraftActionState({ item, player, mode, affixIndex = null, legendaryPowerId = null, legendaryPowerImprintReduction = 0 } = {}) {
+  if (!item) {
+    return {
+      mode,
+      costs: { gold: 0, essence: 0 },
+      can: false,
+      reason: "missing_item",
+      forgingPotential: 0,
+      requiredPotential: 0,
+      focusedAffixIndex: null,
+    };
+  }
+
+  const affix = affixIndex == null ? null : item?.affixes?.[affixIndex] || null;
+  const focusedAffixIndex = getCraftingState(item).focusedAffixIndex;
+  const forgingGate = getForgingPotentialGate(item, mode);
+
+  if (mode === "upgrade") {
+    const currentLevel = item.level ?? 0;
+    const rarityTier = getRarityTier(item.rarity);
+    const reduction = Math.max(0, Math.min(0.65, player?.prestigeBonuses?.upgradeCostReduction || 0));
+    const costs = {
+      gold: Math.floor(180 * (currentLevel + 1) * (currentLevel + 1) * rarityTier * (1 - reduction)),
+      essence: 0,
+    };
+    const can = currentLevel < 10 && (player?.gold || 0) >= costs.gold;
+    return {
+      mode,
+      costs,
+      can,
+      reason: currentLevel >= 10 ? "max_level" : can ? "ok" : "gold",
+      failChance: UPGRADE_FAIL_CHANCE[currentLevel] ?? 0.46,
+      forgingPotential: getItemForgingPotential(item),
+      requiredPotential: 0,
+      focusedAffixIndex,
+    };
+  }
+
+  if (mode === "reroll") {
+    const costs = getRerollCosts(item, player);
+    const canAfford = (player?.gold || 0) >= costs.gold && (player?.essence || 0) >= costs.essence;
+    return {
+      mode,
+      costs,
+      can: forgingGate.ok && canAfford,
+      reason: !forgingGate.ok ? "potential" : canAfford ? "ok" : "essence",
+      forgingPotential: forgingGate.potential,
+      requiredPotential: forgingGate.required,
+      focusedAffixIndex,
+    };
+  }
+
+  if (mode === "polish") {
+    const costs = getPolishCosts(item, player, affix);
+    const canAfford = (player?.gold || 0) >= costs.gold && (player?.essence || 0) >= costs.essence;
+    return {
+      mode,
+      costs,
+      can: affixIndex != null && forgingGate.ok && canAfford,
+      reason: affixIndex == null ? "missing_affix" : !forgingGate.ok ? "potential" : canAfford ? "ok" : "essence",
+      forgingPotential: forgingGate.potential,
+      requiredPotential: forgingGate.required,
+      focusedAffixIndex,
+    };
+  }
+
+  if (mode === "reforge") {
+    const costs = getReforgeCosts(item, player, affix);
+    const lineLocked = Number.isInteger(focusedAffixIndex) && affixIndex != null && focusedAffixIndex !== affixIndex;
+    const canAfford = (player?.gold || 0) >= costs.gold && (player?.essence || 0) >= costs.essence;
+    return {
+      mode,
+      costs,
+      can: affixIndex != null && !lineLocked && forgingGate.ok && canAfford,
+      reason:
+        affixIndex == null
+          ? "missing_affix"
+          : lineLocked
+            ? "focused_line"
+            : !forgingGate.ok
+              ? "potential"
+              : canAfford
+                ? "ok"
+                : "essence",
+      forgingPotential: forgingGate.potential,
+      requiredPotential: forgingGate.required,
+      focusedAffixIndex,
+    };
+  }
+
+  if (mode === "ascend") {
+    const nextRarity = getNextRarity(item.rarity);
+    const costs = getAscendCosts(item, player, {
+      imprintPower: nextRarity === "legendary" && !!legendaryPowerId,
+      imprintReduction: legendaryPowerImprintReduction,
+    }) || { gold: 0, essence: 0, minLevel: 0 };
+    const canAfford = (player?.gold || 0) >= costs.gold && (player?.essence || 0) >= costs.essence;
+    const meetsLevel = (item.level ?? 0) >= (costs.minLevel || 0);
+    const isMaxRarity = item.rarity === "legendary";
+    return {
+      mode,
+      costs,
+      can: !isMaxRarity && meetsLevel && forgingGate.ok && canAfford,
+      reason:
+        isMaxRarity
+          ? "max_rarity"
+          : !meetsLevel
+            ? "min_level"
+            : !forgingGate.ok
+              ? "potential"
+              : canAfford
+                ? "ok"
+                : "essence",
+      forgingPotential: forgingGate.potential,
+      requiredPotential: forgingGate.required,
+      focusedAffixIndex,
+      minLevel: costs.minLevel || 0,
+      nextRarity,
+    };
+  }
+
+  return {
+    mode,
+    costs: { gold: 0, essence: 0 },
+    can: false,
+    reason: "unsupported_mode",
+    forgingPotential: getItemForgingPotential(item),
+    requiredPotential: 0,
+    focusedAffixIndex,
+  };
 }
 
 function rebuildItem(item, newAffixes, extraProps = {}) {
@@ -145,6 +320,8 @@ export function craftReroll({ player, itemId, currentTier, refreshStats }) {
   if (!locatedItem) return null;
 
   const item        = locatedItem.item;
+  const potentialBlock = getForgingPotentialBlock(item, "reroll");
+  if (potentialBlock) return potentialBlock;
   const craftingState = getCraftingState(item);
   const { gold: goldCost, essence: essenceCost } = getRerollCosts(item, player);
 
@@ -179,6 +356,8 @@ export function craftPolish({ player, itemId, affixIndex, refreshStats }) {
   if (!locatedItem) return null;
 
   const item = locatedItem.item;
+  const potentialBlock = getForgingPotentialBlock(item, "polish");
+  if (potentialBlock) return potentialBlock;
   if (!Array.isArray(item.affixes) || item.affixes.length === 0) return null;
   if (affixIndex == null || affixIndex < 0 || affixIndex >= item.affixes.length) return null;
 
@@ -219,6 +398,8 @@ export function craftReforge({ player, itemId, affixIndex, replacementAffix, ref
   if (!locatedItem) return null;
 
   const item = locatedItem.item;
+  const potentialBlock = getForgingPotentialBlock(item, "reforge");
+  if (potentialBlock) return { ...potentialBlock, newPlayer: player };
   if (!Array.isArray(item.affixes) || item.affixes.length === 0) return null;
   if (affixIndex == null || affixIndex < 0 || affixIndex >= item.affixes.length) return null;
   if (!isTargetedAffixAllowed(item, affixIndex)) {
@@ -232,6 +413,19 @@ export function craftReforge({ player, itemId, affixIndex, replacementAffix, ref
 
   const targetAffix = item.affixes[affixIndex];
   if (!targetAffix) return null;
+  const keepsCurrentAffix =
+    replacementAffix?.id === targetAffix.id &&
+    replacementAffix?.stat === targetAffix.stat &&
+    replacementAffix?.tier === targetAffix.tier &&
+    (replacementAffix?.rolledValue ?? replacementAffix?.value ?? null) === (targetAffix?.rolledValue ?? targetAffix?.value ?? null);
+
+  if (keepsCurrentAffix) {
+    return {
+      newPlayer: player,
+      noChange: true,
+      log: `REFORJA - ${item.name} mantiene ${targetAffix.stat}. No se fija ninguna linea.`,
+    };
+  }
 
   const craftingState = getCraftingState(item);
   const { gold: goldCost, essence: essenceCost } = getReforgeCosts(item, player, targetAffix);
@@ -269,6 +463,8 @@ export function craftReforgePreview({ player, itemId, affixIndex, favoredStats =
   if (!locatedItem) return null;
 
   const item = locatedItem.item;
+  const potentialBlock = getForgingPotentialBlock(item, "reforge");
+  if (potentialBlock) return { ...potentialBlock, newPlayer: player };
   if (!Array.isArray(item.affixes) || item.affixes.length === 0) return null;
   if (affixIndex == null || affixIndex < 0 || affixIndex >= item.affixes.length) return null;
   if (!isTargetedAffixAllowed(item, affixIndex)) {
@@ -322,8 +518,7 @@ export function craftUpgrade({ player, itemId, refreshStats }) {
   const goldCost   = Math.floor(180 * upgradeStep * upgradeStep * rarityTier * (1 - reduction));
   if (player.gold < goldCost) return null;
 
-  const failChanceByLevel = { 0: 0, 1: 0, 2: 0.02, 3: 0.06, 4: 0.12, 5: 0.18, 6: 0.24, 7: 0.31, 8: 0.38, 9: 0.45, 10: 0.52 };
-  const failed        = Math.random() < (failChanceByLevel[currentLevel] ?? 0.46);
+  const failed        = Math.random() < (UPGRADE_FAIL_CHANCE[currentLevel] ?? 0.46);
   const newLevel      = failed ? Math.max(0, currentLevel - 1) : currentLevel + 1;
   const newAffixes    = item.affixes || [];
 
@@ -333,7 +528,7 @@ export function craftUpgrade({ player, itemId, refreshStats }) {
 
   const log = failed
     ? `⚠ Upgrade fallido — ${item.name} bajó a nivel ${newLevel}`
-    : `⬆ ${item.name} subió a nivel ${newLevel}`;
+    : `⬆ Upgrade exitoso — ${item.name} subió a nivel ${newLevel}`;
 
   return { newPlayer, log };
 }
@@ -341,22 +536,38 @@ export function craftUpgrade({ player, itemId, refreshStats }) {
 // ============================================================
 // ASCEND
 // ============================================================
-export function craftAscend({ player, itemId, currentTier, refreshStats }) {
+export function craftAscend({ player, itemId, currentTier, refreshStats, legendaryPowerId = null, unlockedLegendaryPowerIds = [], legendaryPowerImprintReduction = 0 }) {
   const locatedItem = findPlayerItem(player, itemId);
   if (!locatedItem) return null;
 
   const item = locatedItem.item;
+  const potentialBlock = getForgingPotentialBlock(item, "ascend");
+  if (potentialBlock) return potentialBlock;
   if (item.rarity === "legendary") return null;
 
-  const ascendCost  = getAscendCosts(item, player);
+  const newRarity    = getNextRarity(item.rarity);
+  const selectedLegendaryPower =
+    newRarity === "legendary" && unlockedLegendaryPowerIds.includes(legendaryPowerId)
+      ? getLegendaryPowerById(legendaryPowerId)
+      : null;
+  if (newRarity === "legendary" && legendaryPowerId && !selectedLegendaryPower) {
+    return {
+      newPlayer: player,
+      blocked: true,
+      log: "ASCEND BLOQUEADO - el poder legendario elegido no esta desbloqueado en el Codex.",
+    };
+  }
+  const ascendCost  = getAscendCosts(item, player, {
+    imprintPower: !!selectedLegendaryPower,
+    imprintReduction: legendaryPowerImprintReduction,
+  });
   if (!ascendCost) return null;
   if ((item.level ?? 0) < ascendCost.minLevel) return null;
   const goldCost    = ascendCost.gold;
   const essenceCost = ascendCost.essence;
   if (player.gold < goldCost || (player.essence || 0) < essenceCost) return null;
-
-  const newRarity    = getNextRarity(item.rarity);
   const craftingTier = Math.max(currentTier || 1, item.itemTier || 1);
+  const craftingState = getCraftingState(item);
   const nextBaseBonus = buildBaseBonusForItem({
     baseItem: { ...item, bonus: item.baseBonus || {} },
     rarity: newRarity,
@@ -364,17 +575,17 @@ export function craftAscend({ player, itemId, currentTier, refreshStats }) {
     existingBaseBonus: item.baseBonus || {},
     ensureMinBaseLines: true,
   });
-  const newAffixes   = addAffix({
-    ...item,
+  const preservedAffixes = [...(item.affixes || [])];
+  const updatedItem  = rebuildItem(item, preservedAffixes, {
     rarity: newRarity,
-    baseBonus: nextBaseBonus,
-    affixes: item.affixes || [],
     itemTier: craftingTier,
-  }, craftingTier);
-  const updatedItem  = rebuildItem(item, newAffixes, {
-    rarity: newRarity,
+    legendaryPowerId: newRarity === "legendary" ? (selectedLegendaryPower?.id || null) : null,
     baseBonus: nextBaseBonus,
     implicitBonus: getImplicitBonus(item, newRarity),
+    crafting: {
+      ...craftingState,
+      ascendCount: craftingState.ascendCount + 1,
+    },
   });
   let newPlayer = updatePlayerItem(player, locatedItem, updatedItem, refreshStats);
   newPlayer = {
@@ -384,7 +595,10 @@ export function craftAscend({ player, itemId, currentTier, refreshStats }) {
     essence:   player.essence - essenceCost,
   };
 
-  return { newPlayer, log: `🌟 ${item.name} ascendió a ${newRarity}` };
+  return {
+    newPlayer,
+    log: `🌟 ASCENDIDO - ${item.name} ahora es ${newRarity}.${selectedLegendaryPower ? ` Injerta ${selectedLegendaryPower.name}.` : " Conserva affixes y mejora base + implicit."}`,
+  };
 }
 
 // ============================================================
@@ -409,74 +623,3 @@ export function craftExtract({ player, itemId }) {
   return { newPlayer, log: `🔥 ${item.name} extraído — +${essenceGained} esencia` };
 }
 
-// ============================================================
-// FUSE
-// ============================================================
-export function craftFuse({ player, itemAId, itemBId, refreshStats }) {
-  const locatedA = findPlayerItem(player, itemAId);
-  const locatedB = findPlayerItem(player, itemBId);
-  if (!locatedA || !locatedB || itemAId === itemBId) return null;
-
-  const itemA = locatedA.item;
-  const itemB = locatedB.item;
-  if (itemA.itemId !== itemB.itemId) return null;
-
-  const newLevel  = Math.max(itemA.level ?? 0, itemB.level ?? 0);
-  const rarityUpgradeChance = FUSE_RARITY_CHANCE[itemA.rarity] || 0;
-  const fuseBonus = Math.max(0, player?.prestigeBonuses?.fuseRarityBonus || 0);
-  const newRarity = Math.random() < Math.min(0.95, rarityUpgradeChance + fuseBonus) ? getNextRarity(itemA.rarity) : itemA.rarity;
-  const merged    = mergeAffixes(itemA.affixes || [], itemB.affixes || []);
-  const fusedTier = Math.max(itemA.itemTier || 1, itemB.itemTier || 1);
-  const nextBaseBonus = buildBaseBonusForItem({
-    baseItem: { ...itemA, bonus: itemA.baseBonus || {} },
-    rarity: newRarity,
-    tier: fusedTier,
-    existingBaseBonus: itemA.baseBonus || {},
-    ensureMinBaseLines: true,
-  });
-  const implicitBonus = getImplicitBonus(itemA, newRarity);
-  const upgradeBonus = computeUpgradeBonus(nextBaseBonus, itemA.type, newLevel);
-  const { bonus } = buildItemFromAffixes({
-    ...itemA,
-    bonus: {
-      ...nextBaseBonus,
-      ...upgradeBonus,
-      ...implicitBonus,
-    },
-  }, merged);
-
-  const fusedItem = {
-    ...itemA,
-    id:        `${itemA.itemId}_fused_${Date.now()}`,
-    level:     newLevel,
-    rarity:    newRarity,
-    upgradeBonus,
-    implicitBonus,
-    crafting: {
-      rerollCount: 0,
-      polishCount: 0,
-      reforgeCount: 0,
-      focusedAffixIndex: null,
-      focusedAffixStat: null,
-    },
-    affixes:   merged,
-    bonus,
-    baseBonus: { ...nextBaseBonus },
-    rating:    calcItemRating({ ...itemA, rarity: newRarity, bonus }),
-    name:      newRarity !== itemA.rarity
-      ? `${itemA.name} [Ascendido]`
-      : `${itemA.name} [Fusionado]`,
-  };
-
-  const removedA = removePlayerItem(player, locatedA);
-  const removedB = removePlayerItem(removedA, locatedB);
-  const result = addToInventory(removedB.inventory || [], fusedItem);
-
-  const newPlayer = refreshStats({
-    ...removedB,
-    inventory: result.inventory,
-  });
-  const log       = `⚡ Fusión — ${fusedItem.name}${newRarity !== itemA.rarity ? " ¡subió de rareza!" : ""}`;
-
-  return { newPlayer, log };
-}

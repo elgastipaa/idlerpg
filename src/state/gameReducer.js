@@ -5,8 +5,9 @@ import { calcStats }                from "../engine/combat/statEngine";
 import { processEvents }            from "../engine/eventEngine";
 import { addToInventory, syncEquipment } from "../engine/inventory/inventoryEngine";
 import { sellItem, sellItems }      from "../engine/inventory/economyEngine";
-import { craftReroll, craftPolish, craftReforge, craftReforgePreview, craftUpgrade, craftAscend, craftExtract, craftFuse } from "../engine/crafting/craftingEngine";
+import { craftReroll, craftPolish, craftReforge, craftReforgePreview, craftUpgrade, craftAscend, craftExtract } from "../engine/crafting/craftingEngine";
 import { checkAchievements } from "../engine/progression/achievementEngine";
+import { getLegendaryPowerImprintReduction } from "../engine/progression/codexEngine";
 import { createEmptySessionAnalytics } from "../utils/runTelemetry";
 import { buildReplayLibraryEntry, createEmptyReplayLog, normalizeReplayLibrary, recordReplayState } from "../utils/replayLog";
 
@@ -20,7 +21,9 @@ import { isGoalCompleted } from "../engine/progression/goalEngine";
 import {
   calculatePrestigeEchoGain,
   canPrestige,
+  createEmptyPrestigeCycleProgress,
   canPurchasePrestigeNode,
+  getNextPrestigeRank,
   syncPrestigeBonuses,
 } from "../engine/progression/prestigeEngine";
 import { PRESTIGE_TREE_NODES } from "../data/prestige";
@@ -101,6 +104,9 @@ function baseGameReducer(state, action) {
   switch (action.type) {
 
     case "SET_TAB":
+      if (state.combat?.reforgeSession && action.tab !== state.currentTab) {
+        return state;
+      }
       return { ...state, currentTab: action.tab };
 
     case "RESET_SESSION_ANALYTICS":
@@ -312,6 +318,20 @@ function baseGameReducer(state, action) {
         combat: {
           ...state.combat,
           offlineSummary: null,
+        },
+      };
+
+    case "SET_OFFLINE_SUMMARY":
+      return {
+        ...state,
+        combat: {
+          ...state.combat,
+          offlineSummary: action.summary || null,
+          floatEvents: [],
+          log: [
+            ...(state.combat.log || []),
+            `Progreso offline resuelto: ${Math.max(0, Math.floor(action.summary?.simulatedSeconds || 0))}s simulados.`,
+          ].slice(-20),
         },
       };
 
@@ -730,11 +750,13 @@ function baseGameReducer(state, action) {
     // --------------------------------------------------------
     case "PRESTIGE": {
       const prestigeCheck = canPrestige(state);
-      const nextRank = prestigeCheck.nextRank;
-      if (!prestigeCheck.ok || !nextRank) return state;
+      if (!prestigeCheck.ok) return state;
 
-      const resetClass  = action.resetClass !== false;
+      const resetClass  = action.resetClass === true;
       const echoesGained = calculatePrestigeEchoGain(state);
+      const nextPrestigeLevel = (state.prestige?.level || 0) + 1;
+      const nextRank = getNextPrestigeRank(state.prestige?.level || 0);
+      const milestoneReached = nextRank?.level === nextPrestigeLevel ? nextRank : null;
       const basePlayer  = {
         level: 1, xp: 0,
         baseDamage:     10,
@@ -746,14 +768,17 @@ function baseGameReducer(state, action) {
         hpPct: 0, flatRegen: 0, flatCrit: 0,
         flatGold: 0, goldPct: 0, xpPct: 0,
         attackSpeed: 0, damageLevel: 1,
-        gold:    state.player.gold - nextRank.goldCost,
+        gold:    0,
         essence: state.player.essence || 0,
         prestigeBonuses: {},
+        codexBonuses: state.player.codexBonuses || {},
         inventory:       [],
         equipment:       { weapon: null, armor: null },
         skills:          { dmg: 0, hp: 0, crit: 0 },
         upgrades:        {},
         unlockedTalents: [],
+        talentLevels:    {},
+        talentSystemVersion: state.player.talentSystemVersion,
         talentPoints:    0,
         class:          resetClass ? null : state.player.class,
         specialization: resetClass ? null : state.player.specialization,
@@ -761,7 +786,7 @@ function baseGameReducer(state, action) {
 
       const nextPrestigeState = {
         ...state.prestige,
-        level: nextRank.level,
+        level: nextPrestigeLevel,
         echoes: (state.prestige?.echoes || 0) + echoesGained,
         spentEchoes: state.prestige?.spentEchoes || 0,
         totalEchoesEarned: (state.prestige?.totalEchoesEarned || 0) + echoesGained,
@@ -781,7 +806,11 @@ function baseGameReducer(state, action) {
         prestige: nextPrestigeState,
         combat: {
           enemy:             spawnEnemy(1),
-          log:               [`Prestige ${nextRank.level}: ${nextRank.name}. +${echoesGained} ecos. ${nextRank.description}`],
+          log:               [
+            milestoneReached
+              ? `Prestige ${nextPrestigeLevel}: ${milestoneReached.name}. +${echoesGained} ecos. ${milestoneReached.description}`
+              : `Prestige ${nextPrestigeLevel}. +${echoesGained} ecos. Reinicias la corrida, pero conservas clase, spec y tablero de ecos.`
+          ],
           currentTier:       1,
           maxTier:           1,
           autoAdvance:       false,
@@ -825,13 +854,13 @@ function baseGameReducer(state, action) {
           reforgeSession: null,
           lastRunSummary:    null,
           offlineSummary:    null,
+          prestigeCycle: createEmptyPrestigeCycleProgress(),
           analytics: {
             ...(state.combat.analytics || createEmptySessionAnalytics()),
             prestigeCount: (state.combat.analytics?.prestigeCount || 0) + 1,
-            goldSpent: (state.combat.analytics?.goldSpent || 0) + (nextRank.goldCost || 0),
             goldSpentBySource: {
               ...(state.combat.analytics?.goldSpentBySource || createEmptySessionAnalytics().goldSpentBySource),
-              prestige: (state.combat.analytics?.goldSpentBySource?.prestige || 0) + (nextRank.goldCost || 0),
+              prestige: state.combat.analytics?.goldSpentBySource?.prestige || 0,
             },
             maxLevelReached: Math.max(state.combat.analytics?.maxLevelReached || 1, state.player.level || 1),
             maxTierReached: Math.max(state.combat.analytics?.maxTierReached || 1, state.combat.maxTier || 1),
@@ -853,6 +882,15 @@ function baseGameReducer(state, action) {
         refreshStats,
       });
       if (!result) return state;
+      if (result.blocked) {
+        return {
+          ...state,
+          combat: {
+            ...appendCraftingLog(state.combat, result.log),
+            log: [...(state.combat.log || []), result.log].slice(-20),
+          },
+        };
+      }
       return withAchievementProgress({
         ...state,
         player: result.newPlayer,
@@ -894,6 +932,17 @@ function baseGameReducer(state, action) {
           ...state,
           combat: {
             ...appendCraftingLog(state.combat, result.log),
+            log: [...(state.combat.log || []), result.log].slice(-20),
+          },
+        };
+      }
+      if (result.noChange) {
+        return {
+          ...state,
+          player: result.newPlayer,
+          combat: {
+            ...appendCraftingLog(state.combat, result.log),
+            reforgeSession: null,
             log: [...(state.combat.log || []), result.log].slice(-20),
           },
         };
@@ -997,6 +1046,17 @@ function baseGameReducer(state, action) {
         skipCost: true,
       });
       if (!result) return state;
+      if (result.noChange) {
+        return {
+          ...state,
+          player: result.newPlayer,
+          combat: {
+            ...appendCraftingLog(state.combat, result.log),
+            reforgeSession: null,
+            log: [...(state.combat.log || []), result.log].slice(-20),
+          },
+        };
+      }
       if (result.blocked) {
         return {
           ...state,
@@ -1070,13 +1130,28 @@ function baseGameReducer(state, action) {
     }
 
     case "CRAFT_ASCEND_ITEM": {
+      const selectedLegendaryPowerId = action.payload.legendaryPowerId || null;
       const result = craftAscend({
         player:      state.player,
         itemId:      action.payload.itemId,
         currentTier: state.combat.currentTier || 1,
         refreshStats,
+        legendaryPowerId: selectedLegendaryPowerId,
+        unlockedLegendaryPowerIds: Object.entries(state.codex?.powerDiscoveries || {})
+          .filter(([, discoveries]) => Number(discoveries || 0) > 0)
+          .map(([powerId]) => powerId),
+        legendaryPowerImprintReduction: getLegendaryPowerImprintReduction(state.codex || {}, selectedLegendaryPowerId),
       });
       if (!result) return state;
+      if (result.blocked) {
+        return {
+          ...state,
+          combat: {
+            ...appendCraftingLog(state.combat, result.log),
+            log: [...(state.combat.log || []), result.log].slice(-20),
+          },
+        };
+      }
       return withAchievementProgress({
           ...state,
           player: result.newPlayer,
@@ -1089,6 +1164,9 @@ function baseGameReducer(state, action) {
           analytics: {
               ...(state.combat.analytics || createEmptySessionAnalytics()),
               ascendsCrafted: (state.combat.analytics?.ascendsCrafted || 0) + 1,
+              powerAscendsCrafted:
+                (state.combat.analytics?.powerAscendsCrafted || 0) +
+                (selectedLegendaryPowerId ? 1 : 0),
               goldSpent: (state.combat.analytics?.goldSpent || 0) + Math.max(0, (state.player.gold || 0) - (result.newPlayer.gold || 0)),
               essenceSpent: (state.combat.analytics?.essenceSpent || 0) + Math.max(0, (state.player.essence || 0) - (result.newPlayer.essence || 0)),
               goldSpentBySource: {
@@ -1136,33 +1214,6 @@ function baseGameReducer(state, action) {
                 ...(state.combat.analytics?.essenceBySource || createEmptySessionAnalytics().essenceBySource),
                 extract: (state.combat.analytics?.essenceBySource?.extract || 0) + Math.max(0, (result.newPlayer?.essence || 0) - (state.player.essence || 0)),
               },
-            },
-          log: [...state.combat.log, result.log].slice(-20),
-        },
-      });
-    }
-
-    case "CRAFT_FUSE_ITEMS": {
-      const result = craftFuse({
-        player:  state.player,
-        itemAId: action.payload.itemAId,
-        itemBId: action.payload.itemBId,
-        refreshStats,
-      });
-      if (!result) return state;
-      return withAchievementProgress({
-          ...state,
-          player: result.newPlayer,
-          stats: {
-            ...state.stats,
-            fusesCrafted: (state.stats?.fusesCrafted || 0) + 1,
-          },
-        combat: {
-          ...appendCraftingLog(state.combat, result.log),
-          analytics: {
-              ...(state.combat.analytics || createEmptySessionAnalytics()),
-              fusesCrafted: (state.combat.analytics?.fusesCrafted || 0) + 1,
-              bestItemRating: Math.max(state.combat.analytics?.bestItemRating || 0, result.newPlayer?.equipment?.weapon?.rating || 0, result.newPlayer?.equipment?.armor?.rating || 0),
             },
           log: [...state.combat.log, result.log].slice(-20),
         },

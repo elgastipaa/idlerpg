@@ -10,8 +10,16 @@ import { SKILLS } from "../../data/skills";
 import { ENEMIES } from "../../data/enemies";
 import { addToInventory, calcItemRating } from "../inventory/inventoryEngine";
 import { getPlayerBuildTag } from "../../utils/buildIdentity";
+import {
+  getLegendaryPostAttackEffects,
+  getLegendaryPreAttackEffects,
+  getLegendaryStaticBonuses,
+} from "../../utils/legendaryPowers";
+import { resolveLootRuleWishlist } from "../../utils/lootFilter";
 import { summarizeLootEvent } from "../../utils/lootHighlights";
 import { createEmptySessionAnalytics } from "../../utils/runTelemetry";
+import { recordCodexKill, recordLegendaryPowerDiscovery, syncCodexBonuses } from "../progression/codexEngine";
+import { createEmptyPrestigeCycleProgress } from "../progression/prestigeEngine";
 import {
   tickEffects,
   applyEffects,
@@ -27,6 +35,8 @@ const FLOAT_EVENT_LIMIT = 8;
 const HEAL_FLOAT_THRESHOLD = 3;
 const SKILL_DPS_WINDOW_MS = 20000;
 const SKILL_TIMELINE_LIMIT = 240;
+const SAFE_RUNTIME_GOLD_CAP = 50_000_000;
+const SAFE_RUNTIME_ESSENCE_CAP = 10_000_000;
 let floatEventSequence = 0;
 
 function toModifierTotals(mods = {}) {
@@ -129,6 +139,16 @@ function getEmptyPerformanceSnapshot() {
   };
 }
 
+function sanitizeCurrencyValue(value, recoveryCap) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return 0;
+  const floored = Math.floor(numeric);
+  if (!Number.isSafeInteger(floored) || floored > recoveryCap * 1000) {
+    return recoveryCap;
+  }
+  return floored;
+}
+
 function getAnalyticsBase(analytics = {}) {
   return {
     ...createEmptySessionAnalytics(),
@@ -159,11 +179,15 @@ function getExtractYield(item) {
   return Math.max(1, Math.floor((rarityTier + Math.floor((item?.level ?? 0) / 2)) * rarityMult));
 }
 
-function buildLootRuleSet(rules = {}) {
+function buildLootRuleSet(rules = {}, player = {}, enemy = null) {
+  const activeBuildTag = getPlayerBuildTag(player);
   return {
     autoSell: new Set(rules.autoSellRarities || []),
     autoExtract: new Set(rules.autoExtractRarities || []),
-    wishlistAffixes: [...(rules.wishlistAffixes || [])],
+    protectHuntedDrops: rules.protectHuntedDrops !== false,
+    protectUpgradeDrops: rules.protectUpgradeDrops !== false,
+    huntPreset: rules.huntPreset || null,
+    wishlistAffixes: resolveLootRuleWishlist(rules, { activeBuildTag, enemy }),
   };
 }
 
@@ -207,13 +231,15 @@ function appendSkillDamageTimeline(previous = [], incoming = []) {
 export function processTick(state) {
   const enemy = state.combat.enemy;
   if (!enemy) return state;
-  const lootRuleSet = buildLootRuleSet(state.settings?.lootRules);
+  const lootRuleSet = buildLootRuleSet(state.settings?.lootRules, state.player, enemy);
   const enemyRuntime = enemy.runtime || {};
   const sessionAnalytics = getAnalyticsBase(state.combat.analytics);
+  const prestigeCycle = createEmptyPrestigeCycleProgress(state.combat.prestigeCycle || {});
   const currentCombatTier = state.combat.currentTier || enemy.tier || 1;
 
   const { mods: eventMods, remaining: remainingEvents } = applyActiveEvents(state);
   const s = calcStats(state.player);
+  const legendaryBonuses = getLegendaryStaticBonuses({ player: state.player, enemy, stats: s });
   const unlockedTalents = state.player.unlockedTalents || [];
   const baseCooldowns = reduceCooldowns(state.combat.skillCooldowns || {});
 
@@ -230,6 +256,10 @@ export function processTick(state) {
     playerStats: s,
     skillAutocasts: state.combat.skillAutocasts || {},
     cooldowns: baseCooldowns,
+  });
+  const { effects: preLegendaryEffects, logs: preLegendaryLogs } = getLegendaryPreAttackEffects({
+    player: state.player,
+    skillCastCount: skillCastLogs?.length || 0,
   });
 
   const { effects: preTriggerEffects, logs: preTriggerLogs } = processTriggerTalents({
@@ -249,6 +279,7 @@ export function processTick(state) {
   const tickedEffects = tickEffects(state.combat.effects || []);
   const activeEffects = applyEffects(tickedEffects, [
     ...(effectsToApply || []),
+    ...(preLegendaryEffects || []),
     ...(prePersistentEffects || []),
   ]);
   const effectMods = computeEffectModifiers(activeEffects);
@@ -267,7 +298,7 @@ export function processTick(state) {
   const playerLowHp = state.player.hp / s.maxHp <= 0.3;
   const hasClericBlessing = unlockedTalents.includes("cleric_blessing");
   const regenAmount = Math.floor(
-    (1 + (s.regen || 0) + (hasClericBlessing ? 5 : 0) + (effectMods.regen || 0)) *
+    (1 + (s.regen || 0) + (hasClericBlessing ? 5 : 0) + (effectMods.regen || 0) + (legendaryBonuses.regen || 0)) *
       (eventMods.regenMult || 1)
   );
 
@@ -282,12 +313,13 @@ export function processTick(state) {
       0,
       s.critChance +
         (effectMods.critBonus || 0) +
+        (legendaryBonuses.critChance || 0) +
         (playerLowHp ? s.critOnLowHp || 0 : 0)
     )
   );
   const effectiveDefense = Math.max(
     0,
-    Math.floor((s.defense + (effectMods.defenseFlat || 0)) * (effectMods.defenseMult || 1))
+    Math.floor((s.defense + (effectMods.defenseFlat || 0)) * (effectMods.defenseMult || 1) * (legendaryBonuses.defenseMult || 1))
   );
   const currentTick = (state.combat.ticksInCurrentRun || 0) + 1;
   const enemyRegenPerTick = Math.max(0, enemyRuntime.regenPerTick || 0);
@@ -321,7 +353,7 @@ export function processTick(state) {
 
   const totalAttackSpeed = Math.max(
     0,
-    Math.min(0.95, (s.attackSpeed || 0) + (effectMods.attackSpeedFlat || 0))
+    Math.min(0.95, (s.attackSpeed || 0) + (effectMods.attackSpeedFlat || 0) + (legendaryBonuses.attackSpeed || 0))
   );
   const hitCount = 1 + (Math.random() < totalAttackSpeed ? 1 : 0);
   const pendingOnKillDamage = state.combat.pendingOnKillDamage || 0;
@@ -347,15 +379,17 @@ export function processTick(state) {
       !enemyRuntime.absorbFirstCritUsed &&
       !consumedFirstCritShield;
     const hitCrit = rawCrit && !bossAbsorbCrit;
-    const critMultiplier = hitCrit ? 2 + (s.critDamage || 0) : 1;
+    const critMultiplier = hitCrit ? 2 + (s.critDamage || 0) + (legendaryBonuses.critDamage || 0) : 1;
     let hitDamage = Math.floor(
       (s.damage +
+        (legendaryBonuses.damageFlat || 0) +
         (hitIndex === 0 ? skillExtraDamage : 0) +
         (effectMods.damageFlat || 0) +
         (hitIndex === 0 ? pendingOnKillDamage : 0)) *
         critMultiplier *
         (eventMods.damageMult || 1) *
         (effectMods.damageMult || 1) *
+        (legendaryBonuses.damageMult || 1) *
         (effectMods.enemyDamageTakenMult || 1) *
         hitLowHpMult
     );
@@ -383,7 +417,7 @@ export function processTick(state) {
   const blocked =
     !evaded &&
     enemyDamageBase > 0 &&
-    Math.random() < Math.min(CRIT_CAP, Math.max(0, s.blockChance || 0));
+    Math.random() < Math.min(CRIT_CAP, Math.max(0, (s.blockChance || 0) + (legendaryBonuses.blockChance || 0)));
   const enemyDmg = blocked ? 0 : enemyDamageBase * enemyStrikeCount;
   const tookDamage = enemyDmg > 0;
   const hpAfterSkillHeal = Math.min(s.maxHp, preImmediate.hp + Math.max(0, skillExtraHeal));
@@ -391,7 +425,7 @@ export function processTick(state) {
   const regenHp = Math.min(s.maxHp, hpAfterSkillHeal + regenAmount);
   const appliedRegen = Math.max(0, regenHp - hpAfterSkillHeal);
   let newPlayerHp = regenHp - enemyDmg;
-  const thornsDamage = tookDamage ? Math.max(0, Math.floor(s.thorns || 0)) : 0;
+  const thornsDamage = tookDamage ? Math.max(0, Math.floor((s.thorns || 0) + (effectMods.thornsFlat || 0))) : 0;
   const reflectedToPlayer =
     playerDmg > 0
       ? Math.floor(playerDmg * enemyThornsRatio) + enemyFlatThorns
@@ -435,6 +469,13 @@ export function processTick(state) {
   });
   const { immediate: postImmediateEffects, persistent: postPersistentEffects } =
     splitImmediateEffects(postTriggerEffects);
+  const { effects: postLegendaryEffects, logs: postLegendaryLogs } = getLegendaryPostAttackEffects({
+    player: state.player,
+    didCrit,
+    enemyKilled,
+    tookDamage,
+    blocked,
+  });
 
   const postTriggerModTotals = toModifierTotals(computeEffectModifiers(postImmediateEffects));
   const immediatePostTrigger = applyModifierTotals({
@@ -444,7 +485,7 @@ export function processTick(state) {
     totals: {
       ...postTriggerModTotals,
       lifestealPercentDamage:
-        (postTriggerModTotals.lifestealPercentDamage || 0) + (s.lifesteal || 0),
+        (postTriggerModTotals.lifestealPercentDamage || 0) + (s.lifesteal || 0) + (legendaryBonuses.lifesteal || 0),
     },
     context: {
       didCrit,
@@ -478,7 +519,7 @@ export function processTick(state) {
     state.combat.skillDamageTimeline,
     skillDamageEvents
   );
-  const nextEffects = applyEffects(activeEffects, postPersistentEffects);
+  const nextEffects = applyEffects(activeEffects, [...(postPersistentEffects || []), ...(postLegendaryEffects || [])]);
 
   if (newPlayerHp <= 0) {
     const lastRunSummary = buildLastRunSummary(state, enemy, "death");
@@ -502,7 +543,7 @@ export function processTick(state) {
       player: {
         ...state.player,
         hp: s.maxHp,
-        gold: Math.floor(state.player.gold * 0.5),
+        gold: sanitizeCurrencyValue(Math.floor((state.player.gold || 0) * 0.5), SAFE_RUNTIME_GOLD_CAP),
       },
       stats: {
         ...state.stats,
@@ -529,6 +570,7 @@ export function processTick(state) {
         skillCooldowns: updatedCooldowns,
         activeEvents: [],
         runStats: getEmptyRunStats(),
+        prestigeCycle,
         performanceSnapshot: getEmptyPerformanceSnapshot(),
         analytics: nextAnalytics,
         lastRunSummary,
@@ -536,7 +578,9 @@ export function processTick(state) {
         log: [
           ...state.combat.log,
           ...preTriggerLogs,
+          ...preLegendaryLogs,
           ...postTriggerLogs,
+          ...postLegendaryLogs,
           `Tu heroe cayo frente a ${enemy.name}. La run termino y perdiste la mitad del oro.`,
         ].slice(-20),
       },
@@ -606,8 +650,10 @@ export function processTick(state) {
         log: [
           ...state.combat.log,
           ...preTriggerLogs,
+          ...preLegendaryLogs,
           ...skillCastLogs,
           ...postTriggerLogs,
+          ...postLegendaryLogs,
           `Impactas por ${playerDmg}${comboText}${critText}${thornsText} - ${enemy.name}: ${Math.max(0, newEnemyHp)} HP | ${enemy.name} responde por ${enemyDmg}${evadeText}${blockText}${combatNotes} - vos: ${Math.max(0, newPlayerHp)} HP`,
         ].slice(-20),
       },
@@ -618,6 +664,8 @@ export function processTick(state) {
   const { goldGained, xpGained, essenceGained, loot } = calculateRewards({
     enemy,
     playerStats: s,
+    player: state.player,
+    codex: state.codex,
     eventMods,
     prestige: state.prestige,
     isCrit: didCrit,
@@ -628,8 +676,8 @@ export function processTick(state) {
     ...state.player,
     hp: newPlayerHp,
     xp: state.player.xp + xpGained,
-    gold: immediatePostTrigger.gold + goldGained,
-    essence: (state.player.essence || 0) + essenceGained,
+    gold: sanitizeCurrencyValue(immediatePostTrigger.gold + goldGained, SAFE_RUNTIME_GOLD_CAP),
+    essence: sanitizeCurrencyValue((state.player.essence || 0) + essenceGained, SAFE_RUNTIME_ESSENCE_CAP),
   };
 
   if (!newPlayer.inventory) newPlayer.inventory = [];
@@ -646,23 +694,40 @@ export function processTick(state) {
   let bestDropScore = previousRunStats.bestDropScore || 0;
   let lootStatsPatch = {};
   let latestLootEvent = null;
+  let newlyUnlockedLegendaryPower = null;
+  let legendaryPowerUnlocks = 0;
+  let legendaryPowerDuplicates = 0;
   let autoSellGold = 0;
   let autoExtractEssence = 0;
 
   if (loot) {
+    const previousPowerDiscoveries = Number(state.codex?.powerDiscoveries?.[loot.legendaryPowerId] || 0);
     const equippedItem = loot.type === "weapon" ? state.player.equipment?.weapon : state.player.equipment?.armor;
     latestLootEvent = summarizeLootEvent({
       item: loot,
       equippedItem,
       activeBuildTag,
       wishlistAffixes: lootRuleSet.wishlistAffixes,
+      huntContext: enemy,
     });
-    const shouldAutoExtract = lootRuleSet.autoExtract.has(loot.rarity);
-    const shouldAutoSell = !shouldAutoExtract && lootRuleSet.autoSell.has(loot.rarity);
+    newlyUnlockedLegendaryPower =
+      loot?.legendaryPowerId && !(state.codex?.powerDiscoveries?.[loot.legendaryPowerId] > 0)
+        ? latestLootEvent?.legendaryPower || null
+        : null;
+    legendaryPowerUnlocks = loot?.legendaryPowerId && previousPowerDiscoveries <= 0 ? 1 : 0;
+    legendaryPowerDuplicates = loot?.legendaryPowerId && previousPowerDiscoveries > 0 ? 1 : 0;
+    const isProtectedDrop =
+      (lootRuleSet.protectHuntedDrops && (
+        (latestLootEvent?.wishlistMatches?.length || 0) > 0 ||
+        !!latestLootEvent?.huntMatches?.isMatch
+      )) ||
+      (lootRuleSet.protectUpgradeDrops && (latestLootEvent?.ratingMargin || 0) > 0);
+    const shouldAutoExtract = !isProtectedDrop && lootRuleSet.autoExtract.has(loot.rarity);
+    const shouldAutoSell = !isProtectedDrop && !shouldAutoExtract && lootRuleSet.autoSell.has(loot.rarity);
 
     if (shouldAutoExtract) {
       const essenceFromLoot = getExtractYield(loot);
-      newPlayer.essence = (newPlayer.essence || 0) + essenceFromLoot;
+      newPlayer.essence = sanitizeCurrencyValue((newPlayer.essence || 0) + essenceFromLoot, SAFE_RUNTIME_ESSENCE_CAP);
       autoExtractEssence = essenceFromLoot;
       autoLootLog = ` [AUTO-EXTRACT ${loot.rarity}: +${essenceFromLoot} esencia]`;
       lootStatsPatch = {
@@ -671,7 +736,7 @@ export function processTick(state) {
       };
     } else if (shouldAutoSell) {
       const sellValue = loot.sellValue || 0;
-      newPlayer.gold = (newPlayer.gold || 0) + sellValue;
+      newPlayer.gold = sanitizeCurrencyValue((newPlayer.gold || 0) + sellValue, SAFE_RUNTIME_GOLD_CAP);
       autoSellGold = sellValue;
       autoLootLog = ` [AUTO-SELL ${loot.rarity}: +${sellValue} oro]`;
       lootStatsPatch = {
@@ -694,7 +759,7 @@ export function processTick(state) {
     if (isBetterBestDrop) {
       bestDropName = loot.name;
       bestDropRarity = loot.rarity;
-      bestDropHighlight = latestLootEvent?.highlight || null;
+      bestDropHighlight = latestLootEvent?.topHighlight || latestLootEvent?.highlight || null;
       bestDropPerfectRolls = latestLootEvent?.perfectRollCount || 0;
       bestDropScore = candidateDropScore;
     }
@@ -768,6 +833,8 @@ export function processTick(state) {
     rareItemsFound: (sessionAnalytics.rareItemsFound || 0) + (loot?.rarity === "rare" ? 1 : 0),
     epicItemsFound: (sessionAnalytics.epicItemsFound || 0) + (loot?.rarity === "epic" ? 1 : 0),
     legendaryItemsFound: (sessionAnalytics.legendaryItemsFound || 0) + (loot?.rarity === "legendary" ? 1 : 0),
+    legendaryPowerUnlocks: (sessionAnalytics.legendaryPowerUnlocks || 0) + legendaryPowerUnlocks,
+    legendaryPowerDuplicates: (sessionAnalytics.legendaryPowerDuplicates || 0) + legendaryPowerDuplicates,
     perfectRollsFound: (sessionAnalytics.perfectRollsFound || 0) + (((loot?.affixes || []).filter(affix => affix.perfectRoll).length) || 0),
     t1AffixesFound: (sessionAnalytics.t1AffixesFound || 0) + (((loot?.affixes || []).filter(affix => affix.tier === 1).length) || 0),
     perfectByTier: incrementMapValue(
@@ -822,6 +889,8 @@ export function processTick(state) {
     combat: { ...state.combat, maxTier: newMaxTier },
   });
   if (bonusGold > 0) newPlayer.gold += bonusGold;
+  newPlayer.gold = sanitizeCurrencyValue(newPlayer.gold, SAFE_RUNTIME_GOLD_CAP);
+  newPlayer.essence = sanitizeCurrencyValue(newPlayer.essence, SAFE_RUNTIME_ESSENCE_CAP);
   const achievementLogs = (unlocked || []).map(
     achievement => `LOGRO: ${achievement.name} +${achievement.reward || 0} oro`
   );
@@ -846,7 +915,7 @@ export function processTick(state) {
       }
     );
     newPlayer = p2;
-    newActiveEvents = [...newActiveEvents, ...ev2];
+    newActiveEvents = ev2;
     eventLogs = [...eventLogs, ...lvlLogs];
   }
 
@@ -860,13 +929,27 @@ export function processTick(state) {
       }
     );
     newPlayer = p3;
-    newActiveEvents = [...newActiveEvents, ...ev3];
+    newActiveEvents = ev3;
     eventLogs = [...eventLogs, ...bossLogs];
   }
+
+  const nextPrestigeCycle = createEmptyPrestigeCycleProgress({
+    ...prestigeCycle,
+    kills: (prestigeCycle.kills || 0) + 1,
+    bossKills: (prestigeCycle.bossKills || 0) + (enemy.isBoss ? 1 : 0),
+    maxTier: Math.max(prestigeCycle.maxTier || 1, newMaxTier),
+    maxLevel: Math.max(prestigeCycle.maxLevel || 1, newPlayer.level || state.player.level || 1),
+    bestItemRating: Math.max(prestigeCycle.bestItemRating || 0, loot?.rating || 0),
+  });
+  const codexAfterKill = recordCodexKill(state.codex || {}, enemy);
+  const { codex: nextCodex, unlockedPower: unlockedPowerFromDrop } = recordLegendaryPowerDiscovery(codexAfterKill, loot);
+  newlyUnlockedLegendaryPower = unlockedPowerFromDrop || newlyUnlockedLegendaryPower;
+  newPlayer = syncCodexBonuses(newPlayer, nextCodex);
 
   return {
     ...state,
     player: newPlayer,
+    codex: nextCodex,
     stats: newStats,
     achievements: newAchievements,
     combat: {
@@ -892,6 +975,7 @@ export function processTick(state) {
         bestDropPerfectRolls,
         bestDropScore,
       },
+      prestigeCycle: nextPrestigeCycle,
       performanceSnapshot: updatePerformanceSnapshot(
         state.combat.performanceSnapshot,
         {
@@ -910,9 +994,12 @@ export function processTick(state) {
       log: [
         ...state.combat.log,
         `${enemy.isBoss ? "Boss abatido" : "Victoria"} contra ${enemy.name}! +${goldGained} oro, +${xpGained} XP, +${essenceGained} esencia${lootText}${droppedText}${autoLootLog}${thornsText}${reflectText}${latestLootEvent?.highlight ? ` [${latestLootEvent.highlight.label.toUpperCase()}]` : ""}`,
+        ...(newlyUnlockedLegendaryPower ? [`CODEX: desbloqueaste ${newlyUnlockedLegendaryPower.name}. Ya podes injertarlo al ascender a legendario.`] : []),
         ...achievementLogs,
         ...preTriggerLogs,
+        ...preLegendaryLogs,
         ...postTriggerLogs,
+        ...postLegendaryLogs,
         ...skillCastLogs,
         ...eventLogs,
       ].slice(-20),

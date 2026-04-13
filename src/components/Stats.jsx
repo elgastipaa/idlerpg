@@ -5,6 +5,7 @@ import { getPlayerBuildTag } from "../utils/buildIdentity";
 import { buildSessionTelemetryEntries, buildSessionTelemetryReport, buildSessionTelemetrySections } from "../utils/runTelemetry";
 import { buildReplayDatasetSummary, buildReplayJsonExport, buildReplayLibraryExport, buildReplaySummary, buildReplayTextReport, deriveHumanReplayProfile, parseReplayImportPayload } from "../utils/replayLog";
 import { runBalanceBotSimulation } from "../engine/simulation/balanceBot";
+import { clearGame, importGameFromText, isRecoveryMode, saveGame, serializeSaveGame } from "../utils/storage";
 
 function formatNumber(value) {
   if (typeof value !== "number") return value;
@@ -71,9 +72,11 @@ function formatGoalReward(reward = {}) {
 
 export default function Stats({ state, dispatch }) {
   const { player, combat, prestige } = state;
+  const isDarkMode = state.settings?.theme === "dark";
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [openSections, setOpenSections] = useState({
     journey: true,
+    save: false,
     bot: false,
     replay: false,
     telemetry: false,
@@ -81,6 +84,9 @@ export default function Stats({ state, dispatch }) {
     effects: true,
   });
   const [copied, setCopied] = useState(false);
+  const [saveCopied, setSaveCopied] = useState(false);
+  const [saveImportText, setSaveImportText] = useState("");
+  const [saveImportStatus, setSaveImportStatus] = useState("");
   const [replayCopied, setReplayCopied] = useState(false);
   const [replayJsonCopied, setReplayJsonCopied] = useState(false);
   const [replayBundleCopied, setReplayBundleCopied] = useState(false);
@@ -90,6 +96,7 @@ export default function Stats({ state, dispatch }) {
   const [botCopied, setBotCopied] = useState(false);
   const [botRunning, setBotRunning] = useState(false);
   const [botResult, setBotResult] = useState(null);
+  const saveFileInputRef = useRef(null);
   const replayFileInputRef = useRef(null);
 
   useEffect(() => {
@@ -102,6 +109,7 @@ export default function Stats({ state, dispatch }) {
   const prestigeStatus = canPrestige(state);
   const nextPrestige = prestigeStatus.nextRank;
   const projectedPoints = calculatePrestigeEchoGain(state);
+  const prestigePreview = prestigeStatus.preview || { breakdown: [] };
   const currentRun = combat.runStats || {};
   const snapshot = combat.performanceSnapshot || {};
   const analytics = combat.analytics || {};
@@ -114,6 +122,8 @@ export default function Stats({ state, dispatch }) {
   const replayJsonText = useMemo(() => JSON.stringify(buildReplayJsonExport(state), null, 2), [state]);
   const replayLibraryEntries = useMemo(() => state.replayLibrary?.entries || [], [state.replayLibrary]);
   const activeReplayLibraryEntries = useMemo(() => replayLibraryEntries.filter(entry => entry.isActive !== false), [replayLibraryEntries]);
+  const saveJsonText = useMemo(() => serializeSaveGame(state, { pretty: true }), [state]);
+  const recoveryMode = useMemo(() => isRecoveryMode(), []);
   const hasCurrentReplayData = (state.replay?.actions || []).length > 0 || (state.replay?.milestones || []).length > 0;
   const combinedReplaySource = useMemo(() => [
     ...(hasCurrentReplayData ? [state.replay] : []),
@@ -164,6 +174,7 @@ export default function Stats({ state, dispatch }) {
     if (!isMobile) {
       setOpenSections({
         journey: true,
+        save: true,
         bot: true,
         replay: true,
         telemetry: true,
@@ -174,6 +185,7 @@ export default function Stats({ state, dispatch }) {
     }
     setOpenSections({
       journey: true,
+      save: false,
       bot: false,
       replay: false,
       telemetry: false,
@@ -190,6 +202,19 @@ export default function Stats({ state, dispatch }) {
         : pressureRatio > 0.9
           ? { label: "Parejo", color: "#534AB7", description: "La build esta compitiendo bien y todavia puede empujar." }
           : { label: "Ajustado", color: "#f59e0b", description: "Te conviene reforzar dano o defensa antes de seguir escalando." };
+
+  const prestigeCoach =
+    prestigeStatus.ok
+      ? {
+          label: "Listo para prestigiar",
+          color: "#f59e0b",
+          description: `Si reseteas ahora, cobras +${projectedPoints} ecos y conservas clase/spec.`,
+        }
+      : {
+          label: "Segui empujando",
+          color: "#94a3b8",
+          description: "El primer eco aparece rapido: rompe Tier 3, Nivel 10 o 50 kills en el ciclo.",
+        };
 
   const powerScore = Math.floor(
     player.level * 10 +
@@ -227,6 +252,27 @@ export default function Stats({ state, dispatch }) {
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
       setCopied(false);
+    }
+  };
+
+  const handleSaveNow = () => {
+    if (recoveryMode) {
+      setSaveImportStatus("Estas en modo recovery. Sali de ?fresh=1/?wipe=1 para guardar.");
+      return;
+    }
+    saveGame(state);
+    setSaveImportStatus("Save escrito en localStorage.");
+  };
+
+  const handleCopySave = async () => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(saveJsonText);
+      }
+      setSaveCopied(true);
+      window.setTimeout(() => setSaveCopied(false), 1800);
+    } catch {
+      setSaveCopied(false);
     }
   };
 
@@ -289,6 +335,53 @@ export default function Stats({ state, dispatch }) {
     const spec = combinedReplaySummary.preferredSpec || player.specialization || "dataset";
     const filename = `${slugifyName(`replay-bundle-${spec}-${combinedReplaySummary.replayCount}r`)}.json`;
     handleDownloadText(replayBundleText, filename);
+  };
+
+  const handleDownloadSave = () => {
+    const className = player.class || "save";
+    const spec = player.specialization || "base";
+    const filename = `${slugifyName(`save-${className}-${spec}-lvl${player.level || 1}`)}.json`;
+    handleDownloadText(saveJsonText, filename);
+  };
+
+  const handleImportSave = () => {
+    try {
+      importGameFromText(saveImportText);
+      setSaveImportStatus("Save importado. Recargando...");
+      window.setTimeout(() => {
+        window.location.href = window.location.origin + window.location.pathname;
+      }, 120);
+    } catch {
+      setSaveImportStatus("Save JSON invalido.");
+    }
+  };
+
+  const handleImportSaveFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      setSaveImportText(text);
+      importGameFromText(text);
+      setSaveImportStatus(`Save importado desde ${file.name}. Recargando...`);
+      window.setTimeout(() => {
+        window.location.href = window.location.origin + window.location.pathname;
+      }, 120);
+    } catch {
+      setSaveImportStatus("Archivo de save invalido.");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const handleResetSave = () => {
+    if (recoveryMode) {
+      setSaveImportStatus("Resetear desde recovery no cambia la partida activa. Sali del modo recovery primero.");
+      return;
+    }
+    if (!window.confirm("Esto borra tu save local actual. Continuar?")) return;
+    clearGame();
+    window.location.href = window.location.origin + window.location.pathname;
   };
 
   const handleSaveReplayToLibrary = () => {
@@ -401,14 +494,14 @@ export default function Stats({ state, dispatch }) {
   };
 
   return (
-    <div style={{ padding: isMobile ? "0.9rem" : "1.2rem", display: "flex", flexDirection: "column", gap: "12px", background: "linear-gradient(180deg, var(--color-background-primary, #f8fafc) 0%, var(--color-background-tertiary, #eef6f4) 100%)", color: "var(--color-text-primary, #1e293b)" }}>
+    <div style={{ padding: isMobile ? "0.9rem" : "1.2rem", display: "flex", flexDirection: "column", gap: "12px", background: isDarkMode ? "linear-gradient(180deg, var(--color-background-primary, #0b1220) 0%, var(--color-background-secondary, #111a2e) 100%)" : "linear-gradient(180deg, var(--color-background-primary, #f8fafc) 0%, var(--color-background-tertiary, #eef6f4) 100%)", color: "var(--color-text-primary, #1e293b)" }}>
       <section style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.05fr 0.95fr", gap: "10px" }}>
         <div style={heroPanelStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
             <div>
               <div style={eyebrowStyle("#94a3b8")}>Laboratorio de Ascension</div>
               <div style={{ fontSize: "1rem", color: "#f8fafc", fontWeight: "900" }}>{currentPrestige ? currentPrestige.name : "Sin ascender"}</div>
-              <div style={{ fontSize: "0.72rem", color: "#cbd5e1", marginTop: "4px", lineHeight: 1.4 }}>{buildStatus.description}</div>
+              <div style={{ fontSize: "0.72rem", color: "#cbd5e1", marginTop: "4px", lineHeight: 1.4 }}>{prestigeCoach.description}</div>
             </div>
             <div style={{ ...pillStyle("rgba(245,158,11,0.12)", "#f59e0b", "rgba(245,158,11,0.28)") }}>+{projectedPoints} ecos</div>
           </div>
@@ -420,11 +513,25 @@ export default function Stats({ state, dispatch }) {
             <MiniDarkStat label="Ecos" value={formatNumber(prestige.echoes || 0)} />
           </div>
 
-          {nextPrestige && (
-            <div style={{ fontSize: "0.68rem", color: "#94a3b8", marginTop: "10px", lineHeight: 1.45 }}>
-              Siguiente rango: Nivel {nextPrestige.requiredLevel} · {formatNumber(nextPrestige.goldCost)} oro · Tier sugerido {nextPrestige.requiredTier}
-            </div>
-          )}
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" }}>
+            <div style={{ ...pillStyle(`${prestigeCoach.color}15`, prestigeCoach.color, `${prestigeCoach.color}55`) }}>{prestigeCoach.label}</div>
+            {nextPrestige && (
+              <div style={pillStyle("rgba(148,163,184,0.12)", "#cbd5e1", "rgba(148,163,184,0.24)")}>
+                Proximo rango: Prestige {nextPrestige.level} · {nextPrestige.name}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(5, minmax(0, 1fr))", gap: "8px", marginTop: "10px" }}>
+            {(prestigePreview.breakdown || []).map(entry => (
+              <MiniDarkStat
+                key={`prestige-breakdown-${entry.id}`}
+                label={entry.label}
+                value={`+${formatNumber(entry.echoes)}`}
+                helper={typeof entry.value === "number" ? formatNumber(entry.value) : entry.value}
+              />
+            ))}
+          </div>
         </div>
 
         <div style={lightPanelStyle}>
@@ -519,6 +626,60 @@ export default function Stats({ state, dispatch }) {
               </div>
             </div>
           </div>
+        )}
+      </section>
+
+      <section style={lightPanelStyle}>
+        <button onClick={() => toggleSection("save")} style={accordionHeaderButtonStyle}>
+          <div>
+            <div style={sectionTitleStyle}>Save</div>
+            <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>
+              Exporta, importa, resetea o fuerza un guardado sin salir del juego.
+            </div>
+          </div>
+          <span style={accordionLabelStyle}>{openSections.save ? "Ocultar" : "Ver"}</span>
+        </button>
+
+        {openSections.save && (
+          <>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" }}>
+              <button onClick={handleSaveNow} style={actionBtnStyle("#0f766e", "#ffffff")}>Guardar ahora</button>
+              <button onClick={handleCopySave} style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}>{saveCopied ? "Save copiado" : "Copiar JSON save"}</button>
+              <button onClick={handleDownloadSave} style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}>Descargar save</button>
+              <button onClick={handleResetSave} style={actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca")}>Resetear save</button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "0.95fr 1.05fr", gap: "10px" }}>
+              <div style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
+                <div style={sectionTitleStyle}>Estado</div>
+                <DataRow label="Modo recovery" value={recoveryMode ? "Si" : "No"} />
+                <DataRow label="Clase / Spec" value={`${player.class || "-"} / ${player.specialization || "-"}`} />
+                <DataRow label="Nivel" value={formatNumber(player.level || 1)} />
+                <DataRow label="Tier" value={formatNumber(combat.currentTier || 1)} />
+                <DataRow label="Prestigio" value={formatNumber(prestige.level || 0)} />
+                <DataRow label="Powers descubiertos" value={formatNumber((state.codex?.powerDiscoveries ? Object.values(state.codex.powerDiscoveries).filter(value => Number(value || 0) > 0).length : 0))} />
+                <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "10px", lineHeight: 1.45 }}>
+                  La importacion reescribe el save local y recarga la pagina. Si estas en `?fresh=1` o `?wipe=1`, primero sali de ese modo.
+                </div>
+              </div>
+
+              <div style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
+                <div style={sectionTitleStyle}>Importar JSON</div>
+                <input ref={saveFileInputRef} type="file" accept=".json,application/json" onChange={handleImportSaveFile} style={{ display: "none" }} />
+                <textarea
+                  value={saveImportText}
+                  onChange={event => setSaveImportText(event.target.value)}
+                  placeholder="Pega aca un save exportado"
+                  style={{ width: "100%", minHeight: isMobile ? "160px" : "220px", marginTop: "8px", borderRadius: "14px", border: "1px solid var(--color-border-secondary, #dbe7e3)", padding: "12px", fontFamily: "Consolas, monospace", fontSize: "0.72rem", color: "var(--color-text-primary, #1e293b)", background: "var(--color-background-secondary, #fff)", resize: "vertical" }}
+                />
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" }}>
+                  <button onClick={handleImportSave} style={actionBtnStyle("#1d4ed8", "#ffffff")}>Importar save</button>
+                  <button onClick={() => saveFileInputRef.current?.click()} style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}>Subir archivo .json</button>
+                </div>
+                {saveImportStatus && <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "8px" }}>{saveImportStatus}</div>}
+              </div>
+            </div>
+          </>
         )}
       </section>
 
@@ -870,11 +1031,12 @@ function RunMetric({ label, value }) {
   );
 }
 
-function MiniDarkStat({ label, value }) {
+function MiniDarkStat({ label, value, helper = null }) {
   return (
     <div style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "8px 10px", display: "flex", flexDirection: "column" }}>
       <span style={{ fontSize: "0.55rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: "800", marginBottom: "3px" }}>{label}</span>
       <span style={{ fontSize: "0.95rem", fontWeight: "900", color: "#fff" }}>{value}</span>
+      {helper != null && <span style={{ fontSize: "0.56rem", color: "#94a3b8", marginTop: "3px", lineHeight: 1.2 }}>{helper}</span>}
     </div>
   );
 }

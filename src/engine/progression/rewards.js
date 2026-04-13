@@ -1,10 +1,15 @@
 import { generateLoot } from "../../utils/loot";
+import { getLegendaryPowerMasteryMap } from "./codexEngine";
 
 // Pipeline de recompensas al matar un enemigo.
 // Futuro: mapas y dungeons pueden agregar multiplicadores al context.
 
-export function calculateRewards({ enemy, playerStats, eventMods, prestige, isCrit, unlockedTalents }) {
+export function calculateRewards({ enemy, playerStats, player = null, codex = null, eventMods, prestige, isCrit, unlockedTalents }) {
   const critGoldBonus = (isCrit && unlockedTalents.includes("rogue_opportunist")) ? 5 : 0;
+  const discoveredPowerIds = Object.entries(codex?.powerDiscoveries || {})
+    .filter(([, discoveries]) => Number(discoveries || 0) > 0)
+    .map(([powerId]) => powerId);
+  const powerMasteryMap = getLegendaryPowerMasteryMap(codex || {});
 
   const goldGained = Math.floor(
     (enemy.goldReward + playerStats.flatGold + critGoldBonus) *
@@ -26,6 +31,10 @@ export function calculateRewards({ enemy, playerStats, eventMods, prestige, isCr
     lootBonus: playerStats.lootBonus || 0,
     favoredFamilies: enemy?.favoredFamilies || [],
     favoredStats: enemy?.favoredStats || [],
+    discoveredPowerIds,
+    powerMasteryMap,
+    discoveredPowerBias: player?.prestigeBonuses?.discoveredPowerBias || 0,
+    favoredStatWeightMultiplier: enemy?.isBoss ? 3.2 : 2.4,
     rarityFloor: enemy?.guaranteedRarityFloor || null,
     rarityBonus: enemy?.dropRarityBonus || 0,
   });

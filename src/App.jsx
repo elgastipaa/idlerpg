@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { Suspense, lazy, useState, useEffect } from "react";
 import { useGame } from "./hooks/useGame";
 import Character from "./components/Character";
 import Combat from "./components/Combat";
 import Inventory from "./components/Inventory";
-import Skills from "./components/Skills";
-import Achievements from "./components/Achievements";
-import Stats from "./components/Stats";
-import Crafting from "./components/Crafting";
-import Talents from "./components/Talents";
-import Codex from "./components/Codex";
-import Prestige from "./components/Prestige";
 import { getRarityColor } from "./constants/rarity";
+
+const Skills = lazy(() => import("./components/Skills"));
+const Achievements = lazy(() => import("./components/Achievements"));
+const Stats = lazy(() => import("./components/Stats"));
+const Crafting = lazy(() => import("./components/Crafting"));
+const Talents = lazy(() => import("./components/Talents"));
+const Codex = lazy(() => import("./components/Codex"));
+const Prestige = lazy(() => import("./components/Prestige"));
 
 const THEMES = {
   light: {
@@ -97,6 +98,20 @@ function getOfflineHeadline(summary) {
   return "Tu heroe siguio peleando mientras no estabas mirando.";
 }
 
+function renderCurrentTab(currentTab, state, dispatch) {
+  if (currentTab === "character") return <Character player={state.player} dispatch={dispatch} state={state} />;
+  if (currentTab === "combat") return <Combat state={state} dispatch={dispatch} />;
+  if (currentTab === "inventory") return <Inventory state={state} player={state.player} dispatch={dispatch} />;
+  if (currentTab === "skills") return <Skills state={state} dispatch={dispatch} />;
+  if (currentTab === "talents") return <Talents state={state} dispatch={dispatch} />;
+  if (currentTab === "crafting") return <Crafting state={state} dispatch={dispatch} />;
+  if (currentTab === "prestige") return <Prestige state={state} dispatch={dispatch} />;
+  if (currentTab === "achievements") return <Achievements state={state} />;
+  if (currentTab === "stats") return <Stats state={state} dispatch={dispatch} />;
+  if (currentTab === "codex") return <Codex state={state} />;
+  return null;
+}
+
 const TAB_CONFIG = {
   character:    { label: "Heroe", icon: "⚔️" },
   combat:       { label: "Combate", icon: "🗡️" },
@@ -116,6 +131,7 @@ export default function App() {
   const [showMoreTabs, setShowMoreTabs] = useState(false);
   const offlineSummary = state.combat?.offlineSummary;
   const hasTalentPoints = (state.player?.talentPoints || 0) > 0;
+  const reforgeLocked = !!state.combat?.reforgeSession;
   const inventoryUpgrades = (state.player?.inventory || []).filter(item => {
     const compare = item.type === "weapon" ? state.player?.equipment?.weapon : state.player?.equipment?.armor;
     return (item?.rating || 0) > (compare?.rating || 0);
@@ -192,6 +208,11 @@ export default function App() {
               <h1 style={{ margin: 0, fontSize: isMobile ? "1.15rem" : "1.55rem", fontWeight: "800", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.1 }}>
                 {TAB_CONFIG[state.currentTab].label}
               </h1>
+              {reforgeLocked && (
+                <div style={{ fontSize: "0.62rem", fontWeight: "900", color: "var(--tone-violet, #6d28d9)" }}>
+                  Reforja pendiente: resolve la opcion actual antes de cambiar de tab.
+                </div>
+              )}
               {isMobile && resourceSummary}
             </div>
             <button
@@ -219,19 +240,21 @@ export default function App() {
                 {tabs.map((t) => (
                   <button
                     key={t}
+                    disabled={reforgeLocked && state.currentTab !== t}
                     onClick={() => dispatch({ type: "SET_TAB", tab: t })}
                     style={{
                       padding: "7px 13px",
-                      cursor: "pointer",
+                      cursor: reforgeLocked && state.currentTab !== t ? "not-allowed" : "pointer",
                       backgroundColor: state.currentTab === t ? "var(--color-background-info, #e0e7ff)" : "var(--color-background-secondary, #ffffff)",
-                      color: state.currentTab === t ? "var(--color-text-info, #4338ca)" : "var(--color-text-primary, #1e293b)",
+                      color: reforgeLocked && state.currentTab !== t ? "var(--color-text-tertiary, #94a3b8)" : state.currentTab === t ? "var(--color-text-info, #4338ca)" : "var(--color-text-primary, #1e293b)",
                       border: "1px solid var(--color-border-tertiary, #cbd5e1)",
                       borderRadius: "8px",
                       fontWeight: "700",
                       display: "flex",
                       alignItems: "center",
                       gap: "6px",
-                      transition: "all 0.2s"
+                      transition: "all 0.2s",
+                      opacity: reforgeLocked && state.currentTab !== t ? 0.55 : 1,
                     }}
                   >
                     <span>{TAB_CONFIG[t].icon}</span>
@@ -296,16 +319,9 @@ export default function App() {
         )}
 
         <main style={{ width: "100%", background: isMobile ? "transparent" : "var(--color-background-secondary, #ffffff)", borderRadius: isMobile ? "0" : "12px", border: isMobile ? "none" : "1px solid var(--color-border-tertiary, #cbd5e1)", boxShadow: isMobile ? "none" : "0 4px 20px var(--color-shadow, rgba(0,0,0,0.05))" }}>
-          {state.currentTab === "character" && <Character player={state.player} dispatch={dispatch} state={state} />}
-          {state.currentTab === "combat" && <Combat state={state} dispatch={dispatch} />}
-          {state.currentTab === "inventory" && <Inventory state={state} player={state.player} dispatch={dispatch} />}
-          {state.currentTab === "skills" && <Skills state={state} dispatch={dispatch} />}
-          {state.currentTab === "talents" && <Talents state={state} dispatch={dispatch} />}
-          {state.currentTab === "crafting" && <Crafting state={state} dispatch={dispatch} />}
-          {state.currentTab === "prestige" && <Prestige state={state} dispatch={dispatch} />}
-          {state.currentTab === "achievements" && <Achievements state={state} />}
-          {state.currentTab === "stats" && <Stats state={state} dispatch={dispatch} />}
-          {state.currentTab === "codex" && <Codex />}
+          <Suspense fallback={<TabLoadingCard label={TAB_CONFIG[state.currentTab].label} />}>
+            {renderCurrentTab(state.currentTab, state, dispatch)}
+          </Suspense>
         </main>
       </div>
 
@@ -316,11 +332,12 @@ export default function App() {
               {mobileSecondaryTabs.map(t => (
                 <button
                   key={t}
+                  disabled={reforgeLocked && state.currentTab !== t}
                   onClick={() => {
                     dispatch({ type: "SET_TAB", tab: t });
                     setShowMoreTabs(false);
                   }}
-                  style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: state.currentTab === t ? "var(--color-background-info, #eef2ff)" : "var(--color-background-secondary, #fff)", color: "var(--color-text-primary, #1e293b)", borderRadius: "10px", padding: "8px 6px", fontSize: "0.68rem", fontWeight: "900", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: "pointer", position: "relative" }}
+                  style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: state.currentTab === t ? "var(--color-background-info, #eef2ff)" : "var(--color-background-secondary, #fff)", color: reforgeLocked && state.currentTab !== t ? "var(--color-text-tertiary, #94a3b8)" : "var(--color-text-primary, #1e293b)", borderRadius: "10px", padding: "8px 6px", fontSize: "0.68rem", fontWeight: "900", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: reforgeLocked && state.currentTab !== t ? "not-allowed" : "pointer", position: "relative", opacity: reforgeLocked && state.currentTab !== t ? 0.55 : 1 }}
                 >
                   <span>{TAB_CONFIG[t].icon}</span>
                   <span>{TAB_CONFIG[t].label}</span>
@@ -337,7 +354,7 @@ export default function App() {
             {mobilePrimaryTabs.map((t) => {
               const isActive = state.currentTab === t;
               return (
-                <button key={t} onClick={() => { dispatch({ type: "SET_TAB", tab: t }); setShowMoreTabs(false); }} style={{ flex: 1, minWidth: "56px", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "2px", background: isActive ? "var(--color-background-info, #f1f5f9)" : "transparent", border: "none", outline: "none", position: "relative", paddingTop: "5px" }}>
+                <button key={t} disabled={reforgeLocked && !isActive} onClick={() => { dispatch({ type: "SET_TAB", tab: t }); setShowMoreTabs(false); }} style={{ flex: 1, minWidth: "56px", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "2px", background: isActive ? "var(--color-background-info, #f1f5f9)" : "transparent", border: "none", outline: "none", position: "relative", paddingTop: "5px", opacity: reforgeLocked && !isActive ? 0.45 : 1 }}>
                   <span style={{ filter: isActive ? "none" : "grayscale(1) opacity(0.5)", position: "relative", fontSize: "21px", lineHeight: 1 }}>
                     {TAB_CONFIG[t].icon}
                   </span>
@@ -352,7 +369,7 @@ export default function App() {
                 </button>
               );
             })}
-            <button onClick={() => setShowMoreTabs(current => !current)} style={{ flex: 1, minWidth: "56px", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "2px", background: activeTabInMore || showMoreTabs ? "var(--color-background-info, #f1f5f9)" : "transparent", border: "none", outline: "none", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", position: "relative", paddingTop: "5px" }}>
+            <button disabled={reforgeLocked} onClick={() => setShowMoreTabs(current => !current)} style={{ flex: 1, minWidth: "56px", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "2px", background: activeTabInMore || showMoreTabs ? "var(--color-background-info, #f1f5f9)" : "transparent", border: "none", outline: "none", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", position: "relative", paddingTop: "5px", opacity: reforgeLocked ? 0.45 : 1 }}>
               <span style={{ fontSize: "20px", lineHeight: 1 }}>···</span>
               <span style={{ fontSize: "0.56rem", fontWeight: "900", color: activeTabInMore || showMoreTabs ? "var(--color-text-info, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                 Mas
@@ -364,6 +381,14 @@ export default function App() {
           </nav>
         </>
       )}
+    </div>
+  );
+}
+
+function TabLoadingCard({ label }) {
+  return (
+    <div style={{ padding: "18px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "220px", color: "var(--color-text-secondary, #475569)", fontWeight: "900", fontSize: "0.82rem" }}>
+      Cargando {label}...
     </div>
   );
 }

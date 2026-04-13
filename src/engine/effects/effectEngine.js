@@ -79,6 +79,7 @@ export function computeEffectModifiers(effects = [], context = {}) {
     goldFlat: totals.goldFlat,
     lifestealFlat: totals.lifestealFlat,
     lifestealPercentDamage: totals.lifestealPercentDamage,
+    thornsFlat: totals.thornsFlat,
   };
 }
 

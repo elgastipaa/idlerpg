@@ -2,11 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { SKILLS } from "../data/skills";
 import { TALENTS } from "../data/talents";
+import { ITEM_FAMILIES } from "../data/itemFamilies";
 import { xpRequired } from "../engine/leveling";
 import { getActiveGoals } from "../engine/progression/goalEngine";
 import { getRarityColor, getAffixTierGlyph } from "../constants/rarity";
 import { calcStats } from "../engine/combat/statEngine";
 import { computeEffectModifiers } from "../engine/effects/effectEngine";
+import { ITEM_STAT_LABELS as STAT_LABELS } from "../utils/itemPresentation";
+import { getTargetedLegendaryDropsForEnemy } from "../utils/legendaryPowers";
 
 const COLORS = {
   success: "var(--tone-success, #1D9E75)",
@@ -162,6 +165,18 @@ function formatBossTheme(enemy) {
   return parts;
 }
 
+function formatHuntFamilies(enemy) {
+  return (enemy?.favoredFamilies || [])
+    .map(familyId => ITEM_FAMILIES[familyId]?.name || familyId)
+    .slice(0, 3);
+}
+
+function formatHuntStats(enemy) {
+  return (enemy?.favoredStats || [])
+    .map(stat => STAT_LABELS[stat] || stat)
+    .slice(0, 3);
+}
+
 export default function Combat({ state, dispatch }) {
   const { player, combat } = state;
   const {
@@ -175,6 +190,7 @@ export default function Combat({ state, dispatch }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [showActivated, setShowActivated] = useState({});
   const [goalIndex, setGoalIndex] = useState(0);
+  const [tipIndex, setTipIndex] = useState(0);
   const [logExpanded, setLogExpanded] = useState(false);
   const [collapsedPanels, setCollapsedPanels] = useState({
     skills: true,
@@ -206,6 +222,7 @@ export default function Combat({ state, dispatch }) {
 
   const activeTalentEffects = useMemo(() => buildActiveTalentEffects(effects), [effects]);
   const activeGoals = useMemo(() => getActiveGoals(state, 3), [state]);
+  const sessionGoals = activeGoals.slice(0, 3);
   const skillDpsById = useMemo(() => {
     const now = Date.now();
     const cutoff = now - SKILL_DPS_WINDOW_MS;
@@ -232,6 +249,32 @@ export default function Combat({ state, dispatch }) {
   );
   const effectiveCritChanceInCombat = Math.min(0.75, (baseStats.critChance || 0) + (combatEffectMods.critBonus || 0));
   const effectiveAttackSpeedInCombat = Math.min(0.7, (baseStats.attackSpeed || 0) + (combatEffectMods.attackSpeedFlat || 0));
+  const combatTips = useMemo(() => ([
+    {
+      title: "Arma primero",
+      body: "Si queres pushear, casi siempre conviene mejorar o cambiar el arma antes que la armadura.",
+    },
+    {
+      title: "No guardes TP",
+      body: "Los puntos de talento sin gastar suelen rendir mas que esperar el nodo perfecto.",
+    },
+    {
+      title: "Reforge con criterio",
+      body: "La reforja sirve para perseguir una linea clave. El reroll total es para resetear una pieza floja.",
+    },
+    {
+      title: "Prestige corto tambien vale",
+      body: "Si la run se estanca, un prestige rapido por pocos ecos puede rendir mas que forzar otra hora.",
+    },
+    {
+      title: "Auto-avance no siempre",
+      body: "Si moris seguido, apagalo un rato y estabiliza equipo, talentos o crafting antes de volver a subir.",
+    },
+    {
+      title: "Economia util",
+      body: "Si un drop no mejora ni sirve para tu plan, vendelo o extraelo rapido y segui rotando.",
+    },
+  ]), []);
 
   useEffect(() => {
     const activated = {};
@@ -270,7 +313,7 @@ export default function Combat({ state, dispatch }) {
 
   useEffect(() => {
     if (!latestLootEvent) return undefined;
-    if ((RARITY_RANK[latestLootEvent.rarity] || 1) < 2) return undefined;
+    if (!latestLootEvent.highlight) return undefined;
     setLootClosing(false);
     setVisibleLootEvent(latestLootEvent);
     return undefined;
@@ -327,12 +370,20 @@ export default function Combat({ state, dispatch }) {
   }, [isMobile]);
 
   useEffect(() => {
-    if (activeGoals.length <= 1) return undefined;
+    if (sessionGoals.length <= 1) return undefined;
     const timer = setInterval(() => {
-      setGoalIndex(current => (current + 1) % activeGoals.length);
-    }, 3600);
+      setGoalIndex(current => (current + 1) % sessionGoals.length);
+    }, 5000);
     return () => clearInterval(timer);
-  }, [activeGoals.length]);
+  }, [sessionGoals.length]);
+
+  useEffect(() => {
+    if (combatTips.length <= 1) return undefined;
+    const timer = setInterval(() => {
+      setTipIndex(current => (current + 1) % combatTips.length);
+    }, 5200);
+    return () => clearInterval(timer);
+  }, [combatTips]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -368,7 +419,7 @@ export default function Combat({ state, dispatch }) {
     if (text.includes("nivel")) return { color: "var(--tone-violet, #a855f7)", fontWeight: "bold" };
     return { color: "var(--color-text-tertiary, #94a3b8)" };
   };
-  const rotatingGoal = activeGoals[goalIndex % Math.max(1, activeGoals.length)] || null;
+  const rotatingTip = combatTips[tipIndex % Math.max(1, combatTips.length)] || null;
   const floatingCombatEvents = (combat.floatEvents || [])
     .filter(event => combatFxNow - (event?.at || combatFxNow) < FLOAT_EVENT_TTL_MS)
     .slice(-10);
@@ -379,6 +430,24 @@ export default function Combat({ state, dispatch }) {
       [panel]: !current[panel],
     }));
   };
+  const enemyIntelChips = [
+    enemy.familyName && { id: "family", label: enemy.familyName },
+    enemy.familyTraitName && { id: "trait", label: enemy.familyTraitName },
+    ...(enemy.monsterAffixes || []).slice(0, 2).map(affix => ({ id: `monster-${affix.id || affix.name}`, label: affix.name })),
+    ...(enemy.mechanics || []).slice(0, 2).map(mechanic => ({ id: `mech-${mechanic.id || mechanic.name}`, label: mechanic.name })),
+  ].filter(Boolean);
+  const bossThemeText = formatBossTheme(enemy).join(" · ");
+  const huntFamilies = formatHuntFamilies(enemy);
+  const huntStats = formatHuntStats(enemy);
+  const enemyLegendaryDrops = useMemo(() => getTargetedLegendaryDropsForEnemy(enemy), [enemy]);
+  const missingEnemyPowers = useMemo(() => {
+    const discoveries = state?.codex?.powerDiscoveries || {};
+    return enemyLegendaryDrops.filter(drop => !(discoveries?.[drop?.power?.id] > 0));
+  }, [enemyLegendaryDrops, state?.codex?.powerDiscoveries]);
+  const knownEnemyPowers = useMemo(() => {
+    const discoveries = state?.codex?.powerDiscoveries || {};
+    return enemyLegendaryDrops.filter(drop => discoveries?.[drop?.power?.id] > 0);
+  }, [enemyLegendaryDrops, state?.codex?.powerDiscoveries]);
 
   return (
     <div
@@ -440,10 +509,51 @@ export default function Combat({ state, dispatch }) {
             {enemy.isBoss ? "BOSS " : ""}
             {enemy.name.toUpperCase()}
           </button>
-          {(enemy.familyTraitName || enemy.mechanics?.length || enemy.monsterAffixes?.length) && (
-            <p style={{ margin: "4px 0 0", fontSize: 10, color: enemy.isBoss ? COLORS.boss : "var(--color-text-secondary, #475569)", fontWeight: "800" }}>
-              {enemy.familyTraitName ? `${enemy.familyTraitName}` : enemy.mechanics?.[0]?.name}
+          {enemyIntelChips.length > 0 && (
+            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", justifyContent: "center", marginTop: "5px" }}>
+              {enemyIntelChips.map(chip => (
+                <span key={chip.id} style={{ fontSize: "0.52rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: enemy.isBoss ? "var(--tone-violet-soft, #f3e8ff)" : "var(--color-background-tertiary, #f1f5f9)", color: enemy.isBoss ? "var(--tone-violet, #6d28d9)" : "var(--color-text-secondary, #475569)", border: `1px solid ${enemy.isBoss ? "rgba(124,58,237,0.18)" : "var(--color-border-primary, #e2e8f0)"}` }}>
+                  {chip.label}
+                </span>
+              ))}
+            </div>
+          )}
+          {bossThemeText && (
+            <p style={{ margin: "5px 0 0", fontSize: 10, color: enemy.isBoss ? COLORS.boss : "var(--color-text-secondary, #475569)", fontWeight: "800", textAlign: "center" }}>
+              {bossThemeText}
             </p>
+          )}
+          {(huntFamilies.length > 0 || huntStats.length > 0 || enemy?.guaranteedRarityFloor) && (
+            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", justifyContent: "center", marginTop: "6px" }}>
+              {huntFamilies.length > 0 && (
+                <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-warning-soft, #fff7ed)", color: "var(--tone-warning, #f59e0b)", border: "1px solid rgba(245,158,11,0.18)" }}>
+                  Caza: {huntFamilies.join(" / ")}
+                </span>
+              )}
+              {huntStats.length > 0 && (
+                <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-accent-soft, #eef2ff)", color: "var(--tone-accent, #4338ca)", border: "1px solid rgba(99,102,241,0.18)" }}>
+                  Busca: {huntStats.join(" / ")}
+                </span>
+              )}
+              {enemy?.guaranteedRarityFloor && (
+                <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--color-text-secondary, #475569)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
+                  Piso {enemy.guaranteedRarityFloor}
+                </span>
+              )}
+            </div>
+          )}
+          {enemyLegendaryDrops.length > 0 && (
+            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", justifyContent: "center", marginTop: "6px" }}>
+              {missingEnemyPowers.length > 0 ? (
+                <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-violet-soft, #f3e8ff)", color: "var(--tone-violet, #6d28d9)", border: "1px solid rgba(124,58,237,0.18)" }}>
+                  Power faltante: {missingEnemyPowers.map(drop => drop.power?.name || drop.name).slice(0, 2).join(" / ")}
+                </span>
+              ) : knownEnemyPowers.length > 0 ? (
+                <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-success-soft, #ecfdf5)", color: "var(--tone-success-strong, #047857)", border: "1px solid rgba(34,197,94,0.18)" }}>
+                  Power conocido: {knownEnemyPowers.map(drop => drop.power?.name || drop.name).slice(0, 2).join(" / ")}
+                </span>
+              ) : null}
+            </div>
           )}
         </div>
         <button
@@ -520,14 +630,14 @@ export default function Combat({ state, dispatch }) {
               </div>
             </div>
             <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginTop: "6px" }}>
-              {(visibleLootEvent.highlights || []).slice(0, 4).map(highlight => (
+              {(visibleLootEvent.announcedHighlights || []).slice(0, 4).map(highlight => (
                 <span key={highlight.id} style={eventBadgeStyle(highlight.tone, isDarkMode)}>
                   {highlight.label}
                 </span>
               ))}
               {visibleLootEvent.ratingMargin >= 8 && (
                 <span style={eventBadgeStyle("upgrade", isDarkMode)}>
-                  +{Math.round(visibleLootEvent.ratingMargin)} rating
+                  +{Math.round(visibleLootEvent.ratingMargin)} poder
                 </span>
               )}
             </div>
@@ -538,10 +648,16 @@ export default function Combat({ state, dispatch }) {
                   return (
                     <span key={`${affix.stat}-${index}`} style={{ fontSize: "0.56rem", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "999px", padding: "2px 6px", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #475569)", fontWeight: "900" }}>
                       <span style={{ color: glyph.color, marginRight: "4px" }}>{glyph.symbol}</span>
-                      {affix.stat}
+                      {STAT_LABELS[affix.stat] || affix.stat}
                     </span>
                   );
                 })}
+              </div>
+            )}
+            {visibleLootEvent.huntMatches?.isMatch && (
+              <div style={{ marginTop: "6px", fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)" }}>
+                {visibleLootEvent.huntMatches.familyMatch ? "Coincide con la familia objetivo" : "Coincide con stats objetivo"}
+                {visibleLootEvent.huntMatches.matchingStats?.length > 0 ? ` · ${visibleLootEvent.huntMatches.matchingStats.slice(0, 3).map(stat => STAT_LABELS[stat] || stat).join(", ")}` : ""}
               </div>
             )}
           </section>
@@ -600,38 +716,6 @@ export default function Combat({ state, dispatch }) {
           </div>
         )}
       </section>
-
-      {rotatingGoal && (
-        <section style={{ background: "var(--color-background-secondary, #fff)", borderRadius: "12px", padding: "7px 9px", border: "1px solid var(--color-border-primary, #e2e8f0)", display: "flex", alignItems: "center", gap: "9px" }}>
-          <div style={{ minWidth: "64px", fontSize: "0.56rem", color: COLORS.common, fontWeight: "900", textTransform: "uppercase" }}>Objetivo</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rotatingGoal.name}</div>
-            <div style={{ fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {rotatingGoal.description}
-            </div>
-            {rotatingGoal.hint && (
-              <div style={{ fontSize: "0.54rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {rotatingGoal.hint}
-              </div>
-            )}
-            <div style={{ ...barContainerStyle, height: 5, marginTop: "5px" }}>
-              <div style={{ width: `${rotatingGoal.percent}%`, height: "100%", background: rotatingGoal.completed ? COLORS.success : COLORS.boss }} />
-            </div>
-          </div>
-          {rotatingGoal.completed ? (
-            <button onClick={() => dispatch({ type: "CLAIM_GOAL", goalId: rotatingGoal.id })} style={goalClaimButtonStyle}>CLAIM</button>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "2px" }}>
-              <div style={{ fontSize: "0.62rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", whiteSpace: "nowrap" }}>{rotatingGoal.progress}/{rotatingGoal.targetValue}</div>
-              {formatGoalReward(rotatingGoal.reward) && (
-                <div style={{ fontSize: "0.52rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)", whiteSpace: "nowrap" }}>
-                  {formatGoalReward(rotatingGoal.reward)}
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-      )}
 
       <section
         style={{
@@ -716,6 +800,57 @@ export default function Combat({ state, dispatch }) {
           hint={effectiveAttackSpeedInCombat !== baseStats.attackSpeed ? `Base ${Math.round(baseStats.attackSpeed * 100)}%` : null}
         />
       </section>
+
+      {sessionGoals.length > 0 && (() => {
+        const rotatingGoal = sessionGoals[goalIndex % Math.max(1, sessionGoals.length)] || null;
+        if (!rotatingGoal) return null;
+        return (
+          <section style={{ background: "var(--color-background-secondary, #fff)", borderRadius: "12px", padding: "6px 8px", border: "1px solid var(--color-border-primary, #e2e8f0)", display: "flex", alignItems: "center", gap: "8px" }}>
+            <button onClick={() => setGoalIndex(current => (current - 1 + sessionGoals.length) % sessionGoals.length)} style={cycleButtonStyle}>
+              {"<"}
+            </button>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center", minWidth: 0 }}>
+                  <span style={{ fontSize: "0.46rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--tone-accent, #534AB7)", border: "1px solid var(--color-border-primary, #e2e8f0)", textTransform: "uppercase", flexShrink: 0 }}>
+                    {rotatingGoal.sessionArc}
+                  </span>
+                  <span style={{ fontSize: "0.64rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {rotatingGoal.name}
+                  </span>
+                </div>
+                {rotatingGoal.completed ? (
+                  <button onClick={() => dispatch({ type: "CLAIM_GOAL", goalId: rotatingGoal.id })} style={{ ...goalClaimButtonStyle, padding: "5px 8px", fontSize: "0.56rem" }}>CLAIM</button>
+                ) : (
+                  <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", whiteSpace: "nowrap" }}>
+                    {rotatingGoal.progress}/{rotatingGoal.targetValue}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: "0.54rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {rotatingGoal.hint || rotatingGoal.description}
+              </div>
+              <div style={{ ...barContainerStyle, height: 4, marginTop: "5px" }}>
+                <div style={{ width: `${rotatingGoal.percent}%`, height: "100%", background: rotatingGoal.completed ? COLORS.success : COLORS.boss }} />
+              </div>
+            </div>
+            <button onClick={() => setGoalIndex(current => (current + 1) % sessionGoals.length)} style={cycleButtonStyle}>
+              {">"}
+            </button>
+          </section>
+        );
+      })()}
+
+      {rotatingTip && (
+        <section style={{ background: "var(--color-background-secondary, #fff)", borderRadius: "12px", padding: "5px 8px", border: "1px solid var(--color-border-primary, #e2e8f0)", display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ fontSize: "0.5rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)", flexShrink: 0 }}>
+            Consejo
+          </div>
+          <div style={{ minWidth: 0, flex: 1, fontSize: "0.58rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <strong style={{ color: "var(--color-text-primary, #1e293b)" }}>{rotatingTip.title}:</strong> {rotatingTip.body}
+          </div>
+        </section>
+      )}
 
       {player.class && mySkills.length > 0 && (
         <section style={{ background: "var(--color-background-secondary, #fff)", borderRadius: "16px", padding: "10px", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
@@ -998,6 +1133,18 @@ const goalClaimButtonStyle = {
   cursor: "pointer",
 };
 
+const cycleButtonStyle = {
+  width: "24px",
+  height: "24px",
+  borderRadius: "999px",
+  border: "1px solid var(--color-border-primary, #e2e8f0)",
+  background: "var(--color-background-tertiary, #f8fafc)",
+  color: "var(--color-text-secondary, #475569)",
+  fontWeight: "900",
+  cursor: "pointer",
+  flexShrink: 0,
+};
+
 function getCombatFloatStyle(event = {}, index = 0) {
   const isHeal = event.kind === "heal" || event.kind === "skillHeal";
   const isSkillDamage = event.kind === "skillDamage";
@@ -1129,6 +1276,7 @@ function autoAdvanceBtnStyle(active) {
     boxShadow: active ? "0 0 0 2px rgba(29,158,117,0.14)" : "none",
   };
 }
+
 
 
 

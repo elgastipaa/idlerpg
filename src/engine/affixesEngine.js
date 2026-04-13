@@ -118,6 +118,7 @@ function getAffixPoolWeight({
   affix,
   itemTier = 1,
   favoredStats = [],
+  favoredStatWeightMultiplier = 2.4,
   state,
   allowExistingStatOverlap = false,
   overlapPenalty = 0.3,
@@ -125,7 +126,7 @@ function getAffixPoolWeight({
 }) {
   const tiers = getTierEntries(affix);
   const baseWeight = tiers.reduce((sum, entry) => sum + entry.weight * getTierWeightMultiplier(itemTier, entry.tier), 0);
-  const favoredBonus = favoredStats.includes(affix.stat) ? 2.4 : 1;
+  const favoredBonus = favoredStats.includes(affix.stat) ? favoredStatWeightMultiplier : 1;
   if (baseWeight <= 0) return 0;
   if (state.usedAffixIds.has(affix.id)) return 0;
   if (state.usedAffixStats.has(affix.stat)) return 0;
@@ -142,6 +143,7 @@ function rollSingleAffix(pool, state, options = {}) {
   const {
     itemTier = 1,
     favoredStats = [],
+    favoredStatWeightMultiplier = 2.4,
     allowExistingStatOverlap = false,
     overlapPenalty = 0.3,
     maxExistingStatOverlaps = 1,
@@ -153,6 +155,7 @@ function rollSingleAffix(pool, state, options = {}) {
     affix,
     itemTier,
     favoredStats,
+    favoredStatWeightMultiplier,
     state,
     allowExistingStatOverlap,
     overlapPenalty,
@@ -176,6 +179,7 @@ export function rollAffixes({
   rarity,
   itemTier = 1,
   favoredStats = [],
+  favoredStatWeightMultiplier = 2.4,
   existingStats = [],
   allowExistingStatOverlap = OVERLAP_ELIGIBLE_RARITIES.has(rarity),
   overlapPenalty = ITEM_ROLL_RULES_V2.overlapAffixWeightPenalty ?? 0.3,
@@ -195,6 +199,7 @@ export function rollAffixes({
     const rolled = rollSingleAffix(PREFIXES, state, {
       itemTier,
       favoredStats,
+      favoredStatWeightMultiplier,
       allowExistingStatOverlap,
       overlapPenalty,
       maxExistingStatOverlaps,
@@ -206,6 +211,7 @@ export function rollAffixes({
     const rolled = rollSingleAffix(SUFFIXES, state, {
       itemTier,
       favoredStats,
+      favoredStatWeightMultiplier,
       allowExistingStatOverlap,
       overlapPenalty,
       maxExistingStatOverlaps,

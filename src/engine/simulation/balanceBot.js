@@ -644,14 +644,15 @@ function maybePrestige(state, logs, tick, ticksRemaining, options = {}) {
   const prestigeCheck = canPrestige(state);
   const echoes = calculatePrestigeEchoGain(state);
   if (!prestigeCheck.ok) return state;
-  if (ticksRemaining < 240) return state;
+  if (ticksRemaining < 60) return state;
   const prestigeFloor =
     (humanProfile.avgPushHpRatio || 0) >= 0.76
-      ? 7
+      ? 5
       : (humanProfile.avgPushHpRatio || 0) > 0
-        ? 5
-        : 5;
-  if (echoes < prestigeFloor) return state;
+        ? 4
+        : 3;
+  const shouldForceFirstQuickPrestige = (state.prestige?.level || 0) <= 0 && echoes >= 2;
+  if (!shouldForceFirstQuickPrestige && echoes < prestigeFloor) return state;
 
   const nextState = reduceState(state, { type: "PRESTIGE", resetClass: false });
   if (nextState !== state) {

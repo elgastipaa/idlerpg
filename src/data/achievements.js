@@ -50,7 +50,6 @@
 { id: "reroll_5", name: "Gambler", description: "Haz 5 rerolls", category: "craft", icon: "🎲", condition: { stat: "rerollsCrafted", value: 5 }, reward: 35 },
 { id: "reroll_20", name: "Adicto al Reroll", description: "Haz 20 rerolls", category: "craft", icon: "🌀", condition: { stat: "rerollsCrafted", value: 20 }, reward: 120 },
 { id: "ascend_3", name: "Ascendente", description: "Haz 3 ascends", category: "craft", icon: "🌠", condition: { stat: "ascendsCrafted", value: 3 }, reward: 70 },
-{ id: "fuse_3", name: "Fusionista", description: "Haz 3 fusiones", category: "craft", icon: "⚡", condition: { stat: "fusesCrafted", value: 3 }, reward: 70 },
 { id: "extract_20", name: "Reciclador", description: "Extrae 20 items", category: "craft", icon: "♻️", condition: { stat: "itemsExtracted", value: 20 }, reward: 60 },
 
 { id: "sell_25", name: "Mercader", description: "Vende 25 items", category: "economy", icon: "💸", condition: { stat: "itemsSold", value: 25 }, reward: 50 },

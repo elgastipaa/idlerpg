@@ -1,6 +1,25 @@
 import { EVENTS } from "../data/events";
 
 const MAX_ACTIVE_EVENTS = 3;
+const EVENTS_ENABLED = false;
+
+function sanitizeActiveEvent(event) {
+  if (!event || typeof event !== "object") return null;
+  if (typeof event.type !== "string" || !event.type) return null;
+
+  const value = Number(event.value);
+  const ticksLeft = Number(event.ticksLeft);
+
+  if (!Number.isFinite(value)) return null;
+  if (!Number.isFinite(ticksLeft) || ticksLeft <= 0) return null;
+
+  return {
+    id: event.id || event.type,
+    type: event.type,
+    value,
+    ticksLeft: Math.max(1, Math.min(200, Math.floor(ticksLeft))),
+  };
+}
 
 // ============================================================
 // STACKING — no stackear mismo tipo, cap de 3 simultáneos
@@ -26,10 +45,29 @@ export function addActiveEvent(activeEvents, newEvent) {
   return [...events, newEvent];
 }
 
+export function normalizeActiveEvents(activeEvents = []) {
+  let normalized = [];
+
+  for (const rawEvent of activeEvents || []) {
+    const event = sanitizeActiveEvent(rawEvent);
+    if (!event) continue;
+    normalized = addActiveEvent(normalized, event);
+  }
+
+  return normalized;
+}
+
 // ============================================================
 // PROCESS — dispara eventos por trigger, máximo 1 por llamada
 // ============================================================
 export function processEvents(trigger, state) {
+  if (!EVENTS_ENABLED) {
+    return {
+      newPlayer: state.player,
+      newActiveEvents: [],
+      logs: [],
+    };
+  }
   const tier = state.combat.currentTier || 1;
 
   const eligible = EVENTS.filter(e =>
@@ -62,7 +100,7 @@ export function processEvents(trigger, state) {
   }
 
   let newPlayer = { ...state.player };
-  let newActiveEvents = [...(state.combat.activeEvents || [])];
+  let newActiveEvents = normalizeActiveEvents(state.combat.activeEvents || []);
   const logs = [];
 
   const { type, value, duration, message } = chosen.effect;
@@ -81,7 +119,7 @@ export function processEvents(trigger, state) {
   }
 
   // Temporales
-  const temporalTypes = ["curse_damage", "curse_gold", "xpBonus", "goldBonus", "blessing", "rarityBonus", "essenceBonus"];
+  const temporalTypes = ["curse_damage", "curse_gold", "xpBonus", "goldBonus", "blessing", "rarityBonus", "essenceBonus", "lootDrop"];
   if (duration && temporalTypes.includes(type)) {
     newActiveEvents = addActiveEvent(newActiveEvents, {
       id: chosen.id, type, value, ticksLeft: duration,
@@ -96,7 +134,21 @@ export function processEvents(trigger, state) {
 // APPLY — aplica modificadores de eventos activos al TICK
 // ============================================================
 export function applyActiveEvents(state) {
-  const active = state.combat.activeEvents || [];
+  if (!EVENTS_ENABLED) {
+    return {
+      mods: {
+        damageMult: 1,
+        goldMult: 1,
+        xpMult: 1,
+        essenceMult: 1,
+        lootBonus: 0,
+        rarityBonus: 0,
+        regenMult: 1,
+      },
+      remaining: [],
+    };
+  }
+  const active = normalizeActiveEvents(state.combat.activeEvents || []);
   const mods = {
     damageMult:  1,
     goldMult:    1,

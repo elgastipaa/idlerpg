@@ -19,6 +19,7 @@ export function getModifierTotals(effects = []) {
     goldFlat: 0,
     lifestealFlat: 0,
     lifestealPercentDamage: 0,
+    thornsFlat: 0,
   };
 
   for (const effect of effects) {
@@ -64,6 +65,9 @@ export function getModifierTotals(effects = []) {
           break;
         case MOD_TYPES.LIFESTEAL_PERCENT_DAMAGE:
           totals.lifestealPercentDamage += modifier.value;
+          break;
+        case MOD_TYPES.THORNS_FLAT:
+          totals.thornsFlat += modifier.value;
           break;
       }
     }

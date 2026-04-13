@@ -4,7 +4,9 @@ import {
   calculatePrestigeEchoGain,
   canPrestige,
   canPurchasePrestigeNode,
+  getPrestigePreview,
   getPrestigeNodeLevel,
+  getPrestigeNodeCost,
   getPrestigeRank,
   getPrestigeBonusRows,
 } from "../engine/progression/prestigeEngine";
@@ -32,7 +34,8 @@ const PERCENT_KEYS = new Set([
   "polishCostReduction",
   "reforgeCostReduction",
   "ascendCostReduction",
-  "fuseRarityBonus",
+  "ascendImprintCostReduction",
+  "discoveredPowerBias",
 ]);
 
 const BONUS_LABELS = {
@@ -64,8 +67,9 @@ const BONUS_LABELS = {
   polishCostReduction: "Costo polish",
   reforgeCostReduction: "Costo reforge",
   ascendCostReduction: "Costo ascend",
-  fuseRarityBonus: "Fuse Rareza",
+  ascendImprintCostReduction: "Ascend con poder",
   reforgeOptionCount: "Opciones Reforge",
+  discoveredPowerBias: "Caza de powers",
 };
 
 function formatNumber(value) {
@@ -102,15 +106,31 @@ export default function Prestige({ state, dispatch }) {
   const prestigeCheck = canPrestige(state);
   const nextRank = prestigeCheck.nextRank;
   const echoesOnNext = calculatePrestigeEchoGain(state);
+  const prestigePreview = prestigeCheck.preview || getPrestigePreview(state);
   const analytics = combat.analytics || {};
+  const cycle = combat.prestigeCycle || prestigePreview.progress || {};
   const bonusRows = getPrestigeBonusRows(prestige, player)
     .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
     .slice(0, 8);
   const activePrestigeNodes = Object.keys(prestige.nodes || {}).filter(key => (prestige.nodes?.[key] || 0) > 0).length;
+  const purchasableNodes = PRESTIGE_TREE_NODES.filter(node => canPurchasePrestigeNode(state, node).ok);
+  const recommendedNode = purchasableNodes[0] || null;
+  const nextNodeTarget = useMemo(() => {
+    return PRESTIGE_TREE_NODES
+      .filter(node => getNodeTone(node, player) !== "lockedClass")
+      .map(node => ({
+        node,
+        level: getPrestigeNodeLevel(prestige, node.id),
+        cost: getPrestigeNodeCost(prestige, node),
+      }))
+      .filter(entry => entry.cost != null && entry.level < (entry.node.maxLevel || 1))
+      .sort((a, b) => (a.cost || Number.MAX_SAFE_INTEGER) - (b.cost || Number.MAX_SAFE_INTEGER))[0] || null;
+  }, [player, prestige]);
   const runMomentumTiles = [
-    { label: "Tier Max", value: formatNumber(analytics.maxTierReached || combat.maxTier || 1) },
-    { label: "Nivel Max", value: formatNumber(analytics.maxLevelReached || player.level || 1) },
-    { label: "Bosses", value: formatNumber(state.stats?.bossKills || 0) },
+    { label: "Tier ciclo", value: formatNumber(cycle.maxTier || combat.maxTier || 1) },
+    { label: "Nivel ciclo", value: formatNumber(cycle.maxLevel || player.level || 1) },
+    { label: "Kills ciclo", value: formatNumber(cycle.kills || 0) },
+    { label: "Mejor item", value: formatNumber(cycle.bestItemRating || 0) },
     { label: "Muertes", value: formatNumber(analytics.deaths || 0) },
     { label: "Ventanas push", value: formatNumber(analytics.couldAdvanceMoments || 0) },
     { label: "Ascensos", value: formatNumber(prestige.level || 0) },
@@ -141,7 +161,8 @@ export default function Prestige({ state, dispatch }) {
           </div>
           {nextRank && (
             <div style={{ ...smallCopyStyle, marginTop: "10px", paddingTop: "10px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-              Proximo: {nextRank.name} · Nivel {nextRank.requiredLevel} · {formatNumber(nextRank.goldCost)} oro · +{echoesOnNext} ecos
+              Proximo hito: Prestige {nextRank.level} · {nextRank.name}
+              {nextRank.focus ? ` · ${nextRank.focus}` : ""}
             </div>
           )}
         </Panel>
@@ -160,43 +181,40 @@ export default function Prestige({ state, dispatch }) {
         </Panel>
 
         <Panel title="Ascension" accent="#b91c1c">
-          {nextRank ? (
-            <>
-              <div style={valueStyle}>{nextRank.name}</div>
-              <div style={subtleStyle}>+{echoesOnNext} ecos estimados</div>
-              <div style={{ ...smallCopyStyle, marginTop: "8px" }}>
-                Req: Nivel {nextRank.requiredLevel} · {formatNumber(nextRank.goldCost)} oro
-              </div>
-              <div style={{ ...smallCopyStyle, marginTop: "4px", color: "#94a3b8" }}>
-                Tier sugerido para ecos extra: {nextRank.requiredTier}
-              </div>
-              <button
-                onClick={() => dispatch({ type: "PRESTIGE" })}
-                disabled={!prestigeCheck.ok}
-                style={{
-                  ...actionButtonStyle,
-                  marginTop: "12px",
-                  background: prestigeCheck.ok ? "#f59e0b" : "#334155",
-                  color: prestigeCheck.ok ? "#111827" : "#94a3b8",
-                  cursor: prestigeCheck.ok ? "pointer" : "not-allowed",
-                }}
-              >
-                {prestigeCheck.ok ? `Ascender por ${formatNumber(nextRank.goldCost)} oro` : prestigeCheck.reason === "level" ? `Falta Nivel ${nextRank.requiredLevel}` : `Falta ${formatNumber(Math.max(0, nextRank.goldCost - (player.gold || 0)))} oro`}
-              </button>
-              {!prestigeCheck.ok && (
-                <div style={{ ...smallCopyStyle, marginTop: "8px", color: "#94a3b8" }}>
-                  {prestigeCheck.reason === "level"
-                    ? "La traba actual es nivel. Segui empujando la corrida antes de ascender."
-                    : "La traba actual es oro. Esta rama ya no necesita mas lectura, necesita economia."}
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <div style={valueStyle}>Cima actual</div>
-              <div style={subtleStyle}>Ya alcanzaste el techo del sistema por ahora.</div>
-            </>
+          <div style={valueStyle}>{prestigeCheck.ok ? `+${formatNumber(echoesOnNext)} ecos` : "Aun sin eco"}</div>
+          <div style={subtleStyle}>{prestigeCheck.ok ? "Prestigio rapido disponible" : "Segui empujando la corrida"}</div>
+          <div style={{ ...smallCopyStyle, marginTop: "8px" }}>
+            El prestigio ya no pide oro ni nivel fijos. Cobra ecos por Tier maximo, Nivel maximo y mejor loot del ciclo actual.
+          </div>
+          <div style={{ ...smallCopyStyle, marginTop: "8px", color: "#94a3b8" }}>
+            {prestigePreview.breakdown
+              .filter(entry => (entry.echoes || 0) > 0)
+              .map(entry => `${entry.label} +${formatNumber(entry.echoes)}`)
+              .join(" · ") || "Necesitas una corrida minima: Tier 3, Nivel 10 o 50 kills."}
+          </div>
+          {(recommendedNode || nextNodeTarget) && (
+            <div style={{ ...smallCopyStyle, marginTop: "8px", color: "#cbd5e1" }}>
+              {recommendedNode
+                ? `Compra visible ya: ${recommendedNode.name} · ${canPurchasePrestigeNode(state, recommendedNode).cost} ecos.`
+                : `Primer objetivo claro: ${nextNodeTarget.node.name} · ${nextNodeTarget.cost} ecos.`}
+            </div>
           )}
+          <button
+            onClick={() => dispatch({ type: "PRESTIGE" })}
+            disabled={!prestigeCheck.ok}
+            style={{
+              ...actionButtonStyle,
+              marginTop: "12px",
+              background: prestigeCheck.ok ? "#f59e0b" : "#334155",
+              color: prestigeCheck.ok ? "#111827" : "#94a3b8",
+              cursor: prestigeCheck.ok ? "pointer" : "not-allowed",
+            }}
+          >
+            {prestigeCheck.ok ? "Prestigiar ahora" : "Todavia no rinde resetear"}
+          </button>
+          <div style={{ ...smallCopyStyle, marginTop: "8px", color: "#94a3b8" }}>
+            Conservas clase, spec, ecos y reliquias. Reinicias oro, equipo, talentos y la corrida actual.
+          </div>
         </Panel>
       </section>
 
@@ -321,6 +339,11 @@ export default function Prestige({ state, dispatch }) {
           </div>
           <div style={summaryBadgeStyle}>+{formatNumber(echoesOnNext)} ecos si ascendieras</div>
         </div>
+        {recommendedNode && (
+          <div style={{ ...smallCopyStyle, marginTop: "10px", color: "#cbd5e1" }}>
+            Recomendado ahora: <strong style={{ color: "#f8fafc" }}>{recommendedNode.name}</strong> · primer nodo comprable del tablero activo.
+          </div>
+        )}
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(3, minmax(0, 1fr))", gap: "10px", marginTop: "12px" }}>
           {runMomentumTiles.map(tile => <RunTile key={tile.label} label={tile.label} value={tile.value} />)}
         </div>

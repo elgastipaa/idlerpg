@@ -1,4 +1,5 @@
 import { getAffixTierGlyph } from "../constants/rarity";
+import { getItemLegendaryPower } from "./legendaryPowers";
 
 export const ITEM_STAT_LABELS = {
   damage: "Dano",
@@ -80,6 +81,12 @@ export function formatItemDiffValue(stat, diff) {
 export function getUpgradeDisplay(level = 0) {
   const bonusLevel = Math.max(0, level || 0);
   return bonusLevel > 0 ? `+${bonusLevel}` : "";
+}
+
+export function getItemDisplayName(item) {
+  if (!item) return "-";
+  const upgrade = getUpgradeDisplay(item.level);
+  return upgrade ? `${item.name} ${upgrade}` : item.name;
 }
 
 export function getItemLocation(item, equipment = {}) {
@@ -188,6 +195,7 @@ export function getCompareSummary(item, compareItem) {
 }
 
 export function getWorkedLabel(item) {
+  if ((item?.crafting?.ascendCount || 0) > 0) return "ASCENDIDO";
   if ((item?.level ?? 0) >= 9) return "OBRA";
   if ((item?.level ?? 0) >= 6) return "FORJADO";
   const craftingTouches =
@@ -196,4 +204,15 @@ export function getWorkedLabel(item) {
     (item?.crafting?.reforgeCount || 0);
   if (craftingTouches > 0) return "TRABAJADO";
   return null;
+}
+
+export function getLegendaryPowerSummary(item) {
+  const power = getItemLegendaryPower(item);
+  if (!power) return null;
+  return {
+    name: power.name,
+    shortLabel: power.shortLabel || power.name,
+    description: power.description || "",
+    archetype: power.archetype || null,
+  };
 }

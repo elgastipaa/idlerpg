@@ -42,7 +42,19 @@ const PERCENT_STATS = new Set([
   "goldBonusPct",
 ]);
 
-export function generateLoot({ enemy = null, luck = 0, lootBonus = 0, favoredFamilies = [], favoredStats = [], rarityFloor = null, rarityBonus = 0 } = {}) {
+export function generateLoot({
+  enemy = null,
+  luck = 0,
+  lootBonus = 0,
+  favoredFamilies = [],
+  favoredStats = [],
+  discoveredPowerIds = [],
+  powerMasteryMap = {},
+  discoveredPowerBias = 0,
+  favoredStatWeightMultiplier = 2.4,
+  rarityFloor = null,
+  rarityBonus = 0,
+} = {}) {
   const tier = enemy?.tier || 1;
   let dropChance = DROP_CONFIG.base;
 
@@ -54,7 +66,11 @@ export function generateLoot({ enemy = null, luck = 0, lootBonus = 0, favoredFam
   if (Math.random() > dropChance) return null;
 
   const rarity = rollRarity({ enemy, tier, luck, rarityFloor, rarityBonus });
-  const baseItem = pickItemByRarity(rarity, favoredFamilies);
+  const baseItem = pickItemByRarity(rarity, favoredFamilies, enemy, {
+    discoveredPowerIds,
+    powerMasteryMap,
+    discoveredPowerBias,
+  });
   if (!baseItem) return null;
   const family = getFamilyForBaseItem(baseItem);
   const resolvedFavoredStats = [
@@ -76,6 +92,7 @@ export function generateLoot({ enemy = null, luck = 0, lootBonus = 0, favoredFam
       rarity,
       itemTier: tier,
       favoredStats: resolvedFavoredStats,
+      favoredStatWeightMultiplier,
       existingStats,
       allowExistingStatOverlap: (ITEM_ROLL_RULES_V2.allowBaseImplicitAffixOverlapRarities || []).includes(rarity),
       overlapPenalty: ITEM_ROLL_RULES_V2.overlapAffixWeightPenalty ?? 0.3,
@@ -114,30 +131,53 @@ function rollRarity({ enemy, tier, luck, rarityFloor = null, rarityBonus = 0 }) 
   return minRank > 1 ? rarityFloor : "common";
 }
 
-function pickItemByRarity(rarity, favoredFamilies = []) {
+function getDropBiasMultiplier(item, favoredFamilies = [], enemy = null, { discoveredPowerIds = [], powerMasteryMap = {}, discoveredPowerBias = 0 } = {}) {
+  let multiplier = 1;
+  const huntSources = item?.huntSources || {};
+  const discoveredSet = new Set(discoveredPowerIds || []);
+  const targetedByEnemy =
+    (enemy?.id && (huntSources.bosses || []).includes(enemy.id)) ||
+    (enemy?.family && (huntSources.families || []).includes(enemy.family));
+
+  if (enemy?.id && (huntSources.bosses || []).includes(enemy.id)) {
+    multiplier *= 8;
+  } else if (enemy?.family && (huntSources.families || []).includes(enemy.family)) {
+    multiplier *= 3.5;
+  }
+
+  if (targetedByEnemy && item?.legendaryPowerId && discoveredSet.has(item.legendaryPowerId)) {
+    const masteryBias = Number(powerMasteryMap?.[item.legendaryPowerId]?.huntBias || 0);
+    const totalBias = Math.max(0, discoveredPowerBias + masteryBias);
+    if (totalBias > 0) {
+      multiplier *= 1 + totalBias;
+    }
+  }
+
+  if (favoredFamilies.length && favoredFamilies.includes(item.family)) {
+    multiplier *= 1.8;
+  }
+
+  return multiplier;
+}
+
+function pickItemByRarity(rarity, favoredFamilies = [], enemy = null, options = {}) {
   const startIndex = Math.max(0, RARITY_ORDER.indexOf(rarity));
 
   for (let index = startIndex; index < RARITY_ORDER.length; index += 1) {
     const pool = ITEMS.filter(item => item.rarity === RARITY_ORDER[index]);
     if (!pool.length) continue;
-
-    const favoredPool = favoredFamilies.length
-      ? pool.filter(item => favoredFamilies.includes(item.family))
-      : [];
-
-    if (favoredPool.length) return pickWeightedItem(favoredPool);
-    if (pool.length) return pickWeightedItem(pool);
+    return pickWeightedItem(pool, item => (item.dropChance || 1) * getDropBiasMultiplier(item, favoredFamilies, enemy, options));
   }
 
   return null;
 }
 
-function pickWeightedItem(pool) {
-  const totalWeight = pool.reduce((sum, item) => sum + (item.dropChance || 1), 0);
+function pickWeightedItem(pool, getWeight = item => item.dropChance || 1) {
+  const totalWeight = pool.reduce((sum, item) => sum + (getWeight(item) || 0), 0);
   let roll = Math.random() * totalWeight;
 
   for (const item of pool) {
-    roll -= item.dropChance || 1;
+    roll -= getWeight(item) || 0;
     if (roll <= 0) return item;
   }
 

@@ -1,4 +1,4 @@
-import { PRESTIGE_RANKS } from "../data/prestige";
+import { canPrestige } from "../engine/progression/prestigeEngine";
 
 const REPLAY_VERSION = 1;
 const MAX_ACTION_ENTRIES = 240;
@@ -50,6 +50,9 @@ function summarizeLootRules(lootRules = {}) {
   return {
     autoSell: [...(lootRules.autoSellRarities || [])],
     autoExtract: [...(lootRules.autoExtractRarities || [])],
+    huntPreset: lootRules.huntPreset || null,
+    protectHuntedDrops: lootRules.protectHuntedDrops !== false,
+    protectUpgradeDrops: lootRules.protectUpgradeDrops !== false,
     wishlist: [...(lootRules.wishlistAffixes || [])].slice(0, 8),
   };
 }
@@ -330,7 +333,6 @@ export function deriveReplayDecisionHints(replay = {}, current = {}) {
     "CRAFT_REFORGE_ITEM",
     "CRAFT_ASCEND_ITEM",
     "CRAFT_EXTRACT_ITEM",
-    "CRAFT_FUSE_ITEMS",
   ];
   const pushMatches = findSimilarReplayActions(replay, current, {
     actionTypes: ["SET_TIER"],
@@ -420,7 +422,6 @@ const RECORDED_ACTION_TYPES = new Set([
   "CRAFT_UPGRADE_ITEM",
   "CRAFT_ASCEND_ITEM",
   "CRAFT_EXTRACT_ITEM",
-  "CRAFT_FUSE_ITEMS",
   "RESET_SESSION_ANALYTICS",
 ]);
 
@@ -554,9 +555,7 @@ function collectMilestones(prevState = {}, nextState = {}, action = {}, replay) 
 }
 
 function isReplayPrestigeReady(state = {}) {
-  const next = PRESTIGE_RANKS.find(rank => rank.level === Number((state.prestige?.level || 0) + 1));
-  if (!next) return false;
-  return (state.player?.level || 0) >= (next.requiredLevel || 0) && (state.player?.gold || 0) >= (next.goldCost || 0);
+  return canPrestige(state).ok;
 }
 
 function compactMilestones(existing = [], additions = []) {
@@ -617,7 +616,6 @@ export function deriveHumanReplayProfile(replay = {}) {
     reforge: relevant.filter(entry => entry.summary?.type === "CRAFT_REFORGE_ITEM").length,
     ascend: relevant.filter(entry => entry.summary?.type === "CRAFT_ASCEND_ITEM").length,
     extract: relevant.filter(entry => entry.summary?.type === "CRAFT_EXTRACT_ITEM").length,
-    fuse: relevant.filter(entry => entry.summary?.type === "CRAFT_FUSE_ITEMS").length,
   };
   const preferredSpec =
     [...relevant].reverse().find(entry => entry.summary?.type === "SELECT_SPECIALIZATION")?.summary?.specId || null;

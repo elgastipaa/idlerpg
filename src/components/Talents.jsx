@@ -295,7 +295,10 @@ function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, pre
           </div>
           <div style={{ fontSize: isMobile ? "0.58rem" : "0.63rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "3px" }}>{nodeState.tierLabel}</div>
         </div>
-        <div style={badgeStyle(typeColor)}>{nodeState.activeTalent.type.toUpperCase()}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {canUpgrade && <div style={miniPillStyle("var(--tone-success-strong, #166534)", "var(--tone-success-soft, #ecfdf5)")}>Disponible</div>}
+          <div style={badgeStyle(typeColor)}>{nodeState.activeTalent.type.toUpperCase()}</div>
+        </div>
       </div>
 
       <div style={{ fontSize: isMobile ? "0.68rem" : "0.74rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35 }}>
@@ -376,6 +379,11 @@ function MobileTalentNodeRow({ node, nodeState, justUnlocked, dispatch, prereqTe
 
       <div style={{ display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap" }}>
         <div style={badgeStyle(typeColor)}>{nodeState.activeTalent.type.toUpperCase()}</div>
+        {canUpgrade && (
+          <div style={miniPillStyle("var(--tone-success-strong, #166534)", "var(--tone-success-soft, #ecfdf5)")}>
+            Disponible
+          </div>
+        )}
         {nodeState.maxLevel > 2 ? (
           <div style={miniPillStyle("var(--tone-accent, #4338ca)", "var(--tone-accent-soft, #eef2ff)")}>
             LV {nodeState.currentLevel}/{nodeState.maxLevel}
@@ -473,6 +481,14 @@ export default function Talents({ state, dispatch }) {
 
   const selectedTree = treeData.find(item => item.tree.id === selectedTreeId) || treeData[0];
   const visibleTrees = selectedTree ? [selectedTree] : [];
+  const selectedTreeBuyableNodes = useMemo(
+    () => (selectedTree?.nodes || []).filter(node => canUnlockNode(state, node.talent.id)),
+    [selectedTree, state]
+  );
+  const totalBuyableNodes = useMemo(
+    () => treeData.reduce((total, item) => total + item.nodes.filter(node => canUnlockNode(state, node.talent.id)).length, 0),
+    [treeData, state]
+  );
   const treeHeaderStickyTop = treeData.length > 1
     ? (isMobile ? 154 : 142)
     : (isMobile ? 92 : 80);
@@ -488,6 +504,9 @@ export default function Talents({ state, dispatch }) {
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: "0.8rem", fontWeight: "900", color: "var(--tone-success, #1D9E75)" }}>{talentPoints} TP</div>
             <div style={{ fontSize: "0.65rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>{Object.values(talentLevels || {}).filter(value => Number(value) > 0).length || unlockedTalents.length} nodos comprados</div>
+            <div style={{ fontSize: "0.58rem", color: totalBuyableNodes > 0 ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", marginTop: "4px" }}>
+              {totalBuyableNodes > 0 ? `${totalBuyableNodes} nodos comprables ahora` : "Sin compras disponibles ahora"}
+            </div>
             <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", marginTop: "4px", lineHeight: 1.25 }}>
               {playerLevel >= CROSS_SPEC_UNLOCK_LEVEL
                 ? offSpecTreeCount > 0
@@ -546,8 +565,18 @@ export default function Talents({ state, dispatch }) {
                     SECUNDARIO x{OFF_SPEC_COST_MULTIPLIER}
                   </span>
                 )}
+                {selectedTreeBuyableNodes.length > 0 && (
+                  <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-success-strong, #166534)", background: "var(--tone-success-soft, #ecfdf5)", border: "1px solid var(--tone-success, #86efac)", borderRadius: "999px", padding: "2px 7px" }}>
+                    {selectedTreeBuyableNodes.length} disponibles
+                  </span>
+                )}
               </div>
               <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>{tree.description}</div>
+              {selectedTreeBuyableNodes[0] && (
+                <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", marginTop: "5px" }}>
+                  Recomendado ahora: {getNodeTitle(selectedTreeBuyableNodes[0])}
+                </div>
+              )}
             </div>
             <div style={{ fontSize: "0.68rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>{progress}/{nodes.length}</div>
           </div>

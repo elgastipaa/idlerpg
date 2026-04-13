@@ -32,7 +32,6 @@ export function getAchievementProgress(state, achievement) {
     case "upgradesCrafted":
     case "rerollsCrafted":
     case "ascendsCrafted":
-    case "fusesCrafted":
     case "prestigeCount":
     case "talentsUnlocked":
     case "talentResets":

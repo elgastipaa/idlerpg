@@ -1,4 +1,5 @@
 import { calcStats } from "../engine/combat/statEngine";
+import { getCodexLegendaryPowerEntries } from "../engine/progression/codexEngine";
 
 export function createEmptySessionAnalytics() {
   return {
@@ -19,6 +20,8 @@ export function createEmptySessionAnalytics() {
     rareItemsFound: 0,
     epicItemsFound: 0,
     legendaryItemsFound: 0,
+    legendaryPowerUnlocks: 0,
+    legendaryPowerDuplicates: 0,
     perfectRollsFound: 0,
     t1AffixesFound: 0,
     itemsSold: 0,
@@ -30,7 +33,7 @@ export function createEmptySessionAnalytics() {
     polishesCrafted: 0,
     reforgesCrafted: 0,
     ascendsCrafted: 0,
-    fusesCrafted: 0,
+    powerAscendsCrafted: 0,
     talentsUnlocked: 0,
     talentResets: 0,
     playerUpgradesPurchased: 0,
@@ -170,6 +173,14 @@ function formatDurationFromTicks(ticks = 0) {
   return `${seconds}s`;
 }
 
+function formatShortDurationFromTicks(ticks = 0) {
+  const seconds = Math.max(0, Number(ticks || 0));
+  if (seconds < 60) return `${formatValue(seconds)}s`;
+  const minutes = seconds / 60;
+  if (minutes < 60) return `${formatValue(minutes)}m`;
+  return `${formatValue(minutes / 60)}h`;
+}
+
 function perMinute(value, ticks) {
   if (!ticks) return 0;
   return (value / ticks) * 60;
@@ -195,6 +206,11 @@ function asPerThousand(numerator, denominator) {
 
 function sumValues(map = {}) {
   return Object.values(map || {}).reduce((sum, value) => sum + Number(value || 0), 0);
+}
+
+function averageTicksPerKill(kills = 0, ticks = 0) {
+  if (!kills) return 0;
+  return ticks / kills;
 }
 
 function getPeakTierLabel(map = {}) {
@@ -227,12 +243,26 @@ export function buildSessionTelemetrySections(state) {
   const equippedSlots = Number(!!weapon) + Number(!!armor);
   const ticks = analytics.ticks || 0;
   const currentStats = calcStats(player);
+  const codexPowerEntries = getCodexLegendaryPowerEntries(state?.codex || {});
+  const unlockedPowerCount = codexPowerEntries.filter(entry => entry.unlocked).length;
+  const tunedPowerCount = codexPowerEntries.filter(entry => (entry.mastery?.rank || 0) >= 2).length;
+  const dominatedPowerCount = codexPowerEntries.filter(entry => (entry.mastery?.rank || 0) >= 3).length;
+  const mythicPowerCount = codexPowerEntries.filter(entry => (entry.mastery?.rank || 0) >= 4).length;
+  const topPowerEntry = [...codexPowerEntries]
+    .filter(entry => entry.unlocked)
+    .sort((left, right) => {
+      if ((right.mastery?.rank || 0) !== (left.mastery?.rank || 0)) return (right.mastery?.rank || 0) - (left.mastery?.rank || 0);
+      if ((right.discoveries || 0) !== (left.discoveries || 0)) return (right.discoveries || 0) - (left.discoveries || 0);
+      return left.name.localeCompare(right.name, "es");
+    })[0] || null;
 
   const rarePlus = (analytics.rareItemsFound || 0) + (analytics.epicItemsFound || 0) + (analytics.legendaryItemsFound || 0);
   const epicPlus = (analytics.epicItemsFound || 0) + (analytics.legendaryItemsFound || 0);
   const autoProcessedItems = (analytics.autoSoldItems || 0) + (analytics.autoExtractedItems || 0);
   const maxTier = analytics.maxTierReached || combat.maxTier || 1;
   const currentTier = combat.currentTier || 1;
+  const currentTierKillTime = averageTicksPerKill(getTierMapValue(analytics.killsByTier, currentTier), getTierMapValue(analytics.timeInTier, currentTier));
+  const highestTierKillTime = averageTicksPerKill(getTierMapValue(analytics.killsByTier, maxTier), getTierMapValue(analytics.timeInTier, maxTier));
   const currentLevel = player.level || 1;
   const maxLevel = analytics.maxLevelReached || player.level || 1;
   const levelGapFromPeak = Math.max(0, maxLevel - currentLevel);
@@ -253,6 +283,7 @@ export function buildSessionTelemetrySections(state) {
         { label: "Kills / Min", value: formatValue(perMinute(analytics.kills, ticks)) },
         { label: "Deaths / Hour", value: formatValue(perHour(analytics.deaths, ticks)) },
         { label: "K / D", value: formatValue(ratio(analytics.kills, Math.max(1, analytics.deaths || 0))) },
+        { label: "Deaths / 1k Kills", value: asPerThousand(analytics.deaths || 0, analytics.kills || 0) },
       ],
     },
     {
@@ -276,6 +307,8 @@ export function buildSessionTelemetrySections(state) {
         { label: "Time In Tier 2+", value: formatDurationFromTicks(Math.max(0, ticks - getTierMapValue(analytics.timeInTier, 1))) },
         { label: "Time In Highest Tier", value: formatDurationFromTicks(getTierMapValue(analytics.timeInTier, maxTier)) },
         { label: "Kills In Highest Tier", value: formatValue(getTierMapValue(analytics.killsByTier, maxTier)) },
+        { label: "Avg Kill Time Current Tier", value: currentTierKillTime > 0 ? formatShortDurationFromTicks(currentTierKillTime) : "-" },
+        { label: "Avg Kill Time Highest Tier", value: highestTierKillTime > 0 ? formatShortDurationFromTicks(highestTierKillTime) : "-" },
         { label: "First Boss Kill At", value: analytics.firstBossKillTick != null ? formatDurationFromTicks(analytics.firstBossKillTick) : "-" },
         { label: "First Prestige At", value: analytics.firstPrestigeTick != null ? formatDurationFromTicks(analytics.firstPrestigeTick) : "-" },
       ],
@@ -335,6 +368,27 @@ export function buildSessionTelemetrySections(state) {
       ],
     },
     {
+      id: "powers",
+      title: "Legendary Powers & Mastery",
+      rows: [
+        { label: "Legendary Powers Unlocked", value: formatValue(analytics.legendaryPowerUnlocks || 0) },
+        { label: "Legendary Power Duplicates", value: formatValue(analytics.legendaryPowerDuplicates || 0) },
+        { label: "Power Unlock Rate", value: asPercent(analytics.legendaryPowerUnlocks || 0, analytics.legendaryItemsFound || 0) },
+        { label: "Power Duplicate Rate", value: asPercent(analytics.legendaryPowerDuplicates || 0, analytics.legendaryItemsFound || 0) },
+        { label: "Ascends With Power", value: formatValue(analytics.powerAscendsCrafted || 0) },
+        { label: "Unlocked Powers (current)", value: formatValue(unlockedPowerCount) },
+        { label: "Tuned Powers (rank 2+)", value: formatValue(tunedPowerCount) },
+        { label: "Dominated Powers (rank 3+)", value: formatValue(dominatedPowerCount) },
+        { label: "Mythic Powers (rank 4)", value: formatValue(mythicPowerCount) },
+        {
+          label: "Highest Mastery Power",
+          value: topPowerEntry
+            ? `${topPowerEntry.name} (${topPowerEntry.mastery?.label || "Descubierto"} · ${formatValue(topPowerEntry.discoveries || 0)} hallazgos)`
+            : "-",
+        },
+      ],
+    },
+    {
       id: "crafting",
       title: "Crafting & Automation",
       rows: [
@@ -351,7 +405,7 @@ export function buildSessionTelemetrySections(state) {
         { label: "Craft Polishes", value: formatValue(analytics.polishesCrafted || 0) },
         { label: "Craft Reforges", value: formatValue(analytics.reforgesCrafted || 0) },
         { label: "Craft Ascends", value: formatValue(analytics.ascendsCrafted) },
-        { label: "Craft Fuses", value: formatValue(analytics.fusesCrafted) },
+        { label: "Ascends con Power", value: formatValue(analytics.powerAscendsCrafted || 0) },
         { label: "Equip Improvements", value: formatValue(analytics.equippedUpgrades || 0) },
         { label: "Gold Spent Upgrades", value: formatValue(analytics.goldSpentBySource?.upgrades || 0) },
         { label: "Gold Spent Player Upg", value: formatValue(analytics.goldSpentBySource?.playerUpgrades || 0) },
@@ -382,9 +436,9 @@ export function buildSessionTelemetrySections(state) {
         { label: "Manual Skills Used", value: formatValue(analytics.manualSkillsUsed) },
         { label: "Auto Skill Casts", value: formatValue(analytics.autoSkillCasts) },
         { label: "Auto Skill Bonus Damage", value: formatValue(analytics.autoSkillBonusDamage) },
-        { label: "Best Item Rating", value: formatValue(Math.max(analytics.bestItemRating || 0, stats.bestItemRating || 0)) },
+        { label: "Best Item Power", value: formatValue(Math.max(analytics.bestItemRating || 0, stats.bestItemRating || 0)) },
         { label: "Inventory Size", value: formatValue((player.inventory || []).length) },
-        { label: "Gear Rating", value: formatValue(gearRating) },
+        { label: "Gear Power", value: formatValue(gearRating) },
         { label: "Equipped Slots", value: `${equippedSlots}/2` },
         { label: "Equipped Affixes", value: formatValue(gearAffixes) },
         { label: "Weapon", value: weapon?.name || "-" },

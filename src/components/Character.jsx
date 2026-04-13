@@ -7,7 +7,7 @@ import {
   ITEM_STAT_LABELS as STAT_LABELS,
   formatItemNumber as formatNumber,
   formatItemStatValue as formatStatValue,
-  getUpgradeDisplay,
+  getItemDisplayName,
   formatImplicitSummary,
   getPrioritizedStatEntries,
   formatEconomySummary,
@@ -238,13 +238,13 @@ function EquipmentCard({ label, item }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "8px" }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" }}>{label}</div>
-          <div style={{ fontSize: "0.8rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", lineHeight: 1.2, marginTop: "3px" }}>{item.name}</div>
+          <div style={{ fontSize: "0.8rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", lineHeight: 1.2, marginTop: "3px" }}>{getItemDisplayName(item)}</div>
           <div style={{ fontSize: "0.58rem", color: getRarityColor(item.rarity), textTransform: "uppercase", fontWeight: "800", marginTop: "3px" }}>
-            {item.rarity}{getUpgradeDisplay(item.level) ? ` · ${getUpgradeDisplay(item.level)}` : ""}{item.familyName ? ` · ${item.familyName}` : ""}
+            {item.rarity}{item.familyName ? ` · ${item.familyName}` : ""}
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "end", gap: "4px", flexShrink: 0 }}>
-          <div style={{ fontSize: "0.5rem", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", fontWeight: "900" }}>Rating</div>
+          <div style={{ fontSize: "0.5rem", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", fontWeight: "900" }}>Poder</div>
           <div style={{ fontSize: "0.84rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{formatNumber(item.rating || 0)}</div>
         </div>
       </div>

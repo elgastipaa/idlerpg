@@ -3,13 +3,15 @@ import { PREFIXES, SUFFIXES } from "../data/affixes";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
 import { getLootHighlights } from "../utils/lootHighlights";
 import { getAffixTierGlyph, getRarityColor } from "../constants/rarity";
-import { ASCEND_COSTS, getAscendCosts, getPolishCosts, getReforgeCosts, getRerollCosts } from "../constants/craftingCosts";
+import { ASCEND_COSTS } from "../constants/craftingCosts";
+import { getCraftActionState, getItemForgingPotential } from "../engine/crafting/craftingEngine";
+import { getUnlockedLegendaryPowers } from "../engine/progression/codexEngine";
 import {
   ITEM_STAT_LABELS as STAT_LABELS,
   formatItemNumber as formatValue,
   formatItemStatValue as formatStatValue,
   formatItemDiffValue as formatDiffValue,
-  getUpgradeDisplay,
+  getItemDisplayName,
   getItemLocation,
   getImplicitEntries,
   formatImplicitSummary,
@@ -22,12 +24,10 @@ import {
 
 const RARITY_WEIGHT = { common: 0, magic: 1, rare: 2, epic: 3, legendary: 4 };
 const ASCEND_RULES = ASCEND_COSTS;
-const FUSE_RARITY_CHANCE = { common: 0.12, magic: 0.12, rare: 0.08, epic: 0.03, legendary: 0 };
-const UPGRADE_FAIL_CHANCE = { 0: 0, 1: 0, 2: 0.02, 3: 0.06, 4: 0.12, 5: 0.18, 6: 0.24, 7: 0.31, 8: 0.38, 9: 0.45, 10: 0.52 };
 const FORGE_MODE_TOOLTIPS = {
   upgrade: {
     tone: "upgrade",
-    text: "Upgrade intenta subir el nivel del item. Puede fallar y bajar un nivel.",
+    text: "Upgrade sube el +N del item. Puede fallar y bajar un nivel, asi que conviene mirar el riesgo antes de insistir.",
   },
   reroll: {
     tone: "reroll",
@@ -43,25 +43,20 @@ const FORGE_MODE_TOOLTIPS = {
   },
   ascend: {
     tone: "ascend",
-    text: "Ascender sube la rareza del item cuando cumple requisito de nivel y costo.",
-  },
-  fuse: {
-    tone: "fuse",
-    text: "Fusion combina dos duplicados (mismo base item) para ganar nivel y chance de rareza.",
+    text: "Ascender eleva la rareza preservando affixes y linea trabajada. Si salta a legendario, puede injertar un poder ya descubierto en Codex.",
   },
   extract: {
     tone: "extract",
     text: "Extraer rompe items para convertirlos en esencia.",
   },
 };
-const FORGE_MODE_ORDER = ["upgrade", "reroll", "polish", "reforge", "ascend", "fuse", "extract"];
+const FORGE_MODE_ORDER = ["upgrade", "reroll", "polish", "reforge", "ascend", "extract"];
 const FORGE_MODE_META = {
   upgrade: { label: "Upgrade", short: "UP", color: "var(--tone-success, #1D9E75)", cta: "MEJORAR ITEM" },
   reroll: { label: "Reroll", short: "RE", color: "var(--tone-success, #1D9E75)", cta: "REROLLEAR ITEM" },
   polish: { label: "Polish", short: "PO", color: "var(--tone-info, #0ea5e9)", cta: "PULIR AFFIX" },
   reforge: { label: "Reforge", short: "RF", color: "var(--tone-violet, #7c3aed)", cta: "PAGAR REFORJA" },
   ascend: { label: "Ascend", short: "AS", color: "var(--tone-accent, #3b82f6)", cta: "ASCENDER ITEM" },
-  fuse: { label: "Fuse", short: "FU", color: "var(--tone-violet, #a855f7)", cta: "FUSIONAR DUPLICADOS" },
   extract: { label: "Extract", short: "EX", color: "var(--tone-danger, #ef4444)", cta: "EXTRAER ITEM" },
 };
 
@@ -80,18 +75,11 @@ function getCraftingState(item) {
     rerollCount: item?.crafting?.rerollCount || 0,
     polishCount: item?.crafting?.polishCount || 0,
     reforgeCount: item?.crafting?.reforgeCount || 0,
+    ascendCount: item?.crafting?.ascendCount || 0,
     focusedAffixIndex:
       Number.isInteger(item?.crafting?.focusedAffixIndex) ? Number(item.crafting.focusedAffixIndex) : null,
     focusedAffixStat: item?.crafting?.focusedAffixStat || null,
   };
-}
-
-function getForgingPotential(item) {
-  const levelPenalty = Math.max(0, (item?.level || 0) * 7);
-  const rerollPenalty = (item?.crafting?.rerollCount || 0) * 5;
-  const polishPenalty = (item?.crafting?.polishCount || 0) * 4;
-  const reforgePenalty = (item?.crafting?.reforgeCount || 0) * 6;
-  return Math.max(0, 100 - levelPenalty - rerollPenalty - polishPenalty - reforgePenalty);
 }
 
 function getHighlightStyle(tone) {
@@ -118,7 +106,6 @@ function getModeTooltipStyle(tone) {
     polish: { bg: "var(--tone-info-soft, #ecfeff)", color: "var(--tone-info, #0c4a6e)", border: "var(--tone-info, #a5f3fc)" },
     reforge: { bg: "var(--tone-violet-soft, #f3e8ff)", color: "var(--tone-violet, #6d28d9)", border: "var(--tone-violet, #ddd6fe)" },
     ascend: { bg: "var(--tone-accent-soft, #eff6ff)", color: "var(--tone-accent, #1e40af)", border: "var(--tone-accent, #93c5fd)" },
-    fuse: { bg: "var(--tone-violet-soft, #faf5ff)", color: "var(--tone-violet, #7c3aed)", border: "var(--tone-violet, #d8b4fe)" },
     extract: { bg: "var(--tone-danger-soft, #fef2f2)", color: "var(--tone-danger-strong, #b91c1c)", border: "var(--tone-danger, #fecaca)" },
   };
   const chosen = palette[tone] || { bg: "var(--tone-neutral-soft, #f8fafc)", color: "var(--color-text-secondary, #475569)", border: "var(--color-border-tertiary, #cbd5e1)" };
@@ -135,6 +122,70 @@ function getModeTooltipStyle(tone) {
   };
 }
 
+function formatCraftCostLabel(costs = {}) {
+  const parts = [];
+  if ((costs.gold || 0) > 0) parts.push(`G ${formatValue(costs.gold)}`);
+  if ((costs.essence || 0) > 0) parts.push(`E ${formatValue(costs.essence)}`);
+  return parts.length > 0 ? parts.join(" · ") : "GRATIS";
+}
+
+function getCraftActionHint(req = {}, mode) {
+  if (!req) return "";
+  if (req.reason === "ok") {
+    if (req.requiredPotential > 0) {
+      return `Potencial ${Math.round(req.forgingPotential || 0)}% / ${Math.round(req.requiredPotential || 0)}%.`;
+    }
+    return "";
+  }
+
+  switch (req.reason) {
+    case "gold":
+      return "Falta oro para esta accion.";
+    case "essence":
+      return "Falta esencia para esta accion.";
+    case "missing_affix":
+      return mode === "polish" ? "Elegi un affix antes de pulir." : "Elegi una linea antes de reforjar.";
+    case "focused_line":
+      return "La pieza ya quedo fijada a otra linea.";
+    case "potential":
+      return `Potencial insuficiente: ${Math.round(req.forgingPotential || 0)}% / ${Math.round(req.requiredPotential || 0)}%.`;
+    case "min_level":
+      return `Requiere upgrade +${req.minLevel || 0} antes de ascender.`;
+    case "max_rarity":
+      return "La pieza ya esta en rareza maxima.";
+    case "max_level":
+      return "La pieza ya llego a +10.";
+    default:
+      return "";
+  }
+}
+
+function getCraftActionBadge(req = {}, mode) {
+  if (!req) return "N/A";
+  if (req.can) return formatCraftCostLabel(req.costs);
+
+  switch (req.reason) {
+    case "gold":
+      return "FALTA ORO";
+    case "essence":
+      return "FALTA ESENCIA";
+    case "missing_affix":
+      return mode === "polish" ? "ELEGI AFFIX" : "ELEGI LINEA";
+    case "focused_line":
+      return "LINEA FIJADA";
+    case "potential":
+      return `POT ${Math.round(req.forgingPotential || 0)}/${Math.round(req.requiredPotential || 0)}`;
+    case "min_level":
+      return `REQ +${req.minLevel || 0}`;
+    case "max_rarity":
+      return "LEGENDARY";
+    case "max_level":
+      return "MAX";
+    default:
+      return "BLOQUEADO";
+  }
+}
+
 export default function Crafting({ state, dispatch }) {
   const { player } = state;
   const inventory = player.inventory || [];
@@ -143,16 +194,27 @@ export default function Crafting({ state, dispatch }) {
   const equipment = player.equipment || {};
   const activeBuildTag = getPlayerBuildTag(player);
   const wishlistAffixes = state?.settings?.lootRules?.wishlistAffixes || [];
+  const unlockedLegendaryPowers = useMemo(
+    () => getUnlockedLegendaryPowers(state?.codex || {}, { specialization: player?.specialization, className: player?.class }),
+    [state?.codex, player?.specialization, player?.class]
+  );
+  const unlockedLegendaryPowerMap = useMemo(
+    () => Object.fromEntries(unlockedLegendaryPowers.map(power => [power.id, power])),
+    [unlockedLegendaryPowers]
+  );
   const reforgeSession = state?.combat?.reforgeSession || null;
+  const isReforgeLocked = !!reforgeSession;
 
   const [mode, setMode] = useState("upgrade");
-  const [fuseSlotA, setFuseSlotA] = useState(null);
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [selectedAffixIndex, setSelectedAffixIndex] = useState(null);
   const [selectedReforgeOption, setSelectedReforgeOption] = useState(null);
+  const [selectedAscendPowerId, setSelectedAscendPowerId] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [isConfirming, setIsConfirming] = useState(false);
   const [lastActionId, setLastActionId] = useState(null);
+  const [pendingCraftFeedback, setPendingCraftFeedback] = useState(null);
+  const [upgradeTrackFeedback, setUpgradeTrackFeedback] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
@@ -166,17 +228,6 @@ export default function Crafting({ state, dispatch }) {
     return [...allItems].sort((a, b) => {
       const aLocation = getItemLocation(a, equipment);
       const bLocation = getItemLocation(b, equipment);
-      const aSelectedFuse = fuseSlotA?.id === a.id;
-      const bSelectedFuse = fuseSlotA?.id === b.id;
-      const aFuseMatch = !!fuseSlotA && a.itemId === fuseSlotA.itemId && a.id !== fuseSlotA.id;
-      const bFuseMatch = !!fuseSlotA && b.itemId === fuseSlotA.itemId && b.id !== fuseSlotA.id;
-
-      if (mode === "fuse") {
-        if (aSelectedFuse && !bSelectedFuse) return -1;
-        if (!aSelectedFuse && bSelectedFuse) return 1;
-        if (aFuseMatch && !bFuseMatch) return -1;
-        if (!aFuseMatch && bFuseMatch) return 1;
-      }
 
       if (aLocation && !bLocation) return -1;
       if (!aLocation && bLocation) return 1;
@@ -188,7 +239,7 @@ export default function Crafting({ state, dispatch }) {
       if (ratingDiff !== 0) return ratingDiff;
       return (b.level || 0) - (a.level || 0);
     });
-  }, [inventory, equipment, mode, fuseSlotA]);
+  }, [inventory, equipment]);
   const selectedItem = useMemo(() => {
     if (!selectedItemId) return null;
     const allItems = [...inventory, ...(equipment.weapon ? [equipment.weapon] : []), ...(equipment.armor ? [equipment.armor] : [])];
@@ -213,36 +264,54 @@ export default function Crafting({ state, dispatch }) {
     setSelectedReforgeOption(null);
   }, [selectedItemId, selectedAffixIndex, mode]);
 
+  useEffect(() => {
+    setSelectedAscendPowerId(null);
+  }, [selectedItemId, mode]);
+
+  useEffect(() => {
+    if (!upgradeTrackFeedback) return undefined;
+    const timeout = window.setTimeout(() => setUpgradeTrackFeedback(null), 1400);
+    return () => window.clearTimeout(timeout);
+  }, [upgradeTrackFeedback]);
+
+  useEffect(() => {
+    if (!pendingCraftFeedback || !selectedItem || selectedItem.id !== pendingCraftFeedback.itemId) return;
+
+    const currentLevel = selectedItem.level ?? 0;
+    if (currentLevel === pendingCraftFeedback.previousLevel) return;
+    const delta = currentLevel - pendingCraftFeedback.previousLevel;
+    setUpgradeTrackFeedback({
+      itemId: selectedItem.id,
+      resultLevel: currentLevel,
+      tone: delta > 0 ? "success" : "danger",
+    });
+    setPendingCraftFeedback(null);
+  }, [pendingCraftFeedback, selectedItem]);
+
+  useEffect(() => {
+    if (!reforgeSession) return;
+    setMode("reforge");
+    setSelectedItemId(reforgeSession.itemId);
+    setSelectedAffixIndex(reforgeSession.affixIndex);
+  }, [reforgeSession]);
+
   const getReqs = useCallback((item) => {
     if (!item) return {};
-    const t = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 }[item.rarity] || 1;
-    const currentLevel = item.level ?? 0;
-    const selectedAffix = item.affixes?.[selectedAffixIndex] || null;
-    const upgradeGoldCost = 180 * (currentLevel + 1) * (currentLevel + 1) * t;
-    const rerollCosts = getRerollCosts(item, player);
-    const polishCosts = getPolishCosts(item, player, selectedAffix);
-    const reforgeCosts = getReforgeCosts(item, player, selectedAffix);
-    const ascendCost = getAscendCosts(item, player);
-    const focusedIndex = item?.crafting?.focusedAffixIndex;
-    const reforgeBlocked = Number.isInteger(focusedIndex) && selectedAffixIndex != null && focusedIndex !== selectedAffixIndex;
-
     return {
-      upgrade: { label: `G ${formatValue(upgradeGoldCost)}`, can: gold >= upgradeGoldCost },
-      reroll: { label: `G ${formatValue(rerollCosts.gold)} · E ${rerollCosts.essence}`, can: gold >= rerollCosts.gold && essence >= rerollCosts.essence },
-      polish: {
-        label: `G ${formatValue(polishCosts.gold)} · E ${polishCosts.essence}`,
-        can: gold >= polishCosts.gold && essence >= polishCosts.essence,
-      },
-      reforge: {
-        label: reforgeBlocked ? "LINEA FIJADA" : `G ${formatValue(reforgeCosts.gold)} · E ${reforgeCosts.essence}`,
-        can: !reforgeBlocked && gold >= reforgeCosts.gold && essence >= reforgeCosts.essence,
-      },
-      ascend: {
-        label: item.rarity === "legendary" ? "MAX" : (item.level ?? 0) < (ascendCost?.minLevel || 0) ? `REQ +${ascendCost?.minLevel || 0}` : `G ${formatValue(ascendCost?.gold || 0)} · E ${ascendCost?.essence || 0}`,
-        can: item.rarity !== "legendary" && (item.level ?? 0) >= (ascendCost?.minLevel || 0) && gold >= (ascendCost?.gold || 0) && essence >= (ascendCost?.essence || 0),
-      },
+      upgrade: getCraftActionState({ item, player, mode: "upgrade", affixIndex: selectedAffixIndex }),
+      reroll: getCraftActionState({ item, player, mode: "reroll", affixIndex: selectedAffixIndex }),
+      polish: getCraftActionState({ item, player, mode: "polish", affixIndex: selectedAffixIndex }),
+      reforge: getCraftActionState({ item, player, mode: "reforge", affixIndex: selectedAffixIndex }),
+      ascend: getCraftActionState({
+        item,
+        player,
+        mode: "ascend",
+        affixIndex: selectedAffixIndex,
+        legendaryPowerId: selectedAscendPowerId,
+        legendaryPowerImprintReduction: unlockedLegendaryPowerMap?.[selectedAscendPowerId]?.mastery?.imprintCostReduction || 0,
+      }),
     };
-  }, [gold, essence, player, selectedAffixIndex]);
+  }, [player, selectedAffixIndex, selectedAscendPowerId, unlockedLegendaryPowerMap]);
 
   const totalEssenceGain = useMemo(() => {
     return inventory.filter(item => selectedIds.includes(item.id)).reduce((acc, item) => {
@@ -261,20 +330,37 @@ export default function Crafting({ state, dispatch }) {
   const selectedTopStats = selectedItem ? getPrioritizedStatEntries(selectedItem.bonus || {}, isMobile ? 4 : 5) : [];
   const selectedImplicitSummary = selectedItem ? formatImplicitSummary(selectedItem) : "";
   const selectedEconomySummary = selectedItem ? formatEconomySummary(selectedItem.bonus || {}) : "";
-  const selectedForgingPotential = selectedItem ? getForgingPotential(selectedItem) : 0;
+  const selectedForgingPotential = selectedItem ? getItemForgingPotential(selectedItem) : 0;
   const selectedWorkedLabel = selectedItem ? getWorkedLabel(selectedItem) : null;
-  const selectedActionReq = selectedItem ? (getReqs(selectedItem)[mode] || { label: "", can: true }) : { label: "", can: true };
+  const selectedActionReq = selectedItem ? (getReqs(selectedItem)[mode] || { costs: {}, can: true, reason: "ok" }) : { costs: {}, can: true, reason: "ok" };
+  const selectedActionCostLabel = formatCraftCostLabel(selectedActionReq.costs);
+  const selectedActionHint = getCraftActionHint(selectedActionReq, mode);
+  const selectedAscendPowers = useMemo(() => {
+    if (!selectedItem || mode !== "ascend" || selectedActionReq?.nextRarity !== "legendary") return [];
+    return unlockedLegendaryPowers;
+  }, [selectedItem, mode, selectedActionReq?.nextRarity, unlockedLegendaryPowers]);
+  const selectedAscendPower = unlockedLegendaryPowerMap?.[selectedAscendPowerId] || null;
   const focusedAffixIndex = selectedItem?.crafting?.focusedAffixIndex;
   const focusedAffix = selectedItem && Number.isInteger(focusedAffixIndex) ? selectedItem.affixes?.[focusedAffixIndex] : null;
   const focusedAffixLabel = focusedAffix ? (STAT_LABELS[focusedAffix.stat] || focusedAffix.stat) : null;
+  const selectedCurrentAffix = selectedItem && selectedAffixIndex != null ? selectedItem.affixes?.[selectedAffixIndex] : null;
+  const selectedUpgradeTrackFeedback = selectedItem && upgradeTrackFeedback?.itemId === selectedItem.id ? upgradeTrackFeedback : null;
+  const selectedCurrentOptionIsKeep =
+    mode === "reforge" &&
+    !!selectedReforgeOption &&
+    !!selectedCurrentAffix &&
+    selectedReforgeOption.id === selectedCurrentAffix.id &&
+    selectedReforgeOption.stat === selectedCurrentAffix.stat &&
+    selectedReforgeOption.tier === selectedCurrentAffix.tier &&
+    (selectedReforgeOption.rolledValue ?? selectedReforgeOption.value ?? null) === (selectedCurrentAffix.rolledValue ?? selectedCurrentAffix.value ?? null);
   const stepCopy =
     mode === "extract"
       ? (selectedIds.length > 0 ? `${selectedIds.length} items listos para extraer` : "marca uno o varios items para convertirlos en esencia")
-      : mode === "fuse"
-        ? (fuseSlotA ? "base elegida; ahora toca un duplicado compatible" : "elige el primer duplicado para empezar la fusion")
-        : selectedItem
-          ? "item seleccionado; toca otra card para cambiarlo"
-          : "elegi un item para continuar";
+      : isReforgeLocked
+        ? "reforja pagada; elegi una opcion o manten la actual antes de salir"
+      : selectedItem
+        ? "item seleccionado; toca otra card para cambiarlo"
+        : "elegi un item para continuar";
 
   const triggerSuccess = (id) => {
     setLastActionId(id);
@@ -282,26 +368,12 @@ export default function Crafting({ state, dispatch }) {
   };
 
   const handleAction = (item) => {
+    if (isReforgeLocked && reforgeSession?.itemId !== item.id) return;
     const equippedSlot = getItemLocation(item, equipment);
     if (mode === "extract") {
       if (equippedSlot) return;
       setIsConfirming(false);
       setSelectedIds(prev => prev.includes(item.id) ? prev.filter(i => i !== item.id) : [...prev, item.id]);
-      return;
-    }
-
-    if (mode === "fuse") {
-      if (!fuseSlotA) {
-        setFuseSlotA(item);
-      } else if (fuseSlotA.id === item.id) {
-        setFuseSlotA(null);
-      } else if (fuseSlotA.itemId === item.itemId) {
-        dispatch({ type: "CRAFT_FUSE_ITEMS", payload: { itemAId: fuseSlotA.id, itemBId: item.id } });
-        setFuseSlotA(null);
-        triggerSuccess(item.id);
-      } else {
-        setFuseSlotA(item);
-      }
       return;
     }
 
@@ -352,6 +424,10 @@ export default function Crafting({ state, dispatch }) {
 
     if (!req?.can) return;
 
+    if (mode === "upgrade") {
+      setPendingCraftFeedback({ type: "upgrade", itemId: selectedItem.id, previousLevel: selectedItem.level ?? 0 });
+    }
+
     const actionType = {
       upgrade: "CRAFT_UPGRADE_ITEM",
       reroll: "CRAFT_REROLL_ITEM",
@@ -367,6 +443,7 @@ export default function Crafting({ state, dispatch }) {
         itemId: selectedItem.id,
         affixIndex: selectedAffixIndex,
         replacementAffix: selectedReforgeOption,
+        legendaryPowerId: mode === "ascend" ? (selectedAscendPower?.id || null) : null,
       },
     });
     triggerSuccess(selectedItem.id);
@@ -403,23 +480,21 @@ export default function Crafting({ state, dispatch }) {
               label={FORGE_MODE_META[m].label}
               short={FORGE_MODE_META[m].short}
               isMobile={isMobile}
-              onClick={() => { setMode(m); setFuseSlotA(null); setSelectedIds([]); setIsConfirming(false); setSelectedItemId(null); setSelectedAffixIndex(null); setSelectedReforgeOption(null); }}
+              disabled={isReforgeLocked && m !== "reforge"}
+              onClick={() => {
+                if (isReforgeLocked && m !== "reforge") return;
+                setMode(m);
+                setSelectedIds([]);
+                setIsConfirming(false);
+                setSelectedItemId(null);
+                setSelectedAffixIndex(null);
+                setSelectedReforgeOption(null);
+              }}
               color={FORGE_MODE_META[m].color}
             />
           ))}
         </div>
       </div>
-
-      {mode === "fuse" && fuseSlotA && (
-        <div style={{ background: "var(--color-background-secondary, #ffffff)", padding: "10px", borderRadius: "12px", border: "2px dashed var(--tone-violet, #a855f7)", textAlign: "center" }}>
-          <div style={{ fontSize: "0.7rem", fontWeight: "bold", color: "var(--color-text-secondary, #64748b)", marginBottom: "5px" }}>PREVISUALIZACION DE FUSION</div>
-          <div style={{ fontSize: "0.85rem", fontWeight: "900" }}>{fuseSlotA.name} + <span style={{ color: "var(--tone-violet, #a855f7)" }}>[Selecciona duplicado]</span></div>
-          <div style={{ display: "flex", justifyContent: "center", gap: "15px", marginTop: "5px", fontSize: "0.7rem", flexWrap: "wrap" }}>
-            <span>Forja resultado: +{Math.min(10, (fuseSlotA.level ?? 0) + 1)}</span>
-            <span style={{ color: "var(--tone-success, #1D9E75)" }}>{formatValue((FUSE_RARITY_CHANCE[fuseSlotA.rarity] || 0) * 100)}% chance de subir rareza</span>
-          </div>
-        </div>
-      )}
 
       {modeTooltip && (
         <div style={getModeTooltipStyle(modeTooltip.tone)}>
@@ -430,17 +505,23 @@ export default function Crafting({ state, dispatch }) {
         Paso actual: <span style={{ color: modeMeta.color, fontWeight: "900" }}>{modeMeta.label}</span> · {stepCopy}
       </div>
 
+      {isReforgeLocked && (
+        <div style={{ background: "var(--tone-violet-soft, #f3e8ff)", border: "1px solid var(--tone-violet, #c4b5fd)", borderRadius: "10px", padding: "7px 10px", fontSize: "0.64rem", color: "var(--tone-violet, #6d28d9)", fontWeight: "900" }}>
+          Reforja en curso: el costo ya fue pagado. No podes cambiar de tab ni de herramienta hasta elegir una opcion o mantener la linea actual.
+        </div>
+      )}
+
       {selectedItem && isSingleItemMode && (
         <section style={selectionPanelStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px" }}>
             <div style={{ minWidth: 0 }}>
               <div style={sectionEyebrowStyle}>Item Seleccionado</div>
-              <h4 style={{ margin: "2px 0 0", fontSize: isMobile ? "0.82rem" : "0.92rem", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 }}>{selectedItem.name}</h4>
+              <h4 style={{ margin: "2px 0 0", fontSize: isMobile ? "0.82rem" : "0.92rem", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 }}>{getItemDisplayName(selectedItem)}</h4>
               <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "900", marginTop: "4px" }}>
                 {selectedCompareSummary}
               </div>
               <div style={{ fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", marginTop: "3px" }}>
-                Forja {getUpgradeDisplay(selectedItem.level) || "Base"} · Rerolls {getCraftingState(selectedItem).rerollCount} · Pulidos {getCraftingState(selectedItem).polishCount} · Reforjas {getCraftingState(selectedItem).reforgeCount}
+                Rerolls {getCraftingState(selectedItem).rerollCount} · Pulidos {getCraftingState(selectedItem).polishCount} · Reforjas {getCraftingState(selectedItem).reforgeCount} · Ascensos {getCraftingState(selectedItem).ascendCount}
               </div>
               {focusedAffix && (
                 <div style={{ fontSize: "0.6rem", color: "var(--tone-violet, #6d28d9)", fontWeight: "900", marginTop: "4px" }}>
@@ -448,22 +529,53 @@ export default function Crafting({ state, dispatch }) {
                 </div>
               )}
             </div>
-            <button onClick={() => setSelectedItemId(null)} style={secondaryActionBtnStyle}>
+            <button onClick={() => !isReforgeLocked && setSelectedItemId(null)} disabled={isReforgeLocked} style={secondaryActionBtnStyle}>
               Limpiar
             </button>
           </div>
 
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
             <span style={rarityBadgeStyle(selectedItem.rarity)}>{selectedItem.rarity.toUpperCase()}</span>
-            {getUpgradeDisplay(selectedItem.level) && <span style={levelBadgeStyle(selectedItem.level)}>{getUpgradeDisplay(selectedItem.level)}</span>}
             {selectedWorkedLabel && <span style={workedBadgeStyle}>{selectedWorkedLabel}</span>}
             <span style={{ ...miniStatPillStyle, fontWeight: "900", color: "var(--color-text-secondary, #475569)" }}>
-              Rating <strong>{formatValue(selectedItem.rating)}</strong>
+              Poder <strong>{formatValue(selectedItem.rating)}</strong>
             </span>
             <span style={{ ...miniStatPillStyle, fontWeight: "900", color: "var(--color-text-secondary, #475569)" }}>
               Potencial <strong>{Math.round(selectedForgingPotential)}%</strong>
             </span>
+            {selectedActionReq.requiredPotential > 0 && (
+              <span style={{ ...miniStatPillStyle, fontWeight: "900", color: selectedActionReq.can ? "var(--tone-success-strong, #166534)" : "var(--tone-danger, #D85A30)" }}>
+                Minimo <strong>{Math.round(selectedActionReq.requiredPotential)}%</strong>
+              </span>
+            )}
           </div>
+
+          {mode === "upgrade" && (
+            <div style={selectionSubpanelStyle}>
+              <div style={detailTitle}>Ruta de Upgrade</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                {Array.from({ length: 11 }, (_, level) => {
+                  const currentLevel = selectedItem.level ?? 0;
+                  const isCurrent = level === currentLevel;
+                  const isReached = level < currentLevel;
+                  const isNext = level === Math.min(10, currentLevel + 1);
+                  const flashTone = selectedUpgradeTrackFeedback?.resultLevel === level ? selectedUpgradeTrackFeedback.tone : null;
+                  return (
+                    <span
+                      key={`upgrade-step-${level}`}
+                      style={upgradeStepStyle({ isCurrent, isReached, isNext, flashTone })}
+                    >
+                      +{level}
+                    </span>
+                  );
+                })}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", marginTop: "8px", fontSize: "0.64rem", fontWeight: "900" }}>
+                <span style={{ color: "var(--tone-warning, #b45309)" }}>Nivel actual: {selectedItem.level ?? 0}</span>
+                <span style={{ color: "var(--color-text-secondary, #475569)" }}>Objetivo visible: +{Math.min(10, (selectedItem.level ?? 0) + 1)}</span>
+              </div>
+            </div>
+          )}
 
           <div style={{ display: "grid", gap: "10px", gridTemplateColumns: isMobile ? "1fr" : (mode === "reroll" || mode === "polish" || mode === "reforge") ? "minmax(0, 0.95fr) minmax(0, 1.05fr)" : "1fr" }}>
             <div style={selectionSubpanelStyle}>
@@ -616,11 +728,88 @@ export default function Crafting({ state, dispatch }) {
             <div style={{ color: "var(--tone-violet, #6d28d9)", fontSize: "0.65rem", fontWeight: "bold", textAlign: "center" }}>
               {focusedAffix
                 ? `Este item ya quedo fijado a ${focusedAffixLabel}. Solo podes seguir esa linea.`
-                : "Flujo: 1) elegir linea 2) pagar reforja 3) elegir resultado."}
+                : "Flujo: 1) elegir linea 2) pagar reforja 3) elegir resultado. Elegir Actual no cambia ni fija la pieza."}
             </div>
           )}
-          {mode === "ascend" && selectedItem.rarity !== "legendary" && <div style={{ color: "var(--tone-accent, #3b82f6)", fontSize: "0.65rem", fontWeight: "bold", textAlign: "center" }}>Ascenso: {getReqs(selectedItem).ascend?.label || "N/A"} · requiere +{ASCEND_RULES[selectedItem.rarity]?.minLevel || 0}</div>}
-          {mode === "upgrade" && <div style={{ color: "var(--tone-danger, #D85A30)", fontSize: "0.65rem", fontWeight: "bold", textAlign: "center" }}>Riesgo de fallo: {formatValue((UPGRADE_FAIL_CHANCE[selectedItem.level ?? 0] || 0) * 100)}% · si falla baja un nivel</div>}
+          {selectedActionHint && (
+            <div style={{ color: selectedActionReq.can ? "var(--color-text-secondary, #475569)" : "var(--tone-danger, #D85A30)", fontSize: "0.65rem", fontWeight: "bold", textAlign: "center" }}>
+              {selectedActionHint}
+            </div>
+          )}
+          {mode === "ascend" && selectedItem.rarity !== "legendary" && <div style={{ color: "var(--tone-accent, #3b82f6)", fontSize: "0.65rem", fontWeight: "bold", textAlign: "center" }}>Ascenso: {selectedActionCostLabel} · requiere +{selectedActionReq.minLevel || ASCEND_RULES[selectedItem.rarity]?.minLevel || 0}</div>}
+          {mode === "ascend" && selectedActionReq?.nextRarity === "legendary" && (
+            <div style={{ display: "grid", gap: "8px", padding: "10px", borderRadius: "12px", background: "var(--tone-warning-soft, #fff7ed)", border: "1px solid rgba(251,146,60,0.22)" }}>
+              <div style={{ fontSize: "0.6rem", color: "var(--tone-danger, #c2410c)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                Poder legendario opcional
+              </div>
+              <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35 }}>
+                Si ya descubriste enablers en Codex, podes injertar uno al ascender esta pieza a legendaria. Si no elegis ninguno, el item asciende sin poder.
+              </div>
+              <div style={{ display: "grid", gap: "6px" }}>
+                <button
+                  onClick={() => setSelectedAscendPowerId(null)}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    border: "1px solid",
+                    borderColor: !selectedAscendPower ? "var(--tone-warning, #fb923c)" : "var(--color-border-primary, #fed7aa)",
+                    background: !selectedAscendPower ? "var(--tone-warning-soft, #fff7ed)" : "var(--color-background-secondary, #fff)",
+                    color: !selectedAscendPower ? "var(--tone-danger, #9a3412)" : "var(--color-text-primary, #1e293b)",
+                    borderRadius: "10px",
+                    padding: "8px 10px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ fontSize: "0.68rem", fontWeight: "900" }}>Sin poder injertado</div>
+                  <div style={{ fontSize: "0.58rem", marginTop: "3px", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>
+                    El item se vuelve legendario, pero queda sin enabler.
+                  </div>
+                </button>
+                {selectedAscendPowers.length > 0 ? selectedAscendPowers.map(power => (
+                  <button
+                    key={power.id}
+                    onClick={() => setSelectedAscendPowerId(power.id)}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      border: "1px solid",
+                      borderColor: selectedAscendPower?.id === power.id ? "var(--tone-warning, #fb923c)" : "var(--color-border-primary, #fed7aa)",
+                      background: selectedAscendPower?.id === power.id ? "var(--tone-warning-soft, #fff7ed)" : "var(--color-background-secondary, #fff)",
+                      color: "var(--color-text-primary, #1e293b)",
+                      borderRadius: "10px",
+                      padding: "8px 10px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
+                      <div style={{ fontSize: "0.68rem", fontWeight: "900" }}>{power.name}</div>
+                      <span style={{ fontSize: "0.5rem", fontWeight: "900", textTransform: "uppercase", color: "var(--tone-danger, #c2410c)" }}>
+                        {power.archetype}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: "0.58rem", marginTop: "3px", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.35 }}>
+                      {power.shortLabel} · desc. {power.discoveries} · {power.mastery?.label || "Descubierto"}
+                    </div>
+                    {!!power.mastery?.imprintCostReduction && (
+                      <div style={{ fontSize: "0.56rem", marginTop: "3px", color: "var(--tone-accent, #4338ca)", fontWeight: "800" }}>
+                        Injerto: -{Math.round((power.mastery.imprintCostReduction || 0) * 100)}% esencia
+                      </div>
+                    )}
+                    {!!power.mastery?.huntBias && (
+                      <div style={{ fontSize: "0.56rem", marginTop: "2px", color: "var(--tone-success-strong, #047857)", fontWeight: "800" }}>
+                        Caza: +{Math.round((power.mastery.huntBias || 0) * 100)}% sesgo en su objetivo
+                      </div>
+                    )}
+                  </button>
+                )) : (
+                  <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", textAlign: "center" }}>
+                    Todavia no descubriste enablers. Cazalos primero desde bosses o familias objetivo.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {mode === "upgrade" && <div style={{ color: "var(--tone-danger, #D85A30)", fontSize: "0.65rem", fontWeight: "bold", textAlign: "center" }}>Riesgo de fallo: {formatValue((selectedActionReq.failChance || 0) * 100)}% · si falla baja un nivel</div>}
 
           {mode === "reforge" && selectedAffixIndex != null && (
             <div style={{ display: "grid", gap: "8px" }}>
@@ -630,8 +819,16 @@ export default function Crafting({ state, dispatch }) {
               <div style={{ display: "grid", gap: "6px" }}>
                 {selectedItemReforgeOptions.map((option, index) => (
                   <button key={`${option.id}-${index}`} onClick={() => setSelectedReforgeOption(option)} style={{ width: "100%", textAlign: "left", border: "1px solid", borderColor: selectedReforgeOption?.id === option.id && selectedReforgeOption?.stat === option.stat ? "var(--tone-violet, #7c3aed)" : "var(--color-border-primary, #ddd6fe)", background: selectedReforgeOption?.id === option.id && selectedReforgeOption?.stat === option.stat ? "var(--tone-violet-soft, #f3e8ff)" : "var(--color-background-secondary, #fff)", color: "var(--color-text-primary, #1e293b)", borderRadius: "10px", padding: "8px 10px", cursor: "pointer" }}>
-                    <div style={{ fontSize: "0.68rem", fontWeight: "900" }}>{index === 0 ? "Mantener actual" : STAT_LABELS[option.stat] || option.stat} (T{option.tier})</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
+                      <div style={{ fontSize: "0.68rem", fontWeight: "900" }}>{STAT_LABELS[option.stat] || option.stat} (T{option.tier})</div>
+                      {index === 0 && <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-warning-soft, #fef3c7)", color: "var(--tone-warning, #92400e)", border: "1px solid var(--tone-warning, #fcd34d)" }}>ACTUAL</span>}
+                    </div>
                     <div style={{ fontSize: "0.62rem", color: "var(--tone-violet, #6d28d9)", marginTop: "3px" }}>+{formatStatValue(option.stat, option.rolledValue ?? option.value ?? 0)} · {option.kind === "prefix" ? "Prefijo" : "Sufijo"}</div>
+                    {index === 0 && (
+                      <div style={{ fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", fontWeight: "800" }}>
+                        Sin cambios. Cierra la reforja pero no fija ninguna linea.
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
@@ -640,8 +837,8 @@ export default function Crafting({ state, dispatch }) {
 
           <button disabled={((mode !== "reforge" || selectedItemReforgeOptions.length === 0) && !selectedActionReq.can) || (mode === "polish" && selectedAffixIndex == null) || (mode === "reforge" && selectedAffixIndex == null) || (mode === "reforge" && selectedItemReforgeOptions.length > 0 && !selectedReforgeOption)} onClick={executeCraft} style={mainActionBtnStyle(false)}>
             {mode === "reforge"
-              ? `${selectedItemReforgeOptions.length > 0 ? "CONFIRMAR REFORJA" : "PAGAR REFORJA"} (${selectedActionReq.label})`
-              : `${modeMeta.cta} (${selectedActionReq.label})`}
+              ? `${selectedItemReforgeOptions.length > 0 ? (selectedCurrentOptionIsKeep ? "MANTENER LINEA ACTUAL" : "CONFIRMAR REFORJA") : "PAGAR REFORJA"} (${selectedActionCostLabel})`
+              : `${modeMeta.cta} (${selectedActionCostLabel})`}
           </button>
         </section>
       )}
@@ -689,38 +886,34 @@ export default function Crafting({ state, dispatch }) {
           const req = getReqs(item)[mode] || { label: "", can: true };
           const isSelectedExtract = selectedIds.includes(item.id);
           const isSelectedDetail = selectedItemId === item.id;
-          const isFusing = fuseSlotA?.id === item.id;
-          const isMatch = !!fuseSlotA && fuseSlotA.itemId === item.itemId && !isFusing;
           const isSuccess = lastActionId === item.id;
           const equippedSlot = getItemLocation(item, equipment);
           const isEquipped = !!equippedSlot;
           const compareItem = item.type === "weapon" ? equipment.weapon : equipment.armor;
           const highlights = getLootHighlights({ item, equippedItem: compareItem, activeBuildTag, wishlistAffixes }).slice(0, 2);
           const affixDots = (item.affixes || []).slice(0, 5).map((affix, index) => ({ key: `${affix.id || affix.stat}-${index}`, ...getAffixTierGlyph(affix) }));
-          const forgingPotential = getForgingPotential(item);
+          const forgingPotential = getItemForgingPotential(item);
           const compareSummary = getCompareSummary(item, compareItem);
-          const compareEntries = getTopCompareEntries(item, compareItem, isMobile ? 3 : 4);
-          const topStats = getPrioritizedStatEntries(item.bonus || {}, 3);
+          const compareEntries = getTopCompareEntries(item, compareItem, isMobile ? 2 : 3);
+          const topStats = getPrioritizedStatEntries(item.bonus || {}, 2);
           const implicitEntries = getImplicitEntries(item);
           const workedLabel = getWorkedLabel(item);
           const economySummary = formatEconomySummary(item.bonus || {});
-          const canAction = mode === "extract" ? !isEquipped : mode === "fuse" ? true : req.can;
+          const canAction = mode === "extract" ? !isEquipped : (isReforgeLocked ? reforgeSession?.itemId === item.id : req.can);
+          const reqBadge = getCraftActionBadge(req, mode);
 
           return (
-            <div key={item.id} onClick={() => handleAction(item)} style={{ ...cardStyle(isSelectedExtract || isSelectedDetail, isFusing, isSuccess, canAction), opacity: (mode === "fuse" && fuseSlotA && !isFusing && !isMatch) ? 0.42 : (canAction ? 1 : 0.55), borderLeft: `4px solid ${getRarityColor(item.rarity)}`, border: isFusing ? "2px solid var(--tone-violet, #a855f7)" : (isMatch || isSelectedDetail || isSelectedExtract) ? "2px solid var(--tone-success, #1D9E75)" : "2px solid transparent", boxShadow: isFusing ? "0 0 0 2px rgba(168,85,247,0.14), 0 10px 20px rgba(168,85,247,0.12)" : (isMatch || isSelectedDetail || isSelectedExtract) ? "0 0 0 2px rgba(16,185,129,0.14)" : undefined, transform: isFusing ? "translateY(-2px) scale(1.02)" : undefined, gap: "8px" }}>
-              {isFusing && <div style={chipStyle("BASE", "var(--tone-violet, #a855f7)", true)}>BASE</div>}
-              {!isFusing && isMatch && <div style={chipStyle("DUP", "var(--tone-success, #1D9E75)", false)}>DUP</div>}
+            <div key={item.id} onClick={() => handleAction(item)} style={{ ...cardStyle(isSelectedExtract || isSelectedDetail, isSuccess, canAction), opacity: canAction ? 1 : 0.55, borderLeft: `4px solid ${getRarityColor(item.rarity)}`, border: (isSelectedDetail || isSelectedExtract) ? "2px solid var(--tone-success, #1D9E75)" : "2px solid transparent", boxShadow: (isSelectedDetail || isSelectedExtract) ? "0 0 0 2px rgba(16,185,129,0.14)" : undefined, gap: "8px" }}>
               {isEquipped && <div style={chipStyle(equippedSlot === "weapon" ? "ARMA" : "ARMADURA", "var(--tone-warning, #f59e0b)", false)}>{equippedSlot === "weapon" ? "ARMA" : "ARMADURA"}</div>}
 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "8px" }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", gap: "6px", alignItems: "center", marginBottom: "4px" }}>
-                    <span style={{ fontSize: "0.78rem", fontWeight: "900", color: isFusing ? "#fff" : "var(--color-text-secondary, #475569)" }}>{getItemIcon(item.name)}</span>
-                    <div style={{ fontSize: "0.72rem", fontWeight: "900", color: isFusing ? "#fff" : "var(--color-text-primary, #1e293b)", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", lineHeight: 1.2 }}>{item.name}</div>
+                    <span style={{ fontSize: "0.78rem", fontWeight: "900", color: "var(--color-text-secondary, #475569)" }}>{getItemIcon(item.name)}</span>
+                    <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", lineHeight: 1.2 }}>{getItemDisplayName(item)}</div>
                   </div>
                   <div style={{ display: "flex", gap: "4px", alignItems: "center", flexWrap: "wrap" }}>
                     <span style={rarityBadgeStyle(item.rarity)}>{item.rarity.toUpperCase()}</span>
-                    {getUpgradeDisplay(item.level) && <span style={levelBadgeStyle(item.level)}>{getUpgradeDisplay(item.level)}</span>}
                     {workedLabel && <span style={workedBadgeStyle}>{workedLabel}</span>}
                     {highlights.map(highlight => {
                       const style = getHighlightStyle(highlight.tone);
@@ -729,12 +922,12 @@ export default function Crafting({ state, dispatch }) {
                   </div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "end", gap: "4px", flexShrink: 0 }}>
-                  <span style={{ fontSize: "0.45rem", fontWeight: "bold", color: isFusing ? "#e2e8f0" : "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase" }}>Rating</span>
-                  <span style={{ fontSize: "0.82rem", fontWeight: "900", color: isFusing ? "#fff" : "var(--color-text-primary, #1e293b)" }}>{formatValue(item.rating)}</span>
+                  <span style={{ fontSize: "0.45rem", fontWeight: "bold", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase" }}>Poder</span>
+                  <span style={{ fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{formatValue(item.rating)}</span>
                 </div>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap", fontSize: "0.6rem", color: isFusing ? "#dbeafe" : "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap", fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
                 <span>{compareSummary}</span>
                 <span>{(item.affixes || []).length} affixes</span>
               </div>
@@ -754,21 +947,21 @@ export default function Crafting({ state, dispatch }) {
                 ))}
               </div>
 
-              {economySummary && (
-                <div style={{ fontSize: "0.6rem", color: isFusing ? "#dbeafe" : "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>
+              {economySummary && (mode === "extract" || isSelectedDetail) && (
+                <div style={{ fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>
                   Eco: {economySummary}
                 </div>
               )}
 
               {implicitEntries.length > 0 && (
-                <div style={{ fontSize: "0.62rem", color: isFusing ? "#c7d2fe" : "var(--color-text-info, #4338ca)", fontWeight: "800" }}>
+                <div style={{ fontSize: "0.62rem", color: "var(--color-text-info, #4338ca)", fontWeight: "800" }}>
                   Implicit: {formatImplicitSummary(item)}
                 </div>
               )}
 
               {affixDots.length > 0 && (
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "1px", flexWrap: "wrap" }}>
-                  <span style={{ fontSize: "0.5rem", color: isFusing ? "#dbeafe" : "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" }}>Affix</span>
+                  <span style={{ fontSize: "0.5rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" }}>Affix</span>
                   {affixDots.map(dot => (
                     <span key={dot.key} title={dot.label} style={{ fontSize: "0.62rem", color: dot.color, fontWeight: "900" }}>{dot.symbol}</span>
                   ))}
@@ -790,7 +983,7 @@ export default function Crafting({ state, dispatch }) {
                     />
                   </div>
                 </div>
-                {mode !== "extract" && mode !== "fuse" && <div style={costBadgeStyle(canAction, isSelectedExtract || isSelectedDetail || isFusing)}>{req.label}</div>}
+                {mode !== "extract" && <div style={costBadgeStyle(canAction, isSelectedExtract || isSelectedDetail)}>{reqBadge}</div>}
               </div>
             </div>
           );
@@ -814,10 +1007,9 @@ const rarityBadgeStyle = (rarity) => {
   const color = getRarityColor(rarity);
   return { fontSize: "0.45rem", fontWeight: "900", padding: "1px 4px", borderRadius: "3px", background: `${color}22`, color, border: `1px solid ${color}44` };
 };
-const levelBadgeStyle = (lvl) => { let bg = "#1e293b"; let color = "#fff"; if (lvl >= 4) bg = "var(--tone-accent, #3b82f6)"; if (lvl >= 7) bg = "var(--tone-violet, #a855f7)"; if (lvl >= 10) { bg = "var(--tone-warning, #f59e0b)"; color = "#000"; } return { fontSize: "0.45rem", fontWeight: "900", padding: "1px 4px", borderRadius: "3px", background: bg, color }; };
 const chipStyle = (label, color, left) => ({ position: "absolute", top: "6px", [left ? "left" : "right"]: "6px", fontSize: "0.48rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: color, color: "#fff", letterSpacing: "0.04em" });
-const cardStyle = (isSelected, isFusing, isSuccess, canAction) => ({
-  background: isFusing ? "var(--tone-violet-soft, #f3e8ff)" : "var(--color-background-secondary, #fff)",
+const cardStyle = (isSelected, isSuccess, canAction) => ({
+  background: "var(--color-background-secondary, #fff)",
   padding: "10px",
   borderRadius: "12px",
   display: "flex",
@@ -873,9 +1065,54 @@ const detailLine = { fontSize: "0.7rem", color: "var(--color-text-secondary, #47
 const detailMutedLineStyle = { fontSize: "0.68rem", color: "var(--color-text-tertiary, #94a3b8)" };
 const miniStatPillStyle = { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", background: "var(--color-background-tertiary, #f1f5f9)", padding: "2px 6px", borderRadius: "999px", lineHeight: 1.2 };
 const workedBadgeStyle = { background: "var(--tone-accent-soft, #eef2ff)", color: "var(--tone-accent, #4338ca)", fontSize: "0.54rem", padding: "2px 6px", borderRadius: "999px", fontWeight: "900", letterSpacing: "0.03em", border: "1px solid var(--tone-accent, #c7d2fe)" };
-const ToolBtn = ({ active, label, short, onClick, color, isMobile = false }) => (
+const upgradeStepStyle = ({ isCurrent, isReached, isNext, flashTone = null }) => ({
+  minWidth: "34px",
+  textAlign: "center",
+  padding: "5px 6px",
+  borderRadius: "999px",
+  fontSize: "0.6rem",
+  fontWeight: "900",
+  border: `1px solid ${
+    flashTone === "success"
+      ? "var(--tone-success, #22c55e)"
+      : flashTone === "danger"
+        ? "var(--tone-danger, #ef4444)"
+        : isCurrent
+          ? "var(--tone-warning, #f59e0b)"
+          : "var(--color-border-primary, #cbd5e1)"
+  }`,
+  background: flashTone === "success"
+    ? "var(--tone-success-soft, #ecfdf5)"
+    : flashTone === "danger"
+      ? "var(--tone-danger-soft, #fff1f2)"
+      : isCurrent
+        ? "var(--tone-warning-soft, #fffbeb)"
+        : isReached
+          ? "var(--tone-success-soft, #ecfdf5)"
+          : "var(--color-background-secondary, #fff)",
+  color: flashTone === "success"
+    ? "var(--tone-success-strong, #166534)"
+    : flashTone === "danger"
+      ? "var(--tone-danger-strong, #991b1b)"
+      : isCurrent
+        ? "var(--tone-warning, #b45309)"
+        : isReached
+          ? "var(--tone-success-strong, #166534)"
+          : "var(--color-text-secondary, #475569)",
+  boxShadow: flashTone === "success"
+    ? "0 0 0 2px rgba(34,197,94,0.18), 0 0 16px rgba(34,197,94,0.28)"
+    : flashTone === "danger"
+      ? "0 0 0 2px rgba(239,68,68,0.16), 0 0 16px rgba(190,24,93,0.22)"
+      : isCurrent
+        ? "0 0 0 2px rgba(245,158,11,0.15)"
+        : "none",
+  transform: flashTone ? "scale(1.06)" : "none",
+  transition: "all 0.22s ease",
+});
+const ToolBtn = ({ active, label, short, onClick, color, isMobile = false, disabled = false }) => (
   <button
     onClick={onClick}
+    disabled={disabled}
     style={{
       display: "inline-flex",
       flexDirection: "column",
@@ -886,9 +1123,10 @@ const ToolBtn = ({ active, label, short, onClick, color, isMobile = false }) => 
       border: `1px solid ${active ? color : "var(--color-border-primary, #e2e8f0)"}`,
       borderRadius: "8px",
       background: active ? "var(--color-background-tertiary, #f8fafc)" : "var(--color-background-secondary, #fff)",
-      color: active ? color : "var(--color-text-tertiary, #94a3b8)",
+      color: disabled ? "var(--color-text-tertiary, #94a3b8)" : active ? color : "var(--color-text-tertiary, #94a3b8)",
       boxShadow: active ? "0 0 0 1px rgba(99,102,241,0.18)" : "none",
-      cursor: "pointer",
+      cursor: disabled ? "not-allowed" : "pointer",
+      opacity: disabled ? 0.55 : 1,
       flexShrink: 0,
     }}
   >

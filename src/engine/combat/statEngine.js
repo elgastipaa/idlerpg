@@ -9,6 +9,7 @@ export function calcStats(player) {
   const weapon = eq.weapon;
   const armor  = eq.armor;
   const prestige = player.prestigeBonuses || {};
+  const codex = player.codexBonuses || {};
 
   const eqFlatDmg  = (weapon?.bonus?.damage     || 0) + (armor?.bonus?.damage     || 0);
   const eqFlatDef  = (weapon?.bonus?.defense    || 0) + (armor?.bonus?.defense    || 0);
@@ -34,18 +35,18 @@ export function calcStats(player) {
 
   const damage = Math.max(1, Math.floor(
     (player.baseDamage + eqFlatDmg + (player.flatDamage || 0) + (prestige.flatDamage || 0)) *
-      (1 + (player.damagePct || 0) + (prestige.damagePct || 0))
+      (1 + (player.damagePct || 0) + (prestige.damagePct || 0) + (codex.damagePct || 0))
   ));
   const defense = Math.max(0, Math.floor(
     (player.baseDefense + eqFlatDef + (player.flatDefense || 0) + (prestige.flatDefense || 0)) *
-      (1 + (player.defensePct || 0) + (prestige.defensePct || 0))
+      (1 + (player.defensePct || 0) + (prestige.defensePct || 0) + (codex.defensePct || 0))
   ));
   const maxHp = Math.max(1, Math.floor(
     (player.baseMaxHp + (player.flatHp || 0) + eqFlatHp) *
-      (1 + (player.hpPct || 0) + (prestige.hpPct || 0))
+      (1 + (player.hpPct || 0) + (prestige.hpPct || 0) + (codex.hpPct || 0))
   ));
   const critChance = Math.min(CRIT_CAP,
-    (player.baseCritChance || 0.05) + (player.flatCrit || 0) + (prestige.flatCrit || 0) + eqFlatCrit
+    (player.baseCritChance || 0.05) + (player.flatCrit || 0) + (prestige.flatCrit || 0) + (codex.flatCrit || 0) + eqFlatCrit
   );
 
   return {
@@ -53,23 +54,23 @@ export function calcStats(player) {
     defense,
     critChance,
     maxHp,
-    regen: (player.flatRegen || 0) + (prestige.healthRegen || 0) + eqRegen,
-    goldPct:  (player.goldPct  || 0) + (prestige.goldPct || 0) + eqGoldPct,
+    regen: (player.flatRegen || 0) + (prestige.healthRegen || 0) + (codex.healthRegen || 0) + eqRegen,
+    goldPct:  (player.goldPct  || 0) + (prestige.goldPct || 0) + (codex.goldPct || 0) + eqGoldPct,
     flatGold: (player.flatGold || 0) + eqFlatGold,
-    xpPct:    (player.xpPct   || 0) + (prestige.xpPct || 0) + eqXpPct,
-    attackSpeed: Math.min(ATTACK_SPEED_CAP, (player.attackSpeed || 0) + (prestige.attackSpeed || 0) + eqAttackSpeed),
-    lifesteal: (player.lifesteal || 0) + (prestige.lifesteal || 0) + eqLifesteal,
-    dodgeChance: (player.dodgeChance || 0) + (prestige.dodgeChance || 0) + eqDodgeChance,
-    blockChance: (player.blockChance || 0) + (prestige.blockChance || 0) + eqBlockChance,
-    critDamage: (player.critDamage || 0) + (prestige.critDamage || 0) + eqCritDamage,
+    xpPct:    (player.xpPct   || 0) + (prestige.xpPct || 0) + (codex.xpPct || 0) + eqXpPct,
+    attackSpeed: Math.min(ATTACK_SPEED_CAP, (player.attackSpeed || 0) + (prestige.attackSpeed || 0) + (codex.attackSpeed || 0) + eqAttackSpeed),
+    lifesteal: (player.lifesteal || 0) + (prestige.lifesteal || 0) + (codex.lifesteal || 0) + eqLifesteal,
+    dodgeChance: (player.dodgeChance || 0) + (prestige.dodgeChance || 0) + (codex.dodgeChance || 0) + eqDodgeChance,
+    blockChance: (player.blockChance || 0) + (prestige.blockChance || 0) + (codex.blockChance || 0) + eqBlockChance,
+    critDamage: (player.critDamage || 0) + (prestige.critDamage || 0) + (codex.critDamage || 0) + eqCritDamage,
     critOnLowHp: (player.critOnLowHp || 0) + (prestige.critOnLowHp || 0) + eqCritOnLowHp,
     damageOnKill: (player.damageOnKill || 0) + (prestige.damageOnKill || 0) + eqDamageOnKill,
-    thorns: (player.thorns || 0) + (prestige.thorns || 0) + eqThorns,
-    essenceBonus: (player.essenceBonus || 0) + (prestige.essenceBonus || 0) + eqEssenceBonus,
-    lootBonus: (player.lootBonus || 0) + (prestige.lootBonus || 0) + eqLootBonus,
-    luck: (player.luck || 0) + (prestige.luck || 0) + eqLuck,
-    cooldownReduction: (player.cooldownReduction || 0) + (prestige.cooldownReduction || 0) + eqCooldownReduction,
-    skillPower: (player.skillPower || 0) + (prestige.skillPower || 0) + eqSkillPower,
+    thorns: (player.thorns || 0) + (prestige.thorns || 0) + (codex.thorns || 0) + eqThorns,
+    essenceBonus: (player.essenceBonus || 0) + (prestige.essenceBonus || 0) + (codex.essenceBonus || 0) + eqEssenceBonus,
+    lootBonus: (player.lootBonus || 0) + (prestige.lootBonus || 0) + (codex.lootBonus || 0) + eqLootBonus,
+    luck: (player.luck || 0) + (prestige.luck || 0) + (codex.luck || 0) + eqLuck,
+    cooldownReduction: (player.cooldownReduction || 0) + (prestige.cooldownReduction || 0) + (codex.cooldownReduction || 0) + eqCooldownReduction,
+    skillPower: (player.skillPower || 0) + (prestige.skillPower || 0) + (codex.skillPower || 0) + eqSkillPower,
     sellValueBonus: (player.sellValueBonus || 0) + (prestige.sellValueBonus || 0),
   };
 }

@@ -27,28 +27,33 @@ export function calcItemRating(item) {
     skillPower = 0,
     lootBonus = 0,
   } = item.bonus;
-  const r = { common: 1, magic: 1.25, rare: 1.5, epic: 2.5, legendary: 4 }[item.rarity] || 1;
-  const score =
-    damage +
-    defense +
-    healthMax * 0.12 +
-    healthRegen * 6 +
-    critChance * 180 +
-    critDamage * 110 +
-    lifesteal * 160 +
-    attackSpeed * 140 +
-    dodgeChance * 150 +
-    blockChance * 165 +
-    damageOnKill * 4 +
-    critOnLowHp * 90 +
-    thorns * 2.5 +
-    goldBonus * 0.5 +
-    xpBonus * 40 +
-    essenceBonus * 12 +
-    luck * 1.2 +
-    cooldownReduction * 130 +
-    skillPower * 120 +
-    lootBonus * 55;
+  const isWeapon = item.type === "weapon";
+  const r = { common: 1, magic: 1.08, rare: 1.2, epic: 1.38, legendary: 1.58 }[item.rarity] || 1;
+  const combatScore =
+    damage * (isWeapon ? 5.2 : 2.2) +
+    defense * (isWeapon ? 2.4 : 6.4) +
+    healthMax * (isWeapon ? 0.12 : 0.22) +
+    healthRegen * (isWeapon ? 9 : 15) +
+    critChance * (isWeapon ? 420 : 240) +
+    critDamage * (isWeapon ? 210 : 125) +
+    lifesteal * (isWeapon ? 340 : 140) +
+    attackSpeed * (isWeapon ? 300 : 145) +
+    dodgeChance * (isWeapon ? 115 : 215) +
+    blockChance * (isWeapon ? 105 : 245) +
+    damageOnKill * (isWeapon ? 11 : 5) +
+    critOnLowHp * (isWeapon ? 180 : 95) +
+    thorns * (isWeapon ? 2.5 : 6.5) +
+    cooldownReduction * (isWeapon ? 180 : 150) +
+    skillPower * (isWeapon ? 175 : 135);
+  const economyScore =
+    goldBonus * 0.05 +
+    xpBonus * 6 +
+    essenceBonus * 1.5 +
+    luck * 0.25 +
+    lootBonus * 8;
+  const levelWeight = 1 + Math.max(0, (item.level || 0) * 0.02);
+  const legendaryEnablerScore = item.legendaryPowerId ? 180 : 0;
+  const score = ((combatScore * 0.92 + economyScore * 0.08) * levelWeight) + legendaryEnablerScore;
   return Math.round(score * r);
 }
 
