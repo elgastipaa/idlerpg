@@ -1,4 +1,5 @@
 import { BOSSES } from "../../data/bosses";
+import { ENEMIES } from "../../data/enemies";
 import { ENEMY_FAMILIES } from "../../data/encounters";
 import { LEGENDARY_POWERS } from "../../data/legendaryPowers";
 import { refreshStats } from "../combat/statEngine";
@@ -22,13 +23,13 @@ const FAMILY_MASTERY = {
   beast: {
     milestones: [
       { kills: 50, bonus: { attackSpeed: 0.01 }, label: "+1% velocidad" },
-      { kills: 250, bonus: { dodgeChance: 0.005 }, label: "+0.5% evasion" },
+      { kills: 250, bonus: { dodgeChance: 0.005 }, label: "+0.5% esquiva" },
       { kills: 1000, bonus: { damagePct: 0.02 }, label: "+2% dano" },
     ],
   },
   undead: {
     milestones: [
-      { kills: 50, bonus: { critDamage: 0.03 }, label: "+3% crit dmg" },
+      { kills: 50, bonus: { critDamage: 0.03 }, label: "+3% dano critico" },
       { kills: 250, bonus: { thorns: 4 }, label: "+4 espinas" },
       { kills: 1000, bonus: { hpPct: 0.015 }, label: "+1.5% vida" },
     ],
@@ -44,14 +45,14 @@ const FAMILY_MASTERY = {
     milestones: [
       { kills: 50, bonus: { damagePct: 0.015 }, label: "+1.5% dano" },
       { kills: 250, bonus: { hpPct: 0.015 }, label: "+1.5% vida" },
-      { kills: 1000, bonus: { flatCrit: 0.005 }, label: "+0.5% crit" },
+      { kills: 1000, bonus: { flatCrit: 0.005 }, label: "+0.5% critico" },
     ],
   },
   demon: {
     milestones: [
-      { kills: 50, bonus: { lifesteal: 0.004 }, label: "+0.4% lifesteal" },
+      { kills: 50, bonus: { lifesteal: 0.004 }, label: "+0.4% robo de vida" },
       { kills: 250, bonus: { damagePct: 0.015 }, label: "+1.5% dano" },
-      { kills: 1000, bonus: { critDamage: 0.04 }, label: "+4% crit dmg" },
+      { kills: 1000, bonus: { critDamage: 0.04 }, label: "+4% dano critico" },
     ],
   },
   construct: {
@@ -63,30 +64,30 @@ const FAMILY_MASTERY = {
   },
   cultist: {
     milestones: [
-      { kills: 50, bonus: { skillPower: 0.02 }, label: "+2% poder skill" },
-      { kills: 250, bonus: { cooldownReduction: 0.01 }, label: "+1% CDR" },
+      { kills: 50, bonus: { critDamage: 0.02 }, label: "+2% dano critico" },
+      { kills: 250, bonus: { multiHitChance: 0.01 }, label: "+1% multi-hit" },
       { kills: 1000, bonus: { essenceBonus: 0.08 }, label: "+8% esencia" },
     ],
   },
   occult: {
     milestones: [
-      { kills: 50, bonus: { skillPower: 0.02 }, label: "+2% poder skill" },
+      { kills: 50, bonus: { critDamage: 0.02 }, label: "+2% dano critico" },
       { kills: 250, bonus: { luck: 2 }, label: "+2 suerte" },
-      { kills: 1000, bonus: { lootBonus: 0.015 }, label: "+1.5% loot" },
+      { kills: 1000, bonus: { lootBonus: 0.015 }, label: "+1.5% botin" },
     ],
   },
   elemental: {
     milestones: [
       { kills: 50, bonus: { damagePct: 0.01 }, label: "+1% dano" },
-      { kills: 250, bonus: { skillPower: 0.03 }, label: "+3% poder skill" },
-      { kills: 1000, bonus: { flatCrit: 0.005 }, label: "+0.5% crit" },
+      { kills: 250, bonus: { critDamage: 0.03 }, label: "+3% dano critico" },
+      { kills: 1000, bonus: { flatCrit: 0.005 }, label: "+0.5% critico" },
     ],
   },
   dragon: {
     milestones: [
       { kills: 50, bonus: { hpPct: 0.015 }, label: "+1.5% vida" },
       { kills: 250, bonus: { defensePct: 0.02 }, label: "+2% defensa" },
-      { kills: 1000, bonus: { critDamage: 0.04 }, label: "+4% crit dmg" },
+      { kills: 1000, bonus: { critDamage: 0.04 }, label: "+4% dano critico" },
     ],
   },
 };
@@ -100,14 +101,14 @@ const BOSS_MASTERY = {
   },
   void_titan: {
     milestones: [
-      { kills: 1, bonus: { cooldownReduction: 0.015 }, label: "+1.5% CDR" },
-      { kills: 5, bonus: { lootBonus: 0.02 }, label: "+2% loot" },
+      { kills: 1, bonus: { multiHitChance: 0.015 }, label: "+1.5% multi-hit" },
+      { kills: 5, bonus: { lootBonus: 0.02 }, label: "+2% botin" },
     ],
   },
   blood_matriarch: {
     milestones: [
-      { kills: 1, bonus: { lifesteal: 0.006 }, label: "+0.6% lifesteal" },
-      { kills: 5, bonus: { flatCrit: 0.01 }, label: "+1% crit" },
+      { kills: 1, bonus: { lifesteal: 0.006 }, label: "+0.6% robo de vida" },
+      { kills: 5, bonus: { flatCrit: 0.01 }, label: "+1% critico" },
     ],
   },
   iron_sentinel: {
@@ -119,7 +120,7 @@ const BOSS_MASTERY = {
   void_sovereign: {
     milestones: [
       { kills: 1, bonus: { damagePct: 0.03 }, label: "+3% dano" },
-      { kills: 3, bonus: { skillPower: 0.04 }, label: "+4% poder skill" },
+      { kills: 3, bonus: { critDamage: 0.04 }, label: "+4% dano critico" },
     ],
   },
 };
@@ -146,8 +147,9 @@ const BONUS_KEYS = [
   "essenceBonus",
   "lootBonus",
   "luck",
-  "cooldownReduction",
-  "skillPower",
+  "multiHitChance",
+  "markChance",
+  "markEffectPerStack",
   "goldPct",
 ];
 
@@ -351,16 +353,42 @@ export function getLegendaryPowerHuntBias(codex = {}, powerId = null) {
 
 export function getUnlockedLegendaryPowers(codex = {}, { specialization = null, className = null } = {}) {
   const preferredArchetypes = [specialization, className].filter(Boolean);
+  const defaultArchetype = className || "warrior";
   return getCodexLegendaryPowerEntries(codex)
     .filter(entry => entry.unlocked)
     .sort((left, right) => {
-      const leftPreferred = preferredArchetypes.includes(left.archetype) || left.archetype === "warrior";
-      const rightPreferred = preferredArchetypes.includes(right.archetype) || right.archetype === "warrior";
+      const leftPreferred = preferredArchetypes.includes(left.archetype) || left.archetype === defaultArchetype;
+      const rightPreferred = preferredArchetypes.includes(right.archetype) || right.archetype === defaultArchetype;
       if (leftPreferred !== rightPreferred) return leftPreferred ? -1 : 1;
       if ((right.mastery?.rank || 0) !== (left.mastery?.rank || 0)) return (right.mastery?.rank || 0) - (left.mastery?.rank || 0);
       if ((right.discoveries || 0) !== (left.discoveries || 0)) return (right.discoveries || 0) - (left.discoveries || 0);
       return left.name.localeCompare(right.name, "es");
     });
+}
+
+export function getHighestUnlockedTierForFamily(familyId, maxTier = 1) {
+  return [...ENEMIES]
+    .filter(enemy => enemy.family === familyId && enemy.tier <= maxTier)
+    .sort((left, right) => right.tier - left.tier)[0]?.tier || null;
+}
+
+export function getBestUnlockedTierForPower(entry = {}, maxTier = 1) {
+  const bossTier = (entry.sources?.bossIds || [])
+    .map(bossId => BOSSES.find(boss => boss.id === bossId)?.tier || null)
+    .filter(tier => tier != null && tier <= maxTier)
+    .sort((left, right) => right - left)[0] || null;
+  if (bossTier) return bossTier;
+
+  return (entry.sources?.familyIds || [])
+    .map(familyId => getHighestUnlockedTierForFamily(familyId, maxTier))
+    .filter(Boolean)
+    .sort((left, right) => right - left)[0] || null;
+}
+
+function matchesPreferredArchetype(entry = {}, specialization = null, className = null) {
+  if (!entry?.archetype) return false;
+  const fallbackArchetype = className || "warrior";
+  return entry.archetype === specialization || entry.archetype === className || entry.archetype === fallbackArchetype;
 }
 
 export function getCodexFamilyEntries(codex = {}) {
@@ -415,4 +443,87 @@ export function getCodexUnlockedMilestones(codex = {}) {
   const unlockedPowers = getCodexLegendaryPowerEntries(codex)
     .reduce((total, entry) => total + Math.max(0, entry.mastery?.rank || 0), 0);
   return masteryMilestones + unlockedPowers;
+}
+
+export function getCodexHuntOverview(codex = {}, { maxTier = 1, specialization = null, className = null } = {}) {
+  const powerEntries = getCodexLegendaryPowerEntries(codex);
+  const bossEntries = getCodexBossEntries(codex);
+  const familyEntries = getCodexFamilyEntries(codex);
+  const discoveries = codex?.powerDiscoveries || {};
+
+  const discoverNow = powerEntries
+    .filter(entry => !entry.unlocked)
+    .map(entry => ({
+      ...entry,
+      sourceTier: getBestUnlockedTierForPower(entry, maxTier),
+      preferredArchetype: matchesPreferredArchetype(entry, specialization, className),
+    }))
+    .filter(entry => entry.sourceTier != null)
+    .sort((left, right) => {
+      if (left.preferredArchetype !== right.preferredArchetype) return left.preferredArchetype ? -1 : 1;
+      return left.sourceTier - right.sourceTier || left.name.localeCompare(right.name, "es");
+    });
+
+  const masteryNow = powerEntries
+    .filter(entry => entry.unlocked && entry.mastery?.nextRank)
+    .map(entry => ({
+      ...entry,
+      sourceTier: getBestUnlockedTierForPower(entry, maxTier),
+      preferredArchetype: matchesPreferredArchetype(entry, specialization, className),
+      remainingCopies: Math.max(0, Number(entry.mastery?.nextRank?.discoveries || 0) - Number(entry.discoveries || 0)),
+    }))
+    .filter(entry => entry.sourceTier != null)
+    .sort((left, right) => {
+      if (left.preferredArchetype !== right.preferredArchetype) return left.preferredArchetype ? -1 : 1;
+      return left.remainingCopies - right.remainingCopies || left.sourceTier - right.sourceTier || left.name.localeCompare(right.name, "es");
+    });
+
+  const hotBosses = bossEntries
+    .filter(entry => entry.seen && entry.tier <= maxTier && (entry.legendaryDrops?.length || 0) > 0)
+    .map(entry => {
+      const missingCount = (entry.legendaryDrops || []).filter(drop => !(discoveries?.[drop?.power?.id] > 0)).length;
+      const masteryCount = (entry.legendaryDrops || []).filter(drop => {
+        const powerId = drop?.power?.id;
+        return powerId && discoveries?.[powerId] > 0 && getLegendaryPowerMastery(powerId, codex).nextRank;
+      }).length;
+      const preferredCount = (entry.legendaryDrops || []).filter(drop => matchesPreferredArchetype(drop.power, specialization, className)).length;
+      return {
+        ...entry,
+        missingCount,
+        masteryCount,
+        preferredCount,
+        score: missingCount * 10 + masteryCount * 5 + preferredCount * 3 + entry.tier * 0.25,
+      };
+    })
+    .filter(entry => entry.score > 0)
+    .sort((left, right) => right.score - left.score || left.tier - right.tier)
+    .slice(0, 4);
+
+  const hotFamilies = familyEntries
+    .filter(entry => entry.seen)
+    .map(entry => {
+      const sourceTier = getHighestUnlockedTierForFamily(entry.id, maxTier);
+      const relatedPowers = powerEntries.filter(power => (power.sources?.familyIds || []).includes(entry.id));
+      const missingCount = relatedPowers.filter(power => !power.unlocked).length;
+      const masteryCount = relatedPowers.filter(power => power.unlocked && power.mastery?.nextRank).length;
+      const preferredCount = relatedPowers.filter(power => matchesPreferredArchetype(power, specialization, className)).length;
+      return {
+        ...entry,
+        sourceTier,
+        missingCount,
+        masteryCount,
+        preferredCount,
+        score: (sourceTier ? 1 : 0) * (missingCount * 8 + masteryCount * 4 + preferredCount * 2),
+      };
+    })
+    .filter(entry => entry.sourceTier != null && entry.score > 0)
+    .sort((left, right) => right.score - left.score || left.sourceTier - right.sourceTier || left.name.localeCompare(right.name, "es"))
+    .slice(0, 4);
+
+  return {
+    discoverNow,
+    masteryNow,
+    hotBosses,
+    hotFamilies,
+  };
 }

@@ -90,8 +90,9 @@ export function getTalentTreesForPlayer({ playerClass, playerSpec, playerLevel =
 }
 
 export function getTalentNode(talentId) {
+  const baseTalentId = getBaseTalentId(talentId);
   for (const tree of TALENT_TREES) {
-    const node = tree.nodes.find(candidate => candidate.talentId === talentId);
+    const node = tree.nodes.find(candidate => candidate.talentId === baseTalentId);
     if (node) return { ...node, treeId: tree.id, classId: tree.classId, specId: tree.specId };
   }
 
@@ -134,14 +135,26 @@ export function meetsTalentRequirement(state, talent) {
 export function canUnlockTalentNode(state, talentId) {
   const talent = getTalentById(talentId);
   if (!talent) return false;
+  const baseTalentId = getBaseTalentId(talent.id);
 
   if (!canUseTalentSpec(state, talent)) return false;
   if ((state.player.unlockedTalents || []).includes(talent.id)) return false;
   if ((state.player.talentPoints || 0) < getTalentCostForPlayer(state, talent)) return false;
   if (!meetsTalentRequirement(state, talent)) return false;
+  if (
+    talent.exclusiveGroup &&
+    (state.player.unlockedTalents || []).some(unlockedId => {
+      const unlockedTalent = getTalentById(unlockedId);
+      if (!unlockedTalent?.exclusiveGroup) return false;
+      if (getBaseTalentId(unlockedTalent.id) === baseTalentId) return false;
+      return unlockedTalent.exclusiveGroup === talent.exclusiveGroup;
+    })
+  ) {
+    return false;
+  }
 
   const node = getTalentNode(talentId);
-  if (!node) return true;
+  if (!node) return false;
 
   return hasUnlockedTreePrereqs(state.player.unlockedTalents || [], node);
 }

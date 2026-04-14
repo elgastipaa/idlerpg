@@ -51,6 +51,16 @@ export function getLegendaryStaticBonuses({ player = {}, enemy = null, stats = {
     lifesteal: 0,
     blockChance: 0,
     regen: 0,
+    multiHitChance: 0,
+    multiHitDamageMult: 0,
+    markChance: 0,
+    markEffectPerStack: 0,
+    damageRangeMin: 0,
+    damageRangeMax: 0,
+    markTransferPct: 0,
+    flowHits: 0,
+    spellMemoryMarkEffectPerStack: 0,
+    freshTargetDamageMult: 1,
   };
 
   for (const { power } of powers) {
@@ -96,36 +106,57 @@ export function getLegendaryStaticBonuses({ player = {}, enemy = null, stats = {
           bonuses.damageMult *= 1.10;
         }
         break;
+      case "void_skill_window":
+        if ((enemy?.runtime?.fractureStacks || 0) > 0 || (enemy?.runtime?.markStacks || 0) > 0) {
+          bonuses.critChance += 0.04;
+          bonuses.damageMult *= 1.18;
+        }
+        break;
+      case "eclipse_opening_seal":
+        if (!enemy?.runtime?.hasTakenPlayerHit || ((enemy?.hp || 0) / Math.max(1, enemy?.maxHp || 1)) >= 0.85) {
+          bonuses.damageMult *= 1.22;
+          bonuses.critChance += 0.06;
+          bonuses.markChance += 0.12;
+          bonuses.freshTargetDamageMult *= 1.12;
+        }
+        break;
+      case "resonant_echo_matrix":
+        bonuses.multiHitChance += 0.08;
+        bonuses.multiHitDamageMult += 0.18;
+        break;
+      case "chaos_prism":
+        bonuses.critDamage += 0.2;
+        bonuses.damageRangeMin -= 0.08;
+        bonuses.damageRangeMax += 0.18;
+        break;
+      case "cataclysmic_afterglow":
+        if ((enemy?.runtime?.mageFlowHitsRemaining || 0) > 0) {
+          bonuses.damageMult *= 1.3;
+          bonuses.critChance += 0.08;
+        }
+        break;
+      case "lattice_of_control": {
+        const markStacks = Math.max(0, Number(enemy?.runtime?.markStacks || 0));
+        if (markStacks > 0) {
+          bonuses.damageMult *= 1 + markStacks * 0.05;
+          bonuses.critChance += markStacks * 0.02;
+          bonuses.markEffectPerStack += 0.01;
+        } else {
+          bonuses.damageMult *= 0.88;
+        }
+        break;
+      }
+      case "recursive_mnemonic":
+        bonuses.markTransferPct += 0.2;
+        bonuses.flowHits += 1;
+        bonuses.spellMemoryMarkEffectPerStack += 0.01;
+        break;
       default:
         break;
     }
   }
 
   return bonuses;
-}
-
-export function getLegendaryPreAttackEffects({ player = {}, skillCastCount = 0 } = {}) {
-  if (!skillCastCount) return { effects: [], logs: [] };
-  const powers = getEquippedLegendaryPowers(player);
-  const effects = [];
-  const logs = [];
-
-  for (const { power } of powers) {
-    if (power.id !== "void_skill_window") continue;
-    effects.push({
-      source: "item",
-      sourceId: "legendary:void_skill_window",
-      duration: 2,
-      maxStacks: 1,
-      modifiers: [
-        { type: MOD_TYPES.DAMAGE_MULT, value: 1.45 },
-        { type: MOD_TYPES.CRIT_CHANCE, value: 0.06 },
-      ],
-    });
-    logs.push("Ventana Arcana prepara un burst para tu siguiente ofensiva.");
-  }
-
-  return { effects, logs };
 }
 
 export function getLegendaryPostAttackEffects({

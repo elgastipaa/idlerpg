@@ -1,18 +1,14 @@
-﻿import { applyActiveEvents, processEvents } from "../eventEngine";
-import { spawnEnemy } from "./enemyEngine";
+﻿import { spawnEnemy } from "./enemyEngine";
 import { calcStats } from "./statEngine";
 import { calculateRewards } from "../progression/rewards";
 import { checkAchievements } from "../progression/achievementEngine";
 import { processTriggerTalents } from "../talents/talentEngine";
-import { processAutoSkills, reduceCooldowns } from "../skills/skillEngine";
 import { applyLevelUp } from "../leveling";
-import { SKILLS } from "../../data/skills";
 import { ENEMIES } from "../../data/enemies";
 import { addToInventory, calcItemRating } from "../inventory/inventoryEngine";
 import { getPlayerBuildTag } from "../../utils/buildIdentity";
 import {
   getLegendaryPostAttackEffects,
-  getLegendaryPreAttackEffects,
   getLegendaryStaticBonuses,
 } from "../../utils/legendaryPowers";
 import { resolveLootRuleWishlist } from "../../utils/lootFilter";
@@ -27,6 +23,7 @@ import {
   computeEffectModifiers,
 } from "../effects/effectEngine";
 import { applyModifierTotals } from "../modifiers/modifierEngine";
+import { MOD_TYPES } from "../modifiers/modTypes";
 
 const CRIT_CAP = 0.75;
 const RARITY_RANK = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
@@ -34,10 +31,15 @@ const EXTRACT_RARITY_TIER = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 
 const PERFORMANCE_SMOOTHING = 0.18;
 const FLOAT_EVENT_LIMIT = 8;
 const HEAL_FLOAT_THRESHOLD = 3;
-const SKILL_DPS_WINDOW_MS = 20000;
-const SKILL_TIMELINE_LIMIT = 240;
 const SAFE_RUNTIME_GOLD_CAP = 50_000_000;
 const SAFE_RUNTIME_ESSENCE_CAP = 10_000_000;
+const MULTI_HIT_CAP = 0.45;
+const BLEED_STACK_CAP = 4;
+const BLEED_DURATION_TICKS = 4;
+const FRACTURE_STACK_CAP = 5;
+const FRACTURE_DURATION_TICKS = 5;
+const FRACTURE_DEFENSE_REDUCTION_PER_STACK = 0.1;
+const ENEMY_DEFENSE_SCALING = 260;
 let floatEventSequence = 0;
 
 function toModifierTotals(mods = {}) {
@@ -174,6 +176,11 @@ function incrementNestedMapValue(map = {}, key, nestedKey, amount = 1) {
   };
 }
 
+function countEffectsBySourceId(effects = [], sourceId) {
+  if (!sourceId) return 0;
+  return (effects || []).filter(effect => effect?.sourceId === sourceId).length;
+}
+
 function getExtractYield(item) {
   const rarityTier = EXTRACT_RARITY_TIER[item?.rarity] || 1;
   const rarityMult = { common: 1, magic: 1.4, rare: 2, epic: 3, legendary: 5 }[item?.rarity] || 1;
@@ -222,11 +229,58 @@ function appendCombatFloatEvents(previous = [], incoming = []) {
   return payload.slice(-FLOAT_EVENT_LIMIT);
 }
 
-function appendSkillDamageTimeline(previous = [], incoming = []) {
-  const now = Date.now();
-  const cutoff = now - SKILL_DPS_WINDOW_MS - 5000;
-  const kept = (previous || []).filter(entry => (entry?.at || 0) >= cutoff);
-  return [...kept, ...(incoming || []).filter(Boolean)].slice(-SKILL_TIMELINE_LIMIT);
+function getEnemyDefenseMultiplier(defense = 0) {
+  const effectiveDefense = Math.max(0, Number(defense || 0));
+  return 1 / (1 + effectiveDefense / ENEMY_DEFENSE_SCALING);
+}
+
+function getFractureReducedDefense(baseDefense = 0, stacks = 0) {
+  const clampedStacks = Math.max(0, Number(stacks || 0));
+  const reductionMultiplier = Math.max(
+    0.45,
+    1 - clampedStacks * FRACTURE_DEFENSE_REDUCTION_PER_STACK
+  );
+  return Math.max(0, Math.floor((baseDefense || 0) * reductionMultiplier));
+}
+
+function getBleedTickDamage(runtime = {}) {
+  const stacks = Math.max(0, Number(runtime?.bleedStacks || 0));
+  const perStack = Math.max(0, Number(runtime?.bleedPerStack || 0));
+  const duration = Math.max(0, Number(runtime?.bleedTicksRemaining || 0));
+  if (!stacks || !perStack || !duration) return 0;
+  return Math.max(1, Math.floor(stacks * perStack));
+}
+
+function rollDamageRangeMultiplier(stats = {}) {
+  const min = Math.max(0.25, Number(stats.damageRangeMin || 1));
+  const max = Math.max(min, Number(stats.damageRangeMax || 1));
+  if (Math.abs(max - min) < 0.0001) return min;
+  return min + Math.random() * (max - min);
+}
+
+function hydrateSpawnedEnemy(enemy, runtimePatch = {}) {
+  if (!enemy) return enemy;
+  return {
+    ...enemy,
+    runtime: {
+      openingHitSpent: false,
+      hasTakenPlayerHit: false,
+      bleedStacks: 0,
+      bleedPerStack: 0,
+      bleedTicksRemaining: 0,
+      fractureStacks: 0,
+      fractureTicksRemaining: 0,
+      flowStacks: 0,
+      markStacks: 0,
+      markTicksRemaining: 0,
+      mageFlowBonusMult: 1,
+      mageFlowHitsRemaining: 0,
+      mageMemoryStacks: 0,
+      mageTemporalFlowStacks: 0,
+      ...(enemy.runtime || {}),
+      ...(runtimePatch || {}),
+    },
+  };
 }
 
 export function processTick(state) {
@@ -242,30 +296,22 @@ export function processTick(state) {
   const prestigeCycle = createEmptyPrestigeCycleProgress(state.combat.prestigeCycle || {});
   const currentCombatTier = state.combat.currentTier || enemy.tier || 1;
 
-  const { mods: eventMods, remaining: remainingEvents } = applyActiveEvents(state);
+  const eventMods = {
+    damageMult: 1,
+    goldMult: 1,
+    xpMult: 1,
+    essenceMult: 1,
+    lootBonus: 0,
+    rarityBonus: 0,
+    regenMult: 1,
+  };
   const s = calcStats(state.player);
+  const initialMageVolatileMult = Math.max(0.2, Number(state.combat.pendingMageVolatileMult || 1));
   const legendaryBonuses = getLegendaryStaticBonuses({ player: state.player, enemy, stats: s });
   const unlockedTalents = state.player.unlockedTalents || [];
-  const baseCooldowns = reduceCooldowns(state.combat.skillCooldowns || {});
-
-  const {
-    extraDamage: skillExtraDamage,
-    extraHeal: skillExtraHeal = 0,
-    skillDamageEvents = [],
-    logs: skillCastLogs,
-    updatedCooldowns,
-    effectsToApply,
-  } = processAutoSkills({
-    skills: SKILLS,
-    player: state.player,
-    playerStats: s,
-    skillAutocasts: state.combat.skillAutocasts || {},
-    cooldowns: baseCooldowns,
-  });
-  const { effects: preLegendaryEffects, logs: preLegendaryLogs } = getLegendaryPreAttackEffects({
-    player: state.player,
-    skillCastCount: skillCastLogs?.length || 0,
-  });
+  const effectsToApply = [];
+  const preLegendaryEffects = [];
+  const preLegendaryLogs = [];
 
   const { effects: preTriggerEffects, logs: preTriggerLogs } = processTriggerTalents({
     unlockedTalents,
@@ -356,67 +402,283 @@ export function processTick(state) {
       ? 2
       : 1;
 
+  const statusBleedTickDamage = getBleedTickDamage(enemyRuntime);
+  const nextEnemyRuntime = {
+    ...enemyRuntime,
+    bleedTicksRemaining:
+      Math.max(0, Number(enemyRuntime.bleedTicksRemaining || 0) - (statusBleedTickDamage > 0 ? 1 : 0)),
+    fractureTicksRemaining:
+      Math.max(
+        0,
+        Number(enemyRuntime.fractureTicksRemaining || 0) -
+          ((enemyRuntime.fractureStacks || 0) > 0 ? 1 : 0)
+      ),
+    markTicksRemaining:
+      Math.max(
+        0,
+        Number(enemyRuntime.markTicksRemaining || 0) -
+          ((enemyRuntime.markStacks || 0) > 0 ? 1 : 0)
+      ),
+    mageFlowBonusMult: Math.max(1, Number(enemyRuntime.mageFlowBonusMult || 1)),
+    mageFlowHitsRemaining: Math.max(0, Number(enemyRuntime.mageFlowHitsRemaining || 0)),
+    mageMemoryStacks: Math.max(0, Number(enemyRuntime.mageMemoryStacks || 0)),
+    mageTemporalFlowStacks: Math.max(0, Number(enemyRuntime.mageTemporalFlowStacks || 0)),
+    hasTakenPlayerHit: !!enemyRuntime.hasTakenPlayerHit,
+  };
+  if ((nextEnemyRuntime.bleedTicksRemaining || 0) <= 0) {
+    nextEnemyRuntime.bleedStacks = 0;
+    nextEnemyRuntime.bleedPerStack = 0;
+  }
+  if ((nextEnemyRuntime.fractureTicksRemaining || 0) <= 0) {
+    nextEnemyRuntime.fractureStacks = 0;
+  }
+  if ((nextEnemyRuntime.markTicksRemaining || 0) <= 0) {
+    nextEnemyRuntime.markStacks = 0;
+  }
+  if ((nextEnemyRuntime.mageFlowHitsRemaining || 0) <= 0) {
+    nextEnemyRuntime.mageFlowBonusMult = 1;
+  }
+
+  const bleedTickDamage = statusBleedTickDamage;
+  const enemyHpAfterStatuses = Math.max(
+    0,
+    Math.min(enemy.maxHp, enemy.hp - bleedTickDamage + enemyRegenPerTick)
+  );
   const totalAttackSpeed = Math.max(
     0,
     Math.min(0.95, (s.attackSpeed || 0) + (effectMods.attackSpeedFlat || 0) + (legendaryBonuses.attackSpeed || 0))
   );
-  const hitCount = 1 + (Math.random() < totalAttackSpeed ? 1 : 0);
+  const totalMultiHitChance = Math.max(
+    0,
+    Math.min(MULTI_HIT_CAP, (s.multiHitChance || 0) + (legendaryBonuses.multiHitChance || 0))
+  );
+  let hitCount = enemyHpAfterStatuses > 0 ? 1 : 0;
+  if (!s.disableComboHits) {
+    if (hitCount > 0 && Math.random() < totalAttackSpeed) hitCount += 1;
+    if (hitCount > 0 && Math.random() < totalMultiHitChance) hitCount += 1;
+  }
   const pendingOnKillDamage = state.combat.pendingOnKillDamage || 0;
+  const totalBleedChance = Math.max(0, Math.min(CRIT_CAP, s.bleedChance || 0));
+  const totalBleedDamage = Math.max(0, s.bleedDamage || 0);
+  const totalFractureChance = Math.max(0, Math.min(CRIT_CAP, s.fractureChance || 0));
+  const totalMarkChance = Math.max(
+    0,
+    Math.min(CRIT_CAP, (s.markChance || 0) + (legendaryBonuses.markChance || 0))
+  );
   let playerDmg = 0;
   let didCrit = false;
   let consumedFirstCritShield = false;
-  let firstHitDamage = 0;
+  let appliedBleedStacks = 0;
+  let appliedFractureStacks = 0;
+  let appliedMarkStacks = 0;
+  let pendingMageVolatileMult = initialMageVolatileMult;
+  const openingHitPending = !enemyRuntime.openingHitSpent && (s.openingHitDamageMult || 1) > 1;
+  const executeThreshold = Math.max(0.15, Number(s.executeThreshold || 0));
 
-  for (let hitIndex = 0; hitIndex < hitCount; hitIndex += 1) {
-    const enemyHpAfterHits = Math.max(0, enemy.hp - playerDmg);
-    const hitEnemyHpPct = enemyHpAfterHits / enemy.maxHp;
-    let hitLowHpMult = 1;
+  if (enemyHpAfterStatuses > 0) {
+    for (let hitIndex = 0; hitIndex < hitCount; hitIndex += 1) {
+      const enemyHpAfterHits = Math.max(0, enemyHpAfterStatuses - playerDmg);
+      const hitEnemyHpPct = enemyHpAfterHits / enemy.maxHp;
+      let hitLowHpMult = 1;
+      const flowStacksBeforeHit = Math.max(0, Number(nextEnemyRuntime.flowStacks || 0));
+      const combatFlowMult =
+        (s.combatFlow || 0) > 0
+          ? 1 + Math.min(Number(s.combatFlowMaxStacks || 0), flowStacksBeforeHit) * Number(s.combatFlowPerStack || 0)
+          : 1;
+      const mageTemporalStacks = Math.max(0, Number(nextEnemyRuntime.mageTemporalFlowStacks || 0));
+      const temporalFlowMult =
+        (s.temporalFlowPerStack || 0) > 0
+          ? 1 + Math.min(Number(s.temporalFlowMaxStacks || 0), mageTemporalStacks) * Number(s.temporalFlowPerStack || 0)
+          : 1;
+      const markStacksBeforeHit = Math.max(0, Number(nextEnemyRuntime.markStacks || 0));
+      const mageMemoryStacks = Math.max(0, Number(nextEnemyRuntime.mageMemoryStacks || 0));
+      const markEffectPerStack =
+        Math.max(0, Number(s.markEffectPerStack || 0)) +
+        mageMemoryStacks *
+          (Math.max(0, Number(s.spellMemoryMarkEffectPerStack || 0)) +
+            Math.max(0, Number(legendaryBonuses.spellMemoryMarkEffectPerStack || 0))) +
+        Math.max(0, Number(legendaryBonuses.markEffectPerStack || 0));
+      const markedTargetMult = markStacksBeforeHit > 0 ? 1 + markStacksBeforeHit * markEffectPerStack : 1;
+      const absoluteControlMult =
+        markStacksBeforeHit > 0
+          ? Math.max(1, Number(s.absoluteControlMarkedMult || 1))
+          : Math.max(0.5, Number(s.absoluteControlUnmarkedMult || 1));
+      const freshTargetMult =
+        !nextEnemyRuntime.hasTakenPlayerHit
+          ? Math.max(1, Number(s.freshTargetDamageMult || 1)) *
+            Math.max(1, Number(legendaryBonuses.freshTargetDamageMult || 1))
+          : 1;
+      const mageFlowMult =
+        (nextEnemyRuntime.mageFlowHitsRemaining || 0) > 0
+          ? Math.max(1, Number(nextEnemyRuntime.mageFlowBonusMult || 1))
+          : 1;
+      const volatileMult = Math.max(0.2, Number(pendingMageVolatileMult || 1));
+      const rangeRoll = s.isMage
+        ? rollDamageRangeMultiplier({
+            damageRangeMin: (s.damageRangeMin || 1) + (legendaryBonuses.damageRangeMin || 0),
+            damageRangeMax: (s.damageRangeMax || 1) + (legendaryBonuses.damageRangeMax || 0),
+          })
+        : 1;
+      const overchannelChainPenalty =
+        hitIndex > 0 && (s.overchannelPenaltyPerExtraHit || 0) > 0
+          ? Math.max(0.45, 1 - Number(s.overchannelPenaltyPerExtraHit || 0) * hitIndex)
+          : 1;
 
-    if (hitEnemyHpPct < 0.3) {
-      if (unlockedTalents.includes("shadowblade_execution")) hitLowHpMult *= 1.5;
-      if (unlockedTalents.includes("executioner_finish")) hitLowHpMult *= 1.6;
+      if (hitEnemyHpPct < 0.3) {
+        if (unlockedTalents.includes("shadowblade_execution")) hitLowHpMult *= 1.5;
+        if (unlockedTalents.includes("executioner_finish")) hitLowHpMult *= 1.6;
+      }
+      if (hitEnemyHpPct <= executeThreshold) {
+        hitLowHpMult *= Math.max(1, Number(s.executeDamageMult || 1));
+      }
+
+      const rawCrit = !enemyCritImmune && Math.random() < effectiveCritChance;
+      const bossAbsorbCrit =
+        rawCrit &&
+        hasBossMechanic(enemy, "absorb_first_crit") &&
+        !enemyRuntime.absorbFirstCritUsed &&
+        !consumedFirstCritShield;
+      const hitCrit = rawCrit && !bossAbsorbCrit;
+      const critMultiplier = hitCrit ? 2 + (s.critDamage || 0) + (legendaryBonuses.critDamage || 0) : 1;
+      const fracturedDefense = getFractureReducedDefense(enemy.defense || 0, nextEnemyRuntime.fractureStacks || 0);
+      const enemyDefenseMultiplier = getEnemyDefenseMultiplier(fracturedDefense);
+      const openingHitMultiplier =
+        hitIndex === 0 && openingHitPending
+          ? Math.max(1, s.openingHitDamageMult || 1)
+          : 1;
+      let hitDamage = Math.floor(
+        (s.damage +
+          (legendaryBonuses.damageFlat || 0) +
+          (effectMods.damageFlat || 0) +
+          (hitIndex === 0 ? pendingOnKillDamage : 0)) *
+          critMultiplier *
+          (eventMods.damageMult || 1) *
+          (effectMods.damageMult || 1) *
+          (legendaryBonuses.damageMult || 1) *
+          (effectMods.enemyDamageTakenMult || 1) *
+          openingHitMultiplier *
+          combatFlowMult *
+          temporalFlowMult *
+          markedTargetMult *
+          absoluteControlMult *
+          freshTargetMult *
+          mageFlowMult *
+          volatileMult *
+          rangeRoll *
+          Math.max(0.7, Number(s.cataclysmSustainMult || 1)) *
+          overchannelChainPenalty *
+          (hitIndex > 0
+            ? Math.max(0.35, Number(s.multiHitDamageMult || 1) + Number(legendaryBonuses.multiHitDamageMult || 0))
+            : 1) *
+          hitLowHpMult *
+          enemyDefenseMultiplier
+      );
+      hitDamage = Math.max(0, hitDamage - enemyFlatReduction);
+      if (bossShieldActive && hitIndex === 0) hitDamage = 0;
+      if (hitIndex === 0 && hitDamage > 0 && openingHitPending) {
+        nextEnemyRuntime.openingHitSpent = true;
+      }
+
+      playerDmg += hitDamage;
+      if (hitCrit) didCrit = true;
+      if (bossAbsorbCrit) consumedFirstCritShield = true;
+      if (hitDamage > 0) {
+        nextEnemyRuntime.hasTakenPlayerHit = true;
+      }
+
+      if (hitDamage > 0 && Math.random() < totalFractureChance) {
+        nextEnemyRuntime.fractureStacks = Math.min(
+          FRACTURE_STACK_CAP,
+          Number(nextEnemyRuntime.fractureStacks || 0) + 1
+        );
+        nextEnemyRuntime.fractureTicksRemaining = FRACTURE_DURATION_TICKS;
+        appliedFractureStacks += 1;
+      }
+
+      if (hitDamage > 0 && Math.random() < totalBleedChance) {
+        const bleedPerStack = Math.max(
+          1,
+          Math.floor(hitDamage * (0.02 + totalBleedDamage * 0.35))
+        );
+        nextEnemyRuntime.bleedStacks = Math.min(
+          BLEED_STACK_CAP,
+          Number(nextEnemyRuntime.bleedStacks || 0) + 1
+        );
+        nextEnemyRuntime.bleedPerStack = Math.max(
+          Number(nextEnemyRuntime.bleedPerStack || 0),
+          bleedPerStack
+        );
+        nextEnemyRuntime.bleedTicksRemaining = BLEED_DURATION_TICKS;
+        appliedBleedStacks += 1;
+      }
+
+      if (hitDamage > 0 && totalMarkChance > 0 && Math.random() < totalMarkChance) {
+        const highRollOrCrit =
+          hitCrit ||
+          rangeRoll >= Math.max(1.02, (Number(s.damageRangeMin || 1) + Number(s.damageRangeMax || 1)) / 2);
+        const markGain = 1 + (highRollOrCrit ? Math.max(0, Number(s.overloadExtraMarks || 0)) : 0);
+        nextEnemyRuntime.markStacks = Math.min(
+          Math.max(1, Number(s.markMaxStacks || 1)),
+          Number(nextEnemyRuntime.markStacks || 0) + markGain
+        );
+        nextEnemyRuntime.markTicksRemaining = Math.max(1, Number(s.markDuration || 1));
+        appliedMarkStacks += markGain;
+      }
+
+      if (hitDamage > 0 && (s.combatFlow || 0) > 0) {
+        nextEnemyRuntime.flowStacks = Math.min(
+          Number(s.combatFlowMaxStacks || 6),
+          Number(nextEnemyRuntime.flowStacks || 0) + 1
+        );
+      }
+
+      if (hitDamage > 0 && (s.spellMemoryMarkEffectPerStack || 0) > 0) {
+        nextEnemyRuntime.mageMemoryStacks = Math.min(
+          Number(s.spellMemoryMaxStacks || 0),
+          Number(nextEnemyRuntime.mageMemoryStacks || 0) + 1
+        );
+      }
+
+      if (hitDamage > 0 && (s.temporalFlowPerStack || 0) > 0) {
+        nextEnemyRuntime.mageTemporalFlowStacks = Math.min(
+          Number(s.temporalFlowMaxStacks || 0),
+          Number(nextEnemyRuntime.mageTemporalFlowStacks || 0) + 1
+        );
+      }
+
+      if (hitDamage > 0 && (nextEnemyRuntime.mageFlowHitsRemaining || 0) > 0) {
+        nextEnemyRuntime.mageFlowHitsRemaining = Math.max(
+          0,
+          Number(nextEnemyRuntime.mageFlowHitsRemaining || 0) - 1
+        );
+        if ((nextEnemyRuntime.mageFlowHitsRemaining || 0) <= 0) {
+          nextEnemyRuntime.mageFlowBonusMult = 1;
+        }
+      }
+
+      if ((s.volatileCasting || 0) > 0) {
+        const highRollOrCrit =
+          hitDamage > 0 &&
+          (hitCrit ||
+            rangeRoll >= Math.max(1.02, (Number(s.damageRangeMin || 1) + Number(s.damageRangeMax || 1)) / 2));
+        pendingMageVolatileMult = highRollOrCrit
+          ? Math.max(1, Number(s.volatileCritNextHitMult || 1))
+          : Math.max(0.2, Number(s.volatileFailNextHitMult || 1));
+      }
+
+      if (playerDmg >= enemyHpAfterStatuses) break;
     }
-
-    const rawCrit = !enemyCritImmune && Math.random() < effectiveCritChance;
-    const bossAbsorbCrit =
-      rawCrit &&
-      hasBossMechanic(enemy, "absorb_first_crit") &&
-      !enemyRuntime.absorbFirstCritUsed &&
-      !consumedFirstCritShield;
-    const hitCrit = rawCrit && !bossAbsorbCrit;
-    const critMultiplier = hitCrit ? 2 + (s.critDamage || 0) + (legendaryBonuses.critDamage || 0) : 1;
-    let hitDamage = Math.floor(
-      (s.damage +
-        (legendaryBonuses.damageFlat || 0) +
-        (hitIndex === 0 ? skillExtraDamage : 0) +
-        (effectMods.damageFlat || 0) +
-        (hitIndex === 0 ? pendingOnKillDamage : 0)) *
-        critMultiplier *
-        (eventMods.damageMult || 1) *
-        (effectMods.damageMult || 1) *
-        (legendaryBonuses.damageMult || 1) *
-        (effectMods.enemyDamageTakenMult || 1) *
-        hitLowHpMult
-    );
-    hitDamage = Math.max(0, hitDamage - enemyFlatReduction);
-    if (bossShieldActive && hitIndex === 0) hitDamage = 0;
-    if (hitIndex === 0) firstHitDamage = hitDamage;
-
-    playerDmg += hitDamage;
-    if (hitCrit) didCrit = true;
-    if (bossAbsorbCrit) consumedFirstCritShield = true;
-
-    if (playerDmg >= enemy.hp) break;
   }
 
   const comboText = hitCount > 1 ? ` x${hitCount} golpes` : "";
   const critText = didCrit ? " [CRIT]" : "";
-  const skillDamageTotal = skillExtraDamage > 0 ? firstHitDamage : 0;
-  const enemyHpBeforeDamage = Math.min(enemy.maxHp, enemy.hp + enemyRegenPerTick);
+  const enemyHpBeforeDamage = enemyHpAfterStatuses;
   const armorShred = getBossMechanic(enemy, "armor_shred");
   const ignoreDefenseThisTick =
     !!armorShred && currentTick % (armorShred.params?.every || 6) === 0;
-  const enemyDamageBase = evaded
+  const enemyDamageBase = enemyHpBeforeDamage <= 0
+    ? 0
+    : evaded
     ? 0
     : Math.max(1, Math.floor(enemy.damage * enemyDamageMult * bossDamageMult) - (ignoreDefenseThisTick ? 0 : effectiveDefense));
   const blocked =
@@ -425,10 +687,8 @@ export function processTick(state) {
     Math.random() < Math.min(CRIT_CAP, Math.max(0, (s.blockChance || 0) + (legendaryBonuses.blockChance || 0)));
   const enemyDmg = blocked ? 0 : enemyDamageBase * enemyStrikeCount;
   const tookDamage = enemyDmg > 0;
-  const hpAfterSkillHeal = Math.min(s.maxHp, preImmediate.hp + Math.max(0, skillExtraHeal));
-  const appliedSkillHeal = Math.max(0, hpAfterSkillHeal - preImmediate.hp);
-  const regenHp = Math.min(s.maxHp, hpAfterSkillHeal + regenAmount);
-  const appliedRegen = Math.max(0, regenHp - hpAfterSkillHeal);
+  const regenHp = Math.min(s.maxHp, preImmediate.hp + regenAmount);
+  const appliedRegen = Math.max(0, regenHp - preImmediate.hp);
   let newPlayerHp = regenHp - enemyDmg;
   const thornsDamage = tookDamage ? Math.max(0, Math.floor((s.thorns || 0) + (effectMods.thornsFlat || 0))) : 0;
   const reflectedToPlayer =
@@ -437,13 +697,40 @@ export function processTick(state) {
       : 0;
   newPlayerHp -= reflectedToPlayer;
   const playerHpBeforePostImmediate = newPlayerHp;
-  const totalOutgoingDamage = playerDmg + thornsDamage;
-  const newEnemyHp = enemyHpBeforeDamage - totalOutgoingDamage;
+  const directOutgoingDamage = playerDmg + thornsDamage;
+  const totalOutgoingDamage = directOutgoingDamage + bleedTickDamage;
+  const newEnemyHp = enemyHpBeforeDamage - directOutgoingDamage;
   const enemyKilled = newEnemyHp <= 0;
+  const mitigatedHit =
+    !evaded &&
+    enemyDamageBase > 0 &&
+    (blocked || enemyDmg <= Math.max(12, effectiveDefense * 0.22));
+  const heavyDamageTaken = tookDamage && enemyDmg >= Math.max(18, s.maxHp * 0.12);
   const evadeText = evaded ? " [EVADE]" : "";
   const blockText = blocked ? " [BLOCK]" : "";
   const thornsText = thornsDamage > 0 ? ` [ESPINAS ${thornsDamage}]` : "";
+  const bleedText = bleedTickDamage > 0 ? ` [SANGRADO ${bleedTickDamage}]` : "";
   const reflectText = reflectedToPlayer > 0 ? ` [REFLEJO ${reflectedToPlayer}]` : "";
+  const fractureText =
+    (nextEnemyRuntime.fractureStacks || 0) > 0
+      ? ` [FRACTURA ${nextEnemyRuntime.fractureStacks}]`
+      : "";
+  const markText =
+    (nextEnemyRuntime.markStacks || 0) > 0
+      ? ` [MARCA ${nextEnemyRuntime.markStacks}]`
+      : "";
+  const mageFlowText =
+    (nextEnemyRuntime.mageFlowHitsRemaining || 0) > 0
+      ? ` [FLOW ${nextEnemyRuntime.mageFlowHitsRemaining}]`
+      : "";
+  const mageMemoryText =
+    (nextEnemyRuntime.mageMemoryStacks || 0) > 0
+      ? ` [MEMORIA ${nextEnemyRuntime.mageMemoryStacks}]`
+      : "";
+  const mageRampText =
+    (nextEnemyRuntime.mageTemporalFlowStacks || 0) > 0
+      ? ` [RAMPA ${nextEnemyRuntime.mageTemporalFlowStacks}]`
+      : "";
   const nextTriggerCounters = buildTriggerCounters(state.combat.triggerCounters, {
     didCrit,
     tookDamage,
@@ -501,18 +788,11 @@ export function processTick(state) {
   newPlayerHp = immediatePostTrigger.hp;
   const postImmediateHeal = Math.max(0, newPlayerHp - playerHpBeforePostImmediate);
   const primaryDamageFloat = createCombatFloatEvent("damage", playerDmg, { crit: didCrit });
-  const skillDamageFloat =
-    skillDamageTotal > 0 && skillDamageTotal !== playerDmg
-      ? createCombatFloatEvent("skillDamage", skillDamageTotal, { source: "skill" })
-      : null;
   const thornsDamageFloat = createCombatFloatEvent("thornsDamage", thornsDamage, { source: "thorns" });
   const nextFloatEvents = appendCombatFloatEvents(state.combat.floatEvents, [
     primaryDamageFloat,
-    skillDamageFloat,
+    bleedTickDamage > 0 ? createCombatFloatEvent("damage", bleedTickDamage, { source: "bleed" }) : null,
     thornsDamageFloat,
-    appliedSkillHeal >= HEAL_FLOAT_THRESHOLD
-      ? createCombatFloatEvent("skillHeal", appliedSkillHeal, { source: "skill" })
-      : null,
     appliedRegen >= HEAL_FLOAT_THRESHOLD
       ? createCombatFloatEvent("heal", appliedRegen, { source: "regen" })
       : null,
@@ -520,11 +800,57 @@ export function processTick(state) {
       ? createCombatFloatEvent("heal", postImmediateHeal, { source: "lifesteal" })
       : null,
   ]);
-  const nextSkillDamageTimeline = appendSkillDamageTimeline(
-    state.combat.skillDamageTimeline,
-    skillDamageEvents
-  );
-  const nextEffects = applyEffects(activeEffects, [...(postPersistentEffects || []), ...(postLegendaryEffects || [])]);
+  const runtimeEffects = [];
+  if ((s.bloodDebt || 0) > 0 && postImmediateHeal >= HEAL_FLOAT_THRESHOLD) {
+    runtimeEffects.push({
+      duration: 4,
+      source: "keystone",
+      sourceId: "berserker_blood_debt",
+      tags: ["keystone", "rage"],
+      stackable: true,
+      maxStacks: 2 + Math.max(1, Number(s.bloodDebt || 0)),
+      modifiers: [
+        { type: MOD_TYPES.DAMAGE_MULT, value: 1 + Number(s.bloodDebt || 0) * 0.01 },
+        { type: MOD_TYPES.ATTACK_SPEED_FLAT, value: 0.003 + Number(s.bloodDebt || 0) * 0.003 },
+      ],
+    });
+  }
+  if ((s.fortress || 0) > 0 && mitigatedHit) {
+    runtimeEffects.push({
+      duration: 3,
+      source: "talent",
+      sourceId: "juggernaut_fortress_guard",
+      tags: ["fortress"],
+      stackable: true,
+      maxStacks: 1 + Math.max(1, Number(s.fortress || 0)),
+      modifiers: [{ type: MOD_TYPES.DAMAGE_MULT, value: 1 + Number(s.fortress || 0) * 0.006 }],
+    });
+  }
+  if ((s.titanicMomentum || 0) > 0 && !heavyDamageTaken && newPlayerHp / s.maxHp >= 0.85) {
+    runtimeEffects.push({
+      duration: 4,
+      source: "keystone",
+      sourceId: "juggernaut_titanic_momentum",
+      tags: ["keystone", "momentum"],
+      stackable: true,
+      maxStacks: 3 + Number(s.titanicMomentum || 0) * 2,
+      modifiers: [
+        { type: MOD_TYPES.DAMAGE_MULT, value: 1 + Number(s.titanicMomentum || 0) * 0.004 },
+        { type: MOD_TYPES.DEFENSE_MULT, value: 1 + Number(s.titanicMomentum || 0) * 0.004 },
+      ],
+    });
+  }
+  const persistentEffects =
+    (s.titanicMomentum || 0) > 0 && (heavyDamageTaken || newPlayerHp / s.maxHp < 0.72)
+      ? activeEffects.filter(effect => effect?.sourceId !== "juggernaut_titanic_momentum")
+      : activeEffects;
+  const nextEffects = applyEffects(persistentEffects, [
+    ...(postPersistentEffects || []),
+    ...(postLegendaryEffects || []),
+    ...runtimeEffects,
+  ]);
+  const momentumStacks = countEffectsBySourceId(nextEffects, "juggernaut_titanic_momentum");
+  const flowStacks = Math.max(0, Number(nextEnemyRuntime.flowStacks || 0));
 
   if (newPlayerHp <= 0) {
     const lastRunSummary = buildLastRunSummary(state, enemy, "death");
@@ -538,8 +864,6 @@ export function processTick(state) {
       timeInTier: incrementMapValue(sessionAnalytics.timeInTier, currentCombatTier, 1),
       damageDealt: (sessionAnalytics.damageDealt || 0) + totalOutgoingDamage,
       damageTaken: (sessionAnalytics.damageTaken || 0) + enemyDmg + reflectedToPlayer,
-      autoSkillCasts: (sessionAnalytics.autoSkillCasts || 0) + ((effectsToApply?.length || 0) > 0 || skillExtraDamage > 0 || skillExtraHeal > 0 ? (skillCastLogs?.length || 0) : 0),
-      autoSkillBonusDamage: (sessionAnalytics.autoSkillBonusDamage || 0) + Math.max(0, skillExtraDamage || 0),
       maxTierReached: Math.max(sessionAnalytics.maxTierReached || 1, state.combat.maxTier || state.combat.currentTier || 1),
       maxLevelReached: Math.max(sessionAnalytics.maxLevelReached || 1, state.player.level || 1),
     };
@@ -549,7 +873,7 @@ export function processTick(state) {
       player: {
         ...state.player,
         hp: s.maxHp,
-        gold: sanitizeCurrencyValue(Math.floor((state.player.gold || 0) * 0.5), SAFE_RUNTIME_GOLD_CAP),
+        gold: sanitizeCurrencyValue(Math.floor((state.player.gold || 0) * 0.75), SAFE_RUNTIME_GOLD_CAP),
       },
       stats: {
         ...state.stats,
@@ -557,7 +881,7 @@ export function processTick(state) {
       },
       combat: {
         ...state.combat,
-        enemy: spawnEnemy(1),
+        enemy: hydrateSpawnedEnemy(spawnEnemy(1)),
         currentTier: 1,
         effects: [],
         autoAdvance: false,
@@ -570,11 +894,9 @@ export function processTick(state) {
           onDamageTaken: 0,
         },
         pendingOnKillDamage: 0,
+        pendingMageVolatileMult: 1,
         floatEvents: [],
-        skillDamageTimeline: [],
         lastRunTier: state.combat.maxTier || state.combat.currentTier || 1,
-        skillCooldowns: updatedCooldowns,
-        activeEvents: [],
         runStats: getEmptyRunStats(),
         prestigeCycle,
         performanceSnapshot: getEmptyPerformanceSnapshot(),
@@ -587,7 +909,7 @@ export function processTick(state) {
           ...preLegendaryLogs,
           ...postTriggerLogs,
           ...postLegendaryLogs,
-          `Tu heroe cayo frente a ${enemy.name}. La run termino y perdiste la mitad del oro.`,
+          `Tu heroe cayo frente a ${enemy.name}. La run termino y perdiste un cuarto del oro.`,
         ].slice(-20),
       },
     };
@@ -605,16 +927,25 @@ export function processTick(state) {
       damageTaken: (sessionAnalytics.damageTaken || 0) + enemyDmg + reflectedToPlayer,
       maxTierReached: Math.max(sessionAnalytics.maxTierReached || 1, state.combat.maxTier || state.combat.currentTier || 1),
       maxLevelReached: Math.max(sessionAnalytics.maxLevelReached || 1, state.player.level || 1),
-      autoSkillCasts: (sessionAnalytics.autoSkillCasts || 0) + ((effectsToApply?.length || 0) > 0 || skillExtraDamage > 0 || skillExtraHeal > 0 ? (skillCastLogs?.length || 0) : 0),
-      autoSkillBonusDamage: (sessionAnalytics.autoSkillBonusDamage || 0) + Math.max(0, skillExtraDamage || 0),
     };
     const combatNotes = [
       bossShieldActive ? " [ESCUDO]" : "",
       consumedFirstCritShield ? " [CRIT ABSORBIDO]" : "",
       enemyRegenPerTick > 0 ? ` [REGEN ${enemyRegenPerTick}]` : "",
+      bleedText,
+      fractureText,
+      appliedBleedStacks > 0 ? ` [APLICA SANGRADO x${appliedBleedStacks}]` : "",
+      appliedFractureStacks > 0 ? ` [APLICA FRACTURA x${appliedFractureStacks}]` : "",
       ignoreDefenseThisTick ? " [ARMOR SHRED]" : "",
       enemyStrikeCount > 1 ? " [DOBLE GOLPE]" : "",
       reflectText,
+      flowStacks > 0 ? ` [FLUJO ${flowStacks}]` : "",
+      momentumStacks > 0 ? ` [MOMENTO ${momentumStacks}]` : "",
+      markText,
+      mageFlowText,
+      mageMemoryText,
+      mageRampText,
+      appliedMarkStacks > 0 ? ` [APLICA MARCA x${appliedMarkStacks}]` : "",
     ].join("");
 
     return {
@@ -623,18 +954,16 @@ export function processTick(state) {
       player: { ...state.player, hp: newPlayerHp },
       combat: {
         ...state.combat,
-        skillCooldowns: updatedCooldowns,
         effects: nextEffects,
-        activeEvents: remainingEvents,
         triggerCounters: nextTriggerCounters,
         pendingOnKillDamage: 0,
+        pendingMageVolatileMult,
         floatEvents: nextFloatEvents,
-        skillDamageTimeline: nextSkillDamageTimeline,
         enemy: {
           ...enemy,
           hp: newEnemyHp,
           runtime: {
-            ...enemyRuntime,
+            ...nextEnemyRuntime,
             absorbFirstCritUsed: enemyRuntime.absorbFirstCritUsed || consumedFirstCritShield,
           },
         },
@@ -658,10 +987,9 @@ export function processTick(state) {
           ...state.combat.log,
           ...preTriggerLogs,
           ...preLegendaryLogs,
-          ...skillCastLogs,
           ...postTriggerLogs,
           ...postLegendaryLogs,
-          `Impactas por ${playerDmg}${comboText}${critText}${thornsText} - ${enemy.name}: ${Math.max(0, newEnemyHp)} HP | ${enemy.name} responde por ${enemyDmg}${evadeText}${blockText}${combatNotes} - vos: ${Math.max(0, newPlayerHp)} HP`,
+          `Impactas por ${playerDmg}${comboText}${critText}${thornsText}${bleedText} - ${enemy.name}: ${Math.max(0, newEnemyHp)} HP | ${enemy.name} responde por ${enemyDmg}${evadeText}${blockText}${combatNotes} - vos: ${Math.max(0, newPlayerHp)} HP`,
         ].slice(-20),
       },
     };
@@ -707,6 +1035,9 @@ export function processTick(state) {
   let legendaryPowerDuplicates = 0;
   let autoSellGold = 0;
   let autoExtractEssence = 0;
+  const nextKillFloatEvents = appendCombatFloatEvents(nextFloatEvents, [
+    xpGained > 0 ? createCombatFloatEvent("xp", xpGained, { source: "xp" }) : null,
+  ]);
 
   if (loot) {
     const previousPowerDiscoveries = Number(sightedCodex?.powerDiscoveries?.[loot.legendaryPowerId] || 0);
@@ -862,8 +1193,6 @@ export function processTick(state) {
     itemsExtracted: (sessionAnalytics.itemsExtracted || 0) + (lootStatsPatch.itemsExtracted ? 1 : 0),
     autoSoldItems: (sessionAnalytics.autoSoldItems || 0) + (lootStatsPatch.autoSoldItems || 0),
     autoExtractedItems: (sessionAnalytics.autoExtractedItems || 0) + (lootStatsPatch.autoExtractedItems || 0),
-    autoSkillCasts: (sessionAnalytics.autoSkillCasts || 0) + ((effectsToApply?.length || 0) > 0 || skillExtraDamage > 0 || skillExtraHeal > 0 ? (skillCastLogs?.length || 0) : 0),
-    autoSkillBonusDamage: (sessionAnalytics.autoSkillBonusDamage || 0) + Math.max(0, skillExtraDamage || 0),
     maxTierReached: Math.max(sessionAnalytics.maxTierReached || 1, newMaxTier),
     maxLevelReached: Math.max(sessionAnalytics.maxLevelReached || 1, newPlayer.level || state.player.level || 1),
     firstRareTick:
@@ -903,44 +1232,6 @@ export function processTick(state) {
     achievement => `LOGRO: ${achievement.name} +${achievement.reward || 0} oro`
   );
 
-  let { newPlayer: playerAfterEvents, newActiveEvents, logs: eventLogs } = processEvents(
-    "onKill",
-    {
-      ...state,
-      player: newPlayer,
-      combat: { ...state.combat, activeEvents: remainingEvents },
-    }
-  );
-  newPlayer = playerAfterEvents;
-
-  if (newPlayer.level > levelBefore) {
-    const { newPlayer: p2, newActiveEvents: ev2, logs: lvlLogs } = processEvents(
-      "onLevelUp",
-      {
-        ...state,
-        player: newPlayer,
-        combat: { ...state.combat, activeEvents: newActiveEvents },
-      }
-    );
-    newPlayer = p2;
-    newActiveEvents = ev2;
-    eventLogs = [...eventLogs, ...lvlLogs];
-  }
-
-  if (enemy.isBoss) {
-    const { newPlayer: p3, newActiveEvents: ev3, logs: bossLogs } = processEvents(
-      "onBoss",
-      {
-        ...state,
-        player: newPlayer,
-        combat: { ...state.combat, activeEvents: newActiveEvents },
-      }
-    );
-    newPlayer = p3;
-    newActiveEvents = ev3;
-    eventLogs = [...eventLogs, ...bossLogs];
-  }
-
   const nextPrestigeCycle = createEmptyPrestigeCycleProgress({
     ...prestigeCycle,
     kills: (prestigeCycle.kills || 0) + 1,
@@ -961,6 +1252,30 @@ export function processTick(state) {
     recordLegendaryPowerDiscovery(codexAfterKill, loot, legendaryDiscoveryGain);
   newlyUnlockedLegendaryPower = unlockedPowerFromDrop || newlyUnlockedLegendaryPower;
   newPlayer = syncCodexBonuses(newPlayer, nextCodex);
+  const transferredMarkStacks =
+    (nextEnemyRuntime.markStacks || 0) > 0
+      ? Math.max(
+          0,
+          Math.floor(
+            Number(nextEnemyRuntime.markStacks || 0) *
+              Math.max(0, Number(s.markTransferPct || 0) + Number(legendaryBonuses.markTransferPct || 0))
+          )
+        )
+      : 0;
+  const transferredMarkTicks =
+    transferredMarkStacks > 0
+      ? Math.max(1, Math.ceil(Math.max(1, Number(s.markDuration || 0)) * 0.75))
+      : 0;
+  const nextEnemyFlowHits = Math.max(0, Number(s.flowHits || 0) + Number(legendaryBonuses.flowHits || 0));
+  const nextEnemyFlowBonusMult =
+    nextEnemyFlowHits > 0 ? Math.max(1, Number(s.flowBonusMult || 1)) : 1;
+  const nextEnemy = hydrateSpawnedEnemy(spawnEnemy(nextTier), {
+    markStacks: transferredMarkStacks,
+    markTicksRemaining: transferredMarkTicks,
+    mageFlowBonusMult: nextEnemyFlowBonusMult,
+    mageFlowHitsRemaining: nextEnemyFlowHits,
+    hasTakenPlayerHit: false,
+  });
 
   return {
     ...state,
@@ -970,14 +1285,12 @@ export function processTick(state) {
     achievements: newAchievements,
     combat: {
       ...state.combat,
-      skillCooldowns: updatedCooldowns,
-      activeEvents: newActiveEvents,
       effects: nextEffects,
       sessionKills: newSessionKills,
       triggerCounters: nextTriggerCounters,
       pendingOnKillDamage: s.damageOnKill || 0,
-      floatEvents: nextFloatEvents,
-      skillDamageTimeline: nextSkillDamageTimeline,
+      pendingMageVolatileMult,
+      floatEvents: nextKillFloatEvents,
       runStats: {
         kills: (previousRunStats.kills || 0) + 1,
         damageDealt: (previousRunStats.damageDealt || 0) + totalOutgoingDamage,
@@ -1002,7 +1315,7 @@ export function processTick(state) {
         }
       ),
       analytics: nextAnalytics,
-      enemy: spawnEnemy(nextTier),
+      enemy: nextEnemy,
       currentTier: nextTier,
       maxTier: newMaxTier,
       autoAdvance,
@@ -1016,8 +1329,6 @@ export function processTick(state) {
         ...preLegendaryLogs,
         ...postTriggerLogs,
         ...postLegendaryLogs,
-        ...skillCastLogs,
-        ...eventLogs,
       ].slice(-20),
     },
   };

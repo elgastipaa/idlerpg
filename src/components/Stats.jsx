@@ -1,6 +1,5 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { calculatePrestigeEchoGain, canPrestige, getPrestigeRank } from "../engine/progression/prestigeEngine";
-import { getActiveGoals, getUnclaimedGoals } from "../engine/progression/goalEngine";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
 import { buildSessionTelemetryEntries, buildSessionTelemetryReport, buildSessionTelemetrySections } from "../utils/runTelemetry";
 import { buildReplayDatasetSummary, buildReplayJsonExport, buildReplayLibraryExport, buildReplaySummary, buildReplayTextReport, deriveHumanReplayProfile, parseReplayImportPayload } from "../utils/replayLog";
@@ -62,26 +61,16 @@ function currentTierPressure(tier = 1) {
   return Math.max(10, Math.round(12 + tier * 10 + tier * tier * 1.5));
 }
 
-function formatGoalReward(reward = {}) {
-  const chunks = [];
-  if (reward.gold) chunks.push(`+${reward.gold} oro`);
-  if (reward.essence) chunks.push(`+${reward.essence} esencia`);
-  if (reward.talentPoints) chunks.push(`+${reward.talentPoints} TP`);
-  return chunks.join(" · ");
-}
-
-export default function Stats({ state, dispatch }) {
+export default function Stats({ state, dispatch, mode = "stats" }) {
   const { player, combat, prestige } = state;
   const isDarkMode = state.settings?.theme === "dark";
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [openSections, setOpenSections] = useState({
-    journey: true,
     save: false,
     bot: false,
     replay: false,
     telemetry: false,
     lastRun: false,
-    effects: true,
   });
   const [copied, setCopied] = useState(false);
   const [saveCopied, setSaveCopied] = useState(false);
@@ -109,7 +98,6 @@ export default function Stats({ state, dispatch }) {
   const prestigeStatus = canPrestige(state);
   const nextPrestige = prestigeStatus.nextRank;
   const projectedPoints = calculatePrestigeEchoGain(state);
-  const prestigePreview = prestigeStatus.preview || { breakdown: [] };
   const currentRun = combat.runStats || {};
   const snapshot = combat.performanceSnapshot || {};
   const analytics = combat.analytics || {};
@@ -152,9 +140,8 @@ export default function Stats({ state, dispatch }) {
     2
   ), [hasCurrentReplayData, state.replay, activeReplayLibraryEntries]);
   const buildTag = getPlayerBuildTag(player);
-  const activeGoals = useMemo(() => getActiveGoals(state, 6), [state]);
-  const allPendingGoals = useMemo(() => getUnclaimedGoals(state), [state]);
-  const pendingGoals = useMemo(() => allPendingGoals.slice(0, 12), [allPendingGoals]);
+  const isLab = mode === "lab";
+  const isStatsMode = !isLab;
 
   const damagePerTick = snapshot.damagePerTick || 0;
   const goldPerTick = snapshot.goldPerTick || 0;
@@ -168,31 +155,26 @@ export default function Stats({ state, dispatch }) {
   const lastRunSummary = combat.lastRunSummary;
   const weapon = player.equipment.weapon;
   const armor = player.equipment.armor;
-  const gearRating = (weapon?.rating || 0) + (armor?.rating || 0);
 
   useEffect(() => {
     if (!isMobile) {
       setOpenSections({
-        journey: true,
-        save: true,
-        bot: true,
-        replay: true,
-        telemetry: true,
-        lastRun: true,
-        effects: true,
+        save: isLab,
+        bot: isLab,
+        replay: isLab,
+        telemetry: isStatsMode,
+        lastRun: isStatsMode,
       });
       return;
     }
     setOpenSections({
-      journey: true,
       save: false,
       bot: false,
       replay: false,
-      telemetry: false,
+      telemetry: isStatsMode,
       lastRun: false,
-      effects: true,
     });
-  }, [isMobile]);
+  }, [isLab, isMobile, isStatsMode]);
 
   const buildStatus =
     survivabilityRatio < 0.35
@@ -203,28 +185,6 @@ export default function Stats({ state, dispatch }) {
           ? { label: "Parejo", color: "#534AB7", description: "La build esta compitiendo bien y todavia puede empujar." }
           : { label: "Ajustado", color: "#f59e0b", description: "Te conviene reforzar dano o defensa antes de seguir escalando." };
 
-  const prestigeCoach =
-    prestigeStatus.ok
-      ? {
-          label: "Listo para prestigiar",
-          color: "#f59e0b",
-          description: `Si reseteas ahora, cobras +${projectedPoints} ecos y conservas clase/spec.`,
-        }
-      : {
-          label: "Segui empujando",
-          color: "#94a3b8",
-          description: "El primer eco aparece rapido: rompe Tier 3, Nivel 10 o 50 kills en el ciclo.",
-        };
-
-  const powerScore = Math.floor(
-    player.level * 10 +
-    player.damage * 2 +
-    player.defense * 5 +
-    gearRating +
-    ((player.damagePct || 0) * 100) +
-    ((player.hpPct || 0) * 50)
-  );
-
   const runRows = [
     { label: "Estado", value: buildStatus.label, accent: buildStatus.color },
     { label: "Build", value: buildTag?.name || "Sin tag", accent: "#0f766e" },
@@ -232,11 +192,11 @@ export default function Stats({ state, dispatch }) {
     { label: "Presion Tier", value: formatNumber(estimatedTierPressure) },
     { label: "Ritmo", value: `${formatNumber(pressureRatio)}x`, accent: "#f59e0b" },
     { label: "Duracion Run", value: combat.ticksInCurrentRun > 0 ? formatRunDuration(combat.ticksInCurrentRun) : "Sin run activa" },
-    { label: "Kills Run", value: formatNumber(currentRun.kills || 0) },
+    { label: "Bajas Run", value: formatNumber(currentRun.kills || 0) },
     { label: "Dano / Tick", value: formatNumber(damagePerTick) },
     { label: "Oro / Tick", value: formatNumber(goldPerTick) },
     { label: "XP / Tick", value: formatNumber(xpPerTick) },
-    { label: "Kills / Min", value: formatNumber(killsPerMinute) },
+    { label: "Bajas / Min", value: formatNumber(killsPerMinute) },
     { label: "Oro / Min", value: formatNumber(goldPerMinute) },
     { label: "XP / Min", value: formatNumber(xpPerMinute) },
     { label: "Esencia Run", value: formatNumber(currentRun.essence || 0) },
@@ -495,44 +455,71 @@ export default function Stats({ state, dispatch }) {
 
   return (
     <div style={{ padding: isMobile ? "0.9rem" : "1.2rem", display: "flex", flexDirection: "column", gap: "12px", background: isDarkMode ? "linear-gradient(180deg, var(--color-background-primary, #0b1220) 0%, var(--color-background-secondary, #111a2e) 100%)" : "linear-gradient(180deg, var(--color-background-primary, #f8fafc) 0%, var(--color-background-tertiary, #eef6f4) 100%)", color: "var(--color-text-primary, #1e293b)" }}>
-      <section style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.05fr 0.95fr", gap: "10px" }}>
-        <div style={heroPanelStyle}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
-            <div>
-              <div style={eyebrowStyle("#94a3b8")}>Laboratorio de Ascension</div>
-              <div style={{ fontSize: "1rem", color: "#f8fafc", fontWeight: "900" }}>{currentPrestige ? currentPrestige.name : "Sin ascender"}</div>
-              <div style={{ fontSize: "0.72rem", color: "#cbd5e1", marginTop: "4px", lineHeight: 1.4 }}>{prestigeCoach.description}</div>
-            </div>
-            <div style={{ ...pillStyle("rgba(245,158,11,0.12)", "#f59e0b", "rgba(245,158,11,0.28)") }}>+{projectedPoints} ecos</div>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: "8px", marginTop: "12px" }}>
-            <MiniDarkStat label="Power" value={formatNumber(powerScore)} />
-            <MiniDarkStat label="Tier Max" value={formatNumber(analytics.maxTierReached || combat.maxTier || 1)} />
-            <MiniDarkStat label="Nivel Max" value={formatNumber(analytics.maxLevelReached || player.level)} />
-            <MiniDarkStat label="Ecos" value={formatNumber(prestige.echoes || 0)} />
-          </div>
-
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" }}>
-            <div style={{ ...pillStyle(`${prestigeCoach.color}15`, prestigeCoach.color, `${prestigeCoach.color}55`) }}>{prestigeCoach.label}</div>
-            {nextPrestige && (
-              <div style={pillStyle("rgba(148,163,184,0.12)", "#cbd5e1", "rgba(148,163,184,0.24)")}>
-                Proximo rango: Prestige {nextPrestige.level} · {nextPrestige.name}
+      {isLab && (
+        <section style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
+          <div style={lightPanelStyle}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", flexWrap: "wrap" }}>
+              <div>
+                <div style={sectionTitleStyle}>Laboratorio</div>
+                <div style={{ fontSize: "0.84rem", color: "#102a43", fontWeight: "900", marginTop: "3px" }}>
+                  Save, replay y tester
+                </div>
+                <div style={{ fontSize: "0.7rem", color: "#64748b", marginTop: "4px", lineHeight: 1.4 }}>
+                  Herramientas de backup, dataset y simulacion separadas de las metricas de juego.
+                </div>
               </div>
-            )}
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                <div style={pillStyle("rgba(15,118,110,0.12)", "#0f766e", "rgba(15,118,110,0.22)")}>
+                  Replays {formatNumber(activeReplayLibraryEntries.length + (hasCurrentReplayData ? 1 : 0))}
+                </div>
+                <div style={pillStyle("rgba(99,102,241,0.10)", "#4338ca", "rgba(99,102,241,0.22)")}>
+                  Recovery {recoveryMode ? "ON" : "OFF"}
+                </div>
+              </div>
+            </div>
           </div>
+        </section>
+      )}
 
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(5, minmax(0, 1fr))", gap: "8px", marginTop: "10px" }}>
-            {(prestigePreview.breakdown || []).map(entry => (
-              <MiniDarkStat
-                key={`prestige-breakdown-${entry.id}`}
-                label={entry.label}
-                value={`+${formatNumber(entry.echoes)}`}
-                helper={typeof entry.value === "number" ? formatNumber(entry.value) : entry.value}
-              />
-            ))}
+      {isStatsMode && (
+      <section style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
+        {Number(prestige.level || 0) >= 1 && (
+          <div style={lightPanelStyle}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", flexWrap: "wrap" }}>
+              <div>
+                <div style={sectionTitleStyle}>Prestigio</div>
+                <div style={{ fontSize: "0.8rem", color: "#102a43", fontWeight: "900", marginTop: "3px" }}>
+                  {currentPrestige ? currentPrestige.name : "Sin prestigio"} · P{formatNumber(prestige.level || 0)}
+                </div>
+                <div style={{ fontSize: "0.7rem", color: "#64748b", marginTop: "4px", lineHeight: 1.4 }}>
+                  {prestigeStatus.ok
+                    ? `Listo para resetear: +${formatNumber(projectedPoints)} ecos.`
+                    : "Segui empujando la corrida; el detalle completo vive en Prestigio."}
+                </div>
+              </div>
+              <div style={{ ...pillStyle(prestigeStatus.ok ? "rgba(245,158,11,0.12)" : "rgba(148,163,184,0.12)", prestigeStatus.ok ? "#f59e0b" : "#64748b", prestigeStatus.ok ? "rgba(245,158,11,0.28)" : "rgba(148,163,184,0.24)") }}>
+                {prestigeStatus.ok ? `+${formatNumber(projectedPoints)} ecos` : `${formatNumber(projectedPoints)} ecos potenciales`}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" }}>
+              <div style={pillStyle("rgba(15,118,110,0.12)", "#0f766e", "rgba(15,118,110,0.22)")}>
+                Ecos {formatNumber(prestige.echoes || 0)}
+              </div>
+              <div style={pillStyle("rgba(148,163,184,0.12)", "#475569", "rgba(148,163,184,0.24)")}>
+                Tier max {formatNumber(analytics.maxTierReached || combat.maxTier || 1)}
+              </div>
+              <div style={pillStyle("rgba(148,163,184,0.12)", "#475569", "rgba(148,163,184,0.24)")}>
+                Nivel max {formatNumber(analytics.maxLevelReached || player.level)}
+              </div>
+              {nextPrestige && (
+                <div style={pillStyle("rgba(99,102,241,0.10)", "#4338ca", "rgba(99,102,241,0.22)")}>
+                  Proximo rango: P{nextPrestige.level} · {nextPrestige.name}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         <div style={lightPanelStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", marginBottom: "10px", flexWrap: "wrap" }}>
@@ -550,86 +537,9 @@ export default function Stats({ state, dispatch }) {
           </div>
         </div>
       </section>
+      )}
 
-      <section style={lightPanelStyle}>
-        <button onClick={() => toggleSection("journey")} style={accordionHeaderButtonStyle}>
-          <div>
-            <div style={sectionTitleStyle}>Journey / Contratos</div>
-            <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>
-              Objetivos cortos para orientar el push, el crafting y el primer prestige sin perderte en el ruido.
-            </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
-            <div style={{ ...pillStyle("rgba(29,78,216,0.08)", "#1d4ed8", "1px solid rgba(29,78,216,0.16)") }}>
-              {allPendingGoals.length} pendientes
-            </div>
-            <span style={accordionLabelStyle}>{openSections.journey ? "Ocultar" : "Ver"}</span>
-          </div>
-        </button>
-
-        {openSections.journey && (
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.1fr 0.9fr", gap: "10px", marginTop: "10px" }}>
-            <div style={{ display: "grid", gap: "8px" }}>
-              {activeGoals.map(goal => (
-                <div key={goal.id} style={{ background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "14px", padding: "10px 12px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
-                    <div>
-                      <div style={{ fontSize: "0.55rem", color: "#94a3b8", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                        {goal.category}
-                      </div>
-                      <div style={{ fontSize: "0.85rem", color: "#102a43", fontWeight: "900", marginTop: "3px" }}>{goal.name}</div>
-                      <div style={{ fontSize: "0.7rem", color: "#475569", marginTop: "4px", lineHeight: 1.35 }}>{goal.description}</div>
-                      {goal.hint && (
-                        <div style={{ fontSize: "0.66rem", color: "#64748b", marginTop: "5px", lineHeight: 1.35 }}>
-                          Tip: {goal.hint}
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ ...pillStyle(goal.completed ? "rgba(29,158,117,0.12)" : "rgba(83,74,183,0.10)", goal.completed ? "#1D9E75" : "#534AB7", "transparent") }}>
-                      {goal.progress}/{goal.targetValue}
-                    </div>
-                  </div>
-
-                  <div style={progressBarShellStyle}>
-                    <div style={{ width: `${goal.percent}%`, height: "100%", background: goal.completed ? "#1D9E75" : "#534AB7", transition: "width 0.25s ease" }} />
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginTop: "8px", flexWrap: "wrap" }}>
-                    <div style={{ fontSize: "0.64rem", color: "#0f766e", fontWeight: "900" }}>
-                      {formatGoalReward(goal.reward) || "Sin recompensa directa"}
-                    </div>
-                    <div style={{ fontSize: "0.62rem", color: "#64748b", fontWeight: "800" }}>
-                      {Math.round(goal.percent)}%
-                    </div>
-                  </div>
-                  {goal.completed && (
-                    <button onClick={() => dispatch({ type: "CLAIM_GOAL", goalId: goal.id })} style={{ ...actionBtnStyle("#1D9E75", "#ffffff"), marginTop: "9px", width: "100%" }}>
-                      Reclamar recompensa
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
-              <div style={sectionTitleStyle}>Cola de progreso</div>
-              <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px", maxHeight: isMobile ? "280px" : "420px", overflowY: "auto" }}>
-                {pendingGoals.map(goal => (
-                  <div key={`queue-${goal.id}`} style={{ background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "10px", padding: "8px 10px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
-                      <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "#1e293b" }}>{goal.name}</div>
-                      <div style={{ fontSize: "0.56rem", color: "#94a3b8", fontWeight: "900", textTransform: "uppercase" }}>{goal.category}</div>
-                    </div>
-                    <div style={{ fontSize: "0.64rem", color: "#64748b", marginTop: "4px", lineHeight: 1.35 }}>{goal.description}</div>
-                    {goal.hint && <div style={{ fontSize: "0.6rem", color: "#94a3b8", marginTop: "5px", lineHeight: 1.3 }}>{goal.hint}</div>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-
-      <section style={lightPanelStyle}>
+      {isLab && <section style={lightPanelStyle}>
         <button onClick={() => toggleSection("save")} style={accordionHeaderButtonStyle}>
           <div>
             <div style={sectionTitleStyle}>Save</div>
@@ -657,7 +567,7 @@ export default function Stats({ state, dispatch }) {
                 <DataRow label="Nivel" value={formatNumber(player.level || 1)} />
                 <DataRow label="Tier" value={formatNumber(combat.currentTier || 1)} />
                 <DataRow label="Prestigio" value={formatNumber(prestige.level || 0)} />
-                <DataRow label="Powers descubiertos" value={formatNumber((state.codex?.powerDiscoveries ? Object.values(state.codex.powerDiscoveries).filter(value => Number(value || 0) > 0).length : 0))} />
+                <DataRow label="Poderes descubiertos" value={formatNumber((state.codex?.powerDiscoveries ? Object.values(state.codex.powerDiscoveries).filter(value => Number(value || 0) > 0).length : 0))} />
                 <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "10px", lineHeight: 1.45 }}>
                   La importacion reescribe el save local y recarga la pagina. Si estas en `?fresh=1` o `?wipe=1`, primero sali de ese modo.
                 </div>
@@ -681,9 +591,9 @@ export default function Stats({ state, dispatch }) {
             </div>
           </>
         )}
-      </section>
+      </section>}
 
-      <section style={lightPanelStyle}>
+      {isLab && <section style={lightPanelStyle}>
         <button onClick={() => toggleSection("replay")} style={accordionHeaderButtonStyle}>
           <div>
             <div style={sectionTitleStyle}>Replay de Sesion</div>
@@ -787,10 +697,10 @@ export default function Stats({ state, dispatch }) {
                 <DataRow label="Wishlist" value={(replaySummary.wishlistStats || []).join(", ") || "-"} />
                 <DataRow label="Upgrade" value={formatNumber(replayProfile.craftCounts?.upgrade || 0)} />
                 <DataRow label="Reroll" value={formatNumber(replayProfile.craftCounts?.reroll || 0)} />
-                <DataRow label="Polish" value={formatNumber(replayProfile.craftCounts?.polish || 0)} />
+                <DataRow label="Pulir" value={formatNumber(replayProfile.craftCounts?.polish || 0)} />
                 <DataRow label="Reforge" value={formatNumber(replayProfile.craftCounts?.reforge || 0)} />
-                <DataRow label="Ascend" value={formatNumber(replayProfile.craftCounts?.ascend || 0)} />
-                <DataRow label="Extract" value={formatNumber(replayProfile.craftCounts?.extract || 0)} />
+                <DataRow label="Ascender" value={formatNumber(replayProfile.craftCounts?.ascend || 0)} />
+                <DataRow label="Extraer" value={formatNumber(replayProfile.craftCounts?.extract || 0)} />
               </div>
 
               <div style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
@@ -846,9 +756,9 @@ export default function Stats({ state, dispatch }) {
             </div>
           </>
         )}
-      </section>
+      </section>}
 
-      <section style={lightPanelStyle}>
+      {isLab && <section style={lightPanelStyle}>
         <button onClick={() => toggleSection("bot")} style={accordionHeaderButtonStyle}>
           <div>
             <div style={sectionTitleStyle}>IA de Balance</div>
@@ -911,9 +821,9 @@ export default function Stats({ state, dispatch }) {
             )}
           </>
         )}
-      </section>
+      </section>}
 
-      <section style={lightPanelStyle}>
+      {isStatsMode && <section style={lightPanelStyle}>
         <button onClick={() => toggleSection("telemetry")} style={accordionHeaderButtonStyle}>
           <div>
             <div style={sectionTitleStyle}>Telemetria de Sesion</div>
@@ -942,19 +852,11 @@ export default function Stats({ state, dispatch }) {
               ))}
             </div>
 
-            <div style={{ marginTop: "12px" }}>
-              <div style={sectionTitleStyle}>Export Texto</div>
-              <textarea
-                readOnly
-                value={telemetryText}
-                style={{ width: "100%", minHeight: isMobile ? "220px" : "240px", marginTop: "8px", borderRadius: "14px", border: "1px solid var(--color-border-secondary, #dbe7e3)", padding: "12px", fontFamily: "Consolas, monospace", fontSize: "0.73rem", color: "var(--color-text-primary, #1e293b)", background: "var(--color-background-tertiary, #f8fafc)", resize: "vertical" }}
-              />
-            </div>
           </>
         )}
-      </section>
+      </section>}
 
-      {lastRunSummary && (
+      {isStatsMode && lastRunSummary && (
         <section style={lastRunBoxStyle(lastRunSummary.outcome)}>
           <button onClick={() => toggleSection("lastRun")} style={{ ...accordionHeaderButtonStyle, color: "#fff" }}>
             <div>
@@ -962,7 +864,7 @@ export default function Stats({ state, dispatch }) {
               <div style={{ fontSize: "1rem", color: "#f8fafc", fontWeight: "900", marginTop: "3px" }}>Caida contra {lastRunSummary.enemyName}</div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
-              <div style={{ ...pillStyle("rgba(127,29,29,0.85)", "#fff", "rgba(248,113,113,0.35)") }}>{lastRunSummary.kills} kills</div>
+              <div style={{ ...pillStyle("rgba(127,29,29,0.85)", "#fff", "rgba(248,113,113,0.35)") }}>{lastRunSummary.kills} bajas</div>
               <span style={{ ...accordionLabelStyle, color: "#cbd5e1" }}>{openSections.lastRun ? "Ocultar" : "Ver"}</span>
             </div>
           </button>
@@ -987,28 +889,6 @@ export default function Stats({ state, dispatch }) {
           )}
         </section>
       )}
-
-      {combat.activeEvents?.length > 0 && (
-        <section style={lightPanelStyle}>
-          <button onClick={() => toggleSection("effects")} style={accordionHeaderButtonStyle}>
-            <div style={sectionTitleStyle}>Efectos de Combate</div>
-            <span style={accordionLabelStyle}>{openSections.effects ? "Ocultar" : "Ver"}</span>
-          </button>
-          {openSections.effects && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "10px" }}>
-              {combat.activeEvents.map((event, idx) => {
-                const isNegative = event.type.includes("curse");
-                return (
-                  <div key={idx} style={{ background: isNegative ? "#fee2e2" : "#dcfce7", border: `1px solid ${isNegative ? "#D85A30" : "#1D9E75"}`, padding: "6px 12px", borderRadius: "999px", display: "flex", gap: "10px", alignItems: "center" }}>
-                    <span style={{ fontSize: "0.72rem", fontWeight: "800", color: isNegative ? "#D85A30" : "#1D9E75", textTransform: "capitalize" }}>{event.type.replace("_", " ")}</span>
-                    <span style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "bold" }}>{event.ticksLeft}s</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      )}
     </div>
   );
 }
@@ -1022,42 +902,6 @@ function DataRow({ label, value, accent }) {
   );
 }
 
-function RunMetric({ label, value }) {
-  return (
-    <div style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "9px 10px", display: "flex", flexDirection: "column" }}>
-      <span style={{ fontSize: "0.55rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: "900", marginBottom: "4px" }}>{label}</span>
-      <span style={{ fontSize: "0.95rem", fontWeight: "900", color: "#fff" }}>{value}</span>
-    </div>
-  );
-}
-
-function MiniDarkStat({ label, value, helper = null }) {
-  return (
-    <div style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "8px 10px", display: "flex", flexDirection: "column" }}>
-      <span style={{ fontSize: "0.55rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: "800", marginBottom: "3px" }}>{label}</span>
-      <span style={{ fontSize: "0.95rem", fontWeight: "900", color: "#fff" }}>{value}</span>
-      {helper != null && <span style={{ fontSize: "0.56rem", color: "#94a3b8", marginTop: "3px", lineHeight: 1.2 }}>{helper}</span>}
-    </div>
-  );
-}
-
-function MetricPill({ label, value }) {
-  return (
-    <div style={{ background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-secondary, #dbe7e3)", borderRadius: "14px", padding: "10px 12px" }}>
-      <div style={{ fontSize: "0.55rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
-      <div style={{ marginTop: "4px", fontSize: "0.92rem", color: "var(--color-text-primary, #102a43)", fontWeight: "900" }}>{value}</div>
-    </div>
-  );
-}
-
-const heroPanelStyle = {
-  background: "linear-gradient(145deg, #0f172a 0%, #15253f 100%)",
-  padding: "1rem",
-  borderRadius: "18px",
-  border: "1px solid rgba(245,158,11,0.18)",
-  boxShadow: "0 10px 30px rgba(15,23,42,0.22)",
-};
-
 const lightPanelStyle = {
   background: "var(--color-surface-overlay, rgba(255,255,255,0.92))",
   padding: "1rem",
@@ -1067,28 +911,11 @@ const lightPanelStyle = {
   backdropFilter: "blur(8px)",
 };
 
-const telemetryCardStyle = {
-  background: "linear-gradient(180deg, var(--color-background-secondary, #ffffff) 0%, var(--color-background-tertiary, #f8fbfb) 100%)",
-  border: "1px solid var(--color-border-secondary, #e2ece8)",
-  borderRadius: "14px",
-  padding: "10px 12px",
-  minHeight: "74px",
-  boxShadow: "0 3px 10px var(--color-shadow, rgba(15,23,42,0.03))",
-};
-
 const tableStyle = {
   background: "var(--color-background-tertiary, #f8fafc)",
   border: "1px solid var(--color-border-primary, #e2e8f0)",
   borderRadius: "12px",
   padding: "0 12px",
-};
-
-const progressBarShellStyle = {
-  height: "6px",
-  background: "var(--color-border-primary, #e2e8f0)",
-  borderRadius: "999px",
-  overflow: "hidden",
-  marginTop: "8px",
 };
 
 const sectionTitleStyle = {
@@ -1118,15 +945,6 @@ const accordionLabelStyle = {
   fontWeight: "900",
   textTransform: "uppercase",
 };
-
-const eyebrowStyle = color => ({
-  fontSize: "0.6rem",
-  color,
-  fontWeight: "900",
-  letterSpacing: "1px",
-  textTransform: "uppercase",
-  marginBottom: "3px",
-});
 
 const pillStyle = (background, color, border) => ({
   display: "inline-flex",

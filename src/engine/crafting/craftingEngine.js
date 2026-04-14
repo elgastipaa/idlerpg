@@ -1,11 +1,12 @@
 // Sistema de crafting — reroll, upgrade, ascend y extract.
 // Futuro: recetas, materiales, estaciones de crafteo hookean acá.
 
-import { rerollAffixes, polishAffix, generateReforgeOptions } from "../affixesEngine";
+import { rerollAffixes, polishAffix, generateReforgeOptions, rollAffixes } from "../affixesEngine";
 import { buildBaseBonusForItem, buildItemFromAffixes, computeUpgradeBonus, mergeBonusMaps } from "../../utils/loot";
 import { calcItemRating, syncEquipment } from "../inventory/inventoryEngine";
 import { ITEM_FAMILIES } from "../../data/itemFamilies";
-import { getAscendCosts, getPolishCosts, getReforgeCosts, getRerollCosts } from "../../constants/craftingCosts";
+import { ITEM_RARITY_BLUEPRINT, ITEM_ROLL_RULES_V2 } from "../../data/items";
+import { getAscendCosts, getPolishCosts, getReforgeCosts, getRerollCosts, getUpgradeCosts } from "../../constants/craftingCosts";
 import { getLegendaryPowerById } from "../../utils/legendaryPowers";
 
 const RARITY_TIERS = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
@@ -38,7 +39,7 @@ function getImplicitBonus(item, rarityOverride = item.rarity) {
   return { ...(family?.implicitByRarity?.[rarityOverride] || item.implicitBonus || {}) };
 }
 
-function getCraftingState(item) {
+export function getCraftingState(item) {
   return {
     rerollCount: item?.crafting?.rerollCount || 0,
     polishCount: item?.crafting?.polishCount || 0,
@@ -95,6 +96,151 @@ function getForgingPotentialBlock(item, mode) {
   };
 }
 
+function buildStatPreferenceSet(preferredStats = [], wishlistStats = []) {
+  return new Set([...(preferredStats || []), ...(wishlistStats || [])].filter(Boolean));
+}
+
+function getAffixAlignmentScore(affix, favoredStatsSet) {
+  if (!affix) return -999;
+  let score = 0;
+  if (favoredStatsSet.has(affix.stat)) score += 8;
+  score += (affix.tier || 0) * 3;
+  if (affix.perfectRoll) score += 2;
+  score += Number(affix.rolledValue || affix.value || 0) * 0.015;
+  return score;
+}
+
+export function pickSuggestedAffixIndex(item, { mode, preferredStats = [], wishlistStats = [] } = {}) {
+  if (!Array.isArray(item?.affixes) || item.affixes.length === 0) return null;
+  const craftingState = getCraftingState(item);
+  if (Number.isInteger(craftingState.focusedAffixIndex)) {
+    return craftingState.focusedAffixIndex;
+  }
+
+  const favoredStatsSet = buildStatPreferenceSet(preferredStats, wishlistStats);
+  const scored = item.affixes.map((affix, index) => ({
+    affix,
+    index,
+    score: getAffixAlignmentScore(affix, favoredStatsSet),
+    matchesBuild: favoredStatsSet.has(affix.stat),
+  }));
+
+  if (mode === "polish") {
+    return [...scored].sort((left, right) => right.score - left.score || right.index - left.index)[0]?.index ?? null;
+  }
+
+  if (mode === "reforge") {
+    const worstOffBuild = [...scored]
+      .sort((left, right) => {
+        if (left.matchesBuild !== right.matchesBuild) return left.matchesBuild ? 1 : -1;
+        return left.score - right.score || left.index - right.index;
+      })[0];
+    return worstOffBuild?.index ?? null;
+  }
+
+  return null;
+}
+
+export function getCraftRecommendation(item, { mode, preferredStats = [], wishlistStats = [] } = {}) {
+  if (!item) return null;
+  const craftingState = getCraftingState(item);
+  const suggestedAffixIndex = pickSuggestedAffixIndex(item, { mode, preferredStats, wishlistStats });
+  const suggestedAffix = Number.isInteger(suggestedAffixIndex) ? item.affixes?.[suggestedAffixIndex] : null;
+  const matchingAffixes = (item.affixes || []).filter(affix => buildStatPreferenceSet(preferredStats, wishlistStats).has(affix.stat)).length;
+
+  switch (mode) {
+    case "upgrade":
+      return (item.level || 0) < 6
+        ? "Subila a +6 antes de gastar recursos finos; el power base sigue siendo la mejor compra."
+        : "Ya esta entrando en tramo caro. Upgrade solo si esta pieza realmente sostiene la run.";
+    case "reroll":
+      return matchingAffixes >= 2
+        ? `Esta base ya tiene ${matchingAffixes} linea${matchingAffixes === 1 ? "" : "s"} alineada${matchingAffixes === 1 ? "" : "s"} con tu build. No conviene reroll total salvo que busques resetearla.`
+        : "Tiene poca sinergia con la build actual. El reroll total es razonable si la base vale la pena.";
+    case "polish":
+      return suggestedAffix
+        ? "Pulir tiene sentido aca: ya hay una linea buena y solo falta cerrar el valor."
+        : "Pulir vale mas cuando ya encontraste una linea que realmente queres conservar.";
+    case "reforge":
+      if (Number.isInteger(craftingState.focusedAffixIndex) && suggestedAffix) {
+        return "La pieza ya quedo fijada. Segui esa linea o dejala como esta.";
+      }
+      return suggestedAffix
+        ? "La reforja tiene sentido si queres reemplazar la linea mas floja sin resetear toda la pieza."
+        : "Reforja una linea floja para perseguir la stat que te falta; no la uses como reroll encubierto.";
+    case "ascend":
+      return item.rarity === "epic"
+        ? "Ascend tiene sentido si esta pieza ya empuja la run y queres convertirla en base legendaria."
+        : "Ascend vale mas sobre piezas ya buenas. Si esta base no te convence, no la conviertas por inercia.";
+    default:
+      return null;
+  }
+}
+
+export function getForgeIdentity(item, { player = null, preferredStats = [], wishlistStats = [] } = {}) {
+  if (!item) return null;
+
+  const favoredStatsSet = buildStatPreferenceSet(preferredStats, wishlistStats);
+  const affixes = item.affixes || [];
+  const alignedAffixes = affixes.filter(affix => favoredStatsSet.has(affix.stat));
+  const t1Count = affixes.filter(affix => (affix.tier || 0) === 1).length;
+  const perfectCount = affixes.filter(affix => affix.perfectRoll).length;
+  const forgingPotential = getItemForgingPotential(item);
+  const compareItem = item.type === "weapon" ? player?.equipment?.weapon : player?.equipment?.armor;
+  const powerDelta = (item.rating || 0) - (compareItem?.rating || 0);
+  const ascendState = getCraftActionState({ item, player, mode: "ascend" });
+  const nearAscend = item.rarity === "epic" && (item.level || 0) >= Math.max(0, (ascendState.minLevel || 0) - 1);
+  const craftingState = getCraftingState(item);
+
+  const reasons = [];
+  if (alignedAffixes.length > 0) reasons.push(`${alignedAffixes.length} linea${alignedAffixes.length === 1 ? "" : "s"} de build`);
+  if (t1Count > 0) reasons.push(`${t1Count} T1`);
+  if (perfectCount > 0) reasons.push(`${perfectCount} perfect`);
+  if (powerDelta > 0) reasons.push("mejora clara");
+  if (Number.isInteger(craftingState.focusedAffixIndex)) reasons.push("linea fijada");
+
+  if (
+    item.rarity === "legendary" ||
+    (item.rarity === "epic" && forgingPotential >= 35 && (alignedAffixes.length >= 2 || t1Count > 0 || perfectCount > 0 || nearAscend))
+  ) {
+    return {
+      key: "chase",
+      label: "CHASE",
+      tone: "masterwork",
+      summary: "Base de chase: merece recursos finos o Ascend para cerrar una pieza seria.",
+      reasons: reasons.length > 0 ? reasons : ["epic con potencial real"],
+    };
+  }
+
+  if (forgingPotential >= 45 && (powerDelta > 0 || alignedAffixes.length > 0 || getRarityTier(item.rarity) >= 3 || (item.level || 0) < 6)) {
+    return {
+      key: "tempo",
+      label: "TEMPO",
+      tone: "forged",
+      summary: "Base de tempo: sirve para empujar esta run sin casarte todavia con la pieza.",
+      reasons: reasons.length > 0 ? reasons : ["potencial alto para esta run"],
+    };
+  }
+
+  if (forgingPotential < 16 || (alignedAffixes.length === 0 && powerDelta <= 0 && getRarityTier(item.rarity) <= 2)) {
+    return {
+      key: "skip",
+      label: "NO GASTAR",
+      tone: "crafted",
+      summary: "No vale recursos finos. Vendela, extraela o guardala solo si te falta base.",
+      reasons: reasons.length > 0 ? reasons : ["poca sinergia y poco techo"],
+    };
+  }
+
+  return {
+    key: "solid",
+    label: "SOLIDA",
+    tone: "build",
+    summary: "Base correcta, pero no prioritaria. Vale mirar si aparece algo mejor antes de hundir recursos.",
+    reasons: reasons.length > 0 ? reasons : ["usable, pero no diferencial"],
+  };
+}
+
 export function getCraftActionState({ item, player, mode, affixIndex = null, legendaryPowerId = null, legendaryPowerImprintReduction = 0 } = {}) {
   if (!item) {
     return {
@@ -114,19 +260,7 @@ export function getCraftActionState({ item, player, mode, affixIndex = null, leg
 
   if (mode === "upgrade") {
     const currentLevel = item.level ?? 0;
-    const rarityTier = getRarityTier(item.rarity);
-    const reduction = Math.max(
-      0,
-      Math.min(
-        0.65,
-        (player?.prestigeBonuses?.upgradeCostReduction || 0) +
-          (player?.runSigilBonuses?.upgradeCostReduction || 0)
-      )
-    );
-    const costs = {
-      gold: Math.floor(180 * (currentLevel + 1) * (currentLevel + 1) * rarityTier * (1 - reduction)),
-      essence: 0,
-    };
+    const costs = getUpgradeCosts(item, player);
     const can = currentLevel < 10 && (player?.gold || 0) >= costs.gold;
     return {
       mode,
@@ -257,6 +391,43 @@ function rebuildItem(item, newAffixes, extraProps = {}) {
     bonus,
     rating: calcItemRating({ ...item, ...extraProps, bonus }),
   };
+}
+
+function ensureAffixCountForRarity(item, rarity, itemTier) {
+  const currentAffixes = [...(item?.affixes || [])];
+  const targetCount = Math.max(0, ITEM_RARITY_BLUEPRINT?.[rarity]?.affixCount ?? currentAffixes.length);
+  if (currentAffixes.length >= targetCount) return currentAffixes;
+  const implicitBonus = getImplicitBonus(item, rarity) || {};
+
+  const existingStats = [
+    ...Object.keys(item?.baseBonus || {}).filter(stat => (item?.baseBonus?.[stat] || 0) > 0),
+    ...Object.keys(implicitBonus).filter(stat => (implicitBonus?.[stat] || 0) > 0),
+    ...currentAffixes.map(affix => affix?.stat).filter(Boolean),
+  ];
+
+  const favoredStats = currentAffixes.map(affix => affix?.stat).filter(Boolean);
+  const rolledExtras = rollAffixes({
+    rarity,
+    itemTier,
+    favoredStats,
+    existingStats,
+    allowExistingStatOverlap: (ITEM_ROLL_RULES_V2.allowBaseImplicitAffixOverlapRarities || []).includes(rarity),
+    overlapPenalty: ITEM_ROLL_RULES_V2.overlapAffixWeightPenalty ?? 0.3,
+    maxExistingStatOverlaps: ITEM_ROLL_RULES_V2.maxOverlapsWithBaseOrImplicit ?? 1,
+  });
+
+  const nextAffixes = [...currentAffixes];
+  for (const rolledAffix of rolledExtras) {
+    if (!rolledAffix) continue;
+    const duplicated = nextAffixes.some(
+      affix => affix?.id === rolledAffix.id || affix?.stat === rolledAffix.stat
+    );
+    if (duplicated) continue;
+    nextAffixes.push(rolledAffix);
+    if (nextAffixes.length >= targetCount) break;
+  }
+
+  return nextAffixes;
 }
 
 function findPlayerItem(player, itemId) {
@@ -519,10 +690,7 @@ export function craftUpgrade({ player, itemId, refreshStats }) {
   const currentLevel = item.level ?? 0;
   if (currentLevel >= 10) return null;
 
-  const rarityTier = getRarityTier(item.rarity);
-  const reduction = Math.max(0, Math.min(0.65, player?.prestigeBonuses?.upgradeCostReduction || 0));
-  const upgradeStep = currentLevel + 1;
-  const goldCost   = Math.floor(180 * upgradeStep * upgradeStep * rarityTier * (1 - reduction));
+  const goldCost = getUpgradeCosts(item, player).gold;
   if (player.gold < goldCost) return null;
 
   const failed        = Math.random() < (UPGRADE_FAIL_CHANCE[currentLevel] ?? 0.46);
@@ -582,7 +750,7 @@ export function craftAscend({ player, itemId, currentTier, refreshStats, legenda
     existingBaseBonus: item.baseBonus || {},
     ensureMinBaseLines: true,
   });
-  const preservedAffixes = [...(item.affixes || [])];
+  const preservedAffixes = ensureAffixCountForRarity(item, newRarity, craftingTier);
   const updatedItem  = rebuildItem(item, preservedAffixes, {
     rarity: newRarity,
     itemTier: craftingTier,

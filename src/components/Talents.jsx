@@ -4,6 +4,7 @@ import { getNodesForTree } from "../data/talentNodes";
 import {
   CROSS_SPEC_UNLOCK_LEVEL,
   OFF_SPEC_COST_MULTIPLIER,
+  getProgressValue,
   getTalentTreesForPlayer,
 } from "../engine/talents/treeEngine";
 import {
@@ -11,6 +12,7 @@ import {
   getNextTalentForNode,
   getNodeLevel,
   getNodeMaxLevel,
+  getNodeSegmentSpendRequirement,
   getNodeTreeSpendRequirement,
   getNodeUpgradeCost,
 } from "../engine/talents/talentTreeEngine";
@@ -26,6 +28,9 @@ const TREE_COLORS = {
   warrior_general: "var(--tone-neutral-strong, #1e293b)",
   berserker: "var(--tone-danger, #D85A30)",
   juggernaut: "var(--tone-accent, #534AB7)",
+  mage_general: "var(--tone-info, #2563eb)",
+  sorcerer: "var(--tone-warning, #f59e0b)",
+  arcanist: "var(--tone-accent, #7c3aed)",
   berserker_tree: "var(--tone-danger, #D85A30)",
   juggernaut_tree: "var(--tone-accent, #534AB7)",
 };
@@ -33,17 +38,71 @@ const TREE_COLORS = {
 const TALENT_STAT_LABELS = {
   damage: "dano",
   defense: "defensa",
-  critChance: "crit chance",
+  maxHp: "vida maxima",
+  critChance: "chance de critico",
+  critDamage: "dano critico",
   attackSpeed: "velocidad de ataque",
-  lifesteal: "lifesteal",
+  multiHitChance: "multi-hit",
+  bleedChance: "chance de sangrado",
+  bleedDamage: "poder de sangrado",
+  fractureChance: "chance de fractura",
+  battleHardened: "aguante marcial",
+  heavyImpact: "impacto pesado",
+  bloodStrikes: "golpes sangrantes",
+  combatFlow: "flujo de combate",
+  ironConversion: "conversion de armadura",
+  crushingWeight: "golpe inicial demoledor",
+  frenziedChain: "cadena frenetica",
+  bloodDebt: "rage por leech",
+  lastBreath: "ultimo aliento",
+  execution: "ejecucion",
+  ironCore: "nucleo de hierro",
+  fortress: "fortaleza",
+  unmovingMountain: "fortaleza inmovil",
+  titanicMomentum: "momento titanico",
+  lifesteal: "robo de vida",
   regen: "regen",
+  blockChance: "bloqueo",
+  thorns: "espinas",
+  arcaneEcho: "eco arcano",
+  arcaneMark: "marca arcana",
+  arcaneFlow: "flow arcano",
+  overchannel: "overchannel",
+  perfectCast: "casteo perfecto",
+  freshTargetDamage: "dano al objetivo fresco",
+  chainBurst: "burst en cadena",
+  unstablePower: "poder inestable",
+  overload: "sobrecarga",
+  volatileCasting: "cast volatil",
+  controlMastery: "dominio de control",
+  markTransfer: "transferencia de marca",
+  temporalFlow: "flow temporal",
+  spellMemory: "memoria de hechizo",
+  timeLoop: "bucle temporal",
+  absoluteControl: "control absoluto",
+  cataclysm: "cataclismo",
   xpBonus: "XP",
   goldBonus: "oro adicional",
   enemyDamageTaken: "dano recibido",
   heal: "curacion",
 };
 
-const TALENT_PERCENT_FLAT_STATS = new Set(["critChance", "attackSpeed", "lifesteal"]);
+const TALENT_PERCENT_FLAT_STATS = new Set([
+  "critChance",
+  "attackSpeed",
+  "multiHitChance",
+  "bleedChance",
+  "bleedDamage",
+  "fractureChance",
+  "lifesteal",
+  "blockChance",
+]);
+
+const SEGMENT_META = {
+  basic: { key: "basic", label: "Tramo 1 · Basicos", order: 1 },
+  gameplay: { key: "gameplay", label: "Tramo 2 · Gameplay", order: 2 },
+  keystone: { key: "keystone", label: "Tramo 3 · Keystones", order: 3 },
+};
 
 function formatTalentNumber(value) {
   if (typeof value !== "number" || Number.isNaN(value)) return String(value ?? 0);
@@ -74,8 +133,115 @@ function formatTalentBonus(effect = {}, { forcePercent = false, allowMultiplierX
   return "+0";
 }
 
+function formatPctValue(value) {
+  return `${formatTalentNumber((Number(value || 0)) * 100)}%`;
+}
+
+function buildTalentEffectSummary(talent) {
+  if (!talent?.effect) return "";
+  const effect = talent.effect || {};
+  const stat = effect.stat;
+  const value = Number(effect.flat ?? 0);
+
+  switch (stat) {
+    case "damage":
+      if (effect.multiplier != null) return `${formatTalentBonus(effect)} dano`;
+      return `${formatTalentBonus(effect)} dano`;
+    case "defense":
+      if (effect.multiplier != null) return `${formatTalentBonus(effect)} defensa`;
+      return `${formatTalentBonus(effect)} defensa`;
+    case "maxHp":
+      return `${formatTalentBonus(effect)} vida maxima`;
+    case "critChance":
+      return `${formatTalentBonus(effect, { forcePercent: true })} crit`;
+    case "critDamage":
+      return `${formatTalentBonus(effect, { forcePercent: true })} dano critico`;
+    case "attackSpeed":
+      return `${formatTalentBonus(effect, { forcePercent: true })} velocidad`;
+    case "lifesteal":
+      return `${formatTalentBonus(effect, { forcePercent: true })} robo de vida`;
+    case "multiHitChance":
+      return `${formatTalentBonus(effect, { forcePercent: true })} multi-hit`;
+    case "bleedChance":
+      return `${formatTalentBonus(effect, { forcePercent: true })} sangrado`;
+    case "bleedDamage":
+      return `${formatTalentBonus(effect, { forcePercent: true })} poder de sangrado`;
+    case "fractureChance":
+      return `${formatTalentBonus(effect, { forcePercent: true })} fractura`;
+    case "regen":
+      return `${formatTalentBonus(effect)} regen`;
+    case "thorns":
+      return `${formatTalentBonus(effect)} espinas`;
+    case "battleHardened":
+      return `+${formatTalentNumber(value * 1.2)}% defensa · +${formatTalentNumber(value)}% vida`;
+    case "heavyImpact":
+      return `Primer golpe +${formatTalentNumber(value * 4)}% · multi-hit -${formatTalentNumber(value * 5)}%`;
+    case "bloodStrikes":
+      return `+${formatTalentNumber(value * 2.5)}% sangrado · +${formatTalentNumber(value * 3)}% poder`;
+    case "combatFlow":
+      return `+${formatPctValue(0.005 + value * 0.003)} por stack · max ${2 + value}`;
+    case "ironConversion":
+      return `Armadura -> dano ${formatTalentNumber(8 + value * 6)}% · dano critico -${formatTalentNumber(Math.min(15, value * 5))}%`;
+    case "crushingWeight":
+      return `Sin multi-hit · primer golpe +${formatTalentNumber(35 + value * 20)}%`;
+    case "frenziedChain":
+      return `+${formatTalentNumber(4 + value * 4)}% multi-hit · +${formatTalentNumber(4 + value * 5)}% fractura`;
+    case "bloodDebt":
+      return `Leech -> Rage: +${formatTalentNumber(value)}% dano/stack · +${formatTalentNumber(0.3 + value * 0.3)}% vel/stack`;
+    case "lastBreath":
+      return `<=35% vida: +${formatTalentNumber(15 + value * 12)}% dano · -${formatTalentNumber(Math.min(45, value * 12))}% defensa`;
+    case "execution":
+      return `<${formatTalentNumber(15 + value * 2)}% vida enemiga: +${formatTalentNumber(value * 8)}% dano`;
+    case "ironCore":
+      return `Armadura -> dano ${formatTalentNumber(2 + value * 2)}%`;
+    case "fortress":
+      return `Bloquear/mitigar: proximo golpe +${formatTalentNumber(value * 0.6)}% por stack · max ${2 + value}`;
+    case "unmovingMountain":
+      return `+${formatTalentNumber(value * 18)}% defensa · -${formatTalentNumber(value * 6)}% dano · -${formatTalentNumber(value)}% vel`;
+    case "titanicMomentum":
+      return `HP alto: +${formatTalentNumber(value * 0.4)}% dano/defensa por stack · max ${3 + value * 2}`;
+    case "arcaneEcho":
+      return `Ecos +${formatTalentNumber(52 + value * 7)}% dano · aprovechan on-hit`;
+    case "arcaneMark":
+      return `Marca ${formatTalentNumber(8 + value * 4)}% · +${formatTalentNumber(2 + value)}% por stack · max ${Math.min(5, 2 + Math.ceil(value / 2))}`;
+    case "arcaneFlow":
+      return `Kill -> siguiente enemigo +${formatTalentNumber((0.08 + value * 0.04) * 100)}%`;
+    case "overchannel":
+      return `Ecos +${formatTalentNumber((0.45 + value * 0.06) * 100)}% · -${formatTalentNumber((0.04 + value * 0.02) * 100)}% por eco`;
+    case "perfectCast":
+      return `Sin multi-hit · rango ${formatTalentNumber((0.97 + value * 0.01) * 100)}-${formatTalentNumber((1.06 + value * 0.02) * 100)}%`;
+    case "freshTargetDamage":
+      return `+${formatTalentNumber(value * 100)}% al objetivo fresco`;
+    case "chainBurst":
+      return `Tras kill: siguiente objetivo +${formatTalentNumber((0.13 + value * 0.09) * 100)}%`;
+    case "unstablePower":
+      return `Rango ${formatTalentNumber((Math.max(0.55, 0.9 - value * 0.04)) * 100)}-${formatTalentNumber((1.1 + value * 0.07) * 100)}%`;
+    case "overload":
+      return `Hits altos/criticos: +${1 + Math.floor(value / 2)} marca${1 + Math.floor(value / 2) === 1 ? "" : "s"}`;
+    case "volatileCasting":
+      return `Hit bueno: sig. +${formatTalentNumber((0.1 + value * 0.08) * 100)}% · malo: ${formatTalentNumber((Math.max(0.55, 1 - value * 0.07)) * 100)}%`;
+    case "controlMastery":
+      return `Marca +${formatTalentNumber((value * 0.35) * 100)}%/stack · duracion +${Math.floor(value * 4)} ticks`;
+    case "markTransfer":
+      return `Transfiere ${formatTalentNumber((0.2 + value * 0.1) * 100)}% de Marca`;
+    case "temporalFlow":
+      return `+${formatTalentNumber((0.015 + value * 0.01) * 100)}% por hit · max ${2 + value}`;
+    case "spellMemory":
+      return `Marca +${formatTalentNumber((0.01 + value * 0.006) * 100)}% por memoria · max ${2 + value}`;
+    case "timeLoop":
+      return `Flow dura ${1 + value} hits · transferencia extra`;
+    case "absoluteControl":
+      return `Marcado +${formatTalentNumber(value * 8)}% · sin marcar -${formatTalentNumber(value * 5)}%`;
+    case "cataclysm":
+      return `Tras kill: opener +${formatTalentNumber(value * 12)}% · sostenido ${formatTalentNumber((Math.max(0.7, 1 - value * 0.08)) * 100)}%`;
+    default:
+      return buildTalentDescription(talent);
+  }
+}
+
 function buildTalentDescription(talent) {
   if (!talent?.effect || !talent?.trigger) return talent?.description || "";
+  if (talent?.description) return talent.description;
 
   const effect = talent.effect || {};
   const trigger = talent.trigger || {};
@@ -90,6 +256,40 @@ function buildTalentDescription(talent) {
       : ` por ${pluralizeTicks(effect.duration)}`;
 
   if (trigger.stat === "always") {
+    if ([
+      "battleHardened",
+      "heavyImpact",
+      "bloodStrikes",
+      "combatFlow",
+      "lastBreath",
+      "execution",
+      "ironCore",
+      "fortress",
+      "titanicMomentum",
+    ].includes(effect.stat)) {
+      return talent.description || "";
+    }
+    if (effect.stat === "ironConversion") {
+      return "Parte de tu armadura se convierte en dano.";
+    }
+    if (effect.stat === "crushingWeight") {
+      return "No podes hacer multi-hit, pero el primer golpe contra cada enemigo pega mucho mas fuerte.";
+    }
+    if (effect.stat === "frenziedChain") {
+      return "Ganas multi-hit extra y tus cadenas aplican Fractura con mucha mas frecuencia.";
+    }
+    if (effect.stat === "bloodDebt") {
+      return "Cada vez que tu leech te cura, acumulas Rage temporal.";
+    }
+    if (effect.stat === "lifesteal") {
+      return `Ganas ${formatTalentBonus(effect, { forcePercent: true })} robo de vida.`;
+    }
+    if (effect.stat === "critDamage") {
+      return `Ganas ${formatTalentBonus(effect, { forcePercent: true })} dano critico.`;
+    }
+    if (effect.stat === "unmovingMountain") {
+      return "Ganas mucha defensa, pero sacrificas parte de tu velocidad y dano base.";
+    }
     if (effect.stat === "regen") {
       return `Regeneras ${formatTalentBonus(effect)} HP extra por tick.`;
     }
@@ -101,9 +301,9 @@ function buildTalentDescription(talent) {
 
   if (trigger.stat === "kills") {
     if (effect.stat === "damage") {
-      return `Cada ${formatTalentNumber(trigger.every || 1)} kills, tu proximo ataque inflige ${formatTalentBonus(effect, { allowMultiplierX: true })} dano.`;
+      return `Cada ${formatTalentNumber(trigger.every || 1)} bajas, tu proximo ataque inflige ${formatTalentBonus(effect, { allowMultiplierX: true })} dano.`;
     }
-    return `Cada ${formatTalentNumber(trigger.every || 1)} kills, ganas ${formatTalentBonus(effect)} ${statLabel}${durationText}${stackText}.`;
+    return `Cada ${formatTalentNumber(trigger.every || 1)} bajas, ganas ${formatTalentBonus(effect)} ${statLabel}${durationText}${stackText}.`;
   }
 
   if (trigger.stat === "crit") {
@@ -123,6 +323,10 @@ function buildTalentDescription(talent) {
     return `${effect.stackable && effect.maxStacks > 1 ? "Al recibir dano, acumulas" : "Al recibir dano, ganas"} ${formatTalentBonus(effect)} ${statLabel}${effect.stackable && effect.maxStacks > 1 ? " por stack" : ""}${effect.duration == null ? "" : ` durante ${pluralizeTicks(effect.duration)}`}${stackText}.`;
   }
 
+  if (trigger.stat === "lowHp") {
+    return `Mientras estes por debajo de 30% vida, ganas ${formatTalentBonus(effect, { allowMultiplierX: effect.stat === "damage" && (effect.multiplier || 0) >= 2 })} ${statLabel}${durationText}${stackText}.`;
+  }
+
   if (trigger.stat === "onKill") {
     if (effect.stat === "goldBonus") {
       return `Cada kill entrega ${formatTalentBonus(effect)} oro adicional.`;
@@ -140,6 +344,15 @@ function buildTalentDescription(talent) {
   return talent.description || "";
 }
 
+function getTalentDisplayType(talent) {
+  if (!talent) return "passive";
+  if (talent.displayType) return talent.displayType;
+  if (talent.type === "stacking") return "stacking";
+  if (talent.type === "triggered") return "triggered";
+  if (talent.trigger?.stat && talent.trigger.stat !== "always") return "triggered";
+  return "passive";
+}
+
 function getDisplayedNodes(tree) {
   return getNodesForTree(tree.id)
     .map(node => {
@@ -149,12 +362,9 @@ function getDisplayedNodes(tree) {
       const talent = levelTalents[0] || null;
       if (!talent) return null;
 
-      const upgrade = levelTalents[1] || null;
-
       return {
         ...node,
         talent,
-        upgrade,
         levelTalents,
       };
     })
@@ -181,7 +391,12 @@ function getNodeState({ state, node }) {
   const requiredCount = mode === "any" && prereqIds.length > 0 ? 1 : prereqIds.length;
   const prereqsMet = metCount >= requiredCount;
   const treeSpendGate = getNodeTreeSpendRequirement(state, node.talent.id);
-  const allRequirementsMet = prereqsMet && treeSpendGate.met;
+  const segmentSpendGate = getNodeSegmentSpendRequirement(state, node.talent.id);
+  const nextUnlockCondition = nextTalent?.unlockCondition || null;
+  const nextUnlockConditionMet = !nextUnlockCondition?.stat
+    ? true
+    : getProgressValue(state, nextUnlockCondition.stat) >= Number(nextUnlockCondition.value || 0);
+  const allRequirementsMet = prereqsMet && treeSpendGate.met && segmentSpendGate.met && nextUnlockConditionMet;
 
   return {
     currentLevel,
@@ -193,6 +408,7 @@ function getNodeState({ state, node }) {
     nextCost,
     canUnlockNext,
     prereqsMet,
+    nextUnlockConditionMet,
     allRequirementsMet,
     prereqInfo: {
       mode,
@@ -201,6 +417,7 @@ function getNodeState({ state, node }) {
       requiredCount,
     },
     treeSpendGate,
+    segmentSpendGate,
     tierLabel: currentLevel <= 0 ? "Bloqueado" : `Nivel ${currentLevel}/${maxLevel}`,
   };
 }
@@ -210,38 +427,44 @@ function getTreeProgress(state, nodes) {
 }
 
 function getBaseTalentId(talentId) {
-  const talent = TALENTS.find(item => item.id === talentId);
-  if (!talent) return talentId;
-  if (!talent.replaces) return talent.id;
-  return Array.isArray(talent.replaces) ? talent.replaces[0] : talent.replaces;
+  let current = TALENTS.find(item => item.id === talentId) || null;
+  if (!current) return talentId;
+
+  const visited = new Set([current.id]);
+  while (current?.replaces) {
+    const replacedId = Array.isArray(current.replaces) ? current.replaces[0] : current.replaces;
+    if (!replacedId || visited.has(replacedId)) break;
+    visited.add(replacedId);
+    const replacedTalent = TALENTS.find(item => item.id === replacedId) || null;
+    if (!replacedTalent) return replacedId;
+    current = replacedTalent;
+  }
+
+  return current?.id || talentId;
 }
 
 function getNodeTitle(node) {
-  return (node?.talent?.name || "").replace(" II", "");
+  return (node?.talent?.name || "").replace(/\s+(II|III|IV)$/, "");
 }
 
 function getGroupedColumns(nodes = []) {
-  const getStageForNode = node => {
-    const column = Number(node?.x || 0);
-    return Math.min(6, column + 1);
-  };
-
   const grouped = new Map();
   for (const node of nodes) {
-    const key = getStageForNode(node);
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key).push(node);
+    const segment = SEGMENT_META[node?.segment] || SEGMENT_META.basic;
+    if (!grouped.has(segment.key)) grouped.set(segment.key, []);
+    grouped.get(segment.key).push(node);
   }
 
   return [...grouped.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([stage, stageNodes]) => ({
-      stage,
+    .sort((a, b) => (SEGMENT_META[a[0]]?.order || 99) - (SEGMENT_META[b[0]]?.order || 99))
+    .map(([segmentKey, stageNodes]) => ({
+      segmentKey,
+      label: (SEGMENT_META[segmentKey] || SEGMENT_META.basic).label,
       nodes: [...stageNodes].sort((a, b) => (a.x || 0) - (b.x || 0) || (a.y || 0) - (b.y || 0)),
     }));
 }
 
-function buildNodeRequirementText(node, nodes, nodeState) {
+function buildNodeRequirementText(state, node, nodes, nodeState) {
   const parts = [];
   const prereqNames = (node.prereqs || [])
     .map(prereqId => nodes.find(candidate => candidate.id === getBaseTalentId(prereqId)))
@@ -252,8 +475,38 @@ function buildNodeRequirementText(node, nodes, nodeState) {
     parts.push(`Requiere desbloquear: ${prereqNames.join(node.prereqMode === "any" ? " o " : " + ")}`);
   }
 
+  const unlockCondition = nodeState?.nextTalent?.unlockCondition || null;
+  if (unlockCondition?.stat) {
+    const currentValue = getProgressValue(state, unlockCondition.stat);
+    if (currentValue < unlockCondition.value) {
+      const statLabel =
+        unlockCondition.stat === "level"
+          ? "Requiere nivel"
+          : unlockCondition.stat === "kills"
+            ? "Requiere bajas"
+            : unlockCondition.stat === "gold"
+              ? "Requiere oro"
+              : unlockCondition.stat;
+      parts.push(`${statLabel} ${unlockCondition.value}`);
+    }
+  }
+
   if (!nodeState.treeSpendGate.met && nodeState.treeSpendGate.required > 0) {
     parts.push(`Gasta ${nodeState.treeSpendGate.remaining} TP mas en el arbol`);
+  }
+
+  const exclusiveGroup = node?.talent?.exclusiveGroup || null;
+  if (exclusiveGroup) {
+    const currentNodeBaseId = getBaseTalentId(node.talent.id);
+    const conflicting = TALENTS.find(
+      talent =>
+        (state?.player?.unlockedTalents || []).includes(talent.id) &&
+        getBaseTalentId(talent.id) !== currentNodeBaseId &&
+        talent.exclusiveGroup === exclusiveGroup
+    );
+    if (conflicting) {
+      parts.push(`Ya elegiste: ${conflicting.name}`);
+    }
   }
 
   return parts.join(" · ");
@@ -267,10 +520,13 @@ function getNodeActionLabel(nodeState, compact = false) {
 }
 
 function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, prereqText = "" }) {
-  const typeColor = TYPE_COLORS[nodeState.activeTalent.type] || "var(--color-text-secondary, #64748b)";
+  const displayType = getTalentDisplayType(nodeState.activeTalent);
+  const typeColor = TYPE_COLORS[displayType] || "var(--color-text-secondary, #64748b)";
   const isUnlocked = nodeState.currentLevel > 0;
   const canUpgrade = nodeState.canUnlockNext && !!nodeState.nextTalent;
-  const isTier2Unlocked = nodeState.currentLevel >= 2;
+  const isKeystone = (nodeState.activeTalent?.tags || []).includes("keystone");
+  const currentSummary = buildTalentEffectSummary(nodeState.activeTalent || node.talent);
+  const nextSummary = nodeState.nextTalent ? buildTalentEffectSummary(nodeState.nextTalent) : "";
 
   return (
     <div
@@ -291,13 +547,14 @@ function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, pre
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "8px" }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: isMobile ? "0.74rem" : "0.84rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 }}>
-            {node.talent.name.replace(" II", "")}
+            {getNodeTitle(node)}
           </div>
           <div style={{ fontSize: isMobile ? "0.58rem" : "0.63rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "3px" }}>{nodeState.tierLabel}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
           {canUpgrade && <div style={miniPillStyle("var(--tone-success-strong, #166534)", "var(--tone-success-soft, #ecfdf5)")}>Disponible</div>}
-          <div style={badgeStyle(typeColor)}>{nodeState.activeTalent.type.toUpperCase()}</div>
+          {isKeystone && <div style={miniPillStyle("var(--tone-danger-strong, #9f1239)", "var(--tone-danger-soft, #fff1f2)")}>Keystone</div>}
+          <div style={badgeStyle(typeColor)}>{displayType.toUpperCase()}</div>
         </div>
       </div>
 
@@ -305,23 +562,24 @@ function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, pre
         {buildTalentDescription(nodeState.activeTalent || node.talent)}
       </div>
 
-      {nodeState.maxLevel > 2 ? (
-        <div style={{ ...upgradeHintStyle, borderColor: nodeState.isMaxed ? "var(--tone-success, #86efac)" : "var(--color-border-primary, #e2e8f0)", background: nodeState.isMaxed ? "var(--tone-success-soft, rgba(34,197,94,0.08))" : "var(--color-background-tertiary, #f8fafc)" }}>
-          <div style={{ fontSize: "0.58rem", fontWeight: "900", color: nodeState.isMaxed ? "var(--tone-success-strong, #15803d)" : "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", marginBottom: "4px" }}>
-            Escalado {nodeState.currentLevel}/{nodeState.maxLevel}
-          </div>
-          <div style={{ fontSize: isMobile ? "0.66rem" : "0.72rem", color: nodeState.isMaxed ? "var(--tone-success-strong, #166534)" : "var(--color-text-secondary, #475569)", lineHeight: 1.3 }}>
-            {nodeState.isMaxed ? "Nodo maxeado." : buildTalentDescription(nodeState.nextTalent) || "Subi de nivel para mejorar este nodo."}
-          </div>
+      <div style={{ ...upgradeHintStyle, borderColor: nodeState.isMaxed ? "var(--tone-success, #86efac)" : "var(--color-border-primary, #e2e8f0)", background: nodeState.isMaxed ? "var(--tone-success-soft, rgba(34,197,94,0.08))" : "var(--color-background-tertiary, #f8fafc)" }}>
+        <div style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", marginBottom: "4px" }}>
+          {nodeState.currentLevel > 0 ? `Actual ${nodeState.currentLevel}/${nodeState.maxLevel}` : "Base"}
         </div>
-      ) : node.upgrade ? (
-        <div style={{ ...upgradeHintStyle, borderColor: isTier2Unlocked ? "var(--tone-success, #86efac)" : "var(--color-border-primary, #e2e8f0)", background: isTier2Unlocked ? "var(--tone-success-soft, rgba(34,197,94,0.08))" : "var(--color-background-tertiary, #f8fafc)" }}>
-          <div style={{ fontSize: "0.58rem", fontWeight: "900", color: isTier2Unlocked ? "var(--tone-success-strong, #15803d)" : "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", marginBottom: "4px" }}>
-            {isTier2Unlocked ? "Nivel II Activo" : "Nivel II"}
-          </div>
-          <div style={{ fontSize: isMobile ? "0.66rem" : "0.72rem", color: isTier2Unlocked ? "var(--tone-success-strong, #166534)" : "var(--color-text-secondary, #475569)", lineHeight: 1.3 }}>{buildTalentDescription(node.upgrade)}</div>
+        <div style={{ fontSize: isMobile ? "0.66rem" : "0.72rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.3 }}>
+          {currentSummary}
         </div>
-      ) : null}
+        {!nodeState.isMaxed && nodeState.nextTalent && (
+          <div style={{ marginTop: "6px", paddingTop: "6px", borderTop: "1px dashed var(--color-border-primary, #e2e8f0)" }}>
+            <div style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", textTransform: "uppercase", marginBottom: "4px" }}>
+              Proximo nivel
+            </div>
+            <div style={{ fontSize: isMobile ? "0.66rem" : "0.72rem", color: "var(--tone-accent, #4338ca)", lineHeight: 1.3 }}>
+              {nextSummary}
+            </div>
+          </div>
+        )}
+      </div>
 
       {prereqText && (
         <div style={{ fontSize: "0.6rem", fontWeight: "800", color: nodeState.allRequirementsMet ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #D85A30)" }}>
@@ -341,10 +599,14 @@ function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, pre
 }
 
 function MobileTalentNodeRow({ node, nodeState, justUnlocked, dispatch, prereqText }) {
-  const typeColor = TYPE_COLORS[nodeState.activeTalent.type] || "var(--color-text-secondary, #64748b)";
+  const displayType = getTalentDisplayType(nodeState.activeTalent);
+  const typeColor = TYPE_COLORS[displayType] || "var(--color-text-secondary, #64748b)";
   const isUnlocked = nodeState.currentLevel > 0;
   const canUpgrade = nodeState.canUnlockNext && !!nodeState.nextTalent;
   const compactButtonLabel = getNodeActionLabel(nodeState, true);
+  const isKeystone = (nodeState.activeTalent?.tags || []).includes("keystone");
+  const currentSummary = buildTalentEffectSummary(nodeState.activeTalent || node.talent);
+  const nextSummary = nodeState.nextTalent ? buildTalentEffectSummary(nodeState.nextTalent) : "";
 
   return (
     <article
@@ -378,21 +640,20 @@ function MobileTalentNodeRow({ node, nodeState, justUnlocked, dispatch, prereqTe
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap" }}>
-        <div style={badgeStyle(typeColor)}>{nodeState.activeTalent.type.toUpperCase()}</div>
+        {isKeystone && (
+          <div style={miniPillStyle("var(--tone-danger-strong, #9f1239)", "var(--tone-danger-soft, #fff1f2)")}>
+            Keystone
+          </div>
+        )}
+        <div style={badgeStyle(typeColor)}>{displayType.toUpperCase()}</div>
         {canUpgrade && (
           <div style={miniPillStyle("var(--tone-success-strong, #166534)", "var(--tone-success-soft, #ecfdf5)")}>
             Disponible
           </div>
         )}
-        {nodeState.maxLevel > 2 ? (
-          <div style={miniPillStyle("var(--tone-accent, #4338ca)", "var(--tone-accent-soft, #eef2ff)")}>
-            LV {nodeState.currentLevel}/{nodeState.maxLevel}
-          </div>
-        ) : node.upgrade ? (
-          <div style={miniPillStyle(nodeState.currentLevel >= 2 ? "var(--tone-success-strong, #166534)" : "var(--color-text-secondary, #64748b)", nodeState.currentLevel >= 2 ? "var(--tone-success-soft, #dcfce7)" : "var(--color-background-tertiary, #e2e8f0)")}>
-            {nodeState.currentLevel >= 2 ? "T2 ON" : "T2"}
-          </div>
-        ) : null}
+        <div style={miniPillStyle("var(--tone-accent, #4338ca)", "var(--tone-accent-soft, #eef2ff)")}>
+          LV {nodeState.currentLevel}/{nodeState.maxLevel}
+        </div>
       </div>
 
       <div
@@ -408,6 +669,15 @@ function MobileTalentNodeRow({ node, nodeState, justUnlocked, dispatch, prereqTe
       >
         {buildTalentDescription(nodeState.activeTalent || node.talent)}
       </div>
+
+      <div style={{ fontSize: "0.56rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.25 }}>
+        {nodeState.currentLevel > 0 ? `Actual: ${currentSummary}` : `Base: ${currentSummary}`}
+      </div>
+      {!nodeState.isMaxed && nodeState.nextTalent && (
+        <div style={{ fontSize: "0.56rem", color: "var(--tone-accent, #4338ca)", fontWeight: "800", lineHeight: 1.25 }}>
+          {`Proximo: ${nextSummary}`}
+        </div>
+      )}
 
       {prereqText && (
         <div style={{ fontSize: "0.55rem", color: nodeState.allRequirementsMet ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #D85A30)", fontWeight: "800" }}>
@@ -583,11 +853,11 @@ export default function Talents({ state, dispatch }) {
 
           {isMobile ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {getGroupedColumns(nodes).map(({ stage, nodes: columnNodes }) => (
-                <div key={`stage-${stage}`} style={mobileStageStyle}>
+              {getGroupedColumns(nodes).map(({ segmentKey, label, nodes: columnNodes }) => (
+                <div key={`stage-${segmentKey}`} style={mobileStageStyle}>
                   <div style={mobileStageHeaderStyle}>
                     <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      {stage === 6 ? "Tramo 6 · Maestria" : `Tramo ${stage}`}
+                      {label}
                     </span>
                     <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>
                       {columnNodes.length} nodo{columnNodes.length === 1 ? "" : "s"}
@@ -596,8 +866,8 @@ export default function Talents({ state, dispatch }) {
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                     {columnNodes.map(node => {
                       const nodeState = getNodeState({ state, node });
-                      const justUnlocked = recentUnlocks[node.talent.id] || (node.upgrade && recentUnlocks[node.upgrade.id]);
-                      const prereqText = buildNodeRequirementText(node, nodes, nodeState);
+                      const justUnlocked = !!recentUnlocks[node.talent.id];
+                      const prereqText = buildNodeRequirementText(state, node, nodes, nodeState);
 
                       return (
                         <MobileTalentNodeRow
@@ -617,11 +887,11 @@ export default function Talents({ state, dispatch }) {
           ) : (
             <div style={{ overflowX: "auto", paddingBottom: "6px" }}>
               <div style={{ display: "flex", gap: "12px", alignItems: "stretch", minWidth: "max-content" }}>
-                {getGroupedColumns(nodes).map(({ stage, nodes: columnNodes }) => (
-                  <div key={`desktop-stage-${stage}`} style={desktopStageStyle}>
+                {getGroupedColumns(nodes).map(({ segmentKey, label, nodes: columnNodes }) => (
+                  <div key={`desktop-stage-${segmentKey}`} style={desktopStageStyle}>
                     <div style={desktopStageHeaderStyle}>
                       <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-secondary, #475569)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                        {stage === 6 ? "Tramo 6 · Maestria" : `Tramo ${stage}`}
+                        {label}
                       </span>
                       <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>
                         {columnNodes.length} nodo{columnNodes.length === 1 ? "" : "s"}
@@ -630,8 +900,8 @@ export default function Talents({ state, dispatch }) {
                     <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
                       {columnNodes.map(node => {
                         const nodeState = getNodeState({ state, node });
-                        const justUnlocked = recentUnlocks[node.talent.id] || (node.upgrade && recentUnlocks[node.upgrade.id]);
-                        const prereqText = buildNodeRequirementText(node, nodes, nodeState);
+                        const justUnlocked = !!recentUnlocks[node.talent.id];
+                        const prereqText = buildNodeRequirementText(state, node, nodes, nodeState);
                         return (
                           <TalentNodeCard
                             key={node.talent.id}

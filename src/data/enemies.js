@@ -1,12 +1,13 @@
-function scaledValue(base, growth, tier) {
-  return Math.max(1, Math.floor(base * Math.pow(growth, tier - 1)));
+function scaledValue(base, growth, tier, flatPerTier = 0) {
+  const normalizedTier = Math.max(0, tier - 1);
+  return Math.max(1, Math.floor(base * Math.pow(growth, normalizedTier) + normalizedTier * flatPerTier));
 }
 
 function getAffixesForTier(tier) {
-  if (tier < 6) return [];
-  if (tier < 10) return ["armored", "bulky", "regenerating", "spiky"];
-  if (tier < 15) return ["armored", "bulky", "regenerating", "spiky", "enraged", "crit_immune", "tanky"];
-  if (tier < 20) return ["armored", "bulky", "regenerating", "spiky", "enraged", "crit_immune", "tanky", "reflective", "vampiric"];
+  if (tier < 4) return [];
+  if (tier < 8) return ["armored", "bulky", "regenerating", "spiky"];
+  if (tier < 13) return ["armored", "bulky", "regenerating", "spiky", "enraged", "crit_immune"];
+  if (tier < 18) return ["armored", "bulky", "regenerating", "spiky", "enraged", "crit_immune", "tanky", "reflective", "vampiric"];
   return ["armored", "bulky", "regenerating", "spiky", "enraged", "crit_immune", "tanky", "reflective", "vampiric", "lethal", "thorns_master"];
 }
 
@@ -40,11 +41,12 @@ const ENEMY_BLUEPRINTS = [
 
 export const ENEMIES = ENEMY_BLUEPRINTS.map((blueprint, index) => {
   const tier = index + 1;
-  const maxHp = scaledValue(52, 1.34, tier);
-  const damage = scaledValue(5, 1.275, tier);
-  const defense = Math.max(0, Math.floor(tier * 1.95));
-  const xpReward = scaledValue(12, 1.315, tier);
-  const goldReward = scaledValue(4, 1.295, tier);
+  const maxHp = scaledValue(58, 1.27, tier, 6);
+  const damage = scaledValue(6, 1.23, tier, 1);
+  const defense = Math.max(0, Math.floor(2 + tier * 1.4 + Math.max(0, tier - 5) * 0.55));
+  const xpReward = scaledValue(16, 1.255, tier, 4);
+  const goldReward = scaledValue(6, 1.23, tier, 1.5);
+  const essenceReward = 1 + Math.floor(Math.max(0, tier - 1) / 6);
 
   return {
     id: blueprint.id,
@@ -58,6 +60,7 @@ export const ENEMIES = ENEMY_BLUEPRINTS.map((blueprint, index) => {
     defense,
     xpReward,
     goldReward,
+    essenceReward,
     isBoss: false,
   };
 });

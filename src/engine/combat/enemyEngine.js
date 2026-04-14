@@ -37,9 +37,9 @@ function applyRuntimeStats(enemy, runtime = {}) {
 }
 
 function rollMonsterAffixes(baseEnemy) {
-  if (baseEnemy.isBoss || !baseEnemy.possibleAffixes?.length || baseEnemy.tier < 6) return [];
+  if (baseEnemy.isBoss || !baseEnemy.possibleAffixes?.length || baseEnemy.tier < 4) return [];
 
-  const chance = Math.min(0.55, 0.12 + Math.max(0, baseEnemy.tier - 6) * 0.08);
+  const chance = Math.min(0.6, 0.08 + Math.max(0, baseEnemy.tier - 4) * 0.06);
   if (Math.random() > chance) return [];
 
   const pool = baseEnemy.possibleAffixes
@@ -72,7 +72,23 @@ export function spawnEnemy(tier) {
       familyTraitId: family?.id || null,
       monsterAffixes,
       mechanics,
-      runtime,
+      runtime: {
+        openingHitSpent: false,
+        hasTakenPlayerHit: false,
+        bleedStacks: 0,
+        bleedPerStack: 0,
+        bleedTicksRemaining: 0,
+        fractureStacks: 0,
+        fractureTicksRemaining: 0,
+        flowStacks: 0,
+        markStacks: 0,
+        markTicksRemaining: 0,
+        mageFlowBonusMult: 1,
+        mageFlowHitsRemaining: 0,
+        mageMemoryStacks: 0,
+        mageTemporalFlowStacks: 0,
+        ...runtime,
+      },
     },
     runtime
   );

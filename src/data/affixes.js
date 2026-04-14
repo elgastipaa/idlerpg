@@ -77,6 +77,39 @@ export const PREFIXES = [
     },
   },
   {
+    id: "prefix_multi_hit",
+    stat: "multiHitChance",
+    scaling: "percent",
+    category: "offense",
+    tiers: {
+      3: { label: "de Combo", value: { min: 0.02, max: 0.04 }, weight: 32 },
+      2: { label: "Encadenada", value: { min: 0.05, max: 0.08 }, weight: 14 },
+      1: { label: "de la Tempestad", value: { min: 0.1, max: 0.14 }, weight: 4 },
+    },
+  },
+  {
+    id: "prefix_mark_chance",
+    stat: "markChance",
+    scaling: "percent",
+    category: "offense",
+    tiers: {
+      3: { label: "Marcadora", value: { min: 0.02, max: 0.04 }, weight: 26 },
+      2: { label: "de la Runa", value: { min: 0.05, max: 0.08 }, weight: 12 },
+      1: { label: "de la Condena", value: { min: 0.1, max: 0.14 }, weight: 4 },
+    },
+  },
+  {
+    id: "prefix_bleed_chance",
+    stat: "bleedChance",
+    scaling: "percent",
+    category: "offense",
+    tiers: {
+      3: { label: "Serrada", value: { min: 0.03, max: 0.06 }, weight: 34 },
+      2: { label: "Desgarradora", value: { min: 0.07, max: 0.11 }, weight: 15 },
+      1: { label: "de la Hemorragia", value: { min: 0.14, max: 0.2 }, weight: 4 },
+    },
+  },
+  {
     id: "prefix_lifesteal",
     stat: "lifesteal",
     scaling: "percent",
@@ -177,24 +210,24 @@ export const PREFIXES = [
   },
   {
     id: "prefix_skill_power",
-    stat: "skillPower",
+    stat: "critDamage",
     scaling: "percent",
     category: "utility",
     tiers: {
       3: { label: "Arcana", value: { min: 0.05, max: 0.09 }, weight: 38 },
-      2: { label: "del Hechicero", value: { min: 0.12, max: 0.22 }, weight: 17 },
-      1: { label: "del Gran Maestro", value: { min: 0.28, max: 0.5 }, weight: 5 },
+      2: { label: "de la Resonancia", value: { min: 0.12, max: 0.22 }, weight: 17 },
+      1: { label: "del Cataclismo", value: { min: 0.28, max: 0.5 }, weight: 5 },
     },
   },
   {
     id: "prefix_cooldown_reduction",
-    stat: "cooldownReduction",
+    stat: "multiHitChance",
     scaling: "percent",
     category: "utility",
     tiers: {
-      3: { label: "Veloz", value: { min: 0.03, max: 0.06 }, weight: 38 },
-      2: { label: "del Maestro", value: { min: 0.08, max: 0.14 }, weight: 17 },
-      1: { label: "del Cronista", value: { min: 0.18, max: 0.3 }, weight: 5 },
+      3: { label: "Vibrante", value: { min: 0.03, max: 0.06 }, weight: 38 },
+      2: { label: "de los Ecos", value: { min: 0.08, max: 0.14 }, weight: 17 },
+      1: { label: "del Torbellino", value: { min: 0.18, max: 0.3 }, weight: 5 },
     },
   },
   // Deprecated legacy affix: kept for save compatibility, disabled from new rolls.
@@ -337,24 +370,35 @@ export const SUFFIXES = [
   },
   {
     id: "suffix_skill_power_2",
-    stat: "skillPower",
+    stat: "critDamage",
     scaling: "percent",
     category: "utility",
     tiers: {
       3: { label: "del Aprendiz Arcano", value: { min: 0.04, max: 0.08 }, weight: 38 },
-      2: { label: "del Invocador", value: { min: 0.1, max: 0.2 }, weight: 17 },
+      2: { label: "del Resonante", value: { min: 0.1, max: 0.2 }, weight: 17 },
       1: { label: "del Archimago", value: { min: 0.26, max: 0.48 }, weight: 5 },
     },
   },
   {
     id: "suffix_cooldown_2",
-    stat: "cooldownReduction",
+    stat: "multiHitChance",
     scaling: "percent",
     category: "utility",
     tiers: {
       3: { label: "del Agil", value: { min: 0.03, max: 0.05 }, weight: 36 },
-      2: { label: "del Experto", value: { min: 0.07, max: 0.13 }, weight: 16 },
-      1: { label: "del Eterno", value: { min: 0.17, max: 0.28 }, weight: 5 },
+      2: { label: "del Eco", value: { min: 0.07, max: 0.13 }, weight: 16 },
+      1: { label: "de la Cadena Eterna", value: { min: 0.17, max: 0.28 }, weight: 5 },
+    },
+  },
+  {
+    id: "suffix_mark_effect",
+    stat: "markEffectPerStack",
+    scaling: "percent",
+    category: "special",
+    tiers: {
+      3: { label: "de la Runa Fina", value: { min: 0.015, max: 0.03 }, weight: 24 },
+      2: { label: "del Sello", value: { min: 0.04, max: 0.07 }, weight: 11 },
+      1: { label: "del Sigilo Absoluto", value: { min: 0.09, max: 0.13 }, weight: 4 },
     },
   },
   {
@@ -366,6 +410,28 @@ export const SUFFIXES = [
       3: { label: "del Asesino", value: { min: 2, max: 5 }, weight: 42 },
       2: { label: "del Ejecutor", value: { min: 6, max: 13 }, weight: 19 },
       1: { label: "de la Exterminacion", value: { min: 16, max: 28 }, weight: 5 },
+    },
+  },
+  {
+    id: "suffix_bleed_damage",
+    stat: "bleedDamage",
+    scaling: "percent",
+    category: "special",
+    tiers: {
+      3: { label: "de Sangrado", value: { min: 0.02, max: 0.04 }, weight: 32 },
+      2: { label: "del Desgarro", value: { min: 0.05, max: 0.08 }, weight: 14 },
+      1: { label: "de la Exanguinacion", value: { min: 0.1, max: 0.14 }, weight: 4 },
+    },
+  },
+  {
+    id: "suffix_fracture_chance",
+    stat: "fractureChance",
+    scaling: "percent",
+    category: "special",
+    tiers: {
+      3: { label: "de la Ruptura", value: { min: 0.02, max: 0.05 }, weight: 28 },
+      2: { label: "del Quebranto", value: { min: 0.06, max: 0.09 }, weight: 13 },
+      1: { label: "del Colapso", value: { min: 0.11, max: 0.16 }, weight: 4 },
     },
   },
   {

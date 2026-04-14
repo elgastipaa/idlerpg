@@ -118,6 +118,25 @@ export function getSpentTalentPointsInTree(state, treeId) {
   return spent;
 }
 
+export function getSpentTalentPointsInTreeSegment(state, treeId, segment) {
+  if (!treeId || !segment) return 0;
+  let spent = 0;
+
+  for (const node of TALENT_NODES) {
+    if (node.treeId !== treeId) continue;
+    if ((node.segment || null) !== segment) continue;
+    const level = getNodeLevel(state, node.id);
+    if (level <= 0) continue;
+    for (let idx = 0; idx < Math.min(level, node.levels.length); idx += 1) {
+      const talentId = node.levels[idx];
+      if (!talentId) continue;
+      spent += getTalentCost(state, talentId);
+    }
+  }
+
+  return spent;
+}
+
 export function getNodeTreeSpendRequirement(state, nodeId) {
   const nodeDefinition = getNodeDefinition(nodeId);
   if (!nodeDefinition) return { required: 0, spent: 0, remaining: 0, met: true };
@@ -126,6 +145,27 @@ export function getNodeTreeSpendRequirement(state, nodeId) {
   const spent = getSpentTalentPointsInTree(state, nodeDefinition.treeId);
   const remaining = Math.max(0, required - spent);
   return {
+    required,
+    spent,
+    remaining,
+    met: remaining <= 0,
+  };
+}
+
+export function getNodeSegmentSpendRequirement(state, nodeId) {
+  const nodeDefinition = getNodeDefinition(nodeId);
+  if (!nodeDefinition) return { segment: null, required: 0, spent: 0, remaining: 0, met: true };
+
+  const segment = nodeDefinition.requiredSegment || null;
+  const required = Number(nodeDefinition.minSegmentPointsSpent || 0);
+  if (!segment || required <= 0) {
+    return { segment, required: 0, spent: 0, remaining: 0, met: true };
+  }
+
+  const spent = getSpentTalentPointsInTreeSegment(state, nodeDefinition.treeId, segment);
+  const remaining = Math.max(0, required - spent);
+  return {
+    segment,
     required,
     spent,
     remaining,
@@ -156,6 +196,8 @@ export function canUnlockNode(state, nodeId) {
 
   const spendGate = getNodeTreeSpendRequirement(state, nodeDefinition.id);
   if (!spendGate.met) return false;
+  const segmentSpendGate = getNodeSegmentSpendRequirement(state, nodeDefinition.id);
+  if (!segmentSpendGate.met) return false;
 
   return canUnlockTalentNode(
     {

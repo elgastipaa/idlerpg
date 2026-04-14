@@ -17,7 +17,7 @@ export const LEGENDARY_POWERS = [
     id: "harbinger_last_breath",
     name: "Ultimo Suspiro",
     shortLabel: "Low HP power",
-    description: "Por debajo de 50% vida, ganas +18% velocidad, +6% lifesteal y +20% crit damage.",
+    description: "Por debajo de 50% vida, ganas +18% velocidad, +6% robo de vida y +20% dano critico.",
     archetype: "berserker",
   },
   {
@@ -50,9 +50,9 @@ export const LEGENDARY_POWERS = [
   },
   {
     id: "void_skill_window",
-    name: "Ventana Arcana",
-    shortLabel: "Skill = burst",
-    description: "Cuando una skill se activa, tus proximos 2 ticks ganan +45% dano y +6% crit chance.",
+    name: "Brecha del Titan",
+    shortLabel: "Marca / fractura",
+    description: "Si el objetivo esta Marcado o Fracturado, ganas +18% dano y +4% crit chance.",
     archetype: "warrior",
   },
   {
@@ -66,7 +66,7 @@ export const LEGENDARY_POWERS = [
     id: "matriarch_crimson_feast",
     name: "Banquete Carmesi",
     shortLabel: "Crit kill = festin",
-    description: "Si matas con un critico, ganas +4% velocidad y 3% lifesteal del dano por 4 ticks. Acumula hasta 4.",
+    description: "Si matas con un critico, ganas +4% velocidad y 3% robo de vida del dano por 4 ticks. Acumula hasta 4.",
     archetype: "berserker",
   },
   {
@@ -89,5 +89,47 @@ export const LEGENDARY_POWERS = [
     shortLabel: "Boss / occult tech",
     description: "Contra bosses, elementales u occult, ganas +10% dano y +4% crit chance.",
     archetype: "warrior",
+  },
+  {
+    id: "eclipse_opening_seal",
+    name: "Sello del Eclipse",
+    shortLabel: "Fresh target setup",
+    description: "Mientras el objetivo siga fresco, ganas +22% dano, +6% crit chance y +12% chance de Marca.",
+    archetype: "mage",
+  },
+  {
+    id: "resonant_echo_matrix",
+    name: "Matriz Resonante",
+    shortLabel: "Echo = setup",
+    description: "Ganas +8% multi-hit y tus ecos pegan 18% mas fuerte.",
+    archetype: "mage",
+  },
+  {
+    id: "chaos_prism",
+    name: "Prisma del Caos",
+    shortLabel: "Wider range",
+    description: "Tu rango de dano se abre mucho mas y ganas +20% crit damage.",
+    archetype: "sorcerer",
+  },
+  {
+    id: "cataclysmic_afterglow",
+    name: "Resaca Cataclismica",
+    shortLabel: "Kill -> opener",
+    description: "Despues de matar, tu siguiente objetivo recibe +30% dano y +8% crit chance durante el Flow.",
+    archetype: "sorcerer",
+  },
+  {
+    id: "lattice_of_control",
+    name: "Reticula de Control",
+    shortLabel: "Marked punishment",
+    description: "Los objetivos Marcados reciben mucho mas dano y critico. Sin Marca, pegas menos.",
+    archetype: "arcanist",
+  },
+  {
+    id: "recursive_mnemonic",
+    name: "Mnemonica Recursiva",
+    shortLabel: "Loop setup",
+    description: "Transfieres mas Marca, el Flow dura 1 hit extra y cada stack de Memoria rinde mejor.",
+    archetype: "arcanist",
   },
 ];

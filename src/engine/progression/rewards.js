@@ -47,7 +47,7 @@ export function calculateRewards({
   );
 
   const essenceGained = Math.floor(
-    Math.max(0, (enemy.isBoss ? 5 : 1) + (playerStats.essenceBonus || 0)) *
+    Math.max(0, (enemy.essenceReward || (enemy.isBoss ? 5 : 1)) + (playerStats.essenceBonus || 0)) *
       (eventMods.essenceMult || 1) *
       (runSigil.essenceMult || 1)
   );
@@ -62,6 +62,9 @@ export function calculateRewards({
     powerMasteryMap,
     discoveredPowerBias: player?.prestigeBonuses?.discoveredPowerBias || 0,
     powerHuntMultiplier: runSigil.powerHuntMultiplier || 1,
+    preferredArchetypes: [player?.specialization, player?.class].filter(Boolean),
+    preferredPowerBias: 0.45,
+    offArchetypeLegendaryPenalty: 0.86,
     favoredStatWeightMultiplier: enemy?.isBoss ? 3.2 : 2.4,
     rarityFloor: enemy?.guaranteedRarityFloor || null,
     rarityBonus: mergeRarityBonus(enemy?.dropRarityBonus || 0, runSigil.rarityBonus || {}),

@@ -7,9 +7,9 @@ import { createEmptyReplayLibrary, createEmptyReplayLog, normalizeReplayLibrary,
 import { calcItemRating } from "./inventory/inventoryEngine";
 import { spawnEnemy } from "./combat/enemyEngine";
 import { refreshStats } from "./combat/statEngine";
-import { normalizeActiveEvents } from "./eventEngine";
 import { createEmptyCodexState, normalizeCodexState, recordCodexSighting, syncCodexBonuses } from "./progression/codexEngine";
 import { createEmptyPrestigeCycleProgress, normalizePrestigeState, syncPrestigeBonuses } from "./progression/prestigeEngine";
+import { rebuildPlayerProgressionBonuses } from "./progression/progressionEngine";
 import { getRunSigil, getRunSigilPlayerBonuses } from "../data/runSigils";
 import { migrateTalentsToV2, TALENT_SYSTEM_VERSION } from "./migrations/talentsV2Migration";
 
@@ -24,7 +24,7 @@ const SAFE_LEVEL_RECOVERY_CAP = 2_000;
 const SAFE_BASE_DAMAGE_RECOVERY_CAP = 5_000;
 const SAFE_BASE_MAX_HP_RECOVERY_CAP = 100_000;
 const SAFE_TALENT_POINT_RECOVERY_CAP = 10_000;
-const VALID_TABS = new Set(["character", "combat", "inventory", "skills", "talents", "crafting", "prestige", "achievements", "stats", "codex"]);
+const VALID_TABS = new Set(["character", "combat", "inventory", "skills", "talents", "crafting", "prestige", "achievements", "stats", "lab", "codex"]);
 
 function sanitizeStoredResource(value, { fallback = 0, recoveryCap = Number.MAX_SAFE_INTEGER } = {}) {
   const numeric = Number(value);
@@ -111,8 +111,6 @@ const freshState = {
     talentLevels: {},
     unlockedTalents: [],
     upgrades: {},
-    damageLevel: 1,
-    skills: { dmg: 0, hp: 0, crit: 0 },
     baseDamage: 10,
     baseDefense: 2,
     baseCritChance: 0.05,
@@ -124,10 +122,49 @@ const freshState = {
     hpPct: 0,
     flatRegen: 0,
     flatCrit: 0,
+    critDamage: 0,
     flatGold: 0,
     goldPct: 0,
     xpPct: 0,
     attackSpeed: 0,
+    lifesteal: 0,
+    blockChance: 0,
+    thorns: 0,
+    multiHitChance: 0,
+    bleedChance: 0,
+    bleedDamage: 0,
+    fractureChance: 0,
+    battleHardened: 0,
+    heavyImpact: 0,
+    bloodStrikes: 0,
+    combatFlow: 0,
+    ironConversion: 0,
+    crushingWeight: 0,
+    frenziedChain: 0,
+    bloodDebt: 0,
+    lastBreath: 0,
+    execution: 0,
+    ironCore: 0,
+    fortress: 0,
+    unmovingMountain: 0,
+    titanicMomentum: 0,
+    arcaneEcho: 0,
+    arcaneMark: 0,
+    arcaneFlow: 0,
+    overchannel: 0,
+    perfectCast: 0,
+    freshTargetDamage: 0,
+    chainBurst: 0,
+    unstablePower: 0,
+    overload: 0,
+    volatileCasting: 0,
+    controlMastery: 0,
+    markTransfer: 0,
+    temporalFlow: 0,
+    spellMemory: 0,
+    timeLoop: 0,
+    absoluteControl: 0,
+    cataclysm: 0,
     damage: 10,
     defense: 2,
     critChance: 0.05,
@@ -157,9 +194,7 @@ const freshState = {
     autoAdvance: false,
     ticksInCurrentRun: 0,
     lastRunTier: 0,
-    activeEvents: [],
     effects: [],
-    skillCooldowns: {},
     sessionKills: 0,
     talentBuffs: [],
     triggerCounters: {
@@ -169,9 +204,8 @@ const freshState = {
       onDamageTaken: 0,
     },
     pendingOnKillDamage: 0,
+    pendingMageVolatileMult: 1,
     floatEvents: [],
-    skillDamageTimeline: [],
-    skillAutocasts: {},
     runStats: {
       kills: 0,
       damageDealt: 0,
@@ -263,10 +297,7 @@ const isValidSave =
   saved?.player?.essence != null &&
   saved?.stats != null &&
   saved?.prestige != null &&
-  saved?.combat?.skillCooldowns != null &&
-  saved?.combat?.sessionKills != null &&
-  saved?.combat?.skillAutocasts != null &&
-  saved?.combat?.activeEvents != null;
+  saved?.combat?.sessionKills != null;
 
 function normalizeItemCollection(items = []) {
   return (items || []).map(item => {
@@ -332,8 +363,6 @@ function mergeStateWithDefaults(base, incoming) {
   const rawBaseMaxHp = Number(rawPlayer.baseMaxHp ?? base.player.baseMaxHp);
   const rawTalentPoints = Number(rawPlayer.talentPoints ?? base.player.talentPoints);
   const rawXp = Number(rawPlayer.xp ?? base.player.xp);
-  const rawActiveEvents = rawCombat.activeEvents || [];
-  const normalizedActiveEvents = normalizeActiveEvents(rawActiveEvents);
   const pendingRunSetup = Boolean(rawCombat.pendingRunSetup) && Number(normalizedPrestige.level || 0) >= 1;
   const pendingRunSigilId = getRunSigil(rawCombat.pendingRunSigilId || "free").id;
   const activeRunSigilId = pendingRunSetup ? "free" : getRunSigil(rawCombat.activeRunSigilId || "free").id;
@@ -352,7 +381,7 @@ function mergeStateWithDefaults(base, incoming) {
     rawXp < 0 ||
     !Number.isSafeInteger(Math.floor(rawXp));
 
-  const hasRuntimeCorruption = rawActiveEvents.length !== normalizedActiveEvents.length;
+  const hasRuntimeCorruption = false;
   const shouldResetRuntimeSession = hasPlayerStatCorruption || hasRuntimeCorruption;
 
   const sanitizedLevel = sanitizeStoredLevel(rawPlayer.level, base.player.level);
@@ -463,9 +492,7 @@ function mergeStateWithDefaults(base, incoming) {
       ...rawCombat,
       enemy: normalizeEnemy(rawCombat.enemy, rawCombat.currentTier),
       log: shouldResetRuntimeSession ? [] : [...(rawCombat.log || [])].slice(-20),
-      activeEvents: shouldResetRuntimeSession ? [] : normalizedActiveEvents,
       effects: shouldResetRuntimeSession ? [] : [...(rawCombat.effects || [])].slice(-24),
-      skillCooldowns: shouldResetRuntimeSession ? {} : (rawCombat.skillCooldowns || {}),
       sessionKills: shouldResetRuntimeSession ? 0 : Number(rawCombat.sessionKills || 0),
       talentBuffs: shouldResetRuntimeSession ? [] : [...(rawCombat.talentBuffs || [])].slice(-20),
       ticksInCurrentRun: shouldResetRuntimeSession ? 0 : Number(rawCombat.ticksInCurrentRun || 0),
@@ -474,6 +501,8 @@ function mergeStateWithDefaults(base, incoming) {
         ...(shouldResetRuntimeSession ? {} : (rawCombat.triggerCounters || {})),
       },
       pendingOnKillDamage: shouldResetRuntimeSession ? 0 : Number(rawCombat.pendingOnKillDamage || 0),
+      pendingMageVolatileMult:
+        shouldResetRuntimeSession ? 1 : Math.max(0.2, Number(rawCombat.pendingMageVolatileMult || 1)),
       runStats: {
         ...base.combat.runStats,
         ...(shouldResetRuntimeSession ? {} : (rawCombat.runStats || {})),
@@ -484,7 +513,6 @@ function mergeStateWithDefaults(base, incoming) {
         ...(shouldResetRuntimeSession ? {} : (rawCombat.performanceSnapshot || {})),
       },
       floatEvents: shouldResetRuntimeSession ? [] : [...(rawCombat.floatEvents || [])].slice(-8),
-      skillDamageTimeline: shouldResetRuntimeSession ? [] : [...(rawCombat.skillDamageTimeline || [])].slice(-240),
       analytics: shouldResetRuntimeSession ? createEmptySessionAnalytics() : sanitizeSessionAnalytics(rawCombat.analytics || {}),
       craftingLog: [...(rawCombat.craftingLog || [])].slice(-30),
       reforgeSession: rawCombat.reforgeSession || null,
@@ -527,7 +555,8 @@ function mergeStateWithDefaults(base, incoming) {
     (normalizedPrestigeCycle.maxLevel || 1) !== Number((migratedIncoming.combat || {}).prestigeCycle?.maxLevel ?? normalizedPrestigeCycle.maxLevel) ||
     (normalizedPrestigeCycle.maxTier || 1) !== Number((migratedIncoming.combat || {}).prestigeCycle?.maxTier ?? normalizedPrestigeCycle.maxTier);
 
-  const refreshedPlayer = syncCodexBonuses(syncPrestigeBonuses(mergedState.player, mergedState.prestige), mergedState.codex);
+  const rebuiltPlayer = rebuildPlayerProgressionBonuses(mergedState.player);
+  const refreshedPlayer = syncCodexBonuses(syncPrestigeBonuses(rebuiltPlayer, mergedState.prestige), mergedState.codex);
   const normalizedPlayer = {
     ...refreshedPlayer,
     hp: Math.max(

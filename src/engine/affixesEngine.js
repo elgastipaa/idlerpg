@@ -1,5 +1,6 @@
 ﻿import { PREFIXES, SUFFIXES } from "../data/affixes";
 import { ITEM_RARITY_BLUEPRINT, ITEM_ROLL_RULES_V2 } from "../data/items";
+import { normalizeLegacyStatKey } from "../utils/loot";
 
 const OVERLAP_ELIGIBLE_RARITIES = new Set(ITEM_ROLL_RULES_V2.allowBaseImplicitAffixOverlapRarities || []);
 
@@ -92,7 +93,7 @@ function buildRolledAffix(affix, tierEntry) {
 
   return {
     id: affix.id,
-    stat: affix.stat,
+    stat: normalizeLegacyStatKey(affix.stat),
     scaling: affix.scaling,
     category: affix.category,
     kind: getAffixKind(affix),
@@ -124,14 +125,15 @@ function getAffixPoolWeight({
   overlapPenalty = 0.3,
   maxExistingStatOverlaps = 1,
 }) {
+  const normalizedStat = normalizeLegacyStatKey(affix.stat);
   const tiers = getTierEntries(affix);
   const baseWeight = tiers.reduce((sum, entry) => sum + entry.weight * getTierWeightMultiplier(itemTier, entry.tier), 0);
-  const favoredBonus = favoredStats.includes(affix.stat) ? favoredStatWeightMultiplier : 1;
+  const favoredBonus = favoredStats.includes(normalizedStat) ? favoredStatWeightMultiplier : 1;
   if (baseWeight <= 0) return 0;
   if (state.usedAffixIds.has(affix.id)) return 0;
-  if (state.usedAffixStats.has(affix.stat)) return 0;
+  if (state.usedAffixStats.has(normalizedStat)) return 0;
 
-  const overlapsExisting = state.existingStats.has(affix.stat);
+  const overlapsExisting = state.existingStats.has(normalizedStat);
   if (overlapsExisting && !allowExistingStatOverlap) return 0;
   if (overlapsExisting && state.overlapCount >= maxExistingStatOverlaps) return 0;
 
@@ -166,10 +168,11 @@ function rollSingleAffix(pool, state, options = {}) {
   const tierEntry = pickTier(pickedAffix, itemTier);
   if (!tierEntry) return null;
 
+  const normalizedStat = normalizeLegacyStatKey(pickedAffix.stat);
   state.usedCategories.add(pickedAffix.category);
   state.usedAffixIds.add(pickedAffix.id);
-  state.usedAffixStats.add(pickedAffix.stat);
-  if (state.existingStats.has(pickedAffix.stat)) {
+  state.usedAffixStats.add(normalizedStat);
+  if (state.existingStats.has(normalizedStat)) {
     state.overlapCount += 1;
   }
   return buildRolledAffix(pickedAffix, tierEntry);
@@ -185,12 +188,13 @@ export function rollAffixes({
   overlapPenalty = ITEM_ROLL_RULES_V2.overlapAffixWeightPenalty ?? 0.3,
   maxExistingStatOverlaps = ITEM_ROLL_RULES_V2.maxOverlapsWithBaseOrImplicit ?? 1,
 }) {
+  const normalizedFavoredStats = (favoredStats || []).map(normalizeLegacyStatKey);
   const config = getAffixCountConfig(rarity);
   const state = {
     usedCategories: new Set(),
     usedAffixIds: new Set(),
     usedAffixStats: new Set(),
-    existingStats: new Set(existingStats),
+    existingStats: new Set((existingStats || []).map(normalizeLegacyStatKey)),
     overlapCount: 0,
   };
   const result = [];
@@ -198,7 +202,7 @@ export function rollAffixes({
   for (let index = 0; index < config.prefix; index += 1) {
     const rolled = rollSingleAffix(PREFIXES, state, {
       itemTier,
-      favoredStats,
+      favoredStats: normalizedFavoredStats,
       favoredStatWeightMultiplier,
       allowExistingStatOverlap,
       overlapPenalty,
@@ -210,7 +214,7 @@ export function rollAffixes({
   for (let index = 0; index < config.suffix; index += 1) {
     const rolled = rollSingleAffix(SUFFIXES, state, {
       itemTier,
-      favoredStats,
+      favoredStats: normalizedFavoredStats,
       favoredStatWeightMultiplier,
       allowExistingStatOverlap,
       overlapPenalty,
@@ -228,8 +232,8 @@ export function rerollAffixes(item, itemTier) {
 
   if (!canRerollExistingAffixes) {
     const existingStats = [
-      ...Object.entries(item?.baseBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => stat),
-      ...Object.entries(item?.implicitBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => stat),
+      ...Object.entries(item?.baseBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => normalizeLegacyStatKey(stat)),
+      ...Object.entries(item?.implicitBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => normalizeLegacyStatKey(stat)),
     ];
     return rollAffixes({
       rarity: item.rarity,
@@ -286,26 +290,26 @@ export function generateReforgeOptions(item, affixIndex, optionCount = 2, favore
   const usedStats = new Set(
     currentAffixes
       .filter((affix, index) => index !== affixIndex)
-      .map(affix => affix.stat)
+      .map(affix => normalizeLegacyStatKey(affix.stat))
   );
   const existingStats = new Set([
-    ...Object.entries(item?.baseBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => stat),
-    ...Object.entries(item?.implicitBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => stat),
+    ...Object.entries(item?.baseBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => normalizeLegacyStatKey(stat)),
+    ...Object.entries(item?.implicitBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => normalizeLegacyStatKey(stat)),
   ]);
   const allowExistingStatOverlap = OVERLAP_ELIGIBLE_RARITIES.has(item?.rarity);
   const overlapPenalty = ITEM_ROLL_RULES_V2.overlapAffixWeightPenalty ?? 0.3;
   const maxExistingStatOverlaps = ITEM_ROLL_RULES_V2.maxOverlapsWithBaseOrImplicit ?? 1;
   const existingOverlapCount = currentAffixes
     .filter((affix, index) => index !== affixIndex)
-    .filter(affix => existingStats.has(affix.stat))
+    .filter(affix => existingStats.has(normalizeLegacyStatKey(affix.stat)))
     .length;
 
   const eligible = pool.filter(affix => {
     if (usedIds.has(affix.id)) return false;
     if (usedCategories.has(affix.category)) return false;
-    if (usedStats.has(affix.stat)) return false;
+    if (usedStats.has(normalizeLegacyStatKey(affix.stat))) return false;
     if (affix.id === targetAffix.id) return false;
-    if (!existingStats.has(affix.stat)) return true;
+    if (!existingStats.has(normalizeLegacyStatKey(affix.stat))) return true;
     if (!allowExistingStatOverlap) return false;
     return existingOverlapCount < maxExistingStatOverlaps;
   });
@@ -352,20 +356,20 @@ export function upgradeAffixes(affixes, factor = 1.1) {
 export function addAffix(item) {
   const usedCategories = new Set((item.affixes || []).map(affix => affix.category));
   const usedIds = new Set((item.affixes || []).map(affix => affix.id));
-  const usedStats = new Set((item.affixes || []).map(affix => affix.stat));
+  const usedStats = new Set((item.affixes || []).map(affix => normalizeLegacyStatKey(affix.stat)));
   const existingStats = new Set([
-    ...Object.entries(item?.baseBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => stat),
-    ...Object.entries(item?.implicitBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => stat),
+    ...Object.entries(item?.baseBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => normalizeLegacyStatKey(stat)),
+    ...Object.entries(item?.implicitBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => normalizeLegacyStatKey(stat)),
   ]);
   const allowExistingStatOverlap = OVERLAP_ELIGIBLE_RARITIES.has(item?.rarity);
   const overlapPenalty = ITEM_ROLL_RULES_V2.overlapAffixWeightPenalty ?? 0.3;
   const maxExistingStatOverlaps = ITEM_ROLL_RULES_V2.maxOverlapsWithBaseOrImplicit ?? 1;
-  const existingOverlapCount = (item.affixes || []).filter(affix => existingStats.has(affix.stat)).length;
+  const existingOverlapCount = (item.affixes || []).filter(affix => existingStats.has(normalizeLegacyStatKey(affix.stat))).length;
   const pool = ALL_AFFIXES.filter(affix => {
     if (usedIds.has(affix.id)) return false;
     if (usedCategories.has(affix.category)) return false;
-    if (usedStats.has(affix.stat)) return false;
-    if (!existingStats.has(affix.stat)) return true;
+    if (usedStats.has(normalizeLegacyStatKey(affix.stat))) return false;
+    if (!existingStats.has(normalizeLegacyStatKey(affix.stat))) return true;
     if (!allowExistingStatOverlap) return false;
     return existingOverlapCount < maxExistingStatOverlaps;
   });
@@ -374,7 +378,7 @@ export function addAffix(item) {
   const pickedAffix = weightedPick(pool, affix => {
     const tiers = getTierEntries(affix);
     const baseWeight = tiers.reduce((sum, entry) => sum + entry.weight, 0);
-    if (existingStats.has(affix.stat)) return baseWeight * overlapPenalty;
+    if (existingStats.has(normalizeLegacyStatKey(affix.stat))) return baseWeight * overlapPenalty;
     return baseWeight;
   });
   if (!pickedAffix) return item.affixes || [];
@@ -389,7 +393,7 @@ export function mergeAffixes(affixesA, affixesB) {
   const merged = {};
 
   [...affixesA, ...affixesB].forEach(affix => {
-    const key = affix.stat;
+    const key = normalizeLegacyStatKey(affix.stat);
     const currentValue = affix.rolledValue ?? affix.value ?? 0;
     const previousValue = merged[key]?.rolledValue ?? merged[key]?.value ?? -Infinity;
     if (!merged[key] || currentValue > previousValue) {

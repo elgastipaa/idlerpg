@@ -9,6 +9,15 @@ export const xpRequired = (level) => {
   return 1380 * level;
 };
 
+export const getLifetimeXp = (level = 1, currentXp = 0) => {
+  const safeLevel = Math.max(1, Math.floor(Number(level || 1)));
+  let total = Math.max(0, Math.floor(Number(currentXp || 0)));
+  for (let current = 1; current < safeLevel; current += 1) {
+    total += xpRequired(current);
+  }
+  return total;
+};
+
 function grantsTalentPointOnLevel(level) {
   if (level <= 12) return true;
   if (level <= 30) return level % 2 === 0;

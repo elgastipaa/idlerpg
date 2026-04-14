@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { SKILLS } from "../data/skills";
 import { TALENTS } from "../data/talents";
 import { ITEM_FAMILIES } from "../data/itemFamilies";
 import { xpRequired } from "../engine/leveling";
@@ -9,7 +8,8 @@ import { getRarityColor, getAffixTierGlyph } from "../constants/rarity";
 import { calcStats } from "../engine/combat/statEngine";
 import { computeEffectModifiers } from "../engine/effects/effectEngine";
 import { ITEM_STAT_LABELS as STAT_LABELS } from "../utils/itemPresentation";
-import { getTargetedLegendaryDropsForEnemy } from "../utils/legendaryPowers";
+import { getLegendaryStaticBonuses, getTargetedLegendaryDropsForEnemy } from "../utils/legendaryPowers";
+import CombatGuidanceStrip from "./combat/CombatGuidanceStrip";
 
 const COLORS = {
   success: "var(--tone-success, #1D9E75)",
@@ -21,7 +21,6 @@ const COLORS = {
 };
 const RARITY_RANK = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
 const FLOAT_EVENT_TTL_MS = 1200;
-const SKILL_DPS_WINDOW_MS = 20000;
 const COMBAT_ANIMATION_STYLES = `
 @keyframes lootOverlayEnter {
   0% { opacity: 0; transform: translateY(26px) scale(0.98); }
@@ -55,6 +54,11 @@ const COMBAT_ANIMATION_STYLES = `
   18% { opacity: 1; transform: translate(-50%, 0) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -30px) scale(1); }
 }
+@keyframes combatFloatXp {
+  0% { opacity: 0; transform: translate(-50%, 6px) scale(0.94); }
+  18% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -26px) scale(1.02); }
+}
 `;
 
 const CLASS_ICONS = {
@@ -75,12 +79,52 @@ const TALENT_ICONS = {
   assassin: "AS",
 };
 
-function getSkillDesc(skill) {
-  if (skill.effect?.damageMultiplier) return `x${skill.effect.damageMultiplier} dano`;
-  if (skill.effect?.heal) return `+${skill.effect.heal} HP`;
-  if (skill.effect?.critBonus) return `+${(skill.effect.critBonus * 100).toFixed(0)}% crit`;
-  return "";
-}
+const STATUS_METADATA = {
+  rage: {
+    label: "Furia",
+    description: "Cargas temporales que suben dano y velocidad cuando el leech sostiene el intercambio.",
+  },
+  fortress: {
+    label: "Fortaleza",
+    description: "Tu siguiente golpe viene cargado despues de bloquear o mitigar castigo.",
+  },
+  momentum: {
+    label: "Momentum",
+    description: "Mientras mantienes el tempo, acumulas dano y defensa.",
+  },
+  combatFlow: {
+    label: "Flujo",
+    description: "Golpear seguido al mismo objetivo apila dano mientras no se corte la cadena.",
+  },
+  flow: {
+    label: "Flow",
+    description: "El siguiente objetivo arranca con ventaja heredada del anterior.",
+  },
+  volatile: {
+    label: "Volatilidad",
+    description: "El proximo golpe esta sesgado: puede salir mucho mejor o peor que lo normal.",
+  },
+  bleed: {
+    label: "Sangrado",
+    description: "Dano por tick. Mas stacks y mas potencia vuelven mucho mas caro dejarlo correr.",
+  },
+  fracture: {
+    label: "Fractura",
+    description: "Reduce la defensa efectiva del objetivo y mejora los golpes que siguen.",
+  },
+  mark: {
+    label: "Marca",
+    description: "El objetivo queda preparado para que el Mage saque mucho mas valor del siguiente hit.",
+  },
+  memory: {
+    label: "Memoria",
+    description: "La preparacion del objetivo se refina y cada stack de Marca rinde mejor.",
+  },
+  ramp: {
+    label: "Rampa Arcana",
+    description: "El dano del Mage sube cuanto mas ordenado sea el intercambio sobre el mismo objetivo.",
+  },
+};
 
 function getTriggerProgress(talent, triggerCounters = {}) {
   const every = talent.trigger?.every;
@@ -104,7 +148,7 @@ function getTriggerProgress(talent, triggerCounters = {}) {
     percent: (rawProgress / every) * 100,
     label:
       stat === "kills"
-        ? "kills"
+        ? "bajas"
         : stat === "onHit"
           ? "golpes"
           : stat === "crit"
@@ -144,37 +188,30 @@ function formatGoalReward(reward = {}) {
   return chunks.join(" · ");
 }
 
-function formatDpsValue(value) {
-  if (!value || value <= 0) return "0.0";
-  if (value >= 100) return value.toFixed(0);
-  if (value >= 10) return value.toFixed(1);
-  return value.toFixed(2);
+function formatPercent(value = 0, digits = 0) {
+  const numeric = Number(value || 0) * 100;
+  const rounded = Math.round(numeric * Math.pow(10, digits)) / Math.pow(10, digits);
+  return `${rounded}%`;
 }
 
-function formatBossTheme(enemy) {
-  const parts = [];
-  if (enemy?.favoredFamilies?.length) {
-    parts.push(`Favorece familias: ${enemy.favoredFamilies.join(", ")}`);
-  }
-  if (enemy?.favoredStats?.length) {
-    parts.push(`Favorece stats: ${enemy.favoredStats.join(", ")}`);
-  }
-  if (enemy?.guaranteedRarityFloor) {
-    parts.push(`Piso de rareza: ${enemy.guaranteedRarityFloor}`);
-  }
-  return parts;
+function formatSignedPercent(value = 0, digits = 0) {
+  const numeric = Number(value || 0);
+  if (Math.abs(numeric) < 0.0001) return "0%";
+  const prefix = numeric > 0 ? "+" : "-";
+  return `${prefix}${formatPercent(Math.abs(numeric), digits)}`;
 }
 
-function formatHuntFamilies(enemy) {
-  return (enemy?.favoredFamilies || [])
-    .map(familyId => ITEM_FAMILIES[familyId]?.name || familyId)
-    .slice(0, 3);
+function formatMultiplierBonus(multiplier = 1, digits = 0) {
+  return formatSignedPercent(Number(multiplier || 1) - 1, digits);
 }
 
-function formatHuntStats(enemy) {
-  return (enemy?.favoredStats || [])
-    .map(stat => STAT_LABELS[stat] || stat)
-    .slice(0, 3);
+function formatTickCount(ticks = 0) {
+  const value = Math.max(0, Number(ticks || 0));
+  return `${value} tick${value === 1 ? "" : "s"}`;
+}
+
+function getStackedMultiplier(perStackMultiplier = 1, stacks = 0) {
+  return Math.pow(Math.max(1, Number(perStackMultiplier || 1)), Math.max(0, Number(stacks || 0)));
 }
 
 export default function Combat({ state, dispatch }) {
@@ -193,7 +230,7 @@ export default function Combat({ state, dispatch }) {
   const [tipIndex, setTipIndex] = useState(0);
   const [logExpanded, setLogExpanded] = useState(false);
   const [collapsedPanels, setCollapsedPanels] = useState({
-    skills: true,
+    enemyIntel: true,
     talents: true,
     log: true,
   });
@@ -201,10 +238,6 @@ export default function Combat({ state, dispatch }) {
   const [combatFxNow, setCombatFxNow] = useState(Date.now());
   const logRef = useRef(null);
   const prevLevelRef = useRef(player.level || 1);
-
-  const mySkills = SKILLS.filter(
-    skill => skill.classId === player.class && (!skill.specId || skill.specId === player.specialization)
-  );
 
   const replacedTalentIds = new Set(
     TALENTS
@@ -215,7 +248,12 @@ export default function Combat({ state, dispatch }) {
   const myTalents = TALENTS.filter(
     talent =>
       talent.classId === player.class &&
-      (talent.type === "triggered" || talent.type === "stacking") &&
+      (
+        talent.displayType === "triggered" ||
+        talent.displayType === "stacking" ||
+        talent.type === "triggered" ||
+        talent.type === "stacking"
+      ) &&
       (player.unlockedTalents || []).includes(talent.id) &&
       !replacedTalentIds.has(talent.id)
   );
@@ -223,21 +261,15 @@ export default function Combat({ state, dispatch }) {
   const activeTalentEffects = useMemo(() => buildActiveTalentEffects(effects), [effects]);
   const activeGoals = useMemo(() => getActiveGoals(state, 3), [state]);
   const sessionGoals = activeGoals.slice(0, 3);
-  const skillDpsById = useMemo(() => {
-    const now = Date.now();
-    const cutoff = now - SKILL_DPS_WINDOW_MS;
-    const totals = new Map();
-    (combat.skillDamageTimeline || []).forEach(entry => {
-      if (!entry?.skillId || (entry.at || 0) < cutoff) return;
-      totals.set(entry.skillId, (totals.get(entry.skillId) || 0) + Math.max(0, entry.damage || 0));
-    });
-    return totals;
-  }, [combat.skillDamageTimeline]);
   const latestLootEvent = combat.latestLootEvent || null;
   const [visibleLootEvent, setVisibleLootEvent] = useState(latestLootEvent);
   const [lootClosing, setLootClosing] = useState(false);
   const isDarkMode = state.settings?.theme === "dark";
   const baseStats = useMemo(() => calcStats(player), [player]);
+  const legendaryBonuses = useMemo(
+    () => getLegendaryStaticBonuses({ player, enemy, stats: baseStats }),
+    [player, enemy, baseStats]
+  );
   const combatEffectMods = useMemo(() => computeEffectModifiers(effects || []), [effects]);
   const effectiveDamageInCombat = Math.max(
     1,
@@ -354,22 +386,6 @@ export default function Combat({ state, dispatch }) {
   }, []);
 
   useEffect(() => {
-    if (!isMobile) {
-      setCollapsedPanels({
-        skills: false,
-        talents: false,
-        log: false,
-      });
-      return;
-    }
-    setCollapsedPanels({
-      skills: true,
-      talents: true,
-      log: true,
-    });
-  }, [isMobile]);
-
-  useEffect(() => {
     if (sessionGoals.length <= 1) return undefined;
     const timer = setInterval(() => {
       setGoalIndex(current => (current + 1) % sessionGoals.length);
@@ -423,22 +439,20 @@ export default function Combat({ state, dispatch }) {
   const floatingCombatEvents = (combat.floatEvents || [])
     .filter(event => combatFxNow - (event?.at || combatFxNow) < FLOAT_EVENT_TTL_MS)
     .slice(-10);
-  const isPanelCollapsed = panel => isMobile && !!collapsedPanels[panel];
+  const combatDamageFloatEvents = floatingCombatEvents.filter(event => event.kind !== "xp");
+  const combatXpFloatEvents = floatingCombatEvents.filter(event => event.kind === "xp");
+  const isPanelCollapsed = panel => !!collapsedPanels[panel];
   const togglePanel = panel => {
     setCollapsedPanels(current => ({
       ...current,
       [panel]: !current[panel],
     }));
   };
+  const enemyIdentityLabel = [enemy.familyName, enemy.familyTraitName].filter(Boolean).join(" · ");
   const enemyIntelChips = [
-    enemy.familyName && { id: "family", label: enemy.familyName },
-    enemy.familyTraitName && { id: "trait", label: enemy.familyTraitName },
     ...(enemy.monsterAffixes || []).slice(0, 2).map(affix => ({ id: `monster-${affix.id || affix.name}`, label: affix.name })),
     ...(enemy.mechanics || []).slice(0, 2).map(mechanic => ({ id: `mech-${mechanic.id || mechanic.name}`, label: mechanic.name })),
   ].filter(Boolean);
-  const bossThemeText = formatBossTheme(enemy).join(" · ");
-  const huntFamilies = formatHuntFamilies(enemy);
-  const huntStats = formatHuntStats(enemy);
   const enemyLegendaryDrops = useMemo(() => getTargetedLegendaryDropsForEnemy(enemy), [enemy]);
   const missingEnemyPowers = useMemo(() => {
     const discoveries = state?.codex?.powerDiscoveries || {};
@@ -448,6 +462,176 @@ export default function Combat({ state, dispatch }) {
     const discoveries = state?.codex?.powerDiscoveries || {};
     return enemyLegendaryDrops.filter(drop => discoveries?.[drop?.power?.id] > 0);
   }, [enemyLegendaryDrops, state?.codex?.powerDiscoveries]);
+  const activeTalentCount = activeTalentEffects.size;
+  const effectStacksBySource = useMemo(() => {
+    const counts = new Map();
+    (effects || []).forEach(effect => {
+      if (!effect?.sourceId) return;
+      counts.set(effect.sourceId, (counts.get(effect.sourceId) || 0) + 1);
+    });
+    return counts;
+  }, [effects]);
+  const playerStatusPills = useMemo(() => {
+    const statuses = [];
+    const rageStacks = effectStacksBySource.get("berserker_blood_debt") || 0;
+    const fortressStacks = effectStacksBySource.get("juggernaut_fortress_guard") || 0;
+    const momentumStacks = effectStacksBySource.get("juggernaut_titanic_momentum") || 0;
+    const combatFlowStacks = Math.min(
+      Math.max(0, Number(baseStats.combatFlowMaxStacks || 0)),
+      Math.max(0, Number(enemy?.runtime?.flowStacks || 0))
+    );
+    const flowHits = Number(enemy?.runtime?.mageFlowHitsRemaining || 0);
+    const flowBonusMult = Math.max(1, Number(enemy?.runtime?.mageFlowBonusMult || 1));
+    const volatileMult = Math.max(0.2, Number(combat?.pendingMageVolatileMult || 1));
+    const rageDamageMult = getStackedMultiplier(1 + Number(baseStats.bloodDebt || 0) * 0.01, rageStacks);
+    const rageAttackSpeed = rageStacks * (0.003 + Number(baseStats.bloodDebt || 0) * 0.003);
+    const fortressDamageMult = getStackedMultiplier(1 + Number(baseStats.fortress || 0) * 0.006, fortressStacks);
+    const momentumDamageMult = getStackedMultiplier(1 + Number(baseStats.titanicMomentum || 0) * 0.004, momentumStacks);
+    const momentumDefenseMult = getStackedMultiplier(1 + Number(baseStats.titanicMomentum || 0) * 0.004, momentumStacks);
+    const combatFlowMult =
+      combatFlowStacks > 0
+        ? 1 + combatFlowStacks * Math.max(0, Number(baseStats.combatFlowPerStack || 0))
+        : 1;
+
+    if (rageStacks > 0) statuses.push({
+      id: "rage",
+      label: STATUS_METADATA.rage.label,
+      value: `x${rageStacks}`,
+      tone: "danger",
+      detail: `${formatMultiplierBonus(rageDamageMult)} dano · ${formatSignedPercent(rageAttackSpeed, 1)} vel`,
+      description: STATUS_METADATA.rage.description,
+    });
+    if (fortressStacks > 0) statuses.push({
+      id: "fortress",
+      label: STATUS_METADATA.fortress.label,
+      value: `x${fortressStacks}`,
+      tone: "boss",
+      detail: `${formatMultiplierBonus(fortressDamageMult)} dano listo`,
+      description: STATUS_METADATA.fortress.description,
+    });
+    if (combatFlowStacks > 0) statuses.push({
+      id: "combat-flow",
+      label: STATUS_METADATA.combatFlow.label,
+      value: `x${combatFlowStacks}`,
+      tone: "info",
+      detail: `${formatMultiplierBonus(combatFlowMult, 1)} dano`,
+      description: STATUS_METADATA.combatFlow.description,
+    });
+    if (momentumStacks > 0) statuses.push({
+      id: "momentum",
+      label: STATUS_METADATA.momentum.label,
+      value: `x${momentumStacks}`,
+      tone: "success",
+      detail: `${formatMultiplierBonus(momentumDamageMult)} dano · ${formatMultiplierBonus(momentumDefenseMult)} defensa`,
+      description: STATUS_METADATA.momentum.description,
+    });
+    if (flowHits > 0) statuses.push({
+      id: "flow",
+      label: STATUS_METADATA.flow.label,
+      value: `${flowHits} golpe${flowHits === 1 ? "" : "s"}`,
+      tone: "info",
+      detail: `${formatMultiplierBonus(flowBonusMult)} dano`,
+      description: STATUS_METADATA.flow.description,
+    });
+    if (player.class === "mage" && Math.abs(volatileMult - 1) > 0.01) {
+      statuses.push({
+        id: "volatile",
+        label: STATUS_METADATA.volatile.label,
+        value: `x${volatileMult.toFixed(2)}`,
+        tone: volatileMult >= 1 ? "warning" : "common",
+        detail: volatileMult >= 1 ? "alto roll preparado" : "riesgo de bajo roll",
+        description: STATUS_METADATA.volatile.description,
+      });
+    }
+    return statuses;
+  }, [
+    baseStats.bloodDebt,
+    baseStats.combatFlowMaxStacks,
+    baseStats.combatFlowPerStack,
+    baseStats.fortress,
+    baseStats.titanicMomentum,
+    combat?.pendingMageVolatileMult,
+    effectStacksBySource,
+    enemy?.runtime?.flowStacks,
+    enemy?.runtime?.mageFlowBonusMult,
+    enemy?.runtime?.mageFlowHitsRemaining,
+    player.class,
+  ]);
+  const enemyStatusPills = useMemo(() => {
+    const runtime = enemy?.runtime || {};
+    const statuses = [];
+    const bleedTickDamage =
+      (runtime.bleedStacks || 0) > 0 && (runtime.bleedPerStack || 0) > 0 && (runtime.bleedTicksRemaining || 0) > 0
+        ? Math.max(1, Math.floor(Number(runtime.bleedStacks || 0) * Number(runtime.bleedPerStack || 0)))
+        : 0;
+    const fractureReduction = Math.min(0.55, Number(runtime.fractureStacks || 0) * 0.1);
+    const memoryBonusPerStack =
+      Math.max(0, Number(baseStats.spellMemoryMarkEffectPerStack || 0)) +
+      Math.max(0, Number(legendaryBonuses.spellMemoryMarkEffectPerStack || 0));
+    const markEffectPerStack =
+      Math.max(0, Number(baseStats.markEffectPerStack || 0)) +
+      Math.max(0, Number(runtime.mageMemoryStacks || 0)) * memoryBonusPerStack +
+      Math.max(0, Number(legendaryBonuses.markEffectPerStack || 0));
+    const markedTargetMult =
+      (runtime.markStacks || 0) > 0
+        ? 1 + Math.max(0, Number(runtime.markStacks || 0)) * markEffectPerStack
+        : 1;
+    const rampStacks = Math.min(
+      Math.max(0, Number(baseStats.temporalFlowMaxStacks || 0)),
+      Math.max(0, Number(runtime.mageTemporalFlowStacks || 0))
+    );
+    const rampMult = 1 + rampStacks * Math.max(0, Number(baseStats.temporalFlowPerStack || 0));
+
+    if ((runtime.bleedStacks || 0) > 0) statuses.push({
+      id: "bleed",
+      label: STATUS_METADATA.bleed.label,
+      value: `x${runtime.bleedStacks}`,
+      tone: "danger",
+      detail: `${bleedTickDamage.toLocaleString()}/tick · ${formatTickCount(runtime.bleedTicksRemaining)}`,
+      description: STATUS_METADATA.bleed.description,
+    });
+    if ((runtime.fractureStacks || 0) > 0) statuses.push({
+      id: "fracture",
+      label: STATUS_METADATA.fracture.label,
+      value: `x${runtime.fractureStacks}`,
+      tone: "warning",
+      detail: `${formatSignedPercent(-fractureReduction)} defensa · ${formatTickCount(runtime.fractureTicksRemaining)}`,
+      description: STATUS_METADATA.fracture.description,
+    });
+    if ((runtime.markStacks || 0) > 0) statuses.push({
+      id: "mark",
+      label: STATUS_METADATA.mark.label,
+      value: `x${runtime.markStacks}`,
+      tone: "boss",
+      detail: `${formatMultiplierBonus(markedTargetMult)} dano · ${formatTickCount(runtime.markTicksRemaining)}`,
+      description: STATUS_METADATA.mark.description,
+    });
+    if ((runtime.mageMemoryStacks || 0) > 0) statuses.push({
+      id: "memory",
+      label: STATUS_METADATA.memory.label,
+      value: `x${runtime.mageMemoryStacks}`,
+      tone: "info",
+      detail: `${formatSignedPercent(memoryBonusPerStack, 1)} por stack de Marca`,
+      description: STATUS_METADATA.memory.description,
+    });
+    if ((runtime.mageTemporalFlowStacks || 0) > 0) statuses.push({
+      id: "ramp",
+      label: STATUS_METADATA.ramp.label,
+      value: `x${runtime.mageTemporalFlowStacks}`,
+      tone: "success",
+      detail: `${formatMultiplierBonus(rampMult)} dano sostenido`,
+      description: STATUS_METADATA.ramp.description,
+    });
+    return statuses;
+  }, [
+    baseStats.markEffectPerStack,
+    baseStats.spellMemoryMarkEffectPerStack,
+    baseStats.temporalFlowMaxStacks,
+    baseStats.temporalFlowPerStack,
+    enemy,
+    legendaryBonuses.markEffectPerStack,
+    legendaryBonuses.spellMemoryMarkEffectPerStack,
+  ]);
 
   return (
     <div
@@ -465,83 +649,101 @@ export default function Combat({ state, dispatch }) {
       <style>{COMBAT_ANIMATION_STYLES}</style>
       <section
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
+          display: "grid",
+          gap: "10px",
           background: "var(--color-background-secondary, #fff)",
           padding: "10px",
           borderRadius: "16px",
           border: `2px solid ${enemy.isBoss ? COLORS.warning : "var(--color-border-primary, #e2e8f0)"}`,
         }}
       >
-        <button
-          onClick={() => dispatch({ type: "SET_TIER", tier: currentTier - 1 })}
-          disabled={currentTier <= 1}
-          style={navBtnStyle(currentTier > 1)}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "34px minmax(0, 1fr) 34px 34px",
+            gap: "8px",
+            alignItems: "center",
+          }}
         >
-          {"<"}
-        </button>
-        <div style={{ flex: 1, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <div style={{ fontSize: 9, color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "2px" }}>
-            Tier Actual
+          <button
+            onClick={() => dispatch({ type: "SET_TIER", tier: currentTier - 1 })}
+            disabled={currentTier <= 1}
+            style={navBtnStyle(currentTier > 1)}
+          >
+            {"<"}
+          </button>
+          <div style={{ display: "flex", justifyContent: "center", minWidth: 0 }}>
+            <div
+              style={{
+                minWidth: isMobile ? "132px" : "156px",
+                maxWidth: "100%",
+                borderRadius: "12px",
+                padding: isMobile ? "7px 10px" : "8px 12px",
+                border: "1px solid var(--color-border-primary, #e2e8f0)",
+                background: "var(--color-background-tertiary, #f8fafc)",
+                textAlign: "center",
+                boxSizing: "border-box",
+              }}
+            >
+              <div style={{ fontSize: 9, color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "2px" }}>
+                Tier Actual
+              </div>
+              <button
+                title={[
+                  `Tier ${currentTier} / ${maxTier}`,
+                  enemy.familyTraitName ? `Rasgo: ${enemy.familyTraitName}` : "",
+                  (enemy.monsterAffixes || []).length ? `Afijos: ${(enemy.monsterAffixes || []).map(affix => affix.name).join(", ")}` : "",
+                  (enemy.mechanics || []).length ? `Boss: ${(enemy.mechanics || []).map(mechanic => mechanic.name).join(", ")}` : "",
+                ].filter(Boolean).join("\n")}
+                style={{
+                  margin: 0,
+                  fontSize: isMobile ? 12 : 13,
+                  color: COLORS.common,
+                  fontWeight: "900",
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  cursor: "help",
+                  display: "block",
+                  lineHeight: 1,
+                  width: "100%",
+                  fontVariantNumeric: "tabular-nums",
+                  fontFeatureSettings: "\"tnum\"",
+                }}
+              >
+                {currentTier} / {maxTier}
+              </button>
+            </div>
           </div>
           <button
-            title={[
-              `Tier ${currentTier} / ${maxTier}`,
-              enemy.familyTraitName ? `Rasgo: ${enemy.familyTraitName}` : "",
-              (enemy.monsterAffixes || []).length ? `Affixes: ${(enemy.monsterAffixes || []).map(affix => affix.name).join(", ")}` : "",
-              (enemy.mechanics || []).length ? `Boss: ${(enemy.mechanics || []).map(mechanic => mechanic.name).join(", ")}` : "",
-              ...formatBossTheme(enemy),
-            ].filter(Boolean).join("\n")}
-            style={{ margin: 0, fontSize: 11, color: COLORS.common, fontWeight: "900", background: "none", border: "none", padding: 0, cursor: "help", display: "block", lineHeight: 1 }}
+            onClick={() => dispatch({ type: "SET_TIER", tier: currentTier + 1 })}
+            disabled={currentTier >= maxTier}
+            style={navBtnStyle(currentTier < maxTier)}
           >
-            {currentTier} / {maxTier}
+            {">"}
           </button>
+          <button
+            onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
+            title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+            aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+            style={autoAdvanceBtnStyle(autoAdvance)}
+          >
+            🥾
+          </button>
+        </div>
+
+        <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0 }}>
           <button
             title={[
               enemy.familyName ? `${enemy.familyName}: ${enemy.familyTraitName || "Sin rasgo visible"}` : enemy.familyTraitName || "Sin rasgo visible",
               ...(enemy.monsterAffixes || []).map(affix => `${affix.name}: ${affix.description}`),
               ...(enemy.mechanics || []).map(mechanic => `${mechanic.name}: ${mechanic.description}`),
-              ...formatBossTheme(enemy),
             ].filter(Boolean).join("\n")}
-            style={{ margin: "6px 0 0", fontWeight: "900", color: COLORS.dark, background: "none", border: "none", padding: 0, cursor: "help", display: "block" }}
+            style={{ margin: 0, fontWeight: "900", color: COLORS.dark, background: "none", border: "none", padding: 0, cursor: "help", display: "block", maxWidth: "100%" }}
           >
             {enemy.isBoss ? "BOSS " : ""}
             {enemy.name.toUpperCase()}
           </button>
-          {enemyIntelChips.length > 0 && (
-            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", justifyContent: "center", marginTop: "5px" }}>
-              {enemyIntelChips.map(chip => (
-                <span key={chip.id} style={{ fontSize: "0.52rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: enemy.isBoss ? "var(--tone-violet-soft, #f3e8ff)" : "var(--color-background-tertiary, #f1f5f9)", color: enemy.isBoss ? "var(--tone-violet, #6d28d9)" : "var(--color-text-secondary, #475569)", border: `1px solid ${enemy.isBoss ? "rgba(124,58,237,0.18)" : "var(--color-border-primary, #e2e8f0)"}` }}>
-                  {chip.label}
-                </span>
-              ))}
-            </div>
-          )}
-          {bossThemeText && (
-            <p style={{ margin: "5px 0 0", fontSize: 10, color: enemy.isBoss ? COLORS.boss : "var(--color-text-secondary, #475569)", fontWeight: "800", textAlign: "center" }}>
-              {bossThemeText}
-            </p>
-          )}
-          {(huntFamilies.length > 0 || huntStats.length > 0 || enemy?.guaranteedRarityFloor) && (
-            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", justifyContent: "center", marginTop: "6px" }}>
-              {huntFamilies.length > 0 && (
-                <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-warning-soft, #fff7ed)", color: "var(--tone-warning, #f59e0b)", border: "1px solid rgba(245,158,11,0.18)" }}>
-                  Caza: {huntFamilies.join(" / ")}
-                </span>
-              )}
-              {huntStats.length > 0 && (
-                <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-accent-soft, #eef2ff)", color: "var(--tone-accent, #4338ca)", border: "1px solid rgba(99,102,241,0.18)" }}>
-                  Busca: {huntStats.join(" / ")}
-                </span>
-              )}
-              {enemy?.guaranteedRarityFloor && (
-                <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--color-text-secondary, #475569)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
-                  Piso {enemy.guaranteedRarityFloor}
-                </span>
-              )}
-            </div>
-          )}
           {enemyLegendaryDrops.length > 0 && (
             <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", justifyContent: "center", marginTop: "6px" }}>
               {missingEnemyPowers.length > 0 ? (
@@ -555,22 +757,65 @@ export default function Combat({ state, dispatch }) {
               ) : null}
             </div>
           )}
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "center", alignItems: "center", marginTop: "6px" }}>
+            {enemyIdentityLabel && (
+              <span style={{ fontSize: "0.52rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--color-background-tertiary, #f1f5f9)", color: "var(--color-text-secondary, #475569)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
+                {enemyIdentityLabel}
+              </span>
+            )}
+            {(enemyIntelChips.length > 0) && (
+              <button
+                onClick={() => togglePanel("enemyIntel")}
+                style={{
+                  border: "1px solid var(--color-border-primary, #e2e8f0)",
+                  background: "var(--color-background-secondary, #fff)",
+                  color: "var(--color-text-secondary, #475569)",
+                  borderRadius: "999px",
+                  padding: "3px 8px",
+                  fontSize: "0.52rem",
+                  fontWeight: "900",
+                  cursor: "pointer",
+                }}
+              >
+                {isPanelCollapsed("enemyIntel") ? "VER INTEL" : "OCULTAR INTEL"}
+              </button>
+            )}
+          </div>
+          {!isPanelCollapsed("enemyIntel") && (
+            <div style={{ display: "grid", gap: "8px", marginTop: "8px", width: "100%" }}>
+              {(enemy.monsterAffixes || []).length > 0 && (
+                <div style={combatIntelPanelStyle}>
+                  <div style={combatIntelTitleStyle}>Afijos</div>
+                  <div style={{ display: "grid", gap: "6px" }}>
+                    {(enemy.monsterAffixes || []).map(affix => (
+                      <div key={`affix-${affix.id || affix.name}`} style={combatIntelEntryStyle}>
+                        <div style={combatIntelLabelStyle}>{affix.name}</div>
+                        {affix.description && (
+                          <div style={combatIntelDescriptionStyle}>{affix.description}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(enemy.mechanics || []).length > 0 && (
+                <div style={combatIntelPanelStyle}>
+                  <div style={combatIntelTitleStyle}>Mecanicas</div>
+                  <div style={{ display: "grid", gap: "6px" }}>
+                    {(enemy.mechanics || []).map(mechanic => (
+                      <div key={`mech-${mechanic.id || mechanic.name}`} style={combatIntelEntryStyle}>
+                        <div style={combatIntelLabelStyle}>{mechanic.name}</div>
+                        {mechanic.description && (
+                          <div style={combatIntelDescriptionStyle}>{mechanic.description}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-        <button
-          onClick={() => dispatch({ type: "SET_TIER", tier: currentTier + 1 })}
-          disabled={currentTier >= maxTier}
-          style={navBtnStyle(currentTier < maxTier)}
-        >
-          {">"}
-        </button>
-        <button
-          onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
-          title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
-          aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
-          style={autoAdvanceBtnStyle(autoAdvance)}
-        >
-          🥾
-        </button>
       </section>
 
       {visibleLootEvent && (
@@ -654,10 +899,9 @@ export default function Combat({ state, dispatch }) {
                 })}
               </div>
             )}
-            {visibleLootEvent.huntMatches?.isMatch && (
+            {visibleLootEvent.hasActiveHuntObjectives && visibleLootEvent.wishlistMatches?.length > 0 && (
               <div style={{ marginTop: "6px", fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)" }}>
-                {visibleLootEvent.huntMatches.familyMatch ? "Coincide con la familia objetivo" : "Coincide con stats objetivo"}
-                {visibleLootEvent.huntMatches.matchingStats?.length > 0 ? ` · ${visibleLootEvent.huntMatches.matchingStats.slice(0, 3).map(stat => STAT_LABELS[stat] || stat).join(", ")}` : ""}
+                Coincide con tu caza · {visibleLootEvent.wishlistMatches.slice(0, 3).map(stat => STAT_LABELS[stat] || stat).join(", ")}
               </div>
             )}
           </section>
@@ -685,6 +929,7 @@ export default function Combat({ state, dispatch }) {
           <div style={barContainerStyle}>
             <div style={{ width: `${enemyHpPct}%`, height: "100%", background: "var(--tone-danger, #ef4444)", transition: "width 0.2s ease-out" }} />
           </div>
+          <InlineStatusTray statuses={enemyStatusPills} emptyLabel="Sin estados" isMobile={isMobile} />
         </div>
         <div>
           <div style={hpLabelStyle}>
@@ -703,12 +948,13 @@ export default function Combat({ state, dispatch }) {
               }}
             />
           </div>
+          <InlineStatusTray statuses={playerStatusPills} emptyLabel="Sin estados" isMobile={isMobile} />
         </div>
-        {floatingCombatEvents.length > 0 && (
+        {combatDamageFloatEvents.length > 0 && (
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible", zIndex: 8 }}>
-            {floatingCombatEvents.map((event, index) => (
+            {combatDamageFloatEvents.map((event, index) => (
               <div key={event.id || `${event.kind}-${index}`} style={getCombatFloatStyle(event, index)}>
-                {event.kind === "heal" || event.kind === "skillHeal"
+                {event.kind === "heal"
                   ? `+${Math.floor(event.value || 0).toLocaleString()} HP`
                   : `-${Math.floor(event.value || 0).toLocaleString()}`}
               </div>
@@ -750,6 +996,15 @@ export default function Combat({ state, dispatch }) {
             >
               <div style={{ width: `${xpPct}%`, height: "100%", background: "var(--tone-accent, #534AB7)", transition: "width 0.5s ease-out" }} />
             </div>
+            {combatXpFloatEvents.length > 0 && (
+              <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible", zIndex: 9 }}>
+                {combatXpFloatEvents.map((event, index) => (
+                  <div key={event.id || `xp-${index}`} style={getCombatFloatStyle(event, index)}>
+                    +{Math.floor(event.value || 0).toLocaleString()} XP
+                  </div>
+                ))}
+              </div>
+            )}
             {levelUpFlash && (
               <div
                 style={{
@@ -801,121 +1056,19 @@ export default function Combat({ state, dispatch }) {
         />
       </section>
 
-      {sessionGoals.length > 0 && (() => {
-        const rotatingGoal = sessionGoals[goalIndex % Math.max(1, sessionGoals.length)] || null;
-        if (!rotatingGoal) return null;
-        return (
-          <section style={{ background: "var(--color-background-secondary, #fff)", borderRadius: "12px", padding: "6px 8px", border: "1px solid var(--color-border-primary, #e2e8f0)", display: "flex", alignItems: "center", gap: "8px" }}>
-            <button onClick={() => setGoalIndex(current => (current - 1 + sessionGoals.length) % sessionGoals.length)} style={cycleButtonStyle}>
-              {"<"}
-            </button>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                <div style={{ display: "flex", gap: "6px", alignItems: "center", minWidth: 0 }}>
-                  <span style={{ fontSize: "0.46rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--tone-accent, #534AB7)", border: "1px solid var(--color-border-primary, #e2e8f0)", textTransform: "uppercase", flexShrink: 0 }}>
-                    {rotatingGoal.sessionArc}
-                  </span>
-                  <span style={{ fontSize: "0.64rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {rotatingGoal.name}
-                  </span>
-                </div>
-                {rotatingGoal.completed ? (
-                  <button onClick={() => dispatch({ type: "CLAIM_GOAL", goalId: rotatingGoal.id })} style={{ ...goalClaimButtonStyle, padding: "5px 8px", fontSize: "0.56rem" }}>CLAIM</button>
-                ) : (
-                  <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", whiteSpace: "nowrap" }}>
-                    {rotatingGoal.progress}/{rotatingGoal.targetValue}
-                  </span>
-                )}
-              </div>
-              <div style={{ fontSize: "0.54rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {rotatingGoal.hint || rotatingGoal.description}
-              </div>
-              <div style={{ ...barContainerStyle, height: 4, marginTop: "5px" }}>
-                <div style={{ width: `${rotatingGoal.percent}%`, height: "100%", background: rotatingGoal.completed ? COLORS.success : COLORS.boss }} />
-              </div>
-            </div>
-            <button onClick={() => setGoalIndex(current => (current + 1) % sessionGoals.length)} style={cycleButtonStyle}>
-              {">"}
-            </button>
-          </section>
-        );
-      })()}
-
-      {rotatingTip && (
-        <section style={{ background: "var(--color-background-secondary, #fff)", borderRadius: "12px", padding: "5px 8px", border: "1px solid var(--color-border-primary, #e2e8f0)", display: "flex", alignItems: "center", gap: "8px" }}>
-          <div style={{ fontSize: "0.5rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)", flexShrink: 0 }}>
-            Consejo
-          </div>
-          <div style={{ minWidth: 0, flex: 1, fontSize: "0.58rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            <strong style={{ color: "var(--color-text-primary, #1e293b)" }}>{rotatingTip.title}:</strong> {rotatingTip.body}
-          </div>
-        </section>
-      )}
-
-      {player.class && mySkills.length > 0 && (
-        <section style={{ background: "var(--color-background-secondary, #fff)", borderRadius: "16px", padding: "10px", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
-          <button onClick={() => togglePanel("skills")} style={sectionHeaderButtonStyle}>
-            <span style={{ fontSize: 9, color: COLORS.common, fontWeight: "900", letterSpacing: "1px" }}>SKILLS</span>
-            <span style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "900" }}>{isPanelCollapsed("skills") ? `VER (${mySkills.length})` : "OCULTAR"}</span>
-          </button>
-          {!isPanelCollapsed("skills") && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: "8px" }}>
-              {mySkills.map(skill => {
-                const cooldown = combat.skillCooldowns?.[skill.id] || 0;
-                const isAuto = combat.skillAutocasts?.[skill.id] || false;
-                const isReady = cooldown === 0;
-                const skillDps = (skillDpsById.get(skill.id) || 0) / 20;
-
-                return (
-                  <div
-                    key={skill.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 10px",
-                      borderRadius: "10px",
-                      background: isAuto ? `${COLORS.success}12` : "var(--color-background-tertiary, #f8fafc)",
-                      border: `1px solid ${isAuto ? `${COLORS.success}66` : "var(--color-border-primary, #e2e8f0)"}`,
-                    }}
-                  >
-                    <div>
-                      <span style={{ fontSize: 12, fontWeight: "900", color: COLORS.dark }}>{skill.name}</span>
-                      <p style={{ fontSize: 10, color: COLORS.common, margin: "2px 0 0" }}>{getSkillDesc(skill)}</p>
-                      <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "2px", flexWrap: "wrap" }}>
-                        {!isReady && <span style={{ fontSize: 10, color: COLORS.warning }}>CD {cooldown}s</span>}
-                        {isReady && isAuto && <span style={{ fontSize: 10, color: COLORS.success }}>LISTO</span>}
-                        <span style={{ fontSize: 10, color: "var(--color-text-info, #4338ca)", fontWeight: "900" }}>DPS20s {formatDpsValue(skillDps)}</span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => dispatch({ type: "TOGGLE_SKILL_AUTOCAST", skillId: skill.id })}
-                      style={{
-                        padding: "4px 10px",
-                        borderRadius: "6px",
-                        border: "none",
-                        background: isAuto ? COLORS.success : "var(--color-background-tertiary, #e2e8f0)",
-                        color: isAuto ? "#fff" : "var(--color-text-secondary, #64748b)",
-                        fontSize: 10,
-                        fontWeight: "900",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {isAuto ? "AUTO ON" : "AUTO OFF"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      )}
+      <CombatGuidanceStrip
+        sessionGoals={sessionGoals}
+        goalIndex={goalIndex}
+        setGoalIndex={setGoalIndex}
+        rotatingTip={rotatingTip}
+        dispatch={dispatch}
+      />
 
       {player.class && myTalents.length > 0 && (
         <section style={{ background: "var(--color-background-secondary, #fff)", borderRadius: "16px", padding: "10px", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
           <button onClick={() => togglePanel("talents")} style={sectionHeaderButtonStyle}>
             <span style={{ fontSize: 9, color: COLORS.common, fontWeight: "900", letterSpacing: "1px" }}>TALENTOS</span>
-            <span style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "900" }}>{isPanelCollapsed("talents") ? `VER (${myTalents.length})` : "OCULTAR"}</span>
+            <span style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "900" }}>{isPanelCollapsed("talents") ? `${activeTalentCount} ACTIVOS · ${myTalents.length}` : "OCULTAR"}</span>
           </button>
           {!isPanelCollapsed("talents") && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: "8px" }}>
@@ -1122,33 +1275,45 @@ const scrollTopBtnStyle = {
   padding: "4px 8px",
 };
 
-const goalClaimButtonStyle = {
-  border: "none",
-  background: "var(--tone-success, #1D9E75)",
-  color: "#fff",
-  borderRadius: "999px",
-  padding: "6px 10px",
-  fontSize: "0.58rem",
-  fontWeight: "900",
-  cursor: "pointer",
+const combatIntelPanelStyle = {
+  background: "var(--color-background-tertiary, #f8fafc)",
+  border: "1px solid var(--color-border-primary, #e2e8f0)",
+  borderRadius: "12px",
+  padding: "8px 10px",
+  textAlign: "left",
 };
 
-const cycleButtonStyle = {
-  width: "24px",
-  height: "24px",
-  borderRadius: "999px",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  background: "var(--color-background-tertiary, #f8fafc)",
-  color: "var(--color-text-secondary, #475569)",
+const combatIntelTitleStyle = {
+  fontSize: "0.54rem",
+  color: "var(--color-text-tertiary, #94a3b8)",
   fontWeight: "900",
-  cursor: "pointer",
-  flexShrink: 0,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  marginBottom: "6px",
+};
+
+const combatIntelEntryStyle = {
+  display: "grid",
+  gap: "2px",
+};
+
+const combatIntelLabelStyle = {
+  fontSize: "0.64rem",
+  color: "var(--color-text-primary, #1e293b)",
+  fontWeight: "900",
+};
+
+const combatIntelDescriptionStyle = {
+  fontSize: "0.6rem",
+  color: "var(--color-text-secondary, #475569)",
+  lineHeight: 1.35,
+  fontWeight: "800",
 };
 
 function getCombatFloatStyle(event = {}, index = 0) {
-  const isHeal = event.kind === "heal" || event.kind === "skillHeal";
-  const isSkillDamage = event.kind === "skillDamage";
+  const isHeal = event.kind === "heal";
   const isThornsDamage = event.kind === "thornsDamage";
+  const isXp = event.kind === "xp";
   const laneKey = `${event.id || ""}:${event.kind || ""}:${event.source || ""}:${event.value || 0}`;
   let laneHash = 0;
   for (let i = 0; i < laneKey.length; i += 1) {
@@ -1156,45 +1321,43 @@ function getCombatFloatStyle(event = {}, index = 0) {
   }
   const laneIndex = laneKey ? laneHash % 3 : index % 3;
   const laneOffset = (laneIndex - 1) * 12;
-  const left = isHeal
+  const left = isXp
+    ? `calc(52% + ${laneOffset}px)`
+    : isHeal
     ? `calc(68% + ${laneOffset}px)`
-    : isSkillDamage
-      ? `calc(42% + ${laneOffset}px)`
-      : isThornsDamage
-        ? `calc(58% + ${laneOffset}px)`
+    : isThornsDamage
+      ? `calc(58% + ${laneOffset}px)`
       : `calc(50% + ${laneOffset}px)`;
-  const zIndex = isHeal ? 9 : isSkillDamage ? 10 : isThornsDamage ? 11 : 12;
+  const zIndex = isXp ? 10 : isHeal ? 9 : isThornsDamage ? 11 : 12;
 
   return {
     position: "absolute",
     left,
-    top: isHeal ? "58%" : isSkillDamage ? "26%" : isThornsDamage ? "31%" : "24%",
+    top: isXp ? "-12px" : isHeal ? "58%" : isThornsDamage ? "31%" : "24%",
     transform: "translate(-50%, 0)",
-    fontSize: event.crit ? "1.08rem" : "0.94rem",
+    fontSize: isXp ? "0.84rem" : event.crit ? "1.08rem" : "0.94rem",
     fontWeight: "900",
-    color: isHeal ? "var(--tone-success, #16a34a)" : event.crit ? "var(--tone-warning, #f59e0b)" : isSkillDamage ? "var(--tone-violet, #d946ef)" : isThornsDamage ? "var(--tone-danger-strong, #dc2626)" : "var(--tone-danger, #ef4444)",
+    color: isXp ? "var(--tone-accent, #4f46e5)" : isHeal ? "var(--tone-success, #16a34a)" : event.crit ? "var(--tone-warning, #f59e0b)" : isThornsDamage ? "var(--tone-danger-strong, #dc2626)" : "var(--tone-danger, #ef4444)",
     textShadow: event.crit
       ? "0 0 12px rgba(245,158,11,0.45)"
+      : isXp
+        ? "0 0 10px rgba(99,102,241,0.28)"
       : isHeal
         ? "0 0 10px rgba(34,197,94,0.3)"
-        : isSkillDamage
-          ? "0 0 12px rgba(217,70,239,0.4)"
-          : isThornsDamage
-            ? "0 0 10px rgba(220,38,38,0.36)"
+        : isThornsDamage
+          ? "0 0 10px rgba(220,38,38,0.36)"
           : "0 0 10px rgba(239,68,68,0.36)",
     pointerEvents: "none",
     whiteSpace: "nowrap",
     letterSpacing: "0.01em",
     zIndex,
-    animation: isHeal
+    animation: isXp
+      ? "combatFloatXp 960ms ease-out forwards"
+      : isHeal
       ? "combatFloatHeal 1020ms ease-out forwards"
       : event.crit
         ? "combatFloatCrit 1080ms ease-out forwards"
-        : isSkillDamage
-          ? "combatFloatCrit 980ms ease-out forwards"
-          : isThornsDamage
-            ? "combatFloatDamage 980ms ease-out forwards"
-          : "combatFloatDamage 980ms ease-out forwards",
+        : "combatFloatDamage 980ms ease-out forwards",
   };
 }
 
@@ -1242,6 +1405,103 @@ function StatCard({ label, value, hint = null }) {
       </p>
       {hint && <p style={{ fontSize: 8, color: "var(--color-text-secondary, #64748b)", margin: "2px 0 0", fontWeight: "800" }}>{hint}</p>}
     </div>
+  );
+}
+
+function InlineStatusTray({ statuses = [], emptyLabel = "Sin estados", isMobile = false }) {
+  return (
+    <div
+      style={{
+        marginTop: "6px",
+        background: "var(--color-background-tertiary, #f8fafc)",
+        border: "1px solid var(--color-border-primary, #e2e8f0)",
+        borderRadius: "10px",
+        padding: "5px",
+        minHeight: isMobile ? 31 : 33,
+        overflowX: "auto",
+        overflowY: "hidden",
+        boxSizing: "border-box",
+      }}
+    >
+      {statuses.length > 0 ? (
+        <div style={{ display: "flex", gap: "5px", alignItems: "stretch", minWidth: "max-content" }}>
+          {statuses.map(status => (
+            <StatusPill
+              key={status.id}
+              label={status.label}
+              value={status.value}
+              tone={status.tone}
+              detail={status.detail}
+              description={status.description}
+            />
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>{emptyLabel}</div>
+      )}
+    </div>
+  );
+}
+
+function StatusPill({ label, value, tone = "common", detail = "", description = "" }) {
+  const toneMap = {
+    success: {
+      color: "var(--tone-success-strong, #047857)",
+      background: "var(--tone-success-soft, #ecfdf5)",
+      border: "rgba(16,185,129,0.18)",
+    },
+    danger: {
+      color: "var(--tone-danger, #b91c1c)",
+      background: "var(--tone-danger-soft, #fff1f2)",
+      border: "rgba(244,63,94,0.18)",
+    },
+    warning: {
+      color: "var(--tone-warning, #b45309)",
+      background: "var(--tone-warning-soft, #fff7ed)",
+      border: "rgba(245,158,11,0.18)",
+    },
+    boss: {
+      color: "var(--tone-accent, #4338ca)",
+      background: "var(--tone-accent-soft, #eef2ff)",
+      border: "rgba(99,102,241,0.18)",
+    },
+    info: {
+      color: "var(--tone-info, #0369a1)",
+      background: "var(--tone-info-soft, #f0f9ff)",
+      border: "rgba(56,189,248,0.18)",
+    },
+    common: {
+      color: "var(--color-text-secondary, #475569)",
+      background: "var(--color-background-tertiary, #f8fafc)",
+      border: "var(--color-border-primary, #e2e8f0)",
+    },
+  };
+  const palette = toneMap[tone] || toneMap.common;
+  return (
+    <span
+      title={description ? `${label}: ${description}${detail ? `\n${detail}` : ""}` : label}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        flex: "0 0 auto",
+        minWidth: "fit-content",
+        boxSizing: "border-box",
+        gap: "6px",
+        fontSize: "0.58rem",
+        fontWeight: "900",
+        color: palette.color,
+        background: palette.background,
+        border: `1px solid ${palette.border}`,
+        borderRadius: "999px",
+        padding: "4px 8px",
+        cursor: description ? "help" : "default",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span>{label}</span>
+      <span style={{ opacity: 0.9 }}>{value}</span>
+      {detail && <span style={{ fontSize: "0.54rem", fontWeight: "800", opacity: 0.86 }}>{detail}</span>}
+    </span>
   );
 }
 

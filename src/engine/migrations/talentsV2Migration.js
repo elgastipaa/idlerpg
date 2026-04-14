@@ -1,6 +1,6 @@
 import { TALENTS } from "../../data/talents";
 
-export const TALENT_SYSTEM_VERSION = 2;
+export const TALENT_SYSTEM_VERSION = 6;
 
 function toArray(value) {
   if (Array.isArray(value)) return value;
@@ -52,7 +52,6 @@ export function migrateTalentsToV2(incomingState = {}) {
   const currentVersion = Number(player.talentSystemVersion || 1);
 
   const unlockedTalents = [...new Set(player.unlockedTalents || [])];
-  const existingLevels = player.talentLevels || {};
 
   if (currentVersion >= TALENT_SYSTEM_VERSION) {
     return {
@@ -61,25 +60,28 @@ export function migrateTalentsToV2(incomingState = {}) {
         ...player,
         unlockedTalents,
         talentLevels: {
-          ...existingLevels,
+          ...(player.talentLevels || {}),
         },
         talentSystemVersion: TALENT_SYSTEM_VERSION,
       },
     };
   }
 
-  const migratedLevels = deriveTalentLevelsFromUnlockedTalents(
-    unlockedTalents,
-    existingLevels
-  );
+  if (currentVersion < TALENT_SYSTEM_VERSION) {
+    const refundedPoints = unlockedTalents.reduce((sum, talentId) => {
+      const talent = TALENTS.find(item => item.id === talentId);
+      return sum + Math.max(0, Number(talent?.cost || 0));
+    }, 0);
 
-  return {
-    ...incomingState,
-    player: {
-      ...player,
-      unlockedTalents,
-      talentLevels: migratedLevels,
-      talentSystemVersion: TALENT_SYSTEM_VERSION,
-    },
-  };
+    return {
+      ...incomingState,
+      player: {
+        ...player,
+        unlockedTalents: [],
+        talentLevels: {},
+        talentPoints: Math.max(0, Number(player.talentPoints || 0)) + refundedPoints,
+        talentSystemVersion: TALENT_SYSTEM_VERSION,
+      },
+    };
+  }
 }

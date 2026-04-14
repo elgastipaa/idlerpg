@@ -97,13 +97,13 @@ El MVP 2.0 no es "mas contenido". Es el punto donde el juego ya se siente como u
 
 ### MVP 2.0 deberia cumplir esto
 
-1. El jugador tiene al menos 3 actividades claramente distintas.
-2. Cada actividad tiene rewards propias y una razon clara para existir.
+1. El jugador tiene al menos 3 razones claras para correr una run.
+2. Push, Hunt y Forja ya se sienten distintos aunque compartan el mismo motor de combate.
 3. El loot chase ya no es generico: hay target farm real.
 4. Existen build pivots reales que cambian como se arma una build.
 5. Prestige ya no es solo reset numerico; cambia la proxima run.
 6. Codex/mastery/collection ya suma progreso horizontal visible.
-7. Goals ya no son tareas sueltas; son arcos de sesion.
+7. Los sistemas de direccion no le ordenan la run al jugador: le muestran opciones reales.
 8. El juego se puede jugar en paralelo al desarrollo sin miedo a perder progreso.
 9. La UI deja clara la pregunta mas importante: "Que me conviene hacer ahora y por que?"
 10. El jugador tiene razones para volver mañana, no solo razones para dejarlo abierto.
@@ -126,6 +126,15 @@ No agregar nuevas monedas sin una funcion exclusiva y comprensible.
 
 Con pocos slots activos, el juego no puede vivir de tirar basura. Tiene que vivir de decisiones.
 
+### 3.1 Menos lineas por item, mas peso por linea
+
+El norte no es inflar items con texto. Es que cada linea importe.
+
+- menos afijos
+- mas identidad por afijo
+- legendarios mas legibles
+- el poder legendario tiene que sentirse como el corazon del item
+
 ### 4. El reset debe abrir caminos, no borrar ganas
 
 Prestige tiene que sentirse como una nueva lectura del juego, no como un castigo.
@@ -133,6 +142,27 @@ Prestige tiene que sentirse como una nueva lectura del juego, no como un castigo
 ### 5. El sistema que no cambia comportamiento, estorba
 
 No mantener features "decorativas" que suenan profundas pero no cambian decisiones reales.
+
+### 6. Complejidad minima, decision maxima
+
+Antes de abrir tipos de dano, resistencias o matrices de defensa:
+
+- consolidar Warrior
+- consolidar Hunt / Codex / Sigilos
+- consolidar una sola capa avanzada de combate
+
+La primera capa avanzada correcta hoy es:
+
+- multi-hit
+- bleed
+- fractura
+
+No abrir todavia:
+
+- dano elemental
+- resistencias complejas
+- varias capas de DoTs
+- varias capas de defensas exoticas
 
 ## Roadmap por Fases
 
@@ -151,8 +181,8 @@ Pasar de "un mismo loop con mas numeros" a "varias razones concretas para jugar 
 Definir explicitamente que da cada actividad:
 
 - Push: mejor XP y progreso general
-- Hunt: drops targeteables de bosses y familias
-- Dungeon: mejor retorno de crafting o rewards especializadas
+- Hunt: powers y drops targeteables de bosses y familias
+- Forja: mejores bases, mejor esencia y mejor tempo de run
 
 #### 2. Target farm real
 
@@ -177,18 +207,43 @@ La regla:
 - targeteables
 - no obligatorios
 
-#### 4. Goals -> Session Arcs
+#### 4. Goals y direccion de run
 
-Los goals activos deben agruparse como run intents:
+No hacer un director de sesion que le diga al jugador que hacer.
 
-- Push
-- Hunt
-- Craft
-- Prestige
+Si hacer que Goals y UI de combate:
 
-Siempre 1 objetivo principal y 2 secundarios.
+- dejen claras las opciones
+- no se peleen con Hunt real desde Codex
+- no compitan con Sigilos
 
-#### 5. Mejor lectura de enemigos, bosses y rewards
+La direccion correcta es opcion visible, no piloto automatico.
+
+#### 5. Hunt real desde Codex
+
+El Codex tiene que ser una pantalla de decision real:
+
+- objetivos por descubrir
+- powers que faltan
+- duplicados utiles
+- salto directo al tier cuando ya esta desbloqueado
+- sin spoilers para lo que todavia no viste
+
+#### 6. Primera capa avanzada de combate
+
+Agregar una sola capa nueva de profundidad real:
+
+- multi-hit
+- bleed
+- fractura
+
+Objetivo:
+
+- mas identidad de build
+- mas lectura de combate
+- mas valor por decision ofensiva
+
+#### 7. Mejor lectura de enemigos, bosses y rewards
 
 El jugador tiene que ver:
 
@@ -196,7 +251,7 @@ El jugador tiene que ver:
 - por que importa
 - que puede conseguir
 
-#### 6. Save safety y calidad de vida para desarrollo/juego largo
+#### 8. Save safety y calidad de vida para desarrollo/juego largo
 
 Esto ya mejoro, pero Fase 1 cierra cuando:
 
@@ -216,7 +271,8 @@ Esto ya mejoro, pero Fase 1 cierra cuando:
 
 - hacer target farm cosmetico
 - meter build enablers demasiado raros o demasiado obligatorios
-- que los session arcs sean solo texto bonito y no cambien decisiones
+- que Hunt sea cosmetico y no una decision real desde Codex
+- que la nueva capa de combate meta ruido sin dar identidad
 
 ### Dependencias
 
@@ -244,19 +300,15 @@ Convertir el mid/late en una eleccion entre carriles, no solo una optimizacion d
 
 ### Sistemas a implementar
 
-#### 1. Tres activity lanes reales
+#### 1. Actividades reales, no toggles falsos
 
-No seis. Tres.
+La base correcta es:
 
-- Push lane
-- Hunt lane
-- Dungeon lane
+- Push como loop principal
+- Hunt como actividad real desde Codex
+- Forja como sesgo de tempo de run que mas adelante puede ganar entidad propia
 
-Cada una con:
-
-- reglas propias
-- pacing propio
-- rewards propias
+No convertir esto en un selector vacio de modos.
 
 #### 2. Dungeon modifiers con identidad
 
@@ -268,7 +320,20 @@ Deben empujar decisiones:
 - mas densidad, menos sustain
 - mas bosses, mejor target farm
 
-#### 3. Prestige especializado
+#### 3. Keystone pass de clase y specs
+
+Arboles chicos, simetricos y con mucho mas peso por nodo.
+
+- cada arbol visible debe tener `8 nodos exactos`
+- estructura fija: `3 basicos + 3 gameplay + 2 keystones`
+- el sink no debe mezclarse con el arbol visible
+- Warrior base con `Iron Conversion` y `Crushing Weight`
+- Berserker con `Last Breath` y `Frenzied Chain`
+- Juggernaut con `Unmoving Mountain` y `Titanic Momentum`
+- primera capa avanzada concreta: `multi-hit`, `sangrado` y `fractura`
+- las keystones deben sentirse como eleccion de build, no como buffet libre: exclusivas por arbol
+
+#### 4. Prestige especializado
 
 El arbol de prestige debe dejar de ser generico.
 
@@ -279,7 +344,7 @@ Debe tener ramas claras para:
 - craft
 - session efficiency
 
-#### 4. Codex Mastery Compendium completo
+#### 5. Codex Mastery Compendium completo
 
 Expandir el trabajo ya hecho:
 
@@ -288,7 +353,18 @@ Expandir el trabajo ya hecho:
 - collection log
 - milestones con bonos chicos, visibles y deseables
 
-#### 5. Crafting integrado al ecosistema
+#### 6. Compresion de items y crafting
+
+Ir hacia menos lineas visibles y mas significado por linea.
+
+Direccion probable:
+
+- rare con 1 afijo
+- epic con 2 afijos
+- legendary con 3 afijos + poder
+- el poder legendario como pieza central
+
+#### 7. Crafting integrado al ecosistema
 
 El crafting no debe ser una pestaña aislada.
 
@@ -298,7 +374,7 @@ Cada lane debe alimentar una parte del crafting:
 - otra da mejores materiales
 - otra da mejores oportunidades de chase
 
-#### 6. Segunda ola de build pivots
+#### 8. Segunda ola de build pivots
 
 Una vez que el target farm exista, agregar otra capa de piezas o nodos que permitan:
 
@@ -323,8 +399,9 @@ Una vez que el target farm exista, agregar otra capa de piezas o nodos que permi
 
 - Fase 1 resuelta
 - rewards bien diferenciadas
-- session arcs funcionando
 - build enablers iniciales ya presentes
+- Hunt / Codex ya funcionando de verdad
+- Sigilos ya funcionando como sesgo temporal de run
 
 ### Criterio de exito
 
@@ -389,6 +466,28 @@ Nueva clase recien cuando:
 - el late este diversificado
 - el loot chase ya funcione
 
+La primera clase correcta despues de Warrior no deberia ser un "mago elemental" inflado.
+
+La direccion sana es:
+
+- `Mage`
+- sin AoE
+- sin elementos
+- sin resistencias nuevas
+- con `Mark`, `Flow`, `damage range` y `spell echo`
+
+Sus dos specs correctas hoy son:
+
+- `Sorcerer`: burst, volatilidad, opener, chain-kill
+- `Arcanist`: consistencia, transfer, ramp, bossing
+
+Si Mage entra, debe copiar la estructura buena ya definida:
+
+- `3 basicos`
+- `3 gameplay`
+- `2 keystones`
+- profundidad `20 / 6 / 3`
+
 ### Problemas que resuelve
 
 - falta de largo plazo
@@ -419,14 +518,15 @@ El jugador deberia tener:
 
 Este es el orden recomendado realista para un equipo chico:
 
-1. Reward routing y target farm
+1. Reward routing y Hunt real desde Codex
 2. Build enablers reales
-3. Session arcs claros
-4. Tres activity lanes
-5. Prestige especializado
-6. Codex/mastery/collection completo
-7. Atlas-lite
-8. Nueva clase
+3. Sigilos y claridad de identidad de run
+4. Keystone pass de Warrior / specs
+5. Compresion de items y legendarios mas legibles
+6. Prestige especializado
+7. Codex/mastery/collection completo
+8. Atlas-lite
+9. Nueva clase
 
 ## Lo que no deberiamos hacer todavia
 
@@ -435,6 +535,7 @@ Este es el orden recomendado realista para un equipo chico:
 - currencies nuevas para cada sistema
 - temporadas como parche de estructura
 - segunda clase antes de consolidar Warrior
+- abrir tipos de dano y defensas complejas antes de consolidar bleed/fractura
 - systems "profundos" que la UI no puede explicar
 - trade economy o pseudo-trade economy
 
@@ -528,4 +629,3 @@ La vision es hacer un juego donde:
 Si el roadmap se ejecuta bien, el resultado no deberia ser solo un idle con numeritos.
 
 Deberia ser un ARPG idle con personalidad, con chase, con identidad de build y con suficiente profundidad como para que los jugadores hablen entre ellos de lo que estan buscando, lo que estan cerrando y lo que acaban de sacar.
-

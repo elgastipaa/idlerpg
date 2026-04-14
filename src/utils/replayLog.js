@@ -64,7 +64,6 @@ function summarizeAction(action = {}) {
   };
 
   if (action.tab) summary.tab = action.tab;
-  if (action.skillId) summary.skillId = action.skillId;
   if (action.goalId) summary.goalId = action.goalId;
   if (action.nodeId) summary.nodeId = action.nodeId;
   if (action.upgradeId) summary.upgradeId = action.upgradeId;
@@ -402,10 +401,8 @@ const RECORDED_ACTION_TYPES = new Set([
   "SET_THEME",
   "CLAIM_GOAL",
   "TOGGLE_AUTO_ADVANCE",
-  "TOGGLE_SKILL_AUTOCAST",
   "SET_TIER",
   "EQUIP_ITEM",
-  "USE_SKILL",
   "SELL_ITEM",
   "SELL_ITEMS",
   "UPGRADE_PLAYER",
@@ -512,7 +509,7 @@ function collectMilestones(prevState = {}, nextState = {}, action = {}, replay) 
       replay,
       nextState,
       kind: "prestige_ready",
-      label: "Ascension disponible",
+      label: "Prestigio disponible",
       meta: { level: nextPlayer.level || 1, gold: nextPlayer.gold || 0 },
     }));
   }

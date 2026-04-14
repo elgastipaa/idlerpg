@@ -1,4 +1,4 @@
-import { PRESTIGE_RANKS, PRESTIGE_TREE_NODES } from "../../data/prestige";
+import { PRESTIGE_BRANCHES, PRESTIGE_RANKS, PRESTIGE_TREE_NODES } from "../../data/prestige";
 import { getRunSigilPrestigeModifiers } from "../../data/runSigils";
 import { refreshStats } from "../combat/statEngine";
 
@@ -23,8 +23,17 @@ const BONUS_KEYS = [
   "essenceBonus",
   "lootBonus",
   "luck",
-  "cooldownReduction",
-  "skillPower",
+  "multiHitChance",
+  "flowHits",
+  "markChance",
+  "markEffectPerStack",
+  "flowBonusMult",
+  "markTransferPct",
+  "freshTargetDamage",
+  "chainBurst",
+  "volatileCasting",
+  "controlMastery",
+  "cataclysm",
   "sellValueBonus",
   "upgradeCostReduction",
   "rerollCostReduction",
@@ -35,6 +44,43 @@ const BONUS_KEYS = [
   "reforgeOptionCount",
   "discoveredPowerBias",
 ];
+
+const BRANCH_SCOPE = Object.fromEntries(
+  PRESTIGE_BRANCHES.map(branch => [branch.id, branch.scope || "universal"])
+);
+
+const UNIVERSAL_PRESTIGE_KEYS = new Set([
+  "damagePct",
+  "defensePct",
+  "hpPct",
+  "flatDamage",
+  "flatDefense",
+  "healthRegen",
+  "flatCrit",
+  "goldPct",
+  "xpPct",
+  "attackSpeed",
+  "lifesteal",
+  "dodgeChance",
+  "blockChance",
+  "critDamage",
+  "critOnLowHp",
+  "damageOnKill",
+  "thorns",
+  "essenceBonus",
+  "lootBonus",
+  "luck",
+  "multiHitChance",
+  "sellValueBonus",
+  "upgradeCostReduction",
+  "rerollCostReduction",
+  "polishCostReduction",
+  "reforgeCostReduction",
+  "ascendCostReduction",
+  "ascendImprintCostReduction",
+  "reforgeOptionCount",
+  "discoveredPowerBias",
+]);
 
 function emptyBonuses() {
   return BONUS_KEYS.reduce((acc, key) => {
@@ -48,6 +94,25 @@ function addEffects(target, effects = {}, multiplier = 1) {
     target[key] = (target[key] || 0) + value * multiplier;
   }
   return target;
+}
+
+function filterNodeEffectsForPlayer(node, player, effects = {}) {
+  const branchScope = BRANCH_SCOPE[node?.branch] || "universal";
+  const classMatches = branchScope === "universal" || !player?.class || player.class === branchScope;
+  const specMatches =
+    !node?.requiresSpecialization || !player?.specialization || player.specialization === node.requiresSpecialization;
+
+  if (classMatches && specMatches) {
+    return effects;
+  }
+
+  const filtered = {};
+  for (const [key, value] of Object.entries(effects || {})) {
+    if (UNIVERSAL_PRESTIGE_KEYS.has(key)) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
 }
 
 export function getPrestigeRank(level = 0) {
@@ -237,8 +302,7 @@ export function computePrestigeBonuses(prestige = {}, player = {}) {
   for (const node of PRESTIGE_TREE_NODES) {
     const nodeLevel = nodes[node.id] || 0;
     if (!nodeLevel) continue;
-    if (!isPrestigeNodeActiveForPlayer(node, player)) continue;
-    addEffects(bonuses, node.effectsPerLevel || {}, nodeLevel);
+    addEffects(bonuses, filterNodeEffectsForPlayer(node, player, node.effectsPerLevel || {}), nodeLevel);
   }
 
   return bonuses;

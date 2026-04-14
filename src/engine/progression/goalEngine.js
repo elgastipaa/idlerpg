@@ -9,10 +9,10 @@ const CATEGORY_PRIORITY = {
 };
 
 const ARC_LABELS = {
-  prestige: "Prestige",
+  prestige: "Prestigio",
   combat: "Push",
   craft: "Forja",
-  loot: "Loot",
+  loot: "Botin",
   build: "Build",
 };
 

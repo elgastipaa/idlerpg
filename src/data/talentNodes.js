@@ -3,7 +3,6 @@ import { TALENTS } from "./talents";
 
 // Derived catalog used by the node-based tree UI and upgrade engine.
 // Do not hand-author nodes here; edit talents.js / talentTree.js instead.
-const SUPPORTED_TREE_IDS = new Set(["warrior_general", "berserker", "juggernaut"]);
 const TALENT_BY_ID = new Map(TALENTS.map(talent => [talent.id, talent]));
 
 function toArray(value) {
@@ -68,6 +67,24 @@ function getTalentLevelDepth(talentId) {
   return depth;
 }
 
+function getTalentChainFromBase(baseTalentId) {
+  const chain = [];
+  let currentId = baseTalentId;
+  const visited = new Set();
+
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    const currentTalent = getTalentById(currentId);
+    if (!currentTalent) break;
+    chain.push(currentTalent);
+
+    const nextTalent = TALENTS.find(talent => toArray(talent.replaces).includes(currentId)) || null;
+    currentId = nextTalent?.id || null;
+  }
+
+  return chain;
+}
+
 function uniquePush(list, value) {
   if (!value) return;
   if (list.includes(value)) return;
@@ -86,7 +103,6 @@ function buildTalentNodeCatalog() {
   const nodeMap = new Map();
 
   for (const tree of TALENT_TREES) {
-    if (!SUPPORTED_TREE_IDS.has(tree.id)) continue;
     const xByTalentId = new Map((tree.nodes || []).map(node => [node.talentId, Number(node.x || 0)]));
 
     for (const node of tree.nodes || []) {
@@ -104,6 +120,8 @@ function buildTalentNodeCatalog() {
       const explicitMinTreePointsSpent = Number(node.minTreePointsSpent || 0);
       const derivedMinTreePointsSpent = getDefaultMinTreePointsSpent(node);
       const minTreePointsSpent = Math.max(explicitMinTreePointsSpent, derivedMinTreePointsSpent);
+      const minSegmentPointsSpent = Number(node.minSegmentPointsSpent || 0);
+      const requiredSegment = node.requiredSegment || null;
 
       if (!nodeMap.has(baseId)) {
         nodeMap.set(baseId, {
@@ -111,21 +129,28 @@ function buildTalentNodeCatalog() {
           classId: baseTalent.classId,
           specId: baseTalent.specId || null,
           treeId: tree.id,
+          segment: node.segment || null,
           levels: [],
           prereqs: [],
           prereqMode: node.prereqMode || "all",
           minTreePointsSpent,
+          minSegmentPointsSpent,
+          requiredSegment,
           x: node.x || 0,
           y: node.y || 0,
         });
       }
 
       const entry = nodeMap.get(baseId);
-      entry.levels[level - 1] = talent.id;
+      const chain = getTalentChainFromBase(baseId);
+      entry.levels = chain.map(chainTalent => chainTalent.id);
       entry.x = Math.min(entry.x, node.x || 0);
       entry.y = Math.min(entry.y, node.y || 0);
+      if (!entry.segment && node.segment) entry.segment = node.segment;
       if (level === 1 && node.prereqMode) entry.prereqMode = node.prereqMode;
       entry.minTreePointsSpent = Math.max(entry.minTreePointsSpent || 0, minTreePointsSpent);
+      entry.minSegmentPointsSpent = Math.max(entry.minSegmentPointsSpent || 0, minSegmentPointsSpent);
+      if (!entry.requiredSegment && requiredSegment) entry.requiredSegment = requiredSegment;
       if (level === 1) {
         for (const prereq of prereqs) {
           if (prereq !== baseId) uniquePush(entry.prereqs, prereq);

@@ -14,6 +14,12 @@ export function calcItemRating(item) {
     critDamage = 0,
     lifesteal = 0,
     attackSpeed = 0,
+    multiHitChance = 0,
+    bleedChance = 0,
+    bleedDamage = 0,
+    fractureChance = 0,
+    markChance = 0,
+    markEffectPerStack = 0,
     dodgeChance = 0,
     blockChance = 0,
     damageOnKill = 0,
@@ -27,6 +33,8 @@ export function calcItemRating(item) {
     skillPower = 0,
     lootBonus = 0,
   } = item.bonus;
+  const effectiveMultiHit = multiHitChance + cooldownReduction;
+  const effectiveCritDamage = critDamage + skillPower;
   const isWeapon = item.type === "weapon";
   const r = { common: 1, magic: 1.08, rare: 1.2, epic: 1.38, legendary: 1.58 }[item.rarity] || 1;
   const combatScore =
@@ -35,16 +43,20 @@ export function calcItemRating(item) {
     healthMax * (isWeapon ? 0.12 : 0.22) +
     healthRegen * (isWeapon ? 9 : 15) +
     critChance * (isWeapon ? 420 : 240) +
-    critDamage * (isWeapon ? 210 : 125) +
+    effectiveCritDamage * (isWeapon ? 210 : 125) +
     lifesteal * (isWeapon ? 340 : 140) +
     attackSpeed * (isWeapon ? 300 : 145) +
+    effectiveMultiHit * (isWeapon ? 360 : 160) +
+    bleedChance * (isWeapon ? 240 : 95) +
+    bleedDamage * (isWeapon ? 280 : 120) +
+    fractureChance * (isWeapon ? 210 : 90) +
+    markChance * (isWeapon ? 260 : 150) +
+    markEffectPerStack * (isWeapon ? 240 : 145) +
     dodgeChance * (isWeapon ? 115 : 215) +
     blockChance * (isWeapon ? 105 : 245) +
     damageOnKill * (isWeapon ? 11 : 5) +
     critOnLowHp * (isWeapon ? 180 : 95) +
-    thorns * (isWeapon ? 2.5 : 6.5) +
-    cooldownReduction * (isWeapon ? 180 : 150) +
-    skillPower * (isWeapon ? 175 : 135);
+    thorns * (isWeapon ? 2.5 : 6.5);
   const economyScore =
     goldBonus * 0.05 +
     xpBonus * 6 +

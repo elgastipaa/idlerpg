@@ -1,21 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { CLASSES } from "../data/classes";
 import { xpRequired } from "../engine/leveling";
+import { calcStats } from "../engine/combat/statEngine";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
-import { getRarityColor } from "../constants/rarity";
 import {
-  ITEM_STAT_LABELS as STAT_LABELS,
   formatItemNumber as formatNumber,
-  formatItemStatValue as formatStatValue,
-  getItemDisplayName,
-  formatImplicitSummary,
-  getPrioritizedStatEntries,
-  formatEconomySummary,
-  getWorkedLabel,
 } from "../utils/itemPresentation";
 
 function getRequirementText(unlockCondition = {}) {
-  if (unlockCondition.stat === "kills") return `${unlockCondition.value} kills`;
+  if (unlockCondition.stat === "kills") return `${unlockCondition.value} bajas`;
   if (unlockCondition.stat === "level") return `Nivel ${unlockCondition.value}`;
   if (unlockCondition.stat === "gold") return `${unlockCondition.value} oro`;
   return "Sin requisito";
@@ -27,6 +20,45 @@ function canUnlockSpec(spec, player, kills) {
   if (unlockCondition.stat === "level") return player.level >= unlockCondition.value;
   if (unlockCondition.stat === "gold") return (player.gold || 0) >= unlockCondition.value;
   return true;
+}
+
+function formatPercent(value, digits = 1) {
+  return `${(Number(value || 0) * 100).toFixed(digits)}%`;
+}
+
+function formatRange(minValue = 1, maxValue = 1) {
+  return `${Math.round((minValue || 1) * 100)}-${Math.round((maxValue || 1) * 100)}%`;
+}
+
+function buildCharacterQuickRows(classId, stats = {}) {
+  const baseRows = [
+    { label: "Dano", value: formatNumber(stats.damage || 0) },
+    { label: "Defensa", value: formatNumber(stats.defense || 0) },
+    { label: "Critico", value: formatPercent(stats.critChance || 0) },
+    { label: "Vida Max", value: formatNumber(stats.maxHp || 0) },
+    { label: "Regen", value: formatNumber(stats.regen || 0) },
+  ];
+
+  const warriorRows = [
+    (stats.attackSpeed || 0) > 0 ? { label: "Velocidad", value: formatPercent(stats.attackSpeed || 0) } : null,
+    (stats.multiHitChance || 0) > 0 ? { label: "Multi-hit", value: formatPercent(stats.multiHitChance || 0) } : null,
+    (stats.lifesteal || 0) > 0 ? { label: "Robo de vida", value: formatPercent(stats.lifesteal || 0) } : null,
+    (stats.blockChance || 0) > 0 ? { label: "Bloqueo", value: formatPercent(stats.blockChance || 0) } : null,
+    (stats.bleedChance || 0) > 0 ? { label: "Sangrado", value: formatPercent(stats.bleedChance || 0) } : null,
+    (stats.fractureChance || 0) > 0 ? { label: "Fractura", value: formatPercent(stats.fractureChance || 0) } : null,
+  ].filter(Boolean);
+
+  const mageRows = [
+    { label: "Rango de dano", value: formatRange(stats.damageRangeMin, stats.damageRangeMax) },
+    (stats.multiHitChance || 0) > 0 ? { label: "Multi-hit", value: formatPercent(stats.multiHitChance || 0) } : null,
+    (stats.markChance || 0) > 0 ? { label: "Marca", value: formatPercent(stats.markChance || 0) } : null,
+    (stats.markEffectPerStack || 0) > 0 ? { label: "Potencia Marca", value: formatPercent(stats.markEffectPerStack || 0) } : null,
+    (stats.flowBonusMult || 1) > 1 ? { label: "Flow", value: formatPercent((stats.flowBonusMult || 1) - 1) } : null,
+    (stats.controlMastery || 0) > 0 ? { label: "Control", value: formatPercent(stats.controlMastery || 0) } : null,
+    (stats.volatileCasting || 0) > 0 ? { label: "Volatilidad", value: `Activa ${formatNumber(stats.volatileCasting || 0)}` } : null,
+  ].filter(Boolean);
+
+  return [...baseRows, ...(classId === "mage" ? mageRows : warriorRows)];
 }
 
 export default function Character({ player, dispatch, state }) {
@@ -42,13 +74,14 @@ export default function Character({ player, dispatch, state }) {
   const selectedClass = useMemo(() => CLASSES.find(clase => clase.id === player.class) || null, [player.class]);
   const availableSpecs = selectedClass?.specializations || [];
   const buildTag = useMemo(() => (player.class ? getPlayerBuildTag(player) : null), [player]);
+  const computedStats = useMemo(() => calcStats(player), [player]);
 
   if (!player.class) {
     return (
       <div style={{ padding: isMobile ? "1rem" : "1.5rem", maxWidth: "800px", margin: "0 auto", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
         <header style={{ marginBottom: "2rem", textAlign: "center" }}>
           <div style={{ margin: 0, fontSize: isMobile ? "1.4rem" : "1.7rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>Elige tu Senda</div>
-          <p style={{ color: "#D85A30", fontWeight: "bold", fontSize: "0.85rem", marginTop: "8px" }}>Esta eleccion es permanente.</p>
+          <p style={{ color: "#D85A30", fontWeight: "bold", fontSize: "0.85rem", marginTop: "8px" }}>La clase se reinicia con cada prestigio.</p>
         </header>
 
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(250px, 1fr))", gap: "15px" }}>
@@ -80,7 +113,9 @@ export default function Character({ player, dispatch, state }) {
     );
   }
 
-  const hpPercentage = Math.max(0, Math.min((player.hp / Math.max(1, player.maxHp || 1)) * 100, 100));
+  const displayedMaxHp = Math.max(1, computedStats.maxHp || player.maxHp || 1);
+  const displayedHp = Math.max(0, Math.min(player.hp || displayedMaxHp, displayedMaxHp));
+  const hpPercentage = Math.max(0, Math.min((displayedHp / displayedMaxHp) * 100, 100));
   const xpNextLevel = xpRequired(player.level);
   const xpPercentage = Math.min((player.xp / Math.max(1, xpNextLevel)) * 100, 100);
   const modifiers = [
@@ -91,14 +126,7 @@ export default function Character({ player, dispatch, state }) {
     { val: player.flatCrit, label: `+${Math.round((player.flatCrit || 0) * 100)}% crit`, color: "#D85A30" },
   ].filter(modifier => modifier.val > 0);
 
-  const statTiles = [
-    { label: "Dano", value: formatNumber(player.damage || 0) },
-    { label: "Defensa", value: formatNumber(player.defense || 0) },
-    { label: "Critico", value: `${((player.critChance || 0) * 100).toFixed(1)}%` },
-    { label: "Vida Max", value: formatNumber(player.maxHp || 0) },
-    { label: "Regen", value: formatNumber(player.regen || 0) },
-    { label: "Nivel", value: formatNumber(player.level || 1) },
-  ];
+  const quickReadRows = useMemo(() => buildCharacterQuickRows(player.class, computedStats), [player.class, computedStats]);
 
   return (
     <div style={{ padding: isMobile ? "1rem" : "1.5rem", maxWidth: "100%", display: "flex", flexDirection: "column", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
@@ -114,20 +142,31 @@ export default function Character({ player, dispatch, state }) {
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: "0.9rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>Nivel {formatNumber(player.level || 1)}</div>
-            <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "2px" }}>{formatNumber(kills)} kills</div>
+            <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "2px" }}>{formatNumber(kills)} bajas</div>
           </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px", marginTop: "12px" }}>
-          <ProgressCard label="Vida" value={`${formatNumber(Math.floor(player.hp || 0))} / ${formatNumber(player.maxHp || 0)}`} percentage={hpPercentage} tone={hpPercentage > 30 ? "var(--tone-success, #1D9E75)" : "var(--tone-danger, #D85A30)"} />
+          <ProgressCard label="Vida" value={`${formatNumber(Math.floor(displayedHp || 0))} / ${formatNumber(displayedMaxHp || 0)}`} percentage={hpPercentage} tone={hpPercentage > 30 ? "var(--tone-success, #1D9E75)" : "var(--tone-danger, #D85A30)"} />
           <ProgressCard label="Experiencia" value={`${formatNumber(Math.floor(player.xp || 0))} / ${formatNumber(xpNextLevel)}`} percentage={xpPercentage} tone="var(--tone-accent, #534AB7)" />
         </div>
       </header>
 
       <section style={sectionCardStyle}>
         <div style={sectionTitleStyle}>Lectura Rapida</div>
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))", gap: "8px" }}>
-          {statTiles.map(tile => <StatCard key={tile.label} label={tile.label} value={tile.value} />)}
+        <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4, marginBottom: "10px" }}>
+          Metricas activas para esta run y esta build. Si una mecanica no participa, no aparece aca.
+        </div>
+        <div style={tableStyle}>
+          {quickReadRows.map((row, index) => (
+            <DataRow
+              key={row.label}
+              label={row.label}
+              value={row.value}
+              accent={row.accent}
+              isLast={index === quickReadRows.length - 1}
+            />
+          ))}
         </div>
         {modifiers.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "10px" }}>
@@ -138,14 +177,6 @@ export default function Character({ player, dispatch, state }) {
             ))}
           </div>
         )}
-      </section>
-
-      <section style={sectionCardStyle}>
-        <div style={sectionTitleStyle}>Equipo Actual</div>
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px" }}>
-          <EquipmentCard label="Arma" item={player.equipment.weapon} />
-          <EquipmentCard label="Armadura" item={player.equipment.armor} />
-        </div>
       </section>
 
       <section style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px" }}>
@@ -186,7 +217,7 @@ export default function Character({ player, dispatch, state }) {
 
         <div style={sectionCardStyle}>
           <div style={sectionTitleStyle}>Identidad de Build</div>
-          <div style={{ fontSize: "0.92rem", color: buildTag?.color || "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>{buildTag?.name || "Warrior en desarrollo"}</div>
+          <div style={{ fontSize: "0.92rem", color: buildTag?.color || "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>{buildTag?.name || "Build en desarrollo"}</div>
           <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.4 }}>{buildTag?.description || "Todavia no hay suficiente senal de equipo y talentos para definir una identidad fuerte."}</div>
         </div>
       </section>
@@ -208,65 +239,11 @@ function ProgressCard({ label, value, percentage, tone }) {
   );
 }
 
-function StatCard({ label, value }) {
+function DataRow({ label, value, accent, isLast = false }) {
   return (
-    <div style={{ background: "var(--color-background-tertiary, #f8fafc)", padding: "10px 8px", borderRadius: "12px", textAlign: "center", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
-      <div style={{ margin: 0, fontSize: "0.55rem", color: "var(--color-text-secondary, #64748b)", textTransform: "uppercase", fontWeight: "900" }}>{label}</div>
-      <div style={{ margin: "3px 0 0", fontSize: "0.92rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{value}</div>
-    </div>
-  );
-}
-
-function EquipmentCard({ label, item }) {
-  if (!item) {
-    return (
-      <div style={{ ...equipmentCardStyle, border: "1px dashed var(--color-border-primary, #cbd5e1)", justifyContent: "center", minHeight: "110px" }}>
-        <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Sin {label}</div>
-      </div>
-    );
-  }
-
-  const topStats = getPrioritizedStatEntries(item.bonus || {}, 3);
-  const workedLabel = getWorkedLabel(item);
-  const hasPerfect = (item.affixes || []).some(affix => affix.perfectRoll);
-  const implicitSummary = formatImplicitSummary(item);
-  const economySummary = formatEconomySummary(item.bonus || {});
-
-  return (
-    <div style={{ ...equipmentCardStyle, borderLeft: `4px solid ${getRarityColor(item.rarity)}` }}>
-      {hasPerfect && <div style={{ position: "absolute", top: "10px", right: "12px", fontSize: "0.82rem", color: "var(--tone-warning, #f59e0b)" }}>★</div>}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "8px" }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" }}>{label}</div>
-          <div style={{ fontSize: "0.8rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", lineHeight: 1.2, marginTop: "3px" }}>{getItemDisplayName(item)}</div>
-          <div style={{ fontSize: "0.58rem", color: getRarityColor(item.rarity), textTransform: "uppercase", fontWeight: "800", marginTop: "3px" }}>
-            {item.rarity}{item.familyName ? ` · ${item.familyName}` : ""}
-          </div>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "end", gap: "4px", flexShrink: 0 }}>
-          <div style={{ fontSize: "0.5rem", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", fontWeight: "900" }}>Poder</div>
-          <div style={{ fontSize: "0.84rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{formatNumber(item.rating || 0)}</div>
-        </div>
-      </div>
-
-      {topStats.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-          {topStats.map(([key, value]) => (
-            <span key={key} style={statPillStyle}>
-              {STAT_LABELS[key] || key} <strong style={{ color: "var(--color-text-primary, #1e293b)" }}>+{formatStatValue(key, value)}</strong>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {economySummary && <div style={{ fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>Eco: {economySummary}</div>}
-
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap", fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>
-        <span>{(item.affixes || []).length} affixes</span>
-        {workedLabel && <span style={workedLabelStyle}>{workedLabel}</span>}
-      </div>
-
-      {implicitSummary && <div style={{ fontSize: "0.62rem", color: "var(--color-text-info, #4338ca)", fontWeight: "800" }}>Implicit: {implicitSummary}</div>}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", padding: "8px 0", borderBottom: isLast ? "none" : "1px solid #eef2f7" }}>
+      <span style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>{label}</span>
+      <span style={{ fontSize: "0.76rem", color: accent || "var(--color-text-primary, #1e293b)", fontWeight: "900", textAlign: "right" }}>{value}</span>
     </div>
   );
 }
@@ -298,62 +275,38 @@ const sectionTitleStyle = {
 
 const classChipStyle = {
   fontSize: "0.62rem",
-  background: "var(--tone-accent, #534AB7)",
-  color: "#ffffff",
+  background: "var(--color-background-tertiary, #f8fafc)",
+  color: "var(--color-text-primary, #1e293b)",
   padding: "4px 10px",
   borderRadius: "999px",
   fontWeight: "900",
   textTransform: "uppercase",
+  border: "1px solid var(--color-border-primary, #e2e8f0)",
 };
 
 const specChipStyle = {
   fontSize: "0.6rem",
-  background: "var(--tone-danger-soft, #fff1f2)",
-  color: "var(--tone-danger, #D85A30)",
+  background: "var(--color-background-tertiary, #f8fafc)",
+  color: "var(--color-text-secondary, #475569)",
   padding: "4px 10px",
   borderRadius: "999px",
   fontWeight: "900",
   textTransform: "uppercase",
-  border: "1px solid rgba(216,90,48,0.2)",
+  border: "1px solid var(--color-border-primary, #e2e8f0)",
 };
 
 const buildChipStyle = {
   fontSize: "0.6rem",
-  background: "var(--tone-success-soft, #ecfdf5)",
+  background: "var(--color-background-tertiary, #f8fafc)",
   padding: "4px 10px",
   borderRadius: "999px",
   fontWeight: "900",
-  border: "1px solid rgba(29,158,117,0.2)",
+  border: "1px solid var(--color-border-primary, #e2e8f0)",
 };
 
-const equipmentCardStyle = {
-  position: "relative",
-  display: "flex",
-  flexDirection: "column",
-  gap: "8px",
+const tableStyle = {
   background: "var(--color-background-tertiary, #f8fafc)",
-  borderRadius: "14px",
+  borderRadius: "12px",
   border: "1px solid var(--color-border-primary, #e2e8f0)",
-  padding: "12px",
-  minWidth: 0,
-};
-
-const statPillStyle = {
-  fontSize: "0.62rem",
-  color: "var(--color-text-secondary, #64748b)",
-  background: "var(--color-background-secondary, #fff)",
-  padding: "3px 8px",
-  borderRadius: "999px",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-};
-
-const workedLabelStyle = {
-  fontSize: "0.56rem",
-  color: "var(--tone-accent, #4338ca)",
-  background: "var(--tone-accent-soft, #eef2ff)",
-  border: "1px solid var(--tone-accent, #c7d2fe)",
-  borderRadius: "999px",
-  padding: "2px 6px",
-  fontWeight: "900",
-  letterSpacing: "0.03em",
+  padding: "0 12px",
 };

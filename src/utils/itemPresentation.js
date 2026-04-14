@@ -9,20 +9,26 @@ export const ITEM_STAT_LABELS = {
   critChance: "Critico",
   xpBonus: "XP",
   attackSpeed: "Velocidad",
-  lifesteal: "Lifesteal",
+  lifesteal: "Robo de vida",
   healthMax: "Vida",
   healthRegen: "Regen",
   dodgeChance: "Evasion",
   blockChance: "Bloqueo",
-  critDamage: "Crit Dmg",
-  critOnLowHp: "Crit vida baja",
-  damageOnKill: "Dano por kill",
+  critDamage: "Dano critico",
+  critOnLowHp: "Crit baja vida",
+  damageOnKill: "Dano al matar",
   thorns: "Espinas",
+  multiHitChance: "Multi-hit",
+  bleedChance: "Sangrado",
+  bleedDamage: "Poder de sangrado",
+  fractureChance: "Fractura",
+  markChance: "Marca",
+  markEffectPerStack: "Potencia de marca",
   essenceBonus: "Esencia",
-  lootBonus: "Loot",
+  lootBonus: "Botin",
   luck: "Suerte",
-  cooldownReduction: "CDR",
-  skillPower: "Poder skill",
+  cooldownReduction: "Multi-hit",
+  skillPower: "Dano critico",
 };
 
 export const ITEM_ECONOMY_STATS = new Set([
@@ -34,10 +40,7 @@ export const ITEM_ECONOMY_STATS = new Set([
   "luck",
 ]);
 
-const ITEM_UTILITY_STATS = new Set([
-  "cooldownReduction",
-  "skillPower",
-]);
+const ITEM_UTILITY_STATS = new Set();
 
 const ITEM_CORE_STATS = new Set(
   Object.keys(ITEM_STAT_LABELS).filter(stat => !ITEM_ECONOMY_STATS.has(stat) && !ITEM_UTILITY_STATS.has(stat))
@@ -53,9 +56,13 @@ const PERCENT_ITEM_STATS = new Set([
   "blockChance",
   "critDamage",
   "critOnLowHp",
+  "multiHitChance",
+  "bleedChance",
+  "bleedDamage",
+  "fractureChance",
+  "markChance",
+  "markEffectPerStack",
   "lootBonus",
-  "cooldownReduction",
-  "skillPower",
 ]);
 
 export function formatItemNumber(value) {

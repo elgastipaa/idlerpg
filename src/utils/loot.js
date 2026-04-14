@@ -1,6 +1,7 @@
 ﻿import { ITEMS, ITEM_RARITY_BLUEPRINT, ITEM_ROLL_RULES_V2 } from "../data/items";
 import { ITEM_FAMILIES } from "../data/itemFamilies";
 import { rollAffixes } from "../engine/affixesEngine";
+import { getLegendaryPowerById } from "./legendaryPowers";
 
 const DROP_CONFIG = {
   base: 0.08,
@@ -31,16 +32,37 @@ const PERCENT_STATS = new Set([
   "critChance",
   "critDamage",
   "attackSpeed",
+  "multiHitChance",
+  "bleedChance",
+  "bleedDamage",
+  "fractureChance",
+  "markChance",
+  "markEffectPerStack",
   "lifesteal",
   "dodgeChance",
   "blockChance",
   "critOnLowHp",
   "xpBonus",
   "lootBonus",
-  "cooldownReduction",
-  "skillPower",
   "goldBonusPct",
 ]);
+
+export function normalizeLegacyStatKey(stat) {
+  if (stat === "cooldownReduction") return "multiHitChance";
+  if (stat === "skillPower") return "critDamage";
+  return stat;
+}
+
+export function normalizeLegacyBonusMap(bonus = {}) {
+  const normalized = {};
+  for (const [rawKey, rawValue] of Object.entries(bonus || {})) {
+    const key = normalizeLegacyStatKey(rawKey);
+    const value = Number(rawValue || 0);
+    if (!value) continue;
+    normalized[key] = Math.round(((normalized[key] || 0) + value) * 100) / 100;
+  }
+  return normalized;
+}
 
 export function generateLoot({
   enemy = null,
@@ -52,6 +74,9 @@ export function generateLoot({
   powerMasteryMap = {},
   discoveredPowerBias = 0,
   powerHuntMultiplier = 1,
+  preferredArchetypes = [],
+  preferredPowerBias = 0.42,
+  offArchetypeLegendaryPenalty = 0.86,
   favoredStatWeightMultiplier = 2.4,
   rarityFloor = null,
   rarityBonus = 0,
@@ -72,11 +97,19 @@ export function generateLoot({
     powerMasteryMap,
     discoveredPowerBias,
     powerHuntMultiplier,
+    preferredArchetypes,
+    preferredPowerBias,
+    offArchetypeLegendaryPenalty,
   });
   if (!baseItem) return null;
   const family = getFamilyForBaseItem(baseItem);
   const resolvedFavoredStats = [
-    ...new Set([...(favoredStats || []), ...((family?.preferredStats || []))]),
+    ...new Set(
+      [
+        ...(favoredStats || []),
+        ...((family?.preferredStats || [])),
+      ].map(normalizeLegacyStatKey)
+    ),
   ];
   const baseBonus = buildBaseBonusForItem({ baseItem, rarity, tier });
   const { implicitBonus } = getFamilyImplicit(baseItem, rarity);
@@ -117,12 +150,19 @@ function rollRarity({ enemy, tier, luck, rarityFloor = null, rarityBonus = 0 }) 
       typeof rarityBonus === "number"
         ? rarityBonus
         : (rarityBonus?.[rarity] || 0);
+    const earlyTierBonus =
+      rarity === "rare"
+        ? (tier <= 6 ? 0.004 + Math.max(0, tier - 3) * 0.0015 : 0)
+        : rarity === "magic"
+          ? (tier <= 4 ? 0.01 : 0)
+          : 0;
     const chance =
       eligible
         ? config.base +
           (isBoss ? config.boss : 0) +
           Math.max(0, tier - 1) * config.tier +
           luck * config.luck +
+          earlyTierBonus +
           rarityBonusValue
         : 0;
 
@@ -142,14 +182,21 @@ function getDropBiasMultiplier(
     powerMasteryMap = {},
     discoveredPowerBias = 0,
     powerHuntMultiplier = 1,
+    preferredArchetypes = [],
+    preferredPowerBias = 0.42,
+    offArchetypeLegendaryPenalty = 0.86,
   } = {}
 ) {
   let multiplier = 1;
   const huntSources = item?.huntSources || {};
   const discoveredSet = new Set(discoveredPowerIds || []);
+  const preferredArchetypeSet = new Set((preferredArchetypes || []).filter(Boolean));
   const targetedByEnemy =
     (enemy?.id && (huntSources.bosses || []).includes(enemy.id)) ||
     (enemy?.family && (huntSources.families || []).includes(enemy.family));
+  const legendaryPower = item?.legendaryPowerId ? getLegendaryPowerById(item.legendaryPowerId) : null;
+  const matchesPreferredPower =
+    !!legendaryPower?.archetype && preferredArchetypeSet.has(legendaryPower.archetype);
 
   if (enemy?.id && (huntSources.bosses || []).includes(enemy.id)) {
     multiplier *= 8;
@@ -167,6 +214,14 @@ function getDropBiasMultiplier(
 
   if (targetedByEnemy && item?.legendaryPowerId) {
     multiplier *= Math.max(0.1, Number(powerHuntMultiplier || 1));
+  }
+
+  if (item?.legendaryPowerId && preferredArchetypeSet.size > 0) {
+    if (matchesPreferredPower) {
+      multiplier *= 1 + Math.max(0, Number(preferredPowerBias || 0));
+    } else if (legendaryPower?.archetype) {
+      multiplier *= Math.max(0.4, Number(offArchetypeLegendaryPenalty || 1));
+    }
   }
 
   if (favoredFamilies.length && favoredFamilies.includes(item.family)) {
@@ -214,13 +269,13 @@ function weightedPick(pool, getWeight = (entry) => entry.weight || 0) {
 }
 
 function roundStatValue(stat, value) {
-  if (PERCENT_STATS.has(stat)) return Math.round(value * 1000) / 1000;
+  if (PERCENT_STATS.has(normalizeLegacyStatKey(stat))) return Math.round(value * 1000) / 1000;
   return Math.round(value * 100) / 100;
 }
 
 function getTierScale(stat, tier = 1) {
   const delta = Math.max(0, (tier || 1) - 1);
-  if (PERCENT_STATS.has(stat)) return 1 + delta * 0.025;
+  if (PERCENT_STATS.has(normalizeLegacyStatKey(stat))) return 1 + delta * 0.025;
   return 1 + delta * 0.1;
 }
 
@@ -247,7 +302,7 @@ function addMissingBaseStats({
   requiredCount,
   tier,
 }) {
-  const result = { ...(baseBonus || {}) };
+  const result = normalizeLegacyBonusMap(baseBonus || {});
   const usedStats = new Set(Object.entries(result).filter(([, value]) => (value || 0) > 0).map(([stat]) => stat));
   const primaryStat = family?.primaryBase || null;
 
@@ -287,9 +342,9 @@ export function buildBaseBonusForItem({
 }) {
   const family = getFamilyForBaseItem(baseItem);
   const requiredCount = getBaseCountForRarity(rarity);
-  const fallbackBase = { ...(baseItem?.bonus || {}) };
+  const fallbackBase = normalizeLegacyBonusMap(baseItem?.bonus || {});
   const sourceBase = existingBaseBonus
-    ? { ...existingBaseBonus }
+    ? normalizeLegacyBonusMap(existingBaseBonus)
     : (family?.primaryBase ? {} : fallbackBase);
 
   if (!family?.primaryBase) return sourceBase;
@@ -314,14 +369,14 @@ function getAffixKind(affix) {
 
 function resolveBonusKey(affix) {
   if (affix.stat === "goldBonus" && affix.scaling === "percent") return "goldBonusPct";
-  return affix.stat;
+  return normalizeLegacyStatKey(affix.stat);
 }
 
 export function mergeBonusMaps(...bonusMaps) {
   const merged = {};
 
   for (const bonusMap of bonusMaps) {
-    for (const [key, value] of Object.entries(bonusMap || {})) {
+    for (const [key, value] of Object.entries(normalizeLegacyBonusMap(bonusMap || {}))) {
       merged[key] = Math.round(((merged[key] || 0) + value) * 100) / 100;
     }
   }
@@ -361,7 +416,7 @@ function getFamilyImplicit(baseItem, rarity) {
   return {
     familyId,
     familyName: family?.name || null,
-    implicitBonus: { ...(family?.implicitByRarity?.[rarity] || {}) },
+    implicitBonus: normalizeLegacyBonusMap(family?.implicitByRarity?.[rarity] || {}),
   };
 }
 
@@ -454,13 +509,17 @@ export function normalizeStoredItem(item) {
   const baseItem = ITEMS.find(candidate => candidate.id === (item.itemId || item.id));
   if (!baseItem) return item;
   const storedItemTier = item.itemTier ?? 1;
+  const normalizedAffixes = (item.affixes || []).map(affix => ({
+    ...affix,
+    stat: normalizeLegacyStatKey(affix?.stat),
+  }));
 
   const normalized = materializeItem({
     baseItem,
     rarity: item.rarity || baseItem.rarity,
     tier: storedItemTier,
-    affixes: item.affixes || [],
-    baseBonusOverride: item.baseBonus || baseItem.bonus || {},
+    affixes: normalizedAffixes,
+    baseBonusOverride: normalizeLegacyBonusMap(item.baseBonus || baseItem.bonus || {}),
     existingId: item.id,
     levelOverride: item.level ?? null,
     itemTierOverride: storedItemTier,

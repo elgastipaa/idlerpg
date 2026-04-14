@@ -3,6 +3,7 @@ import { gameReducer } from "../state/gameReducer";
 import { initialState } from "../engine/stateInitializer";
 import { isRecoveryMode, saveGame } from "../utils/storage";
 import { TICK_MS } from "../constants";
+import { getLifetimeXp } from "../engine/leveling";
 
 const OFFLINE_MIN_SECONDS = 300;
 const OFFLINE_CHUNK_SIZE = 120;
@@ -11,7 +12,7 @@ const SAVE_THROTTLE_MS = import.meta.env.DEV ? 600 : 1800;
 function buildOfflineSnapshot(state = {}) {
   return {
     gold: Math.max(0, Math.floor(state.player?.gold || 0)),
-    xp: Math.max(0, Math.floor(state.player?.xp || 0)),
+    totalXp: getLifetimeXp(state.player?.level || 1, state.player?.xp || 0),
     essence: Math.max(0, Math.floor(state.player?.essence || 0)),
     kills: Math.max(0, Math.floor(state.stats?.kills || 0)),
     itemsFound: Math.max(0, Math.floor(state.stats?.itemsFound || 0)),
@@ -36,7 +37,7 @@ function buildOfflineSummary(before, after, simulatedSeconds = 0) {
   return {
     simulatedSeconds,
     goldGained: Math.max(0, Math.floor((after?.player?.gold || 0) - (before?.gold || 0))),
-    xpGained: Math.max(0, Math.floor((after?.player?.xp || 0) - (before?.xp || 0))),
+    xpGained: Math.max(0, Math.floor(getLifetimeXp(after?.player?.level || 1, after?.player?.xp || 0) - (before?.totalXp || 0))),
     essenceGained: Math.max(0, Math.floor((after?.player?.essence || 0) - (before?.essence || 0))),
     killsGained: Math.max(0, Math.floor((after?.stats?.kills || 0) - (before?.kills || 0))),
     itemsGained: Math.max(0, Math.floor((after?.stats?.itemsFound || 0) - (before?.itemsFound || 0))),

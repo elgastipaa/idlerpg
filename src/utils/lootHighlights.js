@@ -7,6 +7,10 @@ const OFFENSE_KEYS = [
   "critChance",
   "critDamage",
   "attackSpeed",
+  "multiHitChance",
+  "bleedChance",
+  "bleedDamage",
+  "fractureChance",
   "lifesteal",
   "damageOnKill",
   "critOnLowHp",
@@ -105,17 +109,22 @@ export function getLootHighlights({ item, equippedItem = null, activeBuildTag = 
   return highlights.sort((a, b) => b.priority - a.priority);
 }
 
-function getAnnouncedHighlights(item, highlights = []) {
+function getAnnouncedHighlights(item, highlights = [], { hasActiveHuntObjectives = false } = {}) {
   const rarity = item?.rarity || "common";
   const isEpicPlus = rarity === "epic" || rarity === "legendary";
-  const announceableIds = new Set(isEpicPlus ? ["legendary", "epic"] : ["hunt", "wishlist"]);
+  const announceableIds = isEpicPlus
+    ? new Set(["legendary", "epic"])
+    : hasActiveHuntObjectives
+      ? new Set(["wishlist"])
+      : new Set();
   return highlights.filter(highlight => announceableIds.has(highlight.id));
 }
 
 export function summarizeLootEvent({ item, equippedItem = null, activeBuildTag = null, wishlistAffixes = [], huntContext = null }) {
   const highlights = getLootHighlights({ item, equippedItem, activeBuildTag, wishlistAffixes, huntContext });
   const topHighlight = highlights[0] || null;
-  const announcedHighlights = getAnnouncedHighlights(item, highlights);
+  const hasActiveHuntObjectives = Array.isArray(wishlistAffixes) && wishlistAffixes.length > 0;
+  const announcedHighlights = getAnnouncedHighlights(item, highlights, { hasActiveHuntObjectives });
   const announcedHighlight = announcedHighlights[0] || null;
   const perfectRollCount = (item?.affixes || []).filter(affix => affix.perfectRoll).length;
   const t1AffixCount = (item?.affixes || []).filter(affix => affix.tier === 1).length;
@@ -148,6 +157,7 @@ export function summarizeLootEvent({ item, equippedItem = null, activeBuildTag =
     topHighlight,
     highlights,
     announcedHighlights,
+    hasActiveHuntObjectives,
     perfectRollCount,
     t1AffixCount,
     affixSummaries: (item?.affixes || []).slice(0, 4).map(affix => ({

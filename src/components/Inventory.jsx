@@ -324,7 +324,7 @@ export default function Inventory({ state, player, dispatch }) {
               </div>
               {lootRules.huntPreset && (
                 <div style={{ fontSize: "0.58rem", color: "var(--color-text-info, #2563eb)", fontWeight: "800" }}>
-                  Preset vivo: {lootRules.huntPreset === "build" ? "Build" : lootRules.huntPreset === "enemy" ? "Enemigo actual" : lootRules.huntPreset}
+                  Preset vivo: {lootRules.huntPreset === "build" ? "Build" : lootRules.huntPreset === "enemy" ? "Enemigo actual" : lootRules.huntPreset === "caster" ? "Caster" : lootRules.huntPreset}
                 </div>
               )}
             </div>
@@ -534,7 +534,7 @@ function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode
       )}
       <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap", fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
         <span>{(item.affixes || []).length} affixes</span>
-        {implicitEntries.length > 0 && <span>Implicit: {formatImplicitSummary(item)}</span>}
+        {implicitEntries.length > 0 && <span>Implicito: {formatImplicitSummary(item)}</span>}
       </div>
       <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", textTransform: "uppercase" }}>Toca para ver detalle</div>
     </div>
@@ -614,7 +614,7 @@ function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, 
         </div>
       </div>
 
-      {implicitEntries.length > 0 && <div style={{ fontSize: "0.62rem", color: "var(--color-text-info, #4338ca)", fontWeight: "800" }}>Implicit: {formatImplicitSummary(item)}</div>}
+      {implicitEntries.length > 0 && <div style={{ fontSize: "0.62rem", color: "var(--color-text-info, #4338ca)", fontWeight: "800" }}>Implicito: {formatImplicitSummary(item)}</div>}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
         <button onClick={onEquip} style={{ ...btnBase, background: "var(--tone-accent-soft, #ede9fe)", color: "var(--tone-accent, #534AB7)", padding: "8px 10px" }}>EQUIPAR</button>

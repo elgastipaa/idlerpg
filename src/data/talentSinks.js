@@ -91,7 +91,7 @@ export const TALENT_SINK_TALENTS = [
     maxBonus: 0.42,
     baseCost: 3,
     costStep: 0.8,
-    baseUnlockLevel: 55,
+    baseUnlockLevel: 50,
   }),
   ...buildSinkChain({
     idPrefix: "berserker_blood_mastery",
@@ -102,7 +102,7 @@ export const TALENT_SINK_TALENTS = [
     maxBonus: 0.48,
     baseCost: 4,
     costStep: 0.85,
-    baseUnlockLevel: 65,
+    baseUnlockLevel: 58,
   }),
   ...buildSinkChain({
     idPrefix: "juggernaut_eternal_bastion",
@@ -113,33 +113,33 @@ export const TALENT_SINK_TALENTS = [
     maxBonus: 0.55,
     baseCost: 4,
     costStep: 0.9,
-    baseUnlockLevel: 65,
+    baseUnlockLevel: 58,
   }),
 ];
 
 export const TALENT_SINK_NODES = {
   warrior_general: buildSinkNodes({
     idPrefix: "warrior_iron_mastery",
-    x: 6,
+    x: 4,
     y: 0,
-    prereqs: ["warrior_war_tax_2", "warrior_campaign_mind_2"],
+    prereqs: ["warrior_iron_conversion", "warrior_crushing_weight"],
     prereqMode: "any",
-    minTreePointsSpent: 22,
+    minTreePointsSpent: 8,
   }),
   berserker: buildSinkNodes({
     idPrefix: "berserker_blood_mastery",
-    x: 6,
+    x: 4,
     y: 0,
-    prereqs: ["berserker_riot_heart_2", "berserker_wild_harvest_2"],
+    prereqs: ["berserker_blood_debt", "berserker_last_breath", "berserker_frenzied_chain"],
     prereqMode: "any",
-    minTreePointsSpent: 24,
+    minTreePointsSpent: 10,
   }),
   juggernaut: buildSinkNodes({
     idPrefix: "juggernaut_eternal_bastion",
-    x: 6,
+    x: 4,
     y: 0,
-    prereqs: ["juggernaut_last_bulwark_2", "juggernaut_titan_skin_2"],
+    prereqs: ["juggernaut_spiked_defense", "juggernaut_unmoving_mountain", "juggernaut_titanic_momentum"],
     prereqMode: "any",
-    minTreePointsSpent: 24,
+    minTreePointsSpent: 10,
   }),
 };

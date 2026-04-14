@@ -12,85 +12,35 @@ import { deriveReplayDecisionHints } from "../../utils/replayLog";
 import { buildReforgePreview } from "../crafting/craftingEngine";
 
 const BERSERKER_TALENT_PRIORITY = [
-  "warrior_battle_trance",
-  "warrior_second_wind",
-  "warrior_rampage",
-  "warrior_battle_trance_2",
-  "warrior_second_wind_2",
-  "warrior_rampage_2",
-  "warrior_warlord",
-  "warrior_warlord_2",
-  "warrior_iron_discipline",
-  "warrior_iron_discipline_2",
-  "warrior_veteran_instinct",
-  "warrior_veteran_instinct_2",
-  "warrior_tactical_recovery",
-  "warrior_tactical_recovery_2",
-  "warrior_stalwart_drive",
-  "warrior_stalwart_drive_2",
-  "warrior_precision_drill",
-  "warrior_precision_drill_2",
-  "warrior_campaign_mind",
-  "warrior_campaign_mind_2",
-  "warrior_war_tax",
-  "warrior_war_tax_2",
-  "berserker_bloodlust",
-  "berserker_frenzy",
-  "berserker_open_wounds",
-  "berserker_bloodlust_2",
-  "berserker_frenzy_2",
-  "berserker_open_wounds_2",
-  "berserker_carnage",
-  "berserker_carnage_2",
-  "berserker_razor_focus",
-  "berserker_razor_focus_2",
-  "berserker_butcher_stride",
-  "berserker_butcher_stride_2",
-  "berserker_last_laugh",
-  "berserker_last_laugh_2",
-  "berserker_blood_price",
-  "berserker_blood_price_2",
-  "berserker_reckless_blow",
-  "berserker_reckless_blow_2",
-  "berserker_wild_harvest",
-  "berserker_wild_harvest_2",
-  "berserker_predator_nerve",
-  "berserker_predator_nerve_2",
-  "berserker_riot_heart",
-  "berserker_riot_heart_2",
+  "warrior_physical_training",
+  "warrior_battle_hardened",
+  "warrior_precision_strikes",
+  "warrior_blood_strikes",
+  "warrior_combat_flow",
+  "warrior_crushing_weight",
+  "berserker_bloodlust_core",
+  "berserker_frenzy_core",
+  "berserker_savage_power",
+  "berserker_last_stand",
+  "berserker_blood_debt",
+  "berserker_execution",
+  "berserker_last_breath",
+  "berserker_frenzied_chain",
 ];
 
 const JUGGERNAUT_TALENT_PRIORITY = [
-  "warrior_battle_trance",
-  "warrior_second_wind",
-  "warrior_rampage",
-  "warrior_second_wind_2",
-  "warrior_battle_trance_2",
-  "warrior_rampage_2",
-  "warrior_warlord",
-  "warrior_warlord_2",
-  "warrior_iron_discipline",
-  "warrior_iron_discipline_2",
-  "warrior_veteran_instinct",
-  "warrior_veteran_instinct_2",
-  "warrior_tactical_recovery",
-  "warrior_tactical_recovery_2",
-  "warrior_stalwart_drive",
-  "warrior_stalwart_drive_2",
-  "warrior_precision_drill",
-  "warrior_precision_drill_2",
-  "warrior_campaign_mind",
-  "warrior_campaign_mind_2",
-  "warrior_war_tax",
-  "warrior_war_tax_2",
-  "juggernaut_fortress",
-  "juggernaut_endurance",
-  "juggernaut_iron_skin",
-  "juggernaut_fortress_2",
-  "juggernaut_endurance_2",
-  "juggernaut_iron_skin_2",
-  "juggernaut_unstoppable",
-  "juggernaut_unstoppable_2",
+  "warrior_battle_hardened",
+  "warrior_precision_strikes",
+  "warrior_physical_training",
+  "warrior_iron_conversion",
+  "juggernaut_iron_body",
+  "juggernaut_unbreakable",
+  "juggernaut_recovery",
+  "juggernaut_iron_core",
+  "juggernaut_fortress_core",
+  "juggernaut_spiked_defense",
+  "juggernaut_unmoving_mountain",
+  "juggernaut_titanic_momentum",
 ];
 
 const PRESTIGE_PRIORITY = [
@@ -209,24 +159,6 @@ function maybeSelectSpec(state, logs, tick, options = {}) {
   }
 
   return state;
-}
-
-function ensureAutocast(state, logs, tick) {
-  const availableSkillIds = ["power_strike", "berserker_rage"];
-  let nextState = state;
-
-  for (const skillId of availableSkillIds) {
-    const enabled = nextState.combat?.skillAutocasts?.[skillId] === true;
-    if (!enabled) {
-      const updated = reduceState(nextState, { type: "TOGGLE_SKILL_AUTOCAST", skillId });
-      if (updated !== nextState) {
-        nextState = updated;
-        logDecision(logs, tick, `Activa autocast: ${skillId}`);
-      }
-    }
-  }
-
-  return nextState;
 }
 
 function claimGoals(state, logs, tick) {
@@ -412,7 +344,7 @@ function getPreferredStats(state, itemType, humanProfile = {}) {
       if (normalized.includes("bloqueo") || normalized.includes("block")) return ["blockChance"];
       if (normalized.includes("vida")) return ["healthMax", "healthRegen"];
       if (normalized.includes("thorns")) return ["thorns"];
-      if (normalized.includes("cooldown")) return ["cooldownReduction", "skillPower"];
+      if (normalized.includes("cooldown")) return ["multiHitChance", "critDamage"];
       if (normalized.includes("oro") || normalized.includes("esencia") || normalized.includes("luck")) return ["goldBonus", "essenceBonus", "lootBonus", "luck"];
       return [];
     })
@@ -690,7 +622,6 @@ function runDecisionCycle(state, logs, tick, ticksRemaining, options = {}) {
   nextState = maybeStartRun(nextState, logs, tick, options);
   nextState = ensureClass(nextState, logs, tick);
   nextState = maybeSelectSpec(nextState, logs, tick, options);
-  nextState = ensureAutocast(nextState, logs, tick);
   nextState = claimGoals(nextState, logs, tick);
   nextState = equipBestItems(nextState, logs, tick, humanProfile);
   nextState = maybeCraft(nextState, logs, tick, options);
@@ -739,7 +670,6 @@ export function runBalanceBotSimulation(inputState, options = {}) {
   const logs = [];
 
   state = ensureClass(state, logs, 0);
-  state = ensureAutocast(state, logs, 0);
 
   for (let tick = 1; tick <= ticks; tick += 1) {
     if (tick === 1 || tick % 10 === 0) {

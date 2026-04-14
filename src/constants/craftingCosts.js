@@ -27,9 +27,18 @@ export const ASCEND_COSTS = Object.fromEntries(
 );
 
 export const CRAFTING_BASE_COSTS = {
+  upgrade: { gold: 180, essence: 0 },
   reroll: { gold: 0, essence: scaleEssenceCost(55, ESSENCE_COST_MULTIPLIERS.reroll) },
   polish: { gold: 0, essence: scaleEssenceCost(20, ESSENCE_COST_MULTIPLIERS.polish) },
   reforge: { gold: 0, essence: scaleEssenceCost(45, ESSENCE_COST_MULTIPLIERS.reforge) },
+};
+
+const UPGRADE_RARITY_MULTIPLIER = {
+  common: 1,
+  magic: 2,
+  rare: 3,
+  epic: 4,
+  legendary: 5,
 };
 
 export const REROLL_RARITY_MULTIPLIER = {
@@ -101,6 +110,21 @@ export function getRerollCosts(item, player = {}) {
       (1 + craftingState.rerollCount * 0.35) *
       (1 - reduction)
     ),
+  };
+}
+
+export function getUpgradeCosts(item, player = {}) {
+  const currentLevel = Math.max(0, Number(item?.level || 0));
+  const rarityMult = UPGRADE_RARITY_MULTIPLIER[item?.rarity] || 1;
+  const reduction = getReduction(player, "upgradeCostReduction");
+  return {
+    gold: Math.floor(
+      CRAFTING_BASE_COSTS.upgrade.gold *
+      Math.pow(currentLevel + 1, 2) *
+      rarityMult *
+      (1 - reduction)
+    ),
+    essence: 0,
   };
 }
 

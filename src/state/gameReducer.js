@@ -2,7 +2,6 @@ import { processTick }              from "../engine/combat/processTickRuntime";
 import { spawnEnemy }               from "../engine/combat/enemyEngine";
 import { refreshStats }             from "../engine/combat/statEngine";
 import { calcStats }                from "../engine/combat/statEngine";
-import { processEvents }            from "../engine/eventEngine";
 import { addToInventory, syncEquipment } from "../engine/inventory/inventoryEngine";
 import { sellItem, sellItems }      from "../engine/inventory/economyEngine";
 import { craftReroll, craftPolish, craftReforge, craftReforgePreview, craftUpgrade, craftAscend, craftExtract } from "../engine/crafting/craftingEngine";
@@ -12,11 +11,9 @@ import { createEmptySessionAnalytics } from "../utils/runTelemetry";
 import { buildReplayLibraryEntry, createEmptyReplayLog, normalizeReplayLibrary, recordReplayState } from "../utils/replayLog";
 
 import { CLASSES }         from "../data/classes";
-import { SKILLS }          from "../data/skills";
 import { PLAYER_UPGRADES } from "../data/playerUpgrades";
 import { TALENTS }         from "../data/talents";
 import { ACTIVE_GOALS } from "../data/activeGoals";
-import { useSkill } from "../engine/skills/skillEngine";
 import { isGoalCompleted } from "../engine/progression/goalEngine";
 import {
   calculatePrestigeEchoGain,
@@ -37,6 +34,7 @@ import {
   selectClass,
   selectSpecialization
 } from "../engine/progression/progressionEngine";
+import { getLifetimeXp } from "../engine/leveling";
 
 const CRIT_CAP         = 0.75;
 const ATTACK_SPEED_CAP = 0.70;
@@ -333,7 +331,13 @@ function baseGameReducer(state, action) {
         const offlineSummary = {
           simulatedSeconds: count,
           goldGained: Math.max(0, Math.floor((nextState.player.gold || 0) - (before.player.gold || 0))),
-          xpGained: Math.max(0, Math.floor((nextState.player.xp || 0) - (before.player.xp || 0))),
+          xpGained: Math.max(
+            0,
+            Math.floor(
+              getLifetimeXp(nextState.player.level || 1, nextState.player.xp || 0) -
+              getLifetimeXp(before.player.level || 1, before.player.xp || 0)
+            )
+          ),
           essenceGained: Math.max(0, Math.floor((nextState.player.essence || 0) - (before.player.essence || 0))),
           killsGained: Math.max(0, (nextState.stats?.kills || 0) - (before.stats?.kills || 0)),
           itemsGained: Math.max(0, (nextState.stats?.itemsFound || 0) - (before.stats?.itemsFound || 0)),
@@ -442,18 +446,6 @@ function baseGameReducer(state, action) {
         },
       };
 
-    case "TOGGLE_SKILL_AUTOCAST": {
-      const { skillId } = action;
-      const current = state.combat.skillAutocasts?.[skillId] || false;
-      return {
-        ...state,
-        combat: {
-          ...state.combat,
-          skillAutocasts: { ...state.combat.skillAutocasts, [skillId]: !current },
-        },
-      };
-    }
-
     // --------------------------------------------------------
     case "SET_TIER": {
       const tier     = Math.max(1, Math.min(action.tier, state.combat.maxTier));
@@ -477,7 +469,6 @@ function baseGameReducer(state, action) {
           },
           pendingOnKillDamage: 0,
           floatEvents: [],
-          skillDamageTimeline: [],
           runStats: {
             kills: 0,
             damageDealt: 0,
@@ -517,18 +508,6 @@ function baseGameReducer(state, action) {
           analytics: nextAnalytics,
         },
       };
-
-      if (tier > prevTier) {
-        const { newPlayer, newActiveEvents, logs } = processEvents("onTierUp", {
-          ...newState,
-          combat: { ...newState.combat, activeEvents: state.combat.activeEvents || [] },
-        });
-        newState = {
-          ...newState,
-          player: newPlayer,
-          combat: { ...newState.combat, activeEvents: newActiveEvents, log: logs },
-        };
-      }
 
       const sightedCodex = recordCodexSighting(newState.codex || state.codex || {}, newState.combat.enemy);
       if (sightedCodex !== (newState.codex || state.codex)) {
@@ -577,23 +556,6 @@ function baseGameReducer(state, action) {
       };
     }
 
-    // --------------------------------------------------------
-    case "USE_SKILL": {
-      const nextState = useSkill(state, action.skillId);
-      if (nextState === state) return state;
-      return {
-        ...nextState,
-        combat: {
-          ...nextState.combat,
-          analytics: {
-            ...(nextState.combat.analytics || createEmptySessionAnalytics()),
-            manualSkillsUsed: (nextState.combat.analytics?.manualSkillsUsed || 0) + 1,
-          },
-        },
-      };
-    }
-
-    // --------------------------------------------------------
     case "SELL_ITEM": {
       const itemId = action.item?.id;
       if (isEquippedItemId(state.player, itemId)) {
@@ -712,9 +674,6 @@ function baseGameReducer(state, action) {
       };
     }
 
-    case "UPGRADE_SKILL":
-      return upgradePlayer(state, action.skill);
-
     case "UNLOCK_TALENT": {
       const nextState = unlockTalent(state, action.talentId);
       if (nextState === state) return state;
@@ -810,7 +769,7 @@ function baseGameReducer(state, action) {
       const prestigeCheck = canPrestige(state);
       if (!prestigeCheck.ok) return state;
 
-      const resetClass  = action.resetClass === true;
+      const resetClass  = true;
       const echoesGained = calculatePrestigeEchoGain(state);
       const nextPrestigeLevel = (state.prestige?.level || 0) + 1;
       const nextRank = getNextPrestigeRank(state.prestige?.level || 0);
@@ -823,9 +782,19 @@ function baseGameReducer(state, action) {
         baseMaxHp:      100,
         damagePct: 0, flatDamage: 0,
         defensePct: 0, flatDefense: 0,
-        hpPct: 0, flatRegen: 0, flatCrit: 0,
+        hpPct: 0, flatRegen: 0, flatCrit: 0, critDamage: 0,
         flatGold: 0, goldPct: 0, xpPct: 0,
-        attackSpeed: 0, damageLevel: 1,
+        attackSpeed: 0, lifesteal: 0, blockChance: 0, thorns: 0,
+        multiHitChance: 0, bleedChance: 0, bleedDamage: 0, fractureChance: 0,
+        battleHardened: 0, heavyImpact: 0, bloodStrikes: 0, combatFlow: 0,
+        ironConversion: 0, crushingWeight: 0, frenziedChain: 0, bloodDebt: 0,
+        lastBreath: 0, execution: 0, ironCore: 0, fortress: 0,
+        unmovingMountain: 0, titanicMomentum: 0,
+        arcaneEcho: 0, arcaneMark: 0, arcaneFlow: 0, overchannel: 0,
+        perfectCast: 0, freshTargetDamage: 0, chainBurst: 0, unstablePower: 0,
+        overload: 0, volatileCasting: 0, controlMastery: 0, markTransfer: 0,
+        temporalFlow: 0, spellMemory: 0, timeLoop: 0, absoluteControl: 0,
+        cataclysm: 0,
         gold:    0,
         essence: state.player.essence || 0,
         prestigeBonuses: {},
@@ -833,7 +802,6 @@ function baseGameReducer(state, action) {
         runSigilBonuses: {},
         inventory:       [],
         equipment:       { weapon: null, armor: null },
-        skills:          { dmg: 0, hp: 0, crit: 0 },
         upgrades:        {},
         unlockedTalents: [],
         talentLevels:    {},
@@ -857,6 +825,7 @@ function baseGameReducer(state, action) {
 
       return withAchievementProgress({
         ...state,
+        currentTab: resetClass ? "character" : state.currentTab,
         player: freshPlayer,
         stats: {
           ...state.stats,
@@ -867,8 +836,8 @@ function baseGameReducer(state, action) {
           enemy:             spawnEnemy(1),
           log:               [
             milestoneReached
-              ? `Prestige ${nextPrestigeLevel}: ${milestoneReached.name}. +${echoesGained} ecos. ${milestoneReached.description}`
-              : `Prestige ${nextPrestigeLevel}. +${echoesGained} ecos. Reinicias la corrida, pero conservas clase, spec y tablero de ecos.`
+              ? `Prestige ${nextPrestigeLevel}: ${milestoneReached.name}. +${echoesGained} ecos. ${milestoneReached.description} Volves a elegir clase para la proxima corrida.`
+              : `Prestige ${nextPrestigeLevel}. +${echoesGained} ecos. Reinicias la corrida y volves a elegir clase para la proxima run.`
           ],
           currentTier:       1,
           maxTier:           1,
@@ -877,9 +846,6 @@ function baseGameReducer(state, action) {
           sessionKills:      0,
           effects:           [],
           lastRunTier:       state.combat.maxTier,
-          skillCooldowns:    {},
-          skillAutocasts:    state.combat.skillAutocasts || {},
-          activeEvents:      [],
           talentBuffs:       [],
           triggerCounters: {
             kills: 0,
@@ -888,8 +854,8 @@ function baseGameReducer(state, action) {
             onDamageTaken: 0,
           },
           pendingOnKillDamage: 0,
+          pendingMageVolatileMult: 1,
           floatEvents: [],
-          skillDamageTimeline: [],
           runStats: {
             kills: 0,
             damageDealt: 0,
