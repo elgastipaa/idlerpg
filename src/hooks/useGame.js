@@ -5,7 +5,7 @@ import { isRecoveryMode, saveGame } from "../utils/storage";
 import { TICK_MS } from "../constants";
 import { getLifetimeXp } from "../engine/leveling";
 
-const OFFLINE_MIN_SECONDS = 300;
+const OFFLINE_MIN_SECONDS = 60;
 const OFFLINE_CHUNK_SIZE = 120;
 const SAVE_THROTTLE_MS = import.meta.env.DEV ? 600 : 1800;
 

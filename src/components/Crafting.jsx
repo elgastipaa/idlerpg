@@ -1,16 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PREFIXES, SUFFIXES } from "../data/affixes";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
-import { getLootHighlights } from "../utils/lootHighlights";
 import { getAffixTierGlyph, getRarityColor } from "../constants/rarity";
 import { ASCEND_COSTS } from "../constants/craftingCosts";
 import {
   getCraftActionState,
-  getCraftRecommendation,
   getCraftingState,
-  getForgeIdentity,
-  getItemForgingPotential,
-  pickSuggestedAffixIndex,
+  getCraftUsageSummary,
 } from "../engine/crafting/craftingEngine";
 import { getUnlockedLegendaryPowers } from "../engine/progression/codexEngine";
 import {
@@ -18,26 +14,21 @@ import {
   formatItemNumber as formatValue,
   formatItemStatValue as formatStatValue,
   formatItemDiffValue as formatDiffValue,
-  getItemDisplayName,
   getItemLocation,
   getImplicitEntries,
   formatImplicitSummary,
   getPrioritizedStatEntries,
   formatEconomySummary,
   getTopCompareEntries,
-  getCompareSummary,
-  getWorkedLabel,
 } from "../utils/itemPresentation";
+import { getCompactRarityLabel, getItemGlyph, getUpgradeBadgeTone, ITEM_SLOT_GLYPHS } from "../utils/itemVisuals";
 import {
   FORGE_MODE_META,
   FORGE_MODE_ORDER,
   FORGE_MODE_TOOLTIPS,
   formatCraftCostLabel,
-  formatRecommendationAffix,
   getCraftActionBadge,
   getCraftActionHint,
-  getHighlightStyle,
-  getItemIcon,
 } from "./crafting/craftingUi";
 
 const RARITY_WEIGHT = { common: 0, magic: 1, rare: 2, epic: 3, legendary: 4 };
@@ -69,8 +60,6 @@ function getModeTooltipStyle(tone) {
 export default function Crafting({ state, dispatch }) {
   const { player } = state;
   const inventory = Array.isArray(player.inventory) ? player.inventory : [];
-  const gold = player.gold || 0;
-  const essence = player.essence || 0;
   const equipment = player.equipment || {};
   const activeBuildTag = useMemo(() => {
     try {
@@ -80,7 +69,6 @@ export default function Crafting({ state, dispatch }) {
       return null;
     }
   }, [player]);
-  const wishlistAffixes = Array.isArray(state?.settings?.lootRules?.wishlistAffixes) ? state.settings.lootRules.wishlistAffixes : [];
   const unlockedLegendaryPowers = useMemo(() => {
     try {
       return getUnlockedLegendaryPowers(state?.codex || {}, { specialization: player?.specialization, className: player?.class });
@@ -105,11 +93,15 @@ export default function Crafting({ state, dispatch }) {
   const [isConfirming, setIsConfirming] = useState(false);
   const [lastActionId, setLastActionId] = useState(null);
   const [pendingCraftFeedback, setPendingCraftFeedback] = useState(null);
+  const [selectedActionFeedback, setSelectedActionFeedback] = useState(null);
   const [upgradeTrackFeedback, setUpgradeTrackFeedback] = useState(null);
   const [showSelectedDetails, setShowSelectedDetails] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [canScrollAffixesLeft, setCanScrollAffixesLeft] = useState(false);
   const [canScrollAffixesRight, setCanScrollAffixesRight] = useState(false);
+  const [stickyHeaderHeight, setStickyHeaderHeight] = useState(252);
+  const [selectionScrollNonce, setSelectionScrollNonce] = useState(0);
+  const stickyHeaderRef = useRef(null);
   const selectionPanelRef = useRef(null);
   const selectedAffixCardRefs = useRef({});
   const affixCarouselRef = useRef(null);
@@ -119,6 +111,28 @@ export default function Crafting({ state, dispatch }) {
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, []);
+
+  useEffect(() => {
+    const node = stickyHeaderRef.current;
+    if (!node) return;
+
+    const updateHeight = () => {
+      const rect = node.getBoundingClientRect();
+      const nextHeight = Math.ceil(rect.bottom || rect.height || 0) + (isMobile ? 16 : 18);
+      setStickyHeaderHeight(nextHeight);
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(() => updateHeight());
+      observer.observe(node);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener("resize", updateHeight);
+    return () => window.removeEventListener("resize", updateHeight);
+  }, [isMobile, mode, selectedItemId, selectedAffixIndex, isReforgeLocked]);
 
   const allCraftItems = useMemo(
     () =>
@@ -205,6 +219,7 @@ export default function Crafting({ state, dispatch }) {
     const currentLevel = selectedItem.level ?? 0;
     if (currentLevel === pendingCraftFeedback.previousLevel) return;
     const delta = currentLevel - pendingCraftFeedback.previousLevel;
+    pulseSelectedAction(delta > 0 ? "success" : "danger", delta > 0 ? "Upgrade aplicado" : "Upgrade fallo");
     setUpgradeTrackFeedback({
       itemId: selectedItem.id,
       resultLevel: currentLevel,
@@ -224,15 +239,18 @@ export default function Crafting({ state, dispatch }) {
     if (!selectedItem || !["polish", "reforge"].includes(mode)) return;
     if (selectedAffixIndex != null && selectedItem.affixes?.[selectedAffixIndex]) return;
 
-    const suggestedIndex = pickSuggestedAffixIndex(selectedItem, {
-      mode,
-      preferredStats: activeBuildTag?.conditions?.prefersStats || [],
-      wishlistStats: wishlistAffixes,
-    });
-    if (suggestedIndex != null) {
-      setSelectedAffixIndex(suggestedIndex);
+    const focusedIndex =
+      mode === "reforge" && Number.isInteger(selectedItem?.crafting?.focusedAffixIndex)
+        ? Number(selectedItem.crafting.focusedAffixIndex)
+        : null;
+    if (focusedIndex != null && selectedItem.affixes?.[focusedIndex]) {
+      setSelectedAffixIndex(focusedIndex);
+      return;
     }
-  }, [selectedItem, mode, selectedAffixIndex, activeBuildTag, wishlistAffixes]);
+    if ((selectedItem.affixes || []).length > 0) {
+      setSelectedAffixIndex(0);
+    }
+  }, [selectedItem, mode, selectedAffixIndex]);
 
   useEffect(() => {
     setShowSelectedDetails(false);
@@ -282,48 +300,13 @@ export default function Crafting({ state, dispatch }) {
   const modeMeta = FORGE_MODE_META[mode] || FORGE_MODE_META.upgrade;
   const isSingleItemMode = mode === "upgrade" || mode === "reroll" || mode === "polish" || mode === "reforge" || mode === "ascend";
   const selectedCompareItem = selectedItem ? (selectedItem.type === "weapon" ? equipment.weapon : equipment.armor) : null;
-  const selectedCompareEntries = selectedItem ? getTopCompareEntries(selectedItem, selectedCompareItem, isMobile ? 4 : 5) : [];
-  const selectedTopStats = selectedItem ? getPrioritizedStatEntries(selectedItem.bonus || {}, isMobile ? 4 : 5) : [];
+  const selectedRelevantStats = selectedItem ? getPrioritizedStatEntries(selectedItem.bonus || {}, Number.MAX_SAFE_INTEGER) : [];
   const selectedImplicitSummary = selectedItem ? formatImplicitSummary(selectedItem) : "";
   const selectedEconomySummary = selectedItem ? formatEconomySummary(selectedItem.bonus || {}) : "";
-  const selectedForgingPotential = selectedItem ? getItemForgingPotential(selectedItem) : 0;
-  const selectedWorkedLabel = selectedItem ? getWorkedLabel(selectedItem) : null;
+  const selectedCraftUsage = selectedItem ? getCraftUsageSummary(selectedItem, selectedAffixIndex) : null;
   const selectedActionReq = selectedItem ? (getReqs(selectedItem)[mode] || { costs: {}, can: true, reason: "ok" }) : { costs: {}, can: true, reason: "ok" };
   const selectedActionCostLabel = formatCraftCostLabel(selectedActionReq.costs);
   const selectedActionHint = getCraftActionHint(selectedActionReq, mode);
-  const selectedSuggestedAffixIndex = useMemo(
-    () =>
-      selectedItem
-        ? pickSuggestedAffixIndex(selectedItem, {
-            mode,
-            preferredStats: activeBuildTag?.conditions?.prefersStats || [],
-            wishlistStats: wishlistAffixes,
-          })
-        : null,
-    [selectedItem, mode, activeBuildTag, wishlistAffixes]
-  );
-  const selectedSuggestedAffix =
-    selectedItem && Number.isInteger(selectedSuggestedAffixIndex)
-      ? selectedItem.affixes?.[selectedSuggestedAffixIndex]
-      : null;
-  const selectedRecommendation = useMemo(
-    () =>
-      getCraftRecommendation(selectedItem, {
-        mode,
-        preferredStats: activeBuildTag?.conditions?.prefersStats || [],
-        wishlistStats: wishlistAffixes,
-      }),
-    [selectedItem, mode, activeBuildTag, wishlistAffixes]
-  );
-  const selectedForgeIdentity = useMemo(
-    () =>
-      getForgeIdentity(selectedItem, {
-        player,
-        preferredStats: activeBuildTag?.conditions?.prefersStats || [],
-        wishlistStats: wishlistAffixes,
-      }),
-    [selectedItem, player, activeBuildTag, wishlistAffixes]
-  );
   const selectedRerollAffixSummary = useMemo(
     () =>
       mode === "reroll" && selectedItem
@@ -331,15 +314,11 @@ export default function Crafting({ state, dispatch }) {
             id: `${affix.id || affix.stat}-${index}`,
             stat: affix.stat,
             tier: affix.tier || 0,
-            matchesBuild:
-              (activeBuildTag?.conditions?.prefersStats || []).includes(affix.stat) ||
-              wishlistAffixes.includes(affix.stat),
             perfectRoll: !!affix.perfectRoll,
           }))
         : [],
-    [mode, selectedItem, activeBuildTag, wishlistAffixes]
+    [mode, selectedItem]
   );
-  const rerollBuildAlignedCount = selectedRerollAffixSummary.filter(entry => entry.matchesBuild).length;
   const selectedAscendPowers = useMemo(() => {
     if (!selectedItem || mode !== "ascend" || selectedActionReq?.nextRarity !== "legendary") return [];
     return unlockedLegendaryPowers;
@@ -358,20 +337,22 @@ export default function Crafting({ state, dispatch }) {
     selectedReforgeOption.stat === selectedCurrentAffix.stat &&
     selectedReforgeOption.tier === selectedCurrentAffix.tier &&
     (selectedReforgeOption.rolledValue ?? selectedReforgeOption.value ?? null) === (selectedCurrentAffix.rolledValue ?? selectedCurrentAffix.value ?? null);
-  const stepCopy =
-    mode === "extract"
-      ? (selectedIds.length > 0 ? `${selectedIds.length} items listos para extraer` : "marca uno o varios items para convertirlos en esencia")
-      : isReforgeLocked
-        ? "reforja pagada; elegi una opcion o manten la actual antes de salir"
-        : selectedItem
-          ? "item seleccionado; toca otra card para cambiarlo"
-          : "elegi un item para continuar";
   const selectedActionDisabled =
     !selectedItem ||
     (((mode !== "reforge" || selectedItemReforgeOptions.length === 0) && !selectedActionReq.can)) ||
     (mode === "polish" && selectedAffixIndex == null) ||
     (mode === "reforge" && selectedAffixIndex == null) ||
     (mode === "reforge" && selectedItemReforgeOptions.length > 0 && !selectedReforgeOption);
+  const selectedActionBlockedReason =
+    !selectedItem
+      ? "Selecciona un item"
+      : mode === "polish" && selectedAffixIndex == null
+        ? "Elegi una linea"
+        : mode === "reforge" && selectedAffixIndex == null
+          ? "Elegi una linea"
+          : mode === "reforge" && selectedItemReforgeOptions.length > 0 && !selectedReforgeOption
+            ? "Elegi una opcion"
+            : (selectedActionHint || "No disponible");
   const selectedActionLabel =
     mode === "reforge"
       ? (selectedItemReforgeOptions.length > 0
@@ -389,9 +370,7 @@ export default function Crafting({ state, dispatch }) {
       return `Riesgo de fallo: ${formatValue((selectedActionReq.failChance || 0) * 100)}% · si falla baja un nivel.`;
     }
     if (mode === "reroll") {
-      return rerollBuildAlignedCount > 0
-        ? `${rerollBuildAlignedCount} linea${rerollBuildAlignedCount === 1 ? "" : "s"} alineada${rerollBuildAlignedCount === 1 ? "" : "s"} con tu build. Reroll rehace todo el item.`
-        : "Reroll rehace todas las lineas del item.";
+      return "Reroll rehace todos los afijos del item.";
     }
     if (mode === "polish") {
       return selectedCurrentAffix
@@ -422,7 +401,6 @@ export default function Crafting({ state, dispatch }) {
     focusedAffixLabel,
     isSingleItemMode,
     mode,
-    rerollBuildAlignedCount,
     selectedActionCostLabel,
     selectedActionHint,
     selectedActionReq,
@@ -434,18 +412,43 @@ export default function Crafting({ state, dispatch }) {
   ]);
   useEffect(() => {
     if (!selectedItemId || !isSingleItemMode || !selectionPanelRef.current) return;
-    const frame = window.requestAnimationFrame(() => {
-      selectionPanelRef.current?.scrollIntoView({
+    let cancelled = false;
+    let firstFrame = 0;
+    let secondFrame = 0;
+
+    const scrollSelectionIntoView = () => {
+      if (cancelled || !selectionPanelRef.current) return;
+      selectionPanelRef.current.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
+    };
+
+    firstFrame = window.requestAnimationFrame(() => {
+      scrollSelectionIntoView();
+      secondFrame = window.requestAnimationFrame(scrollSelectionIntoView);
     });
-    return () => window.cancelAnimationFrame(frame);
-  }, [selectedItemId, mode, isSingleItemMode]);
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+    };
+  }, [selectedItemId, mode, isSingleItemMode, stickyHeaderHeight, selectionScrollNonce]);
+
+  useEffect(() => {
+    if (!selectedActionFeedback) return undefined;
+    const timeout = window.setTimeout(() => setSelectedActionFeedback(null), 720);
+    return () => window.clearTimeout(timeout);
+  }, [selectedActionFeedback]);
 
   const triggerSuccess = (id) => {
     setLastActionId(id);
     setTimeout(() => setLastActionId(null), 300);
+  };
+
+  const pulseSelectedAction = (tone, message) => {
+    setSelectedActionFeedback({ tone, message, nonce: Date.now() });
   };
 
   const handleAction = (item) => {
@@ -459,6 +462,7 @@ export default function Crafting({ state, dispatch }) {
     }
 
     setSelectedItemId(item.id);
+    setSelectionScrollNonce(current => current + 1);
     setSelectedAffixIndex(
       mode === "reforge" && Number.isInteger(item?.crafting?.focusedAffixIndex)
         ? Number(item.crafting.focusedAffixIndex)
@@ -476,7 +480,7 @@ export default function Crafting({ state, dispatch }) {
       const hasPreparedOptions = selectedItemReforgeOptions.length > 0;
 
       if (!hasPreparedOptions) {
-        if (!req?.can) return;
+        if (!req?.can) return false;
         dispatch({
           type: "CRAFT_REFORGE_PREVIEW",
           payload: {
@@ -486,10 +490,11 @@ export default function Crafting({ state, dispatch }) {
           },
         });
         setSelectedReforgeOption(null);
-        return;
+        pulseSelectedAction("success", "Reforja preparada");
+        return true;
       }
 
-      if (!selectedReforgeOption) return;
+      if (!selectedReforgeOption) return false;
       dispatch({
         type: "CRAFT_REFORGE_ITEM",
         payload: {
@@ -500,10 +505,11 @@ export default function Crafting({ state, dispatch }) {
       });
       triggerSuccess(selectedItem.id);
       setSelectedReforgeOption(null);
-      return;
+      pulseSelectedAction("success", "Reforja aplicada");
+      return true;
     }
 
-    if (!req?.can) return;
+    if (!req?.can) return false;
 
     if (mode === "upgrade") {
       setPendingCraftFeedback({ type: "upgrade", itemId: selectedItem.id, previousLevel: selectedItem.level ?? 0 });
@@ -516,7 +522,7 @@ export default function Crafting({ state, dispatch }) {
       ascend: "CRAFT_ASCEND_ITEM",
     }[mode];
 
-    if (mode === "polish" && selectedAffixIndex == null) return;
+    if (mode === "polish" && selectedAffixIndex == null) return false;
 
     dispatch({
       type: actionType,
@@ -528,6 +534,15 @@ export default function Crafting({ state, dispatch }) {
       },
     });
     triggerSuccess(selectedItem.id);
+    if (mode !== "upgrade") {
+      pulseSelectedAction("success", "Accion aplicada");
+    }
+    return true;
+  };
+
+  const handleSelectedActionClick = () => {
+    if (selectedActionDisabled) return;
+    executeCraft();
   };
 
   const massExtract = (rarityLimit = null) => {
@@ -552,7 +567,7 @@ export default function Crafting({ state, dispatch }) {
   };
   return (
     <div style={{ padding: isMobile ? "0 10px 10px" : "0 14px 14px", display: "flex", flexDirection: "column", gap: "12px", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", minHeight: "100%" }}>
-      <div style={{ position: "sticky", top: "var(--app-header-offset, 96px)", zIndex: 80, display: "flex", flexDirection: "column", gap: "8px", paddingTop: "8px", paddingBottom: "6px", background: "var(--color-background-primary, #f8fafc)", boxShadow: "0 10px 18px -16px rgba(15,23,42,0.45)" }}>
+      <div ref={stickyHeaderRef} style={{ position: "sticky", top: "var(--app-header-offset, 96px)", zIndex: 80, display: "flex", flexDirection: "column", gap: "8px", paddingTop: "8px", paddingBottom: "6px", background: "var(--color-background-primary, #f8fafc)", boxShadow: "0 10px 18px -16px rgba(15,23,42,0.45)" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: "6px", width: "100%", minWidth: 0 }}>
           {FORGE_MODE_ORDER.map((m) => (
             <ToolBtn
@@ -579,9 +594,6 @@ export default function Crafting({ state, dispatch }) {
             {modeTooltip.text}
           </div>
         )}
-        <div style={stickyInfoBarStyle}>
-          Paso actual: <span style={{ color: modeMeta.color, fontWeight: "900" }}>{modeMeta.label}</span> · {stepCopy}
-        </div>
         {isReforgeLocked && (
           <div style={{ ...stickyInfoBarStyle, background: "var(--tone-violet-soft, #f3e8ff)", border: "1px solid var(--tone-violet, #c4b5fd)", color: "var(--tone-violet, #6d28d9)" }}>
             Reforja en curso: el costo ya fue pagado. No podes cambiar de tab ni de herramienta hasta elegir una opcion o mantener la linea actual.
@@ -591,21 +603,26 @@ export default function Crafting({ state, dispatch }) {
           <section style={stickyActionShellStyle(isMobile)}>
             <div style={{ minWidth: 0, display: "grid", gap: "4px" }}>
               {selectedActionStickySummary && (
-                <div style={{ fontSize: "0.62rem", color: selectedActionDisabled ? "var(--tone-danger, #D85A30)" : "var(--color-text-secondary, #64748b)", fontWeight: "800", lineHeight: 1.35 }}>
-                  {selectedActionStickySummary}
+                <div style={{ fontSize: "0.62rem", color: selectedActionFeedback?.tone === "danger" ? "var(--tone-danger, #D85A30)" : selectedActionFeedback?.tone === "success" ? "var(--tone-success-strong, #166534)" : selectedActionDisabled ? "var(--tone-danger, #D85A30)" : "var(--color-text-secondary, #64748b)", fontWeight: "800", lineHeight: 1.35 }}>
+                  {selectedActionFeedback?.message || selectedActionStickySummary}
                 </div>
               )}
             </div>
             <button
               disabled={selectedActionDisabled}
-              onClick={executeCraft}
-              style={mainActionBtnStyle(false, { compact: true, disabled: selectedActionDisabled, fullWidth: isMobile })}
+              onClick={handleSelectedActionClick}
+              style={mainActionBtnStyle(false, {
+                compact: true,
+                disabled: selectedActionDisabled,
+                fullWidth: isMobile,
+                tone: selectedActionDisabled ? "disabled" : (selectedActionFeedback?.tone || "ready"),
+              })}
             >
               <span style={{ display: "grid", gap: "2px", justifyItems: "center", lineHeight: 1.1 }}>
                 <span>{selectedActionLabel}</span>
                 {showSelectedActionButtonCost && (
                   <span style={{ fontSize: "0.56rem", fontWeight: "800", opacity: 0.9 }}>
-                    {selectedActionMetaLabel}
+                    {selectedActionDisabled ? selectedActionBlockedReason : selectedActionMetaLabel}
                   </span>
                 )}
               </span>
@@ -615,11 +632,15 @@ export default function Crafting({ state, dispatch }) {
       </div>
 
       {selectedItem && isSingleItemMode && (
-        <section ref={selectionPanelRef} style={selectionPanelStyle(isMobile)}>
+        <section ref={selectionPanelRef} style={selectionPanelStyle(isMobile, stickyHeaderHeight)}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px" }}>
             <div style={{ minWidth: 0 }}>
               <div style={sectionEyebrowStyle}>Item Seleccionado</div>
-              <h4 style={{ margin: "2px 0 0", fontSize: isMobile ? "0.82rem" : "0.92rem", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 }}>{getItemDisplayName(selectedItem)}</h4>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "2px", minWidth: 0, flexWrap: "wrap" }}>
+                <span style={rarityBadgeStyle(selectedItem.rarity)}>{getCompactRarityLabel(selectedItem.rarity)}</span>
+                <h4 style={{ margin: 0, fontSize: isMobile ? "0.82rem" : "0.92rem", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 }}>{selectedItem.name}</h4>
+                {(selectedItem.level || 0) > 0 && <span style={upgradeBadgeStyle(selectedItem.level)}>{`+${selectedItem.level}`}</span>}
+              </div>
               {focusedAffix && (
                 <div style={{ fontSize: "0.6rem", color: "var(--tone-violet, #6d28d9)", fontWeight: "900", marginTop: "4px" }}>
                   Linea trabajada: {focusedAffixLabel} · slot {focusedAffixIndex + 1}
@@ -638,52 +659,12 @@ export default function Crafting({ state, dispatch }) {
           </div>
 
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-            <span style={rarityBadgeStyle(selectedItem.rarity)}>{selectedItem.rarity.toUpperCase()}</span>
-            {selectedWorkedLabel && <span style={workedBadgeStyle}>{selectedWorkedLabel}</span>}
-            <span style={{ ...miniStatPillStyle, fontWeight: "900", color: "var(--color-text-secondary, #475569)" }}>
-              Poder <strong>{formatValue(selectedItem.rating)}</strong>
-            </span>
-            <span style={{ ...miniStatPillStyle, fontWeight: "900", color: "var(--color-text-secondary, #475569)" }}>
-              Potencial <strong>{Math.round(selectedForgingPotential)}%</strong>
-            </span>
-            {selectedForgeIdentity && (
-              <span style={forgeIdentityBadgeStyle(selectedForgeIdentity)}>
-                {selectedForgeIdentity.label}
-              </span>
-            )}
-            {selectedActionReq.requiredPotential > 0 && (
+            {selectedActionReq.maxUses != null && (
               <span style={{ ...miniStatPillStyle, fontWeight: "900", color: selectedActionReq.can ? "var(--tone-success-strong, #166534)" : "var(--tone-danger, #D85A30)" }}>
-                Minimo <strong>{Math.round(selectedActionReq.requiredPotential)}%</strong>
+                Limite <strong>{selectedActionReq.usedUses || 0}/{selectedActionReq.maxUses}</strong>
               </span>
             )}
           </div>
-
-          {mode === "upgrade" && (
-            <div style={selectionSubpanelStyle}>
-              <div style={detailTitle}>Ruta de Upgrade</div>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                {Array.from({ length: 11 }, (_, level) => {
-                  const currentLevel = selectedItem.level ?? 0;
-                  const isCurrent = level === currentLevel;
-                  const isReached = level < currentLevel;
-                  const isNext = level === Math.min(10, currentLevel + 1);
-                  const flashTone = selectedUpgradeTrackFeedback?.resultLevel === level ? selectedUpgradeTrackFeedback.tone : null;
-                  return (
-                    <span
-                      key={`upgrade-step-${level}`}
-                      style={upgradeStepStyle({ isCurrent, isReached, isNext, flashTone })}
-                    >
-                      +{level}
-                    </span>
-                  );
-                })}
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", marginTop: "8px", fontSize: "0.64rem", fontWeight: "900" }}>
-                <span style={{ color: "var(--tone-warning, #b45309)" }}>Nivel actual: {selectedItem.level ?? 0}</span>
-                <span style={{ color: "var(--color-text-secondary, #475569)" }}>Objetivo visible: +{Math.min(10, (selectedItem.level ?? 0) + 1)}</span>
-              </div>
-            </div>
-          )}
 
           {(showSelectedDetails || mode === "polish" || mode === "reforge") && (
             <div
@@ -697,34 +678,18 @@ export default function Crafting({ state, dispatch }) {
               }}
             >
             {showSelectedDetails && <div style={selectionSubpanelStyle}>
-              <div style={detailTitle}>Resumen rapido</div>
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "8px" }}>
-                {(selectedCompareEntries.length > 0 ? selectedCompareEntries : selectedTopStats.map(([key, currentVal]) => ({ key, currentVal, diff: currentVal }))).map(entry => (
-                  <span
-                    key={`selected-quick-${entry.key}`}
-                    style={{
-                      ...miniStatPillStyle,
-                      color: entry.diff > 0 ? "var(--tone-success-strong, #166534)" : entry.diff < 0 ? "var(--tone-danger, #D85A30)" : "var(--color-text-secondary, #64748b)",
-                      background: entry.diff > 0 ? "var(--tone-success-soft, #ecfdf5)" : entry.diff < 0 ? "var(--tone-danger-soft, #fff1f2)" : "var(--color-background-tertiary, #f1f5f9)",
-                    }}
-                  >
-                    {STAT_LABELS[entry.key] || entry.key} <strong>{entry.diff !== 0 ? formatDiffValue(entry.key, entry.diff) : `+${formatStatValue(entry.key, entry.currentVal)}`}</strong>
-                  </span>
-                ))}
-              </div>
-
-              <div style={{ marginBottom: "8px" }}>
-                <div style={{ ...detailTitle, marginBottom: "3px" }}>Potencial de forja</div>
-                <div style={{ height: "6px", borderRadius: "999px", background: "var(--color-background-tertiary, #e2e8f0)", overflow: "hidden" }}>
-                  <div
-                    style={{
-                      width: `${selectedForgingPotential}%`,
-                      height: "100%",
-                      background: selectedForgingPotential >= 65 ? "var(--tone-success, #22c55e)" : selectedForgingPotential >= 35 ? "var(--tone-warning, #f59e0b)" : "var(--tone-danger, #ef4444)",
-                    }}
-                  />
+              {selectedCraftUsage && (
+                <div style={{ marginBottom: "8px" }}>
+                  <div style={{ ...detailTitle, marginBottom: "3px" }}>Limites de forja</div>
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                    <span style={miniStatPillStyle}>Reroll <strong>{selectedCraftUsage.reroll.used}/{selectedCraftUsage.reroll.max}</strong></span>
+                    <span style={miniStatPillStyle}>Reforge <strong>{selectedCraftUsage.reforge.used}/{selectedCraftUsage.reforge.max}</strong></span>
+                    {selectedAffixIndex != null && (
+                      <span style={miniStatPillStyle}>Pulido linea <strong>{selectedCraftUsage.polish.used}/{selectedCraftUsage.polish.max}</strong></span>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {selectedImplicitSummary && (
                 <div style={{ ...detailMutedLineStyle, color: "var(--color-text-info, #4338ca)", fontWeight: "800", marginBottom: "6px" }}>
@@ -738,55 +703,24 @@ export default function Crafting({ state, dispatch }) {
                 </div>
               )}
 
-              {selectedTopStats.length > 0 && (
+              {selectedRelevantStats.length > 0 && (
                 <div style={{ display: "grid", gap: "5px" }}>
-                  {selectedTopStats.map(([key, value]) => (
+                  {selectedRelevantStats.map(([key, value]) => {
+                    const compareValue = selectedCompareItem?.bonus?.[key] || 0;
+                    const diff = value - compareValue;
+                    return (
                     <div key={`selected-stat-${key}`} style={{ display: "flex", justifyContent: "space-between", gap: "8px", fontSize: "0.64rem", color: "var(--color-text-secondary, #475569)", fontWeight: "800" }}>
                       <span>{STAT_LABELS[key] || key}</span>
-                      <span style={{ color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>+{formatStatValue(key, value)}</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                        <span style={{ color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>+{formatStatValue(key, value)}</span>
+                        <span style={diffBadgeStyle(diff)}>{diff !== 0 ? formatDiffValue(key, diff) : "0"}</span>
+                      </span>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               )}
 
-              {selectedRecommendation && (
-                <div style={{ marginTop: "10px", padding: "8px 9px", borderRadius: "10px", background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
-                  <div style={{ fontSize: "0.54rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", marginBottom: "3px" }}>
-                    Sugerencia
-                  </div>
-                  <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35, fontWeight: "800" }}>
-                    {selectedRecommendation}
-                  </div>
-                  {selectedSuggestedAffix && (mode === "polish" || mode === "reforge") && (
-                    <div style={{ fontSize: "0.58rem", color: "var(--tone-accent, #4338ca)", fontWeight: "900", marginTop: "5px" }}>
-                      Linea sugerida: {formatRecommendationAffix(selectedSuggestedAffix)}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {selectedForgeIdentity && (
-                <div style={{ marginTop: "10px", padding: "8px 9px", borderRadius: "10px", background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", marginBottom: "3px", flexWrap: "wrap" }}>
-                    <div style={{ fontSize: "0.54rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" }}>
-                      Identidad de forja
-                    </div>
-                    <span style={forgeIdentityBadgeStyle(selectedForgeIdentity)}>{selectedForgeIdentity.label}</span>
-                  </div>
-                  <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35, fontWeight: "800" }}>
-                    {selectedForgeIdentity.summary}
-                  </div>
-                  {(selectedForgeIdentity.reasons || []).length > 0 && (
-                    <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginTop: "6px" }}>
-                      {selectedForgeIdentity.reasons.map(reason => (
-                        <span key={`${selectedForgeIdentity.key}-${reason}`} style={forgeIdentityReasonStyle}>
-                          {reason}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>}
 
             {(mode === "polish" || mode === "reforge") && (
@@ -903,14 +837,34 @@ export default function Crafting({ state, dispatch }) {
             </div>
           )}
 
+          {mode === "upgrade" && (
+            <div style={selectionSubpanelStyle}>
+              <div style={detailTitle}>Ruta de Upgrade</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                {Array.from({ length: 11 }, (_, level) => {
+                  const currentLevel = selectedItem.level ?? 0;
+                  const isCurrent = level === currentLevel;
+                  const isReached = level < currentLevel;
+                  const isNext = level === Math.min(10, currentLevel + 1);
+                  const flashTone = selectedUpgradeTrackFeedback?.resultLevel === level ? selectedUpgradeTrackFeedback.tone : null;
+                  return (
+                    <span
+                      key={`upgrade-step-${level}`}
+                      style={upgradeStepStyle({ isCurrent, isReached, isNext, flashTone })}
+                    >
+                      +{level}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {mode === "reroll" && selectedRerollAffixSummary.length > 0 && (
             <div style={selectionSubpanelStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", marginBottom: "5px", flexWrap: "wrap" }}>
                 <div style={{ ...detailTitle, marginBottom: 0 }}>
-                  Lineas actuales
-                </div>
-                <div style={{ fontSize: "0.58rem", color: rerollBuildAlignedCount > 0 ? "var(--tone-success-strong, #166534)" : "var(--color-text-secondary, #64748b)", fontWeight: "900" }}>
-                  {rerollBuildAlignedCount} alineada{rerollBuildAlignedCount === 1 ? "" : "s"} con build
+                  Afijos actuales
                 </div>
               </div>
               <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
@@ -919,8 +873,8 @@ export default function Crafting({ state, dispatch }) {
                     key={affix.id}
                     style={{
                       ...miniStatPillStyle,
-                      color: affix.matchesBuild ? "var(--tone-success-strong, #166534)" : affix.tier === 1 ? "var(--tone-warning, #b45309)" : "var(--color-text-secondary, #475569)",
-                      background: affix.matchesBuild ? "var(--tone-success-soft, #ecfdf5)" : affix.tier === 1 ? "var(--tone-warning-soft, #fffbeb)" : "var(--color-background-tertiary, #f1f5f9)",
+                      color: affix.tier === 1 ? "var(--tone-warning, #b45309)" : "var(--color-text-secondary, #475569)",
+                      background: affix.tier === 1 ? "var(--tone-warning-soft, #fffbeb)" : "var(--color-background-tertiary, #f1f5f9)",
                     }}
                   >
                     {STAT_LABELS[affix.stat] || affix.stat} <strong>T{affix.tier || "?"}</strong>{affix.perfectRoll ? " PERFECT" : ""}
@@ -1030,7 +984,7 @@ export default function Crafting({ state, dispatch }) {
       )}
 
       {mode === "extract" && (
-        <section style={selectionPanelStyle(isMobile)}>
+        <section style={selectionPanelStyle(isMobile, stickyHeaderHeight)}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px" }}>
             <div>
               <div style={sectionEyebrowStyle}>Extraccion</div>
@@ -1084,68 +1038,54 @@ export default function Crafting({ state, dispatch }) {
           const isEquipped = !!equippedSlot;
           const compareItem = normalizedItem.type === "weapon" ? equipment.weapon : equipment.armor;
 
-          let highlights = [];
           let affixDots = [];
-          let forgingPotential = 0;
-          let compareSummary = "Sin diferencia clara vs equipado";
+          let craftUsage = null;
           let compareEntries = [];
           let topStats = [];
           let implicitEntries = [];
-          let workedLabel = null;
           let economySummary = "";
-          let forgeIdentity = null;
 
           try {
-            highlights = getLootHighlights({ item: normalizedItem, equippedItem: compareItem, activeBuildTag, wishlistAffixes }).slice(0, 2);
             affixDots = normalizedItem.affixes.slice(0, 5).map((affix, index) => ({ key: `${affix.id || affix.stat}-${index}`, ...getAffixTierGlyph(affix) }));
-            forgingPotential = getItemForgingPotential(normalizedItem);
-            compareSummary = getCompareSummary(normalizedItem, compareItem);
+            craftUsage = getCraftUsageSummary(normalizedItem);
             compareEntries = getTopCompareEntries(normalizedItem, compareItem, isMobile ? 2 : 3);
             topStats = getPrioritizedStatEntries(normalizedItem.bonus || {}, 2);
             implicitEntries = getImplicitEntries(normalizedItem);
-            workedLabel = getWorkedLabel(normalizedItem);
             economySummary = formatEconomySummary(normalizedItem.bonus || {});
-            forgeIdentity = getForgeIdentity(normalizedItem, {
-              player,
-              preferredStats: activeBuildTag?.conditions?.prefersStats || [],
-              wishlistStats: wishlistAffixes,
-            });
           } catch (error) {
             console.error("Crafting item render fallback", normalizedItem?.id, error);
           }
 
-          const canAction = mode === "extract" ? !isEquipped : (isReforgeLocked ? reforgeSession?.itemId === normalizedItem.id : req.can);
+          const hasAffixes = normalizedItem.affixes.length > 0;
+          const canSelectForMode = (() => {
+            if (mode === "extract") return !isEquipped;
+            if (isReforgeLocked) return reforgeSession?.itemId === normalizedItem.id;
+            if (mode === "polish" || mode === "reforge") return hasAffixes;
+            if (mode === "ascend") return !!ASCEND_RULES[normalizedItem.rarity];
+            return req.can;
+          })();
+          const canAction = canSelectForMode;
           const reqBadge = getCraftActionBadge(req, mode);
 
           return (
             <div key={normalizedItem.id} onClick={() => handleAction(normalizedItem)} style={{ ...cardStyle(isSelectedExtract || isSelectedDetail, isSuccess, canAction), opacity: canAction ? 1 : 0.55, borderLeft: `4px solid ${getRarityColor(normalizedItem.rarity)}`, border: (isSelectedDetail || isSelectedExtract) ? "2px solid var(--tone-success, #1D9E75)" : "2px solid transparent", boxShadow: (isSelectedDetail || isSelectedExtract) ? "0 0 0 2px rgba(16,185,129,0.14)" : undefined, gap: "8px" }}>
-              {isEquipped && <div style={chipStyle(equippedSlot === "weapon" ? "ARMA" : "ARMADURA", "var(--tone-warning, #f59e0b)", false)}>{equippedSlot === "weapon" ? "ARMA" : "ARMADURA"}</div>}
+              {isEquipped && <div title={equippedSlot === "weapon" ? "Arma equipada" : "Armadura equipada"} style={chipStyle(ITEM_SLOT_GLYPHS[equippedSlot] || "•", "var(--tone-warning, #f59e0b)", false)}>{ITEM_SLOT_GLYPHS[equippedSlot] || "•"}</div>}
 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "8px" }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", gap: "6px", alignItems: "center", marginBottom: "4px" }}>
-                    <span style={{ fontSize: "0.78rem", fontWeight: "900", color: "var(--color-text-secondary, #475569)" }}>{getItemIcon(normalizedItem.name)}</span>
-                    <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", lineHeight: 1.2 }}>{getItemDisplayName(normalizedItem)}</div>
-                  </div>
-                  <div style={{ display: "flex", gap: "4px", alignItems: "center", flexWrap: "wrap" }}>
-                    <span style={rarityBadgeStyle(normalizedItem.rarity)}>{String(normalizedItem.rarity || "common").toUpperCase()}</span>
-                    {workedLabel && <span style={workedBadgeStyle}>{workedLabel}</span>}
-                    {forgeIdentity && <span style={forgeIdentityBadgeStyle(forgeIdentity)}>{forgeIdentity.label}</span>}
-                    {highlights.map(highlight => {
-                      const style = getHighlightStyle(highlight.tone);
-                      return <span key={highlight.id} style={{ fontSize: "0.44rem", fontWeight: "900", padding: "1px 4px", borderRadius: "999px", background: style.bg, color: style.color, border: `1px solid ${style.border}` }}>{highlight.label}</span>;
-                    })}
+                    <span style={rarityBadgeStyle(normalizedItem.rarity)}>{getCompactRarityLabel(normalizedItem.rarity)}</span>
+                    <span style={{ fontSize: "0.78rem", fontWeight: "900", color: "var(--color-text-secondary, #475569)" }}>{getItemGlyph(normalizedItem.name)}</span>
+                    <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                      <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", lineHeight: 1.2 }}>{normalizedItem.name}</div>
+                      {(normalizedItem.level || 0) > 0 && <span style={upgradeBadgeStyle(normalizedItem.level)}>{`+${normalizedItem.level}`}</span>}
+                    </div>
                   </div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "end", gap: "4px", flexShrink: 0 }}>
                   <span style={{ fontSize: "0.45rem", fontWeight: "bold", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase" }}>Poder</span>
                   <span style={{ fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{formatValue(normalizedItem.rating)}</span>
                 </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap", fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
-                <span>{compareSummary}</span>
-                <span>{normalizedItem.affixes.length} lineas</span>
               </div>
 
               <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
@@ -1175,12 +1115,6 @@ export default function Crafting({ state, dispatch }) {
                 </div>
               )}
 
-              {forgeIdentity && (
-                <div style={{ fontSize: "0.6rem", color: forgeIdentity.key === "skip" ? "var(--tone-danger, #D85A30)" : "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>
-                  {forgeIdentity.summary}
-                </div>
-              )}
-
               {affixDots.length > 0 && (
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "1px", flexWrap: "wrap" }}>
                   <span style={{ fontSize: "0.5rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" }}>Affix</span>
@@ -1190,19 +1124,19 @@ export default function Crafting({ state, dispatch }) {
                 </div>
               )}
 
-              <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "auto" }}>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "auto" }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "0.5rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", marginBottom: "3px" }}>
-                    Potencial {Math.round(forgingPotential)}%
-                  </div>
-                  <div style={{ height: "4px", borderRadius: "999px", background: "rgba(148,163,184,0.35)", overflow: "hidden" }}>
-                    <div
-                      style={{
-                        width: `${forgingPotential}%`,
-                        height: "100%",
-                        background: forgingPotential >= 65 ? "var(--tone-success, #22c55e)" : forgingPotential >= 35 ? "var(--tone-warning, #f59e0b)" : "var(--tone-danger, #ef4444)",
-                      }}
-                    />
+                  <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
+                    {craftUsage && (
+                      <>
+                        <span style={{ ...miniStatPillStyle, fontSize: "0.54rem" }}>
+                          RR <strong>{craftUsage.reroll.used}/{craftUsage.reroll.max}</strong>
+                        </span>
+                        <span style={{ ...miniStatPillStyle, fontSize: "0.54rem" }}>
+                          RF <strong>{craftUsage.reforge.used}/{craftUsage.reforge.max}</strong>
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
                 {mode !== "extract" && <div style={costBadgeStyle(canAction, isSelectedExtract || isSelectedDetail)}>{reqBadge}</div>}
@@ -1227,8 +1161,17 @@ export default function Crafting({ state, dispatch }) {
 
 const rarityBadgeStyle = (rarity) => {
   const color = getRarityColor(rarity);
-  return { fontSize: "0.45rem", fontWeight: "900", padding: "1px 4px", borderRadius: "3px", background: `${color}22`, color, border: `1px solid ${color}44` };
+  return { fontSize: "0.54rem", fontWeight: "900", padding: "3px 7px", borderRadius: "999px", background: `${color}22`, color, border: `1px solid ${color}44`, lineHeight: 1.1, whiteSpace: "nowrap", flexShrink: 0 };
 };
+const diffBadgeStyle = diff => ({
+  fontSize: "0.58rem",
+  color: diff > 0 ? "var(--tone-success, #1D9E75)" : diff < 0 ? "var(--tone-danger, #D85A30)" : "var(--color-text-tertiary, #94a3b8)",
+  background: diff > 0 ? "var(--tone-success-soft, #ecfdf5)" : diff < 0 ? "var(--tone-danger-soft, #fff1f2)" : "var(--color-background-tertiary, #f1f5f9)",
+  padding: "2px 5px",
+  borderRadius: "6px",
+  fontWeight: "900",
+  lineHeight: 1.1,
+});
 const chipStyle = (label, color, left) => ({ position: "absolute", top: "6px", [left ? "left" : "right"]: "6px", fontSize: "0.48rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: color, color: "#fff", letterSpacing: "0.04em" });
 const cardStyle = (isSelected, isSuccess, canAction) => ({
   background: "var(--color-background-secondary, #fff)",
@@ -1250,7 +1193,7 @@ const costBadgeStyle = (can, isSelected) => ({
   color: isSelected ? "var(--tone-success-strong, #166534)" : (can ? "var(--tone-success, #16a34a)" : "var(--tone-danger, #ef4444)"),
   fontWeight: "bold",
 });
-const selectionPanelStyle = (isMobile = false) => ({
+const selectionPanelStyle = (isMobile = false, stickyHeaderHeight = null) => ({
   background: "var(--color-background-secondary, #fff)",
   border: "1px solid var(--color-border-primary, #e2e8f0)",
   borderRadius: "14px",
@@ -1262,7 +1205,7 @@ const selectionPanelStyle = (isMobile = false) => ({
   maxWidth: "100%",
   overflow: "hidden",
   boxSizing: "border-box",
-  scrollMarginTop: isMobile ? "208px" : "220px",
+  scrollMarginTop: `${stickyHeaderHeight ?? (isMobile ? 276 : 252)}px`,
 });
 const stickyInfoBarStyle = {
   background: "var(--color-background-secondary, #fff)",
@@ -1377,33 +1320,20 @@ const detailTitle = { fontSize: "0.55rem", color: "var(--color-text-tertiary, #9
 const detailLine = { fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginBottom: "2px", lineHeight: 1.35, wordBreak: "break-word" };
 const detailMutedLineStyle = { fontSize: "0.68rem", color: "var(--color-text-tertiary, #94a3b8)" };
 const miniStatPillStyle = { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", background: "var(--color-background-tertiary, #f1f5f9)", padding: "2px 6px", borderRadius: "999px", lineHeight: 1.2 };
-const workedBadgeStyle = { background: "var(--tone-accent-soft, #eef2ff)", color: "var(--tone-accent, #4338ca)", fontSize: "0.54rem", padding: "2px 6px", borderRadius: "999px", fontWeight: "900", letterSpacing: "0.03em", border: "1px solid var(--tone-accent, #c7d2fe)" };
-const forgeIdentityBadgeStyle = (identity) => {
-  const palette = {
-    chase: { bg: "var(--tone-warning-soft, #fff7ed)", color: "var(--tone-danger, #c2410c)", border: "var(--tone-warning, #fdba74)" },
-    tempo: { bg: "var(--tone-accent-soft, #eef2ff)", color: "var(--tone-accent, #4338ca)", border: "var(--tone-accent, #a5b4fc)" },
-    solid: { bg: "var(--tone-info-soft, #f0f9ff)", color: "var(--tone-info, #0369a1)", border: "var(--tone-info, #7dd3fc)" },
-    skip: { bg: "var(--tone-neutral-soft, #f8fafc)", color: "var(--color-text-secondary, #475569)", border: "var(--color-border-tertiary, #cbd5e1)" },
-  };
-  const chosen = palette[identity?.key] || palette.solid;
+const upgradeBadgeStyle = (level = 0) => {
+  const tone = getUpgradeBadgeTone(level);
   return {
-    fontSize: "0.45rem",
+    fontSize: "0.6rem",
     fontWeight: "900",
-    padding: "1px 5px",
+    padding: "3px 7px",
     borderRadius: "999px",
-    background: chosen.bg,
-    color: chosen.color,
-    border: `1px solid ${chosen.border}`,
-    letterSpacing: "0.03em",
+    background: tone.background,
+    color: tone.color,
+    border: tone.border,
+    lineHeight: 1.1,
+    whiteSpace: "nowrap",
+    flexShrink: 0,
   };
-};
-const forgeIdentityReasonStyle = {
-  fontSize: "0.56rem",
-  color: "var(--color-text-secondary, #475569)",
-  background: "var(--color-background-tertiary, #f1f5f9)",
-  padding: "2px 6px",
-  borderRadius: "999px",
-  fontWeight: "800",
 };
 const upgradeStepStyle = ({ isCurrent, isReached, isNext, flashTone = null }) => ({
   minWidth: "34px",
@@ -1474,17 +1404,54 @@ const ToolBtn = ({ active, label, onClick, color, isMobile = false, disabled = f
     <span style={{ fontSize: isMobile ? "0.56rem" : "0.64rem", fontWeight: "900", lineHeight: 1.05, textAlign: "center", wordBreak: "break-word" }}>{label}</span>
   </button>
 );
-const mainActionBtnStyle = (confirming, options = {}) => ({
-  width: options.compact ? (options.fullWidth ? "100%" : "auto") : "100%",
-  minWidth: options.compact && !options.fullWidth ? "220px" : undefined,
-  padding: options.compact ? "11px 14px" : "14px",
-  borderRadius: "10px",
-  border: "none",
-  background: options.disabled ? "var(--color-border-tertiary, #cbd5e1)" : (confirming ? "var(--tone-danger, #ef4444)" : "#1e293b"),
-  color: "#fff",
-  fontWeight: "bold",
-  cursor: options.disabled ? "not-allowed" : "pointer",
-  fontSize: options.compact ? "0.7rem" : "0.75rem",
-  opacity: options.disabled ? 0.72 : 1,
-});
+const mainActionBtnStyle = (confirming, options = {}) => {
+  const tone = options.tone || (options.disabled ? "disabled" : "ready");
+  const palette = {
+    ready: {
+      background: "linear-gradient(180deg, #243244 0%, #1e293b 100%)",
+      color: "#fff",
+      border: "1px solid rgba(30,41,59,0.18)",
+      boxShadow: "0 8px 18px rgba(15,23,42,0.16)",
+      transform: "translateY(0)",
+    },
+    disabled: {
+      background: "linear-gradient(180deg, #475569 0%, #334155 100%)",
+      color: "rgba(255,255,255,0.8)",
+      border: "1px solid rgba(148,163,184,0.34)",
+      boxShadow: "0 6px 14px rgba(15,23,42,0.12)",
+      transform: "translateY(0)",
+    },
+    success: {
+      background: "linear-gradient(180deg, #243244 0%, #1e293b 100%)",
+      color: "#fff",
+      border: "1px solid rgba(21,128,61,0.42)",
+      boxShadow: "0 0 0 2px rgba(34,197,94,0.18), 0 8px 18px rgba(15,23,42,0.16)",
+      transform: "translateY(0)",
+    },
+    danger: {
+      background: "linear-gradient(180deg, #243244 0%, #1e293b 100%)",
+      color: "#fff",
+      border: "1px solid rgba(220,38,38,0.42)",
+      boxShadow: "0 0 0 2px rgba(239,68,68,0.16), 0 8px 18px rgba(15,23,42,0.16)",
+      transform: "translateY(0)",
+    },
+  };
+  const chosen = palette[tone] || palette.ready;
+  return {
+    width: options.compact ? (options.fullWidth ? "100%" : "auto") : "100%",
+    minWidth: options.compact && !options.fullWidth ? "220px" : undefined,
+    padding: options.compact ? "11px 14px" : "14px",
+    borderRadius: "10px",
+    border: chosen.border,
+    background: confirming ? "var(--tone-danger, #ef4444)" : chosen.background,
+    color: chosen.color,
+    fontWeight: "bold",
+    cursor: options.disabled ? "not-allowed" : "pointer",
+    fontSize: options.compact ? "0.7rem" : "0.75rem",
+    opacity: options.disabled ? 0.82 : 1,
+    boxShadow: chosen.boxShadow,
+    transform: chosen.transform,
+    transition: "all 0.18s ease",
+  };
+};
 const quickExtractBtn = (color) => ({ background: color, color: "#fff", border: "none", borderRadius: "6px", padding: "8px 2px", fontSize: "0.55rem", fontWeight: "900", cursor: "pointer" });

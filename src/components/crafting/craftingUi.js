@@ -38,16 +38,6 @@ export const FORGE_MODE_META = {
   extract: { label: "Extraer", short: "EX", color: "var(--tone-danger, #ef4444)", cta: "EXTRAER ITEM" },
 };
 
-export function getItemIcon(name = "") {
-  const n = name.toLowerCase();
-  if (n.includes("espada") || n.includes("daga") || n.includes("hacha") || n.includes("maza")) return "WP";
-  if (n.includes("arco") || n.includes("ballesta")) return "BW";
-  if (n.includes("baston") || n.includes("cetro")) return "ST";
-  if (n.includes("escudo")) return "SH";
-  if (n.includes("tunica") || n.includes("armadura") || n.includes("cuero") || n.includes("cota")) return "AR";
-  return "IT";
-}
-
 export function getHighlightStyle(tone) {
   const palette = {
     legendary: { bg: "var(--tone-warning-soft, #fff7ed)", color: "var(--tone-danger, #c2410c)", border: "var(--tone-warning, #fdba74)" },
@@ -75,8 +65,8 @@ export function formatCraftCostLabel(costs = {}) {
 export function getCraftActionHint(req = {}, mode) {
   if (!req) return "";
   if (req.reason === "ok") {
-    if (req.requiredPotential > 0) {
-      return `Potencial ${Math.round(req.forgingPotential || 0)}% / ${Math.round(req.requiredPotential || 0)}%.`;
+    if (req.maxUses != null) {
+      return `Usos ${Math.round(req.usedUses || 0)} / ${Math.round(req.maxUses || 0)}.`;
     }
     return "";
   }
@@ -90,8 +80,8 @@ export function getCraftActionHint(req = {}, mode) {
       return mode === "polish" ? "Elegi una linea antes de pulir." : "Elegi una linea antes de reforjar.";
     case "focused_line":
       return "La pieza ya quedo fijada a otra linea.";
-    case "potential":
-      return `Potencial insuficiente: ${Math.round(req.forgingPotential || 0)}% / ${Math.round(req.requiredPotential || 0)}%.`;
+    case "limit":
+      return `Limite alcanzado: ${Math.round(req.usedUses || 0)} / ${Math.round(req.maxUses || 0)} usos.`;
     case "min_level":
       return `Requiere upgrade +${req.minLevel || 0} antes de ascender.`;
     case "max_rarity":
@@ -116,8 +106,8 @@ export function getCraftActionBadge(req = {}, mode) {
       return "ELEGI LINEA";
     case "focused_line":
       return "LINEA FIJADA";
-    case "potential":
-      return `POT ${Math.round(req.forgingPotential || 0)}/${Math.round(req.requiredPotential || 0)}`;
+    case "limit":
+      return `${Math.round(req.usedUses || 0)}/${Math.round(req.maxUses || 0)}`;
     case "min_level":
       return `REQ +${req.minLevel || 0}`;
     case "max_rarity":

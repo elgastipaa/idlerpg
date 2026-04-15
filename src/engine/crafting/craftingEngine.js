@@ -12,19 +12,10 @@ import { getLegendaryPowerById } from "../../utils/legendaryPowers";
 const RARITY_TIERS = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
 const RARITY_NEXT  = { common: "magic", magic: "rare", rare: "epic", epic: "legendary" };
 export const UPGRADE_FAIL_CHANCE = { 0: 0, 1: 0, 2: 0.02, 3: 0.06, 4: 0.12, 5: 0.18, 6: 0.24, 7: 0.31, 8: 0.38, 9: 0.45, 10: 0.52 };
-export const FORGING_POTENTIAL_RULES = {
-  max: 100,
-  levelPenalty: 5,
-  rerollPenalty: 12,
-  polishPenalty: 8,
-  reforgePenalty: 16,
-  ascendPenalty: 20,
-  minimumByMode: {
-    reroll: 25,
-    polish: 10,
-    reforge: 16,
-    ascend: 32,
-  },
+export const CRAFT_ACTION_LIMITS = {
+  reroll: 5,
+  reforge: 3,
+  polishPerLine: 5,
 };
 function getRarityTier(rarity) {
   return RARITY_TIERS[rarity] || 1;
@@ -40,15 +31,83 @@ function getImplicitBonus(item, rarityOverride = item.rarity) {
 }
 
 export function getCraftingState(item) {
+  const rawPolishCounts = item?.crafting?.polishCountsByIndex;
+  const polishCountsByIndex = rawPolishCounts && typeof rawPolishCounts === "object"
+    ? Object.fromEntries(
+        Object.entries(rawPolishCounts)
+          .filter(([key]) => Number.isInteger(Number(key)))
+          .map(([key, value]) => [String(key), Math.max(0, Number(value || 0))])
+      )
+    : {};
   return {
     rerollCount: item?.crafting?.rerollCount || 0,
     polishCount: item?.crafting?.polishCount || 0,
     reforgeCount: item?.crafting?.reforgeCount || 0,
     ascendCount: item?.crafting?.ascendCount || 0,
+    polishCountsByIndex,
     focusedAffixIndex:
       Number.isInteger(item?.crafting?.focusedAffixIndex) ? Number(item.crafting.focusedAffixIndex) : null,
     focusedAffixStat: item?.crafting?.focusedAffixStat || null,
   };
+}
+
+function getPolishCountForIndex(item, affixIndex) {
+  if (!Number.isInteger(affixIndex)) return 0;
+  const craftingState = getCraftingState(item);
+  return Math.max(0, Number(craftingState.polishCountsByIndex?.[String(affixIndex)] || 0));
+}
+
+function getCraftLimitUsage(item, mode, affixIndex = null) {
+  const craftingState = getCraftingState(item);
+
+  if (mode === "reroll") {
+    return { used: craftingState.rerollCount, max: CRAFT_ACTION_LIMITS.reroll };
+  }
+
+  if (mode === "reforge") {
+    return { used: craftingState.reforgeCount, max: CRAFT_ACTION_LIMITS.reforge };
+  }
+
+  if (mode === "polish") {
+    return { used: getPolishCountForIndex(item, affixIndex), max: CRAFT_ACTION_LIMITS.polishPerLine };
+  }
+
+  return { used: 0, max: null };
+}
+
+function getCraftLimitGate(item, mode, affixIndex = null) {
+  const usage = getCraftLimitUsage(item, mode, affixIndex);
+  if (usage.max == null) return { ...usage, remaining: null, ok: true };
+  return {
+    ...usage,
+    remaining: Math.max(0, usage.max - usage.used),
+    ok: usage.used < usage.max,
+  };
+}
+
+function getCraftLimitBlock(item, mode, affixIndex = null) {
+  const gate = getCraftLimitGate(item, mode, affixIndex);
+  if (gate.ok) return null;
+  const modeLabel =
+    mode === "reroll"
+      ? "rerolls"
+      : mode === "reforge"
+        ? "reforjas"
+        : mode === "polish"
+          ? "pulidos"
+          : mode;
+  return {
+    newPlayer: null,
+    blocked: true,
+    log: `LIMITE ALCANZADO - ${item.name} ya gasto ${gate.used}/${gate.max} ${modeLabel}.`,
+  };
+}
+
+export function getCraftUsageSummary(item, affixIndex = null) {
+  const reroll = getCraftLimitGate(item, "reroll");
+  const reforge = getCraftLimitGate(item, "reforge");
+  const polish = getCraftLimitGate(item, "polish", affixIndex);
+  return { reroll, reforge, polish };
 }
 
 function isTargetedAffixAllowed(item, affixIndex) {
@@ -61,39 +120,6 @@ function getTargetedAffixBlockLog(item) {
   if (craftingState.focusedAffixIndex == null) return null;
   const focusedAffix = item?.affixes?.[craftingState.focusedAffixIndex];
   return `LINEA FIJADA - ${item.name} ya tiene trabajada ${focusedAffix?.stat || craftingState.focusedAffixStat || "otra linea"}.`;
-}
-
-export function getItemForgingPotential(item) {
-  const craftingState = getCraftingState(item);
-  const levelPenalty = Math.max(0, (item?.level || 0) * FORGING_POTENTIAL_RULES.levelPenalty);
-  const rerollPenalty = craftingState.rerollCount * FORGING_POTENTIAL_RULES.rerollPenalty;
-  const polishPenalty = craftingState.polishCount * FORGING_POTENTIAL_RULES.polishPenalty;
-  const reforgePenalty = craftingState.reforgeCount * FORGING_POTENTIAL_RULES.reforgePenalty;
-  const ascendPenalty = craftingState.ascendCount * FORGING_POTENTIAL_RULES.ascendPenalty;
-  return Math.max(
-    0,
-    FORGING_POTENTIAL_RULES.max - levelPenalty - rerollPenalty - polishPenalty - reforgePenalty - ascendPenalty
-  );
-}
-
-function getForgingPotentialGate(item, mode) {
-  const potential = getItemForgingPotential(item);
-  const required = FORGING_POTENTIAL_RULES.minimumByMode?.[mode] || 0;
-  return {
-    potential,
-    required,
-    ok: potential >= required,
-  };
-}
-
-function getForgingPotentialBlock(item, mode) {
-  const gate = getForgingPotentialGate(item, mode);
-  if (gate.ok) return null;
-  return {
-    newPlayer: null,
-    blocked: true,
-    log: `POTENCIAL AGOTADO - ${item.name} necesita ${gate.required}% de potencial para ${mode}, pero solo tiene ${gate.potential}%.`,
-  };
 }
 
 function buildStatPreferenceSet(preferredStats = [], wishlistStats = []) {
@@ -185,12 +211,13 @@ export function getForgeIdentity(item, { player = null, preferredStats = [], wis
   const alignedAffixes = affixes.filter(affix => favoredStatsSet.has(affix.stat));
   const t1Count = affixes.filter(affix => (affix.tier || 0) === 1).length;
   const perfectCount = affixes.filter(affix => affix.perfectRoll).length;
-  const forgingPotential = getItemForgingPotential(item);
+  const usageSummary = getCraftUsageSummary(item);
   const compareItem = item.type === "weapon" ? player?.equipment?.weapon : player?.equipment?.armor;
   const powerDelta = (item.rating || 0) - (compareItem?.rating || 0);
   const ascendState = getCraftActionState({ item, player, mode: "ascend" });
   const nearAscend = item.rarity === "epic" && (item.level || 0) >= Math.max(0, (ascendState.minLevel || 0) - 1);
   const craftingState = getCraftingState(item);
+  const hasOpenPolishLine = (item.affixes || []).some((_, index) => getPolishCountForIndex(item, index) < CRAFT_ACTION_LIMITS.polishPerLine);
 
   const reasons = [];
   if (alignedAffixes.length > 0) reasons.push(`${alignedAffixes.length} linea${alignedAffixes.length === 1 ? "" : "s"} de build`);
@@ -201,7 +228,7 @@ export function getForgeIdentity(item, { player = null, preferredStats = [], wis
 
   if (
     item.rarity === "legendary" ||
-    (item.rarity === "epic" && forgingPotential >= 35 && (alignedAffixes.length >= 2 || t1Count > 0 || perfectCount > 0 || nearAscend))
+    (item.rarity === "epic" && (alignedAffixes.length >= 2 || t1Count > 0 || perfectCount > 0 || nearAscend))
   ) {
     return {
       key: "chase",
@@ -212,7 +239,7 @@ export function getForgeIdentity(item, { player = null, preferredStats = [], wis
     };
   }
 
-  if (forgingPotential >= 45 && (powerDelta > 0 || alignedAffixes.length > 0 || getRarityTier(item.rarity) >= 3 || (item.level || 0) < 6)) {
+  if ((usageSummary.reroll.remaining >= 2 || usageSummary.reforge.remaining >= 1 || hasOpenPolishLine) && (powerDelta > 0 || alignedAffixes.length > 0 || getRarityTier(item.rarity) >= 3 || (item.level || 0) < 6)) {
     return {
       key: "tempo",
       label: "TEMPO",
@@ -222,7 +249,7 @@ export function getForgeIdentity(item, { player = null, preferredStats = [], wis
     };
   }
 
-  if (forgingPotential < 16 || (alignedAffixes.length === 0 && powerDelta <= 0 && getRarityTier(item.rarity) <= 2)) {
+  if ((usageSummary.reroll.remaining <= 0 && usageSummary.reforge.remaining <= 0 && !hasOpenPolishLine) || (alignedAffixes.length === 0 && powerDelta <= 0 && getRarityTier(item.rarity) <= 2)) {
     return {
       key: "skip",
       label: "NO GASTAR",
@@ -248,15 +275,15 @@ export function getCraftActionState({ item, player, mode, affixIndex = null, leg
       costs: { gold: 0, essence: 0 },
       can: false,
       reason: "missing_item",
-      forgingPotential: 0,
-      requiredPotential: 0,
+      usedUses: 0,
+      maxUses: null,
       focusedAffixIndex: null,
     };
   }
 
   const affix = affixIndex == null ? null : item?.affixes?.[affixIndex] || null;
   const focusedAffixIndex = getCraftingState(item).focusedAffixIndex;
-  const forgingGate = getForgingPotentialGate(item, mode);
+  const craftGate = getCraftLimitGate(item, mode, affixIndex);
 
   if (mode === "upgrade") {
     const currentLevel = item.level ?? 0;
@@ -268,8 +295,8 @@ export function getCraftActionState({ item, player, mode, affixIndex = null, leg
       can,
       reason: currentLevel >= 10 ? "max_level" : can ? "ok" : "gold",
       failChance: UPGRADE_FAIL_CHANCE[currentLevel] ?? 0.46,
-      forgingPotential: getItemForgingPotential(item),
-      requiredPotential: 0,
+      usedUses: 0,
+      maxUses: null,
       focusedAffixIndex,
     };
   }
@@ -280,10 +307,10 @@ export function getCraftActionState({ item, player, mode, affixIndex = null, leg
     return {
       mode,
       costs,
-      can: forgingGate.ok && canAfford,
-      reason: !forgingGate.ok ? "potential" : canAfford ? "ok" : "essence",
-      forgingPotential: forgingGate.potential,
-      requiredPotential: forgingGate.required,
+      can: craftGate.ok && canAfford,
+      reason: !craftGate.ok ? "limit" : canAfford ? "ok" : "essence",
+      usedUses: craftGate.used,
+      maxUses: craftGate.max,
       focusedAffixIndex,
     };
   }
@@ -294,10 +321,10 @@ export function getCraftActionState({ item, player, mode, affixIndex = null, leg
     return {
       mode,
       costs,
-      can: affixIndex != null && forgingGate.ok && canAfford,
-      reason: affixIndex == null ? "missing_affix" : !forgingGate.ok ? "potential" : canAfford ? "ok" : "essence",
-      forgingPotential: forgingGate.potential,
-      requiredPotential: forgingGate.required,
+      can: affixIndex != null && craftGate.ok && canAfford,
+      reason: affixIndex == null ? "missing_affix" : !craftGate.ok ? "limit" : canAfford ? "ok" : "essence",
+      usedUses: craftGate.used,
+      maxUses: craftGate.max,
       focusedAffixIndex,
     };
   }
@@ -309,19 +336,19 @@ export function getCraftActionState({ item, player, mode, affixIndex = null, leg
     return {
       mode,
       costs,
-      can: affixIndex != null && !lineLocked && forgingGate.ok && canAfford,
+      can: affixIndex != null && !lineLocked && craftGate.ok && canAfford,
       reason:
         affixIndex == null
           ? "missing_affix"
           : lineLocked
             ? "focused_line"
-            : !forgingGate.ok
-              ? "potential"
+            : !craftGate.ok
+              ? "limit"
               : canAfford
                 ? "ok"
                 : "essence",
-      forgingPotential: forgingGate.potential,
-      requiredPotential: forgingGate.required,
+      usedUses: craftGate.used,
+      maxUses: craftGate.max,
       focusedAffixIndex,
     };
   }
@@ -338,19 +365,17 @@ export function getCraftActionState({ item, player, mode, affixIndex = null, leg
     return {
       mode,
       costs,
-      can: !isMaxRarity && meetsLevel && forgingGate.ok && canAfford,
+      can: !isMaxRarity && meetsLevel && canAfford,
       reason:
         isMaxRarity
           ? "max_rarity"
           : !meetsLevel
             ? "min_level"
-            : !forgingGate.ok
-              ? "potential"
-              : canAfford
-                ? "ok"
-                : "essence",
-      forgingPotential: forgingGate.potential,
-      requiredPotential: forgingGate.required,
+            : canAfford
+              ? "ok"
+              : "essence",
+      usedUses: 0,
+      maxUses: null,
       focusedAffixIndex,
       minLevel: costs.minLevel || 0,
       nextRarity,
@@ -362,8 +387,8 @@ export function getCraftActionState({ item, player, mode, affixIndex = null, leg
     costs: { gold: 0, essence: 0 },
     can: false,
     reason: "unsupported_mode",
-    forgingPotential: getItemForgingPotential(item),
-    requiredPotential: 0,
+    usedUses: 0,
+    maxUses: null,
     focusedAffixIndex,
   };
 }
@@ -498,8 +523,8 @@ export function craftReroll({ player, itemId, currentTier, refreshStats }) {
   if (!locatedItem) return null;
 
   const item        = locatedItem.item;
-  const potentialBlock = getForgingPotentialBlock(item, "reroll");
-  if (potentialBlock) return potentialBlock;
+  const limitBlock = getCraftLimitBlock(item, "reroll");
+  if (limitBlock) return limitBlock;
   const craftingState = getCraftingState(item);
   const { gold: goldCost, essence: essenceCost } = getRerollCosts(item, player);
 
@@ -511,6 +536,8 @@ export function craftReroll({ player, itemId, currentTier, refreshStats }) {
     crafting: {
       ...craftingState,
       rerollCount: craftingState.rerollCount + 1,
+      polishCount: 0,
+      polishCountsByIndex: {},
       focusedAffixIndex: null,
       focusedAffixStat: null,
     },
@@ -534,8 +561,8 @@ export function craftPolish({ player, itemId, affixIndex, refreshStats }) {
   if (!locatedItem) return null;
 
   const item = locatedItem.item;
-  const potentialBlock = getForgingPotentialBlock(item, "polish");
-  if (potentialBlock) return potentialBlock;
+  const limitBlock = getCraftLimitBlock(item, "polish", affixIndex);
+  if (limitBlock) return limitBlock;
   if (!Array.isArray(item.affixes) || item.affixes.length === 0) return null;
   if (affixIndex == null || affixIndex < 0 || affixIndex >= item.affixes.length) return null;
 
@@ -550,6 +577,10 @@ export function craftPolish({ player, itemId, affixIndex, refreshStats }) {
     crafting: {
       ...craftingState,
       polishCount: craftingState.polishCount + 1,
+      polishCountsByIndex: {
+        ...(craftingState.polishCountsByIndex || {}),
+        [String(affixIndex)]: getPolishCountForIndex(item, affixIndex) + 1,
+      },
     },
   });
 
@@ -576,8 +607,8 @@ export function craftReforge({ player, itemId, affixIndex, replacementAffix, ref
   if (!locatedItem) return null;
 
   const item = locatedItem.item;
-  const potentialBlock = getForgingPotentialBlock(item, "reforge");
-  if (potentialBlock) return { ...potentialBlock, newPlayer: player };
+  const limitBlock = getCraftLimitBlock(item, "reforge");
+  if (limitBlock) return { ...limitBlock, newPlayer: player };
   if (!Array.isArray(item.affixes) || item.affixes.length === 0) return null;
   if (affixIndex == null || affixIndex < 0 || affixIndex >= item.affixes.length) return null;
   if (!isTargetedAffixAllowed(item, affixIndex)) {
@@ -641,8 +672,8 @@ export function craftReforgePreview({ player, itemId, affixIndex, favoredStats =
   if (!locatedItem) return null;
 
   const item = locatedItem.item;
-  const potentialBlock = getForgingPotentialBlock(item, "reforge");
-  if (potentialBlock) return { ...potentialBlock, newPlayer: player };
+  const limitBlock = getCraftLimitBlock(item, "reforge");
+  if (limitBlock) return { ...limitBlock, newPlayer: player };
   if (!Array.isArray(item.affixes) || item.affixes.length === 0) return null;
   if (affixIndex == null || affixIndex < 0 || affixIndex >= item.affixes.length) return null;
   if (!isTargetedAffixAllowed(item, affixIndex)) {
@@ -716,8 +747,6 @@ export function craftAscend({ player, itemId, currentTier, refreshStats, legenda
   if (!locatedItem) return null;
 
   const item = locatedItem.item;
-  const potentialBlock = getForgingPotentialBlock(item, "ascend");
-  if (potentialBlock) return potentialBlock;
   if (item.rarity === "legendary") return null;
 
   const newRarity    = getNextRarity(item.rarity);

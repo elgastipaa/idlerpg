@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
 import { getLootHighlights } from "../utils/lootHighlights";
 import { AVAILABLE_HUNT_STATS, getHuntProfiles, resolveLootRuleWishlist } from "../utils/lootFilter";
@@ -9,7 +9,6 @@ import {
   formatItemNumber as formatNumber,
   formatItemStatValue as formatStatValue,
   formatItemDiffValue as formatDiffValue,
-  getItemDisplayName,
   getItemStats,
   getImplicitEntries,
   formatImplicitSummary,
@@ -19,12 +18,17 @@ import {
   getTopCompareEntries,
   getCompareSummary,
   getItemLocation,
-  getWorkedLabel,
   getLegendaryPowerSummary,
 } from "../utils/itemPresentation";
+import { getCompactRarityLabel, getItemGlyph, getUpgradeBadgeTone } from "../utils/itemVisuals";
 
 const BULK_SELL_RARITIES = ["common", "magic", "rare", "epic"];
 const AUTO_LOOT_RARITIES = ["common", "magic", "rare", "epic"];
+const LOOT_ACTION_OPTIONS = [
+  { id: "keep", label: "Guardar" },
+  { id: "sell", label: "Vender" },
+  { id: "extract", label: "Extraer" },
+];
 function getCardHighlights(highlights = []) {
   return highlights.filter(highlight => !["t1", "legendary", "epic"].includes(highlight.id));
 }
@@ -35,11 +39,30 @@ function sameWishlist(left = [], right = []) {
   return right.every(stat => leftSet.has(stat));
 }
 
+function getLootAction(lootRules = {}, rarity) {
+  if ((lootRules.autoExtractRarities || []).includes(rarity)) return "extract";
+  if ((lootRules.autoSellRarities || []).includes(rarity)) return "sell";
+  return "keep";
+}
+
+function buildLootRuleUpdateForRarity(lootRules = {}, rarity, nextAction) {
+  const nextSell = new Set((lootRules.autoSellRarities || []).filter(item => item !== rarity));
+  const nextExtract = new Set((lootRules.autoExtractRarities || []).filter(item => item !== rarity));
+
+  if (nextAction === "sell") nextSell.add(rarity);
+  if (nextAction === "extract") nextExtract.add(rarity);
+
+  return {
+    autoSellRarities: [...nextSell],
+    autoExtractRarities: [...nextExtract],
+  };
+}
+
 export default function Inventory({ state, player, dispatch }) {
   const [pendingBulkSell, setPendingBulkSell] = useState(null);
   const [pendingSellId, setPendingSellId] = useState(null);
   const [detailItemId, setDetailItemId] = useState(null);
-  const [showHuntEditor, setShowHuntEditor] = useState(false);
+  const [showLootFilterModal, setShowLootFilterModal] = useState(false);
   const [showOnlyUpgrades, setShowOnlyUpgrades] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const isDarkMode = state?.settings?.theme === "dark";
@@ -82,6 +105,11 @@ export default function Inventory({ state, player, dispatch }) {
     () => getHuntProfiles({ activeBuildTag, enemy: currentEnemy }),
     [activeBuildTag, currentEnemy]
   );
+  const hasActiveHunt = wishlistAffixes.length > 0;
+  const protectionSummary = [
+    lootRules.protectHuntedDrops !== false && "Protege caza",
+    lootRules.protectUpgradeDrops !== false && "Protege upgrades",
+  ].filter(Boolean);
 
   const sortedItems = useMemo(() => {
     const filteredItems = inventory.filter(item => {
@@ -139,195 +167,43 @@ export default function Inventory({ state, player, dispatch }) {
       </section>
 
       <section>
-        <div style={{ marginBottom: "0.8rem", background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "10px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+        <div style={{ marginBottom: "0.8rem", background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "10px", display: "grid", gap: "10px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", flexWrap: "wrap" }}>
             <div>
               <div style={{ ...sectionTitleStyle, marginBottom: "2px" }}>Loot Filter</div>
               <div style={{ fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.3 }}>
-                Auto-loot por rareza, con proteccion de caza y upgrades.
+                Accion rapida por rareza. El engranaje abre presets, caza y protecciones.
               </div>
             </div>
             <button
-              onClick={() => setShowHuntEditor(current => !current)}
-              style={{
-                border: "1px solid var(--color-border-secondary, #cbd5e1)",
-                background: showHuntEditor ? (isDarkMode ? "rgba(30,64,175,0.18)" : "#eff6ff") : "var(--color-background-secondary, #fff)",
-                color: showHuntEditor ? (isDarkMode ? "#93c5fd" : "#1d4ed8") : "var(--color-text-secondary, #475569)",
-                borderRadius: "999px",
-                padding: "6px 10px",
-                fontSize: "0.62rem",
-                fontWeight: "900",
-                cursor: "pointer",
-              }}
+              onClick={() => setShowLootFilterModal(true)}
+              style={gearButtonStyle(isDarkMode)}
             >
-              {showHuntEditor ? "Cerrar" : "Editar caza"}
+              <span style={{ fontSize: "0.85rem", lineHeight: 1 }}>⚙</span>
+              Ajustes
             </button>
           </div>
-          <div style={{ display: "grid", gap: "8px" }}>
-            <div style={{ background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "10px", padding: "10px", display: "grid", gap: "8px" }}>
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                {huntProfiles.map(profile => (
-                  <button
-                    key={profile.id}
-                    onClick={() => dispatch({
-                      type: "UPDATE_LOOT_RULES",
-                      lootRules: {
-                        huntPreset: profile.id,
-                        wishlistAffixes: profile.wishlistAffixes,
-                      },
-                    })}
-                    style={{
-                      border: "1px solid",
-                      borderColor: lootRules.huntPreset === profile.id || sameWishlist(profile.wishlistAffixes, wishlistAffixes)
-                        ? (isDarkMode ? "rgba(45,212,191,0.45)" : "#99f6e4")
-                        : "var(--color-border-primary, #e2e8f0)",
-                      background: lootRules.huntPreset === profile.id || sameWishlist(profile.wishlistAffixes, wishlistAffixes)
-                        ? (isDarkMode ? "rgba(13,148,136,0.16)" : "#f0fdfa")
-                        : "var(--color-background-secondary, #fff)",
-                      color: lootRules.huntPreset === profile.id || sameWishlist(profile.wishlistAffixes, wishlistAffixes)
-                        ? (isDarkMode ? "#5eead4" : "#115e59")
-                        : "var(--color-text-secondary, #475569)",
-                      borderRadius: "999px",
-                      padding: "6px 10px",
-                      fontSize: "0.62rem",
-                      fontWeight: "900",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {profile.label}
-                  </button>
-                ))}
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", lineHeight: 1.35 }}>
-                  Toca un stat cazado para sacarlo. Lo cazado se protege del auto-loot.
-                </div>
-                {wishlistAffixes.length > 0 && (
-                  <button
-                    onClick={() => dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { huntPreset: null, wishlistAffixes: [] } })}
-                    style={{ border: "none", background: "none", color: "var(--color-text-info, #2563eb)", fontSize: "0.62rem", fontWeight: "900", cursor: "pointer", padding: 0 }}
-                  >
-                    Limpiar
-                  </button>
-                )}
-              </div>
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                {wishlistAffixes.length > 0 ? wishlistAffixes.map(stat => (
-                  <button
-                    key={`active-wish-${stat}`}
-                    onClick={() => dispatch({
-                      type: "UPDATE_LOOT_RULES",
-                      lootRules: {
-                        huntPreset: null,
-                        wishlistAffixes: wishlistAffixes.filter(item => item !== stat),
-                      },
-                    })}
-                    title="Quitar de la caza"
-                    style={{
-                      border: "1px solid rgba(45,212,191,0.35)",
-                      background: isDarkMode ? "rgba(13,148,136,0.16)" : "#f0fdfa",
-                      color: isDarkMode ? "#5eead4" : "#115e59",
-                      borderRadius: "999px",
-                      padding: "4px 8px",
-                      fontSize: "0.6rem",
-                      fontWeight: "900",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {STAT_LABELS[stat] || stat}
-                  </button>
-                )) : (
-                  <span style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
-                    Sin caza activa
-                  </span>
-                )}
-              </div>
-              {showHuntEditor && (
-                <div style={{ borderTop: "1px solid var(--color-border-primary, #e2e8f0)", paddingTop: "8px", display: "grid", gap: "8px" }}>
-                  <div>
-                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #475569)", fontWeight: "900", marginBottom: "6px" }}>Elegi stats para cazar</div>
-                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                      {AVAILABLE_HUNT_STATS.map(stat => {
-                        const active = wishlistAffixes.includes(stat);
-                        return (
-                          <button
-                            key={`wish-${stat}`}
-                            onClick={() => {
-                              const next = active ? wishlistAffixes.filter(item => item !== stat) : [...wishlistAffixes, stat];
-                              dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { huntPreset: null, wishlistAffixes: next } });
-                            }}
-                            style={{
-                              border: "1px solid",
-                              borderColor: active ? (isDarkMode ? "rgba(45,212,191,0.45)" : "#99f6e4") : "var(--color-border-primary, #e2e8f0)",
-                              background: active ? (isDarkMode ? "rgba(13,148,136,0.16)" : "#f0fdfa") : "var(--color-background-secondary, #fff)",
-                              color: active ? (isDarkMode ? "#5eead4" : "#115e59") : "var(--color-text-secondary, #475569)",
-                              borderRadius: "999px",
-                              padding: "6px 9px",
-                              fontSize: "0.62rem",
-                              fontWeight: "900",
-                              cursor: "pointer",
-                            }}
-                          >
-                            {STAT_LABELS[stat] || stat}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div style={{ display: "grid", gap: "8px" }}>
-              <AutoRuleRow
-                label="Auto-vender"
-                activeRarities={lootRules.autoSellRarities || []}
-                blockedRarities={lootRules.autoExtractRarities || []}
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            <span style={summaryPillStyle(hasActiveHunt ? "warning" : "muted", isDarkMode)}>
+              {hasActiveHunt ? "Caza activa" : "Sin caza activa"}
+            </span>
+            {protectionSummary.length > 0 ? protectionSummary.map(label => (
+              <span key={label} style={summaryPillStyle("success", isDarkMode)}>{label}</span>
+            )) : <span style={summaryPillStyle("muted", isDarkMode)}>Sin protecciones</span>}
+          </div>
+          <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "2px" }}>
+            {AUTO_LOOT_RARITIES.map(rarity => (
+              <QuickLootRuleRow
+                key={`loot-quick-${rarity}`}
+                rarity={rarity}
+                action={getLootAction(lootRules, rarity)}
                 isDarkMode={isDarkMode}
-                onToggle={rarity => {
-                  const current = new Set(lootRules.autoSellRarities || []);
-                  if (current.has(rarity)) current.delete(rarity);
-                  else current.add(rarity);
-                  const nextExtract = (lootRules.autoExtractRarities || []).filter(item => item !== rarity);
-                  dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { autoSellRarities: [...current], autoExtractRarities: nextExtract } });
-                }}
+                onChange={nextAction => dispatch({
+                  type: "UPDATE_LOOT_RULES",
+                  lootRules: buildLootRuleUpdateForRarity(lootRules, rarity, nextAction),
+                })}
               />
-              <AutoRuleRow
-                label="Auto-extraer"
-                activeRarities={lootRules.autoExtractRarities || []}
-                blockedRarities={lootRules.autoSellRarities || []}
-                isDarkMode={isDarkMode}
-                onToggle={rarity => {
-                  const current = new Set(lootRules.autoExtractRarities || []);
-                  if (current.has(rarity)) current.delete(rarity);
-                  else current.add(rarity);
-                  const nextSell = (lootRules.autoSellRarities || []).filter(item => item !== rarity);
-                  dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { autoExtractRarities: [...current], autoSellRarities: nextSell } });
-                }}
-              />
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                <button
-                  onClick={() => dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { protectHuntedDrops: !(lootRules.protectHuntedDrops !== false) } })}
-                  style={togglePillStyle(lootRules.protectHuntedDrops !== false, isDarkMode)}
-                >
-                  Proteger caza
-                </button>
-                <button
-                  onClick={() => dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { protectUpgradeDrops: !(lootRules.protectUpgradeDrops !== false) } })}
-                  style={togglePillStyle(lootRules.protectUpgradeDrops !== false, isDarkMode)}
-                >
-                  Proteger upgrades
-                </button>
-              </div>
-              <div style={{ fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "8px", lineHeight: 1.35 }}>
-                Si un rarity entra en auto-vender o auto-extraer, los drops cazados y las mejoras claras pueden salvarse automaticamente.
-              </div>
-              {lootRules.huntPreset && (
-                <div style={{ fontSize: "0.58rem", color: "var(--color-text-info, #2563eb)", fontWeight: "800" }}>
-                  Preset vivo: {lootRules.huntPreset === "build" ? "Build" : lootRules.huntPreset === "enemy" ? "Enemigo actual" : lootRules.huntPreset === "caster" ? "Caster" : lootRules.huntPreset}
-                </div>
-              )}
-            </div>
+            ))}
           </div>
         </div>
 
@@ -348,14 +224,15 @@ export default function Inventory({ state, player, dispatch }) {
                 cursor: "pointer",
               }}
             >
-              {showOnlyUpgrades ? "Solo upgrades: ON" : "Solo upgrades"}
+              MEJOR
             </button>
             <span style={{ fontSize: "0.66rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>{sortedItems.length} visibles</span>
           </div>
         </div>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "0.8rem", alignItems: "center" }}>
-          <span style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #475569)", fontWeight: "900" }}>Vender:</span>
+        <div style={{ display: "grid", gap: "6px", marginBottom: "0.8rem" }}>
+          <span style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #475569)", fontWeight: "900" }}>Vender por rareza (doble tap)</span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "6px", minWidth: 0 }}>
           {bulkSellGroups.map(group => (
             <button
               key={group.rarity}
@@ -369,18 +246,22 @@ export default function Inventory({ state, player, dispatch }) {
                 setPendingBulkSell(null);
               }}
               style={{
-                ...quickActionButtonStyle,
-                background: pendingBulkSell === group.rarity ? (isDarkMode ? "rgba(153,27,27,0.38)" : "#7f1d1d") : group.items.length > 0 ? (isDarkMode ? "rgba(154,52,18,0.18)" : "#fff8f1") : "var(--color-background-tertiary, #f8fafc)",
-                color: pendingBulkSell === group.rarity ? "#fff" : group.items.length > 0 ? (isDarkMode ? "#fdba74" : "#9a3412") : "var(--color-text-tertiary, #94a3b8)",
-                borderColor: pendingBulkSell === group.rarity ? "#ef4444" : group.items.length > 0 ? (isDarkMode ? "rgba(251,146,60,0.4)" : "#fed7aa") : "var(--color-border-primary, #e2e8f0)",
+                ...bulkSellButtonStyle(group, pendingBulkSell === group.rarity, isDarkMode),
                 cursor: group.items.length > 0 ? "pointer" : "not-allowed",
               }}
             >
-              {pendingBulkSell === group.rarity
-                ? `Confirmar ${group.rarity} · ${group.items.length} · ${formatNumber(group.gold)}g`
-                : `${group.rarity} · ${group.items.length} · ${formatNumber(group.gold)}g`}
+              <span style={{ display: "flex", justifyContent: "center" }}>
+                <span style={rarityBadgeStyle(group.rarity)}>{getCompactRarityLabel(group.rarity)}</span>
+              </span>
+              <span style={{ fontSize: "0.7rem", fontWeight: "900", textAlign: "center", color: pendingBulkSell === group.rarity ? "inherit" : "var(--color-text-primary, #1e293b)" }}>
+                {group.items.length > 0 ? group.items.length : "-"}
+              </span>
+              <span style={{ fontSize: "0.56rem", fontWeight: "800", textAlign: "center", color: pendingBulkSell === group.rarity ? "inherit" : "var(--color-text-secondary, #64748b)", whiteSpace: "nowrap" }}>
+                {group.items.length > 0 ? `${formatNumber(group.gold)}g` : "-"}
+              </span>
             </button>
           ))}
+          </div>
         </div>
 
         {inventory.length === 0 ? (
@@ -413,6 +294,32 @@ export default function Inventory({ state, player, dispatch }) {
         )}
       </section>
 
+      {showLootFilterModal && (
+        <LootFilterModal
+          lootRules={lootRules}
+          wishlistAffixes={wishlistAffixes}
+          huntProfiles={huntProfiles}
+          isDarkMode={isDarkMode}
+          isMobile={isMobile}
+          onClose={() => setShowLootFilterModal(false)}
+          onSelectPreset={profile => dispatch({
+            type: "UPDATE_LOOT_RULES",
+            lootRules: {
+              huntPreset: profile.id,
+              wishlistAffixes: profile.wishlistAffixes,
+            },
+          })}
+          onClearWishlist={() => dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { huntPreset: null, wishlistAffixes: [] } })}
+          onToggleWishlistStat={stat => {
+            const active = wishlistAffixes.includes(stat);
+            const next = active ? wishlistAffixes.filter(item => item !== stat) : [...wishlistAffixes, stat];
+            dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { huntPreset: null, wishlistAffixes: next } });
+          }}
+          onToggleProtectHunted={() => dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { protectHuntedDrops: !(lootRules.protectHuntedDrops !== false) } })}
+          onToggleProtectUpgrade={() => dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { protectUpgradeDrops: !(lootRules.protectUpgradeDrops !== false) } })}
+        />
+      )}
+
       {detailItem && (
         <ItemDetailModal
           item={detailItem}
@@ -430,37 +337,211 @@ export default function Inventory({ state, player, dispatch }) {
   );
 }
 
-function AutoRuleRow({ label, activeRarities, blockedRarities, onToggle, isDarkMode = false }) {
+function QuickLootRuleRow({ rarity, action, onChange, isDarkMode = false }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
-      <span style={{ fontSize: "0.7rem", fontWeight: "900", color: "var(--color-text-secondary, #475569)", minWidth: "88px" }}>{label}</span>
-      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-        {AUTO_LOOT_RARITIES.map(rarity => {
-          const active = activeRarities.includes(rarity);
-          const blocked = blockedRarities.includes(rarity);
+    <div style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", borderTop: `3px solid ${getRarityColor(rarity)}`, borderRadius: "12px", padding: "8px", background: "var(--color-background-tertiary, #f8fafc)", display: "grid", gap: "8px", minWidth: "92px", flex: "0 0 92px" }}>
+      <div style={{ minWidth: 0, textAlign: "center", display: "flex", justifyContent: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", flexWrap: "wrap" }}>
+          <span style={rarityBadgeStyle(rarity)}>{getCompactRarityLabel(rarity)}</span>
+        </div>
+      </div>
+      <div style={{ display: "grid", gap: "4px" }}>
+        {LOOT_ACTION_OPTIONS.map(option => {
+          const active = action === option.id;
           return (
             <button
-              key={rarity}
-              disabled={blocked}
-              onClick={() => onToggle(rarity)}
-              style={{
-                border: "1px solid",
-                borderColor: active ? (isDarkMode ? "rgba(45,212,191,0.45)" : "#86efac") : "var(--color-border-primary, #e2e8f0)",
-                background: active ? (isDarkMode ? "rgba(13,148,136,0.16)" : "#f0fdf4") : "var(--color-background-secondary, #fff)",
-                color: blocked ? "var(--color-text-tertiary, #cbd5e1)" : active ? (isDarkMode ? "#6ee7b7" : "#166534") : "var(--color-text-secondary, #475569)",
-                opacity: blocked ? 0.5 : 1,
-                borderRadius: "999px",
-                padding: "6px 9px",
-                fontSize: "0.62rem",
-                fontWeight: "900",
-                textTransform: "uppercase",
-                cursor: blocked ? "not-allowed" : "pointer",
-              }}
+              key={`${rarity}-${option.id}`}
+              onClick={() => onChange(option.id)}
+              style={lootActionButtonStyle(active, option.id, isDarkMode)}
+              title={option.label}
             >
-              {rarity}
+              {option.label}
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function LootFilterModal({
+  lootRules,
+  wishlistAffixes,
+  huntProfiles,
+  isDarkMode = false,
+  isMobile = false,
+  onClose,
+  onSelectPreset,
+  onClearWishlist,
+  onToggleWishlistStat,
+  onToggleProtectHunted,
+  onToggleProtectUpgrade,
+}) {
+  const dragStateRef = useRef({ active: false, startY: 0, pointerId: null });
+  const sheetOffsetRef = useRef(0);
+  const [sheetOffsetY, setSheetOffsetY] = useState(0);
+  const [isDraggingSheet, setIsDraggingSheet] = useState(false);
+  const dragCloseThreshold = 120;
+  const backdropAlpha = isMobile
+    ? Math.max(0.18, 0.55 - Math.min(sheetOffsetY, 260) / 700)
+    : 0.55;
+
+  useEffect(() => {
+    const handleKeyDown = event => {
+      if (event.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const beginSheetDrag = event => {
+    if (!isMobile) return;
+    dragStateRef.current = {
+      active: true,
+      startY: event.clientY,
+      pointerId: event.pointerId,
+    };
+    setIsDraggingSheet(false);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const updateSheetDrag = event => {
+    if (!isMobile || !dragStateRef.current.active) return;
+    const delta = Math.max(0, event.clientY - dragStateRef.current.startY);
+    sheetOffsetRef.current = delta;
+    setSheetOffsetY(delta);
+    if (delta > 0) setIsDraggingSheet(true);
+  };
+
+  const endSheetDrag = event => {
+    if (!isMobile || !dragStateRef.current.active) return;
+    event.currentTarget.releasePointerCapture?.(dragStateRef.current.pointerId);
+    const shouldClose = sheetOffsetRef.current >= dragCloseThreshold;
+    dragStateRef.current = { active: false, startY: 0, pointerId: null };
+    sheetOffsetRef.current = 0;
+    setIsDraggingSheet(false);
+    setSheetOffsetY(0);
+    if (shouldClose) onClose();
+  };
+
+  return (
+    <div style={{ ...modalWrapStyle, background: `rgba(15,23,42,${backdropAlpha})`, justifyContent: isMobile ? "flex-end" : "center", padding: isMobile ? "0" : "18px" }} onClick={onClose}>
+      <div
+        style={{
+          ...lootFilterModalCardStyle(isMobile),
+          transform: isMobile ? `translateY(${sheetOffsetY}px)` : "none",
+          transition: isMobile && !isDraggingSheet ? "transform 180ms ease, box-shadow 180ms ease" : undefined,
+        }}
+        onClick={event => event.stopPropagation()}
+      >
+        {isMobile && (
+          <div
+            style={sheetDragHandleWrapStyle}
+            onPointerDown={beginSheetDrag}
+            onPointerMove={updateSheetDrag}
+            onPointerUp={endSheetDrag}
+            onPointerCancel={endSheetDrag}
+          >
+            <div style={sheetDragHandleStyle} />
+          </div>
+        )}
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" }}>
+          <div>
+            <div style={{ fontSize: "0.95rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>Ajustes de Loot</div>
+            <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.4 }}>
+              Presets, stats custom y protecciones. El selector rapido por rareza queda en la mochila.
+            </div>
+          </div>
+          <button onClick={onClose} style={{ border: "none", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", width: "32px", height: "32px", borderRadius: "999px", cursor: "pointer", fontWeight: "900" }}>×</button>
+        </div>
+
+        <div style={{ display: "grid", gap: "10px", maxHeight: isMobile ? "70vh" : "58vh", overflowY: "auto", paddingRight: isMobile ? 0 : "2px" }}>
+          <section style={detailBlockStyle}>
+            <div style={detailTitleStyle}>Preset de Caza</div>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              {huntProfiles.map(profile => {
+                const active = lootRules.huntPreset === profile.id || sameWishlist(profile.wishlistAffixes, wishlistAffixes);
+                return (
+                  <button
+                    key={profile.id}
+                    onClick={() => onSelectPreset(profile)}
+                    style={modalOptionPillStyle(active, isDarkMode)}
+                  >
+                    {profile.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "8px", lineHeight: 1.4 }}>
+              El preset activo define la caza por build o enemigo. Si tocas stats manuales abajo, pasas a modo custom.
+            </div>
+          </section>
+
+          <section style={detailBlockStyle}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
+              <div style={{ ...detailTitleStyle, marginBottom: 0 }}>Stats Cazados</div>
+              {wishlistAffixes.length > 0 && (
+                <button
+                  onClick={onClearWishlist}
+                  style={{ border: "none", background: "none", color: "var(--color-text-info, #2563eb)", fontSize: "0.62rem", fontWeight: "900", cursor: "pointer", padding: 0 }}
+                >
+                  Limpiar
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "10px" }}>
+              {wishlistAffixes.length > 0 ? wishlistAffixes.map(stat => (
+                <button
+                  key={`active-wish-${stat}`}
+                  onClick={() => onToggleWishlistStat(stat)}
+                  title="Quitar de la caza"
+                  style={activeWishlistPillStyle(isDarkMode)}
+                >
+                  {STAT_LABELS[stat] || stat}
+                </button>
+              )) : (
+                <span style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
+                  Sin caza activa
+                </span>
+              )}
+            </div>
+
+            <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginBottom: "8px", lineHeight: 1.4 }}>
+              Toca un stat para agregarlo o quitarlo del filtro avanzado.
+            </div>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              {AVAILABLE_HUNT_STATS.map(stat => {
+                const active = wishlistAffixes.includes(stat);
+                return (
+                  <button
+                    key={`wish-${stat}`}
+                    onClick={() => onToggleWishlistStat(stat)}
+                    style={modalOptionPillStyle(active, isDarkMode)}
+                  >
+                    {STAT_LABELS[stat] || stat}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section style={detailBlockStyle}>
+            <div style={detailTitleStyle}>Protecciones</div>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              <button onClick={onToggleProtectHunted} style={togglePillStyle(lootRules.protectHuntedDrops !== false, isDarkMode)}>
+                Proteger caza
+              </button>
+              <button onClick={onToggleProtectUpgrade} style={togglePillStyle(lootRules.protectUpgradeDrops !== false, isDarkMode)}>
+                Proteger upgrades
+              </button>
+            </div>
+            <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "8px", lineHeight: 1.4 }}>
+              Si una rareza entra en vender o extraer, los drops cazados y las mejoras claras pueden salvarse automaticamente.
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );
@@ -477,7 +558,6 @@ function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode
   const implicitEntries = getImplicitEntries(item);
   const topStats = getPrioritizedStatEntries(stats, 2);
   const highlights = getCardHighlights(getLootHighlights({ item, equippedItem: item, activeBuildTag, wishlistAffixes })).slice(0, 2);
-  const workedLabel = getWorkedLabel(item);
   const legendaryPower = getLegendaryPowerSummary(item);
 
   return (
@@ -493,12 +573,14 @@ function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: "0.72rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", marginBottom: "2px" }}>{title}</div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-            <div style={{ fontWeight: "900", color: "var(--color-text-primary, #1e293b)", fontSize: "0.78rem", lineHeight: 1.2 }}>{getItemDisplayName(item)}</div>
-            {workedLabel && <span style={workedBadgeStyle(isDarkMode)}>{workedLabel}</span>}
+            <span style={rarityBadgeStyle(item.rarity)}>{getCompactRarityLabel(item.rarity)}</span>
+            <span style={itemGlyphStyle}>{getItemGlyph(item.name)}</span>
+            <div style={{ fontWeight: "900", color: "var(--color-text-primary, #1e293b)", fontSize: "0.78rem", lineHeight: 1.2 }}>{item.name}</div>
+            {(item.level || 0) > 0 && <span style={upgradeBadgeStyle(item.level)}>{`+${item.level}`}</span>}
             {legendaryPower && <span style={powerBadgeStyle(isDarkMode)}>{legendaryPower.shortLabel}</span>}
           </div>
-          <div style={{ fontSize: "0.58rem", color: getRarityColor(item.rarity), textTransform: "uppercase", fontWeight: "800", marginTop: "2px" }}>
-            {item.rarity}{item.familyName ? ` · ${item.familyName}` : ""}
+          <div style={{ fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "2px" }}>
+            {item.familyName || "Sin familia"}
           </div>
         </div>
         <span style={{ color: "var(--tone-warning, #f59e0b)", fontSize: "0.78rem", fontWeight: "900", whiteSpace: "nowrap" }}>P {formatNumber(item.rating || 0)}</span>
@@ -551,8 +633,6 @@ function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, 
   const highlights = getCardHighlights(getLootHighlights({ item, equippedItem: equippedCompare, activeBuildTag, wishlistAffixes })).slice(0, 1);
   const compareEntries = getTopCompareEntries(item, compareItem, isMobile ? 2 : 3);
   const topStats = getPrioritizedStatEntries(item.bonus || {}, 2);
-  const compareSummary = getCompareSummary(item, compareItem);
-  const workedLabel = getWorkedLabel(item);
   const legendaryPower = getLegendaryPowerSummary(item);
   return (
     <div style={{ ...compactCardStyle, borderLeft: `4px solid ${color}`, gap: "8px" }}>
@@ -562,13 +642,15 @@ function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px" }}>
         <button onClick={onOpen} style={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", background: "none", padding: 0, cursor: "pointer" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-            <span style={{ fontWeight: "900", fontSize: "0.82rem", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.2 }}>{getItemDisplayName(item)}</span>
+            <span style={rarityBadgeStyle(item.rarity)}>{getCompactRarityLabel(item.rarity)}</span>
+            <span style={itemGlyphStyle}>{getItemGlyph(item.name)}</span>
+            <span style={{ fontWeight: "900", fontSize: "0.82rem", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.2 }}>{item.name}</span>
+            {(item.level || 0) > 0 && <span style={upgradeBadgeStyle(item.level)}>{`+${item.level}`}</span>}
             {isBetter && <span style={betterBadgeStyle(isDarkMode)}>MEJOR</span>}
-            {workedLabel && <span style={workedBadgeStyle(isDarkMode)}>{workedLabel}</span>}
             {legendaryPower && <span style={powerBadgeStyle(isDarkMode)}>{legendaryPower.shortLabel}</span>}
           </div>
-          <div style={{ fontSize: "0.58rem", color, textTransform: "uppercase", fontWeight: "800", marginTop: "2px" }}>
-            {item.rarity}{item.familyName ? ` · ${item.familyName}` : ""}
+          <div style={{ fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "2px" }}>
+            {item.familyName || "Sin familia"}
           </div>
         </button>
         <div style={{ color: "var(--tone-warning, #f59e0b)", fontWeight: "900", fontSize: "0.86rem", whiteSpace: "nowrap" }}>P {formatNumber(item.rating || 0)}</div>
@@ -594,10 +676,6 @@ function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, 
       )}
 
       <div style={{ borderTop: "1px solid var(--color-border-primary, #eef2f7)", paddingTop: "6px", display: "flex", flexDirection: "column", gap: "6px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap", fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
-          <span>{compareSummary}</span>
-          <span>{(item.affixes || []).length} affixes</span>
-        </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
           {(compareEntries.length > 0 ? compareEntries : topStats.map(([key, currentVal]) => ({ key, currentVal, diff: currentVal }))).map(entry => (
             <span
@@ -644,9 +722,13 @@ function ItemDetailModal({ item, equippedCompare, activeBuildTag, wishlistAffixe
       <div style={modalCardStyle} onClick={event => event.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" }}>
           <div>
-            <div style={{ fontSize: "0.6rem", color: getRarityColor(item.rarity), textTransform: "uppercase", fontWeight: "900" }}>{item.rarity} · {item.familyName || "Sin familia"}</div>
-            <div style={{ fontSize: "1rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", marginTop: "2px" }}>{getItemDisplayName(item)}</div>
-            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>Poder {formatNumber(item.rating || 0)} · Comparado con equipado: {formatNumber((item.rating || 0) - (equippedCompare?.rating || 0))}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <span style={rarityBadgeStyle(item.rarity)}>{getCompactRarityLabel(item.rarity)}</span>
+              <span style={{ ...itemGlyphStyle, fontSize: "0.94rem" }}>{getItemGlyph(item.name)}</span>
+              <div style={{ fontSize: "1rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", marginTop: "2px" }}>{item.name}</div>
+              {(item.level || 0) > 0 && <span style={upgradeBadgeStyle(item.level)}>{`+${item.level}`}</span>}
+            </div>
+            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>{item.familyName || "Sin familia"} · Poder {formatNumber(item.rating || 0)} · Comparado con equipado: {formatNumber((item.rating || 0) - (equippedCompare?.rating || 0))}</div>
           </div>
           <button onClick={onClose} style={{ border: "none", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", width: "32px", height: "32px", borderRadius: "999px", cursor: "pointer", fontWeight: "900" }}>×</button>
         </div>
@@ -672,7 +754,7 @@ function ItemDetailModal({ item, equippedCompare, activeBuildTag, wishlistAffixe
               <div style={{ ...detailBlockStyle, padding: "8px", background: "var(--color-background-tertiary, #f8fafc)" }}>
                 <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" }}>Resumen</div>
                 <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #475569)", fontWeight: "800", marginTop: "4px", lineHeight: 1.35 }}>
-                  {(item.affixes || []).length} affixes · {formatImplicitSummary(item) || "Sin implicit"} · {getWorkedLabel(item) || "Sin trabajo"}
+                  {(item.affixes || []).length} affixes · {formatImplicitSummary(item) || "Sin implicit"}
                 </div>
               </div>
             </div>
@@ -805,9 +887,132 @@ function ItemDetailModal({ item, equippedCompare, activeBuildTag, wishlistAffixe
 
 const compactCardStyle = { background: "var(--color-background-secondary, #ffffff)", borderRadius: "12px", padding: "10px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 1px 2px var(--color-shadow, rgba(0,0,0,0.05))", display: "flex", flexDirection: "column", gap: "8px", minWidth: 0, position: "relative" };
 const miniStatPillStyle = { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", background: "var(--color-background-tertiary, #f1f5f9)", padding: "2px 6px", borderRadius: "999px", lineHeight: 1.2 };
+const itemGlyphStyle = { fontSize: "0.78rem", fontWeight: "900", color: "var(--color-text-secondary, #475569)", flexShrink: 0 };
+const rarityBadgeStyle = rarity => {
+  const color = getRarityColor(rarity);
+  return { fontSize: "0.54rem", fontWeight: "900", padding: "3px 7px", borderRadius: "999px", background: `${color}22`, color, border: `1px solid ${color}44`, lineHeight: 1.1, whiteSpace: "nowrap", flexShrink: 0 };
+};
+const upgradeBadgeStyle = level => {
+  const tone = getUpgradeBadgeTone(level);
+  return {
+    fontSize: "0.6rem",
+    fontWeight: "900",
+    padding: "3px 7px",
+    borderRadius: "999px",
+    background: tone.background,
+    color: tone.color,
+    border: tone.border,
+    lineHeight: 1.1,
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+  };
+};
 const betterBadgeStyle = isDarkMode => ({ background: isDarkMode ? "rgba(22,163,74,0.22)" : "var(--tone-success-soft, #ecfdf5)", color: isDarkMode ? "var(--tone-success, #86efac)" : "var(--tone-success-strong, #166534)", fontSize: "0.54rem", padding: "2px 6px", borderRadius: "999px", fontWeight: "900", letterSpacing: "0.03em", border: `1px solid ${isDarkMode ? "rgba(34,197,94,0.44)" : "var(--tone-success, #bbf7d0)"}` });
-const workedBadgeStyle = isDarkMode => ({ background: isDarkMode ? "rgba(59,130,246,0.2)" : "var(--tone-accent-soft, #eef2ff)", color: isDarkMode ? "var(--tone-accent, #bfdbfe)" : "var(--tone-accent, #4338ca)", fontSize: "0.54rem", padding: "2px 6px", borderRadius: "999px", fontWeight: "900", letterSpacing: "0.03em", border: `1px solid ${isDarkMode ? "rgba(96,165,250,0.4)" : "var(--tone-accent, #c7d2fe)"}` });
 const powerBadgeStyle = isDarkMode => ({ background: isDarkMode ? "rgba(124,58,237,0.22)" : "#faf5ff", color: isDarkMode ? "#ddd6fe" : "#6d28d9", fontSize: "0.54rem", padding: "2px 6px", borderRadius: "999px", fontWeight: "900", letterSpacing: "0.03em", border: `1px solid ${isDarkMode ? "rgba(196,181,253,0.35)" : "#ddd6fe"}` });
+const gearButtonStyle = isDarkMode => ({
+  border: "1px solid var(--color-border-secondary, #cbd5e1)",
+  background: isDarkMode ? "rgba(30,41,59,0.55)" : "var(--color-background-secondary, #fff)",
+  color: "var(--color-text-secondary, #475569)",
+  borderRadius: "999px",
+  padding: "6px 11px",
+  fontSize: "0.62rem",
+  fontWeight: "900",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
+});
+const summaryPillStyle = (tone, isDarkMode = false) => {
+  const palette = {
+    accent: isDarkMode
+      ? { background: "rgba(30,64,175,0.18)", color: "#bfdbfe", border: "rgba(96,165,250,0.3)" }
+      : { background: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
+    warning: isDarkMode
+      ? { background: "rgba(154,52,18,0.28)", color: "#fdba74", border: "rgba(251,146,60,0.4)" }
+      : { background: "#fff7ed", color: "#c2410c", border: "#fdba74" },
+    success: isDarkMode
+      ? { background: "rgba(13,148,136,0.18)", color: "#5eead4", border: "rgba(45,212,191,0.32)" }
+      : { background: "#f0fdfa", color: "#0f766e", border: "#99f6e4" },
+    muted: isDarkMode
+      ? { background: "rgba(51,65,85,0.42)", color: "#cbd5e1", border: "rgba(148,163,184,0.3)" }
+      : { background: "#f8fafc", color: "#64748b", border: "#e2e8f0" },
+  };
+  const selected = palette[tone] || palette.muted;
+  return {
+    fontSize: "0.58rem",
+    fontWeight: "900",
+    padding: "4px 8px",
+    borderRadius: "999px",
+    background: selected.background,
+    color: selected.color,
+    border: `1px solid ${selected.border}`,
+  };
+};
+const lootActionButtonStyle = (active, action, isDarkMode = false) => {
+  const palette = {
+    keep: isDarkMode
+      ? { activeBg: "rgba(71,85,105,0.42)", activeColor: "#e2e8f0", activeBorder: "rgba(148,163,184,0.4)" }
+      : { activeBg: "#f8fafc", activeColor: "#334155", activeBorder: "#cbd5e1" },
+    sell: isDarkMode
+      ? { activeBg: "rgba(154,52,18,0.28)", activeColor: "#fdba74", activeBorder: "rgba(251,146,60,0.4)" }
+      : { activeBg: "#fff7ed", activeColor: "#c2410c", activeBorder: "#fdba74" },
+    extract: isDarkMode
+      ? { activeBg: "rgba(91,33,182,0.28)", activeColor: "#ddd6fe", activeBorder: "rgba(196,181,253,0.38)" }
+      : { activeBg: "#faf5ff", activeColor: "#7c3aed", activeBorder: "#ddd6fe" },
+  };
+  const chosen = palette[action] || palette.keep;
+  return {
+    border: "1px solid",
+    borderColor: active ? chosen.activeBorder : "var(--color-border-primary, #e2e8f0)",
+    background: active ? chosen.activeBg : "var(--color-background-secondary, #fff)",
+    color: active ? chosen.activeColor : "var(--color-text-secondary, #475569)",
+    borderRadius: "8px",
+    padding: "5px 0",
+    fontSize: "0.56rem",
+    fontWeight: "900",
+    cursor: "pointer",
+    width: "100%",
+    textAlign: "center",
+    lineHeight: 1,
+  };
+};
+const bulkSellButtonStyle = (group, pending, isDarkMode = false) => ({
+  border: "1px solid",
+  borderColor: pending ? "#ef4444" : group.items.length > 0 ? (isDarkMode ? "rgba(148,163,184,0.35)" : "#e2e8f0") : "var(--color-border-primary, #e2e8f0)",
+  background: pending ? (isDarkMode ? "rgba(153,27,27,0.18)" : "#fef2f2") : group.items.length > 0 ? "var(--color-background-secondary, #fff)" : "var(--color-background-tertiary, #f8fafc)",
+  color: pending ? (isDarkMode ? "#fecaca" : "#b91c1c") : group.items.length > 0 ? "var(--color-text-secondary, #475569)" : "var(--color-text-tertiary, #94a3b8)",
+  borderRadius: "10px",
+  padding: "7px 7px",
+  fontSize: "0.58rem",
+  fontWeight: "900",
+  display: "grid",
+  gap: "4px",
+  alignItems: "center",
+  minWidth: 0,
+  textAlign: "left",
+  boxShadow: pending ? "0 0 0 1px rgba(239,68,68,0.1)" : "none",
+});
+const modalOptionPillStyle = (active, isDarkMode = false) => ({
+  border: "1px solid",
+  borderColor: active ? (isDarkMode ? "rgba(45,212,191,0.45)" : "#99f6e4") : "var(--color-border-primary, #e2e8f0)",
+  background: active ? (isDarkMode ? "rgba(13,148,136,0.16)" : "#f0fdfa") : "var(--color-background-secondary, #fff)",
+  color: active ? (isDarkMode ? "#5eead4" : "#115e59") : "var(--color-text-secondary, #475569)",
+  borderRadius: "999px",
+  padding: "6px 9px",
+  fontSize: "0.62rem",
+  fontWeight: "900",
+  cursor: "pointer",
+});
+const activeWishlistPillStyle = isDarkMode => ({
+  border: "1px solid rgba(45,212,191,0.35)",
+  background: isDarkMode ? "rgba(13,148,136,0.16)" : "#f0fdfa",
+  color: isDarkMode ? "#5eead4" : "#115e59",
+  borderRadius: "999px",
+  padding: "4px 8px",
+  fontSize: "0.6rem",
+  fontWeight: "900",
+  cursor: "pointer",
+});
 const togglePillStyle = (active, isDarkMode = false) => ({
   border: "1px solid",
   borderColor: active ? (isDarkMode ? "rgba(45,212,191,0.45)" : "#99f6e4") : "var(--color-border-primary, #e2e8f0)",
@@ -832,6 +1037,32 @@ const sectionTitleStyle = { fontSize: "0.68rem", color: "var(--color-text-second
 const emptyStateStyle = { textAlign: "center", padding: "2rem 1rem", color: "var(--color-text-tertiary, #94a3b8)", border: "2px dashed var(--color-border-primary, #e2e8f0)", borderRadius: "12px", fontSize: "0.82rem", background: "var(--color-background-tertiary, #f8fafc)" };
 const modalWrapStyle = { position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: "18px", zIndex: 7000 };
 const modalCardStyle = { width: "min(760px, 100%)", maxHeight: "85vh", background: "var(--color-background-secondary, #fff)", borderRadius: "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 20px 50px rgba(15,23,42,0.25)", padding: "14px", display: "flex", flexDirection: "column", gap: "12px" };
+const lootFilterModalCardStyle = isMobile => ({
+  width: isMobile ? "100%" : "min(720px, 100%)",
+  maxHeight: isMobile ? "88vh" : "82vh",
+  background: "var(--color-background-secondary, #fff)",
+  borderRadius: isMobile ? "18px 18px 0 0" : "18px",
+  border: "1px solid var(--color-border-primary, #e2e8f0)",
+  boxShadow: "0 20px 50px rgba(15,23,42,0.25)",
+  padding: "14px",
+  display: "flex",
+  flexDirection: "column",
+  gap: "12px",
+});
+const sheetDragHandleWrapStyle = {
+  display: "flex",
+  justifyContent: "center",
+  paddingTop: "2px",
+  paddingBottom: "2px",
+  cursor: "grab",
+  touchAction: "none",
+};
+const sheetDragHandleStyle = {
+  width: "42px",
+  height: "5px",
+  borderRadius: "999px",
+  background: "rgba(148,163,184,0.65)",
+};
 const detailBlockStyle = { background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "10px" };
 const detailTitleStyle = { fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", fontWeight: "900", letterSpacing: "0.06em", marginBottom: "8px" };
 const detailRowStyle = { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", padding: "3px 0" };
