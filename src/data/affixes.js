@@ -110,6 +110,39 @@ export const PREFIXES = [
     },
   },
   {
+    id: "prefix_bleed_damage_2",
+    stat: "bleedDamage",
+    scaling: "percent",
+    category: "offense_bleed_power",
+    tiers: {
+      3: { label: "de Sangre Negra", value: { min: 0.02, max: 0.04 }, weight: 36 },
+      2: { label: "del Desuello", value: { min: 0.05, max: 0.08 }, weight: 16 },
+      1: { label: "de la Carniceria", value: { min: 0.1, max: 0.15 }, weight: 5 },
+    },
+  },
+  {
+    id: "prefix_fracture_chance_2",
+    stat: "fractureChance",
+    scaling: "percent",
+    category: "offense_fracture",
+    tiers: {
+      3: { label: "Quebradora", value: { min: 0.02, max: 0.04 }, weight: 36 },
+      2: { label: "del Cisma", value: { min: 0.05, max: 0.08 }, weight: 16 },
+      1: { label: "del Cataclismo Oseo", value: { min: 0.1, max: 0.15 }, weight: 5 },
+    },
+  },
+  {
+    id: "prefix_mark_effect_2",
+    stat: "markEffectPerStack",
+    scaling: "percent",
+    category: "offense_mark_power",
+    tiers: {
+      3: { label: "Runica", value: { min: 0.015, max: 0.03 }, weight: 36 },
+      2: { label: "del Sello Profundo", value: { min: 0.04, max: 0.07 }, weight: 16 },
+      1: { label: "de la Marca Final", value: { min: 0.09, max: 0.13 }, weight: 5 },
+    },
+  },
+  {
     id: "prefix_lifesteal",
     stat: "lifesteal",
     scaling: "percent",
@@ -355,6 +388,39 @@ export const SUFFIXES = [
       3: { label: "de la Recuperacion", value: { min: 1, max: 2 }, weight: 50 },
       2: { label: "de la Vitalidad", value: { min: 3, max: 6 }, weight: 22 },
       1: { label: "de la Inmortalidad", value: { min: 8, max: 15 }, weight: 7 },
+    },
+  },
+  {
+    id: "suffix_attack_speed_2",
+    stat: "attackSpeed",
+    scaling: "percent",
+    category: "offense_speed",
+    tiers: {
+      3: { label: "del Impulso", value: { min: 0.02, max: 0.04 }, weight: 36 },
+      2: { label: "del Fervor", value: { min: 0.05, max: 0.08 }, weight: 16 },
+      1: { label: "de la Furia Instantanea", value: { min: 0.1, max: 0.15 }, weight: 5 },
+    },
+  },
+  {
+    id: "suffix_crit_chance_2",
+    stat: "critChance",
+    scaling: "percent",
+    category: "offense_precision",
+    tiers: {
+      3: { label: "de la Precision", value: { min: 0.01, max: 0.02 }, weight: 36 },
+      2: { label: "del Ojo Certero", value: { min: 0.03, max: 0.05 }, weight: 16 },
+      1: { label: "del Golpe Perfecto", value: { min: 0.07, max: 0.11 }, weight: 5 },
+    },
+  },
+  {
+    id: "suffix_lifesteal_2",
+    stat: "lifesteal",
+    scaling: "percent",
+    category: "offense_leech",
+    tiers: {
+      3: { label: "del Drenaje", value: { min: 0.01, max: 0.02 }, weight: 34 },
+      2: { label: "del Sanguinario", value: { min: 0.03, max: 0.05 }, weight: 15 },
+      1: { label: "del Banquete Carmesi", value: { min: 0.07, max: 0.12 }, weight: 5 },
     },
   },
   {

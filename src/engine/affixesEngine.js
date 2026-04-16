@@ -3,10 +3,6 @@ import { ITEM_RARITY_BLUEPRINT, ITEM_ROLL_RULES_V2 } from "../data/items";
 import { normalizeLegacyStatKey } from "../utils/loot";
 
 const OVERLAP_ELIGIBLE_RARITIES = new Set(ITEM_ROLL_RULES_V2.allowBaseImplicitAffixOverlapRarities || []);
-const REROLL_ANTI_STREAK = {
-  affixIdMultiplier: 0.08,
-  statMultiplier: 0.24,
-};
 
 const ALL_AFFIXES = [...PREFIXES, ...SUFFIXES, ...ABYSS_PREFIXES, ...ABYSS_SUFFIXES];
 const TIER_WEIGHT_BY_ITEM_TIER = [
@@ -128,14 +124,10 @@ function getAffixPoolWeight({
   itemTier = 1,
   favoredStats = [],
   favoredStatWeightMultiplier = 2.4,
-  disfavoredAffixIds = [],
-  disfavoredStats = [],
   state,
   allowExistingStatOverlap = false,
   overlapPenalty = 0.3,
   maxExistingStatOverlaps = 1,
-  disfavoredAffixIdWeightMultiplier = 1,
-  disfavoredStatWeightMultiplier = 1,
 }) {
   const normalizedStat = normalizeLegacyStatKey(affix.stat);
   const tiers = getTierEntries(affix);
@@ -150,14 +142,7 @@ function getAffixPoolWeight({
   if (overlapsExisting && state.overlapCount >= maxExistingStatOverlaps) return 0;
 
   const overlapMultiplier = overlapsExisting ? Math.max(0, Math.min(1, overlapPenalty)) : 1;
-  const disfavoredIdMultiplier = disfavoredAffixIds.includes(affix.id)
-    ? Math.max(0, Math.min(1, disfavoredAffixIdWeightMultiplier))
-    : 1;
-  const disfavoredStatMultiplier = disfavoredStats.includes(normalizedStat)
-    ? Math.max(0, Math.min(1, disfavoredStatWeightMultiplier))
-    : 1;
-
-  return baseWeight * favoredBonus * overlapMultiplier * disfavoredIdMultiplier * disfavoredStatMultiplier;
+  return baseWeight * favoredBonus * overlapMultiplier;
 }
 
 function rollSingleAffix(pool, state, options = {}) {
@@ -165,13 +150,9 @@ function rollSingleAffix(pool, state, options = {}) {
     itemTier = 1,
     favoredStats = [],
     favoredStatWeightMultiplier = 2.4,
-    disfavoredAffixIds = [],
-    disfavoredStats = [],
     allowExistingStatOverlap = false,
     overlapPenalty = 0.3,
     maxExistingStatOverlaps = 1,
-    disfavoredAffixIdWeightMultiplier = 1,
-    disfavoredStatWeightMultiplier = 1,
   } = options;
   const available = filterByCategory(pool, state.usedCategories);
   if (!available.length) return null;
@@ -181,14 +162,10 @@ function rollSingleAffix(pool, state, options = {}) {
     itemTier,
     favoredStats,
     favoredStatWeightMultiplier,
-    disfavoredAffixIds,
-    disfavoredStats,
     state,
     allowExistingStatOverlap,
     overlapPenalty,
     maxExistingStatOverlaps,
-    disfavoredAffixIdWeightMultiplier,
-    disfavoredStatWeightMultiplier,
   }));
   if (!pickedAffix) return null;
 
@@ -210,17 +187,12 @@ export function rollAffixes({
   itemTier = 1,
   favoredStats = [],
   favoredStatWeightMultiplier = 2.4,
-  disfavoredAffixIds = [],
-  disfavoredStats = [],
   existingStats = [],
   allowExistingStatOverlap = OVERLAP_ELIGIBLE_RARITIES.has(rarity),
   overlapPenalty = ITEM_ROLL_RULES_V2.overlapAffixWeightPenalty ?? 0.3,
   maxExistingStatOverlaps = ITEM_ROLL_RULES_V2.maxOverlapsWithBaseOrImplicit ?? 1,
-  disfavoredAffixIdWeightMultiplier = 1,
-  disfavoredStatWeightMultiplier = 1,
 }) {
   const normalizedFavoredStats = (favoredStats || []).map(normalizeLegacyStatKey);
-  const normalizedDisfavoredStats = (disfavoredStats || []).map(normalizeLegacyStatKey);
   const config = getAffixCountConfig(rarity);
   const state = {
     usedCategories: new Set(),
@@ -236,13 +208,9 @@ export function rollAffixes({
       itemTier,
       favoredStats: normalizedFavoredStats,
       favoredStatWeightMultiplier,
-      disfavoredAffixIds,
-      disfavoredStats: normalizedDisfavoredStats,
       allowExistingStatOverlap,
       overlapPenalty,
       maxExistingStatOverlaps,
-      disfavoredAffixIdWeightMultiplier,
-      disfavoredStatWeightMultiplier,
     });
     if (rolled) result.push(rolled);
   }
@@ -252,13 +220,9 @@ export function rollAffixes({
       itemTier,
       favoredStats: normalizedFavoredStats,
       favoredStatWeightMultiplier,
-      disfavoredAffixIds,
-      disfavoredStats: normalizedDisfavoredStats,
       allowExistingStatOverlap,
       overlapPenalty,
       maxExistingStatOverlaps,
-      disfavoredAffixIdWeightMultiplier,
-      disfavoredStatWeightMultiplier,
     });
     if (rolled) result.push(rolled);
   }
@@ -309,8 +273,6 @@ export function ensureAffixCountForRarity({
 }
 
 export function rerollAffixes(item, itemTier) {
-  const previousAffixIds = (item?.affixes || []).map(affix => affix?.id).filter(Boolean);
-  const previousAffixStats = (item?.affixes || []).map(affix => normalizeLegacyStatKey(affix?.stat)).filter(Boolean);
   const existingStats = [
     ...Object.entries(item?.baseBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => normalizeLegacyStatKey(stat)),
     ...Object.entries(item?.implicitBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => normalizeLegacyStatKey(stat)),
@@ -319,14 +281,10 @@ export function rerollAffixes(item, itemTier) {
   return rollAffixes({
     rarity: item.rarity,
     itemTier,
-    disfavoredAffixIds: previousAffixIds,
-    disfavoredStats: previousAffixStats,
     existingStats,
     allowExistingStatOverlap: OVERLAP_ELIGIBLE_RARITIES.has(item.rarity),
     overlapPenalty: ITEM_ROLL_RULES_V2.overlapAffixWeightPenalty ?? 0.3,
     maxExistingStatOverlaps: ITEM_ROLL_RULES_V2.maxOverlapsWithBaseOrImplicit ?? 1,
-    disfavoredAffixIdWeightMultiplier: REROLL_ANTI_STREAK.affixIdMultiplier,
-    disfavoredStatWeightMultiplier: REROLL_ANTI_STREAK.statMultiplier,
   });
 }
 
