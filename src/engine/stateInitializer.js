@@ -6,11 +6,13 @@ import { createEmptySessionAnalytics, sanitizeSessionAnalytics } from "../utils/
 import { createEmptyReplayLibrary, createEmptyReplayLog, normalizeReplayLibrary, normalizeReplayLog } from "../utils/replayLog";
 import { calcItemRating } from "./inventory/inventoryEngine";
 import { spawnEnemy } from "./combat/enemyEngine";
+import { createRunContext, normalizeRunContext } from "./combat/encounterRouting";
 import { refreshStats } from "./combat/statEngine";
 import { createEmptyCodexState, normalizeCodexState, recordCodexSighting, syncCodexBonuses } from "./progression/codexEngine";
+import { createEmptyAbyssState, getMaxRunSigilSlots, normalizeAbyssState } from "./progression/abyssProgression";
 import { createEmptyPrestigeCycleProgress, normalizePrestigeState, syncPrestigeBonuses } from "./progression/prestigeEngine";
 import { rebuildPlayerProgressionBonuses } from "./progression/progressionEngine";
-import { getRunSigil, getRunSigilPlayerBonuses } from "../data/runSigils";
+import { getRunSigil, getRunSigilPlayerBonuses, normalizeRunSigilIds } from "../data/runSigils";
 import { migrateTalentsToV2, TALENT_SYSTEM_VERSION } from "./migrations/talentsV2Migration";
 
 const MAX_REWARD_GOLD = Math.max(
@@ -100,6 +102,8 @@ const DEFAULT_LOOT_RULES = {
   protectUpgradeDrops: true,
 };
 
+const DEFAULT_RUN_CONTEXT = createRunContext({ firstRun: true });
+
 const freshState = {
   player: {
     level: 1,
@@ -121,6 +125,7 @@ const freshState = {
     flatDefense: 0,
     hpPct: 0,
     flatRegen: 0,
+    regenPctMaxHp: 0,
     flatCrit: 0,
     critDamage: 0,
     flatGold: 0,
@@ -130,6 +135,7 @@ const freshState = {
     lifesteal: 0,
     blockChance: 0,
     thorns: 0,
+    thornsDefenseRatio: 0,
     multiHitChance: 0,
     bleedChance: 0,
     bleedDamage: 0,
@@ -187,7 +193,7 @@ const freshState = {
   currentTab: "character",
 
   combat: {
-    enemy: { ...ENEMIES[0], hp: ENEMIES[0].maxHp },
+    enemy: spawnEnemy(1, DEFAULT_RUN_CONTEXT),
     log: [],
     currentTier: 1,
     maxTier: 1,
@@ -208,6 +214,7 @@ const freshState = {
     floatEvents: [],
     runStats: {
       kills: 0,
+      bossKills: 0,
       damageDealt: 0,
       gold: 0,
       xp: 0,
@@ -230,9 +237,12 @@ const freshState = {
     offlineSummary: null,
     latestLootEvent: null,
     reforgeSession: null,
+    runContext: DEFAULT_RUN_CONTEXT,
     pendingRunSetup: false,
     pendingRunSigilId: "free",
+    pendingRunSigilIds: ["free"],
     activeRunSigilId: "free",
+    activeRunSigilIds: ["free"],
     craftingLog: [],
     analytics: createEmptySessionAnalytics(),
   },
@@ -278,6 +288,7 @@ const freshState = {
     totalEchoesEarned: 0,
     nodes: {},
   },
+  abyss: createEmptyAbyssState(),
   codex: createEmptyCodexState(),
 
   replay: createEmptyReplayLog(),
@@ -318,9 +329,9 @@ function normalizeEquipmentItem(item) {
   };
 }
 
-function normalizeEnemy(enemy, currentTier) {
+function normalizeEnemy(enemy, currentTier, runContext) {
   const tier = enemy?.tier || currentTier || 1;
-  const freshEnemy = spawnEnemy(tier);
+  const freshEnemy = spawnEnemy(tier, runContext);
   if (!enemy) return freshEnemy;
 
   const hpRatio = enemy.maxHp > 0 ? Math.max(0, Math.min(1, enemy.hp / enemy.maxHp)) : 1;
@@ -358,14 +369,42 @@ function mergeStateWithDefaults(base, incoming) {
   const normalizedCodex = normalizeCodexState(migratedIncoming.codex || base.codex, discoveredLegendaryPowerIds);
   const rawPlayer = migratedIncoming.player || {};
   const rawCombat = migratedIncoming.combat || {};
+  const abyssTierCandidate = Math.max(
+    Number(migratedIncoming.abyss?.highestTierReached || 1),
+    Number(rawCombat.maxTier || 1),
+    Number(rawCombat.currentTier || 1),
+    Number(rawCombat.analytics?.maxTierReached || 1),
+    Number(rawCombat.prestigeCycle?.maxTier || 1)
+  );
+  const normalizedAbyss = normalizeAbyssState({
+    ...(migratedIncoming.abyss || {}),
+    highestTierReached: abyssTierCandidate,
+  });
+  const maxRunSigilSlots = getMaxRunSigilSlots(normalizedAbyss);
   const rawLevel = Number(rawPlayer.level ?? base.player.level);
   const rawBaseDamage = Number(rawPlayer.baseDamage ?? base.player.baseDamage);
   const rawBaseMaxHp = Number(rawPlayer.baseMaxHp ?? base.player.baseMaxHp);
   const rawTalentPoints = Number(rawPlayer.talentPoints ?? base.player.talentPoints);
   const rawXp = Number(rawPlayer.xp ?? base.player.xp);
-  const pendingRunSetup = Boolean(rawCombat.pendingRunSetup) && Number(normalizedPrestige.level || 0) >= 1;
-  const pendingRunSigilId = getRunSigil(rawCombat.pendingRunSigilId || "free").id;
-  const activeRunSigilId = pendingRunSetup ? "free" : getRunSigil(rawCombat.activeRunSigilId || "free").id;
+  const prestigeLevel = Number(normalizedPrestige.level || 0);
+  const pendingRunSetup = Boolean(rawCombat.pendingRunSetup) && prestigeLevel >= 1;
+  const pendingRunSigilIds = normalizeRunSigilIds(
+    rawCombat.pendingRunSigilIds || rawCombat.pendingRunSigilId || "free",
+    { slots: maxRunSigilSlots }
+  );
+  const activeRunSigilIds = pendingRunSetup
+    ? normalizeRunSigilIds("free", { slots: maxRunSigilSlots })
+    : normalizeRunSigilIds(rawCombat.activeRunSigilIds || rawCombat.activeRunSigilId || "free", {
+        slots: maxRunSigilSlots,
+      });
+  const pendingRunSigilId = pendingRunSigilIds[0] || getRunSigil("free").id;
+  const activeRunSigilId = activeRunSigilIds[0] || getRunSigil("free").id;
+  const fallbackRunContext = rawCombat.runContext
+    ? rawCombat.runContext
+    : prestigeLevel >= 1
+      ? createRunContext()
+      : base.combat.runContext;
+  const normalizedRunContext = normalizeRunContext(fallbackRunContext);
 
   const hasPlayerStatCorruption =
     !Number.isFinite(rawBaseDamage) ||
@@ -471,7 +510,7 @@ function mergeStateWithDefaults(base, incoming) {
         Number(rawPlayer.talentSystemVersion || TALENT_SYSTEM_VERSION),
       gold: sanitizedGold,
       essence: sanitizedEssence,
-      runSigilBonuses: pendingRunSetup ? {} : getRunSigilPlayerBonuses(activeRunSigilId),
+      runSigilBonuses: pendingRunSetup ? {} : getRunSigilPlayerBonuses(activeRunSigilIds),
       inventory: normalizedInventory,
       equipment: {
         ...base.player.equipment,
@@ -490,7 +529,7 @@ function mergeStateWithDefaults(base, incoming) {
     combat: {
       ...base.combat,
       ...rawCombat,
-      enemy: normalizeEnemy(rawCombat.enemy, rawCombat.currentTier),
+      enemy: normalizeEnemy(rawCombat.enemy, rawCombat.currentTier, normalizedRunContext),
       log: shouldResetRuntimeSession ? [] : [...(rawCombat.log || [])].slice(-20),
       effects: shouldResetRuntimeSession ? [] : [...(rawCombat.effects || [])].slice(-24),
       sessionKills: shouldResetRuntimeSession ? 0 : Number(rawCombat.sessionKills || 0),
@@ -518,9 +557,12 @@ function mergeStateWithDefaults(base, incoming) {
       reforgeSession: rawCombat.reforgeSession || null,
       lastRunSummary: shouldResetRuntimeSession ? null : (rawCombat.lastRunSummary || null),
       latestLootEvent: shouldResetRuntimeSession ? null : (rawCombat.latestLootEvent || null),
+      runContext: normalizedRunContext,
       pendingRunSetup,
       pendingRunSigilId,
+      pendingRunSigilIds,
       activeRunSigilId,
+      activeRunSigilIds,
     },
     goals: {
       ...base.goals,
@@ -539,7 +581,8 @@ function mergeStateWithDefaults(base, incoming) {
       ...base.prestige,
       ...normalizedPrestige,
     },
-    codex: recordCodexSighting(normalizedCodex, normalizeEnemy(rawCombat.enemy, rawCombat.currentTier)),
+    abyss: normalizedAbyss,
+    codex: recordCodexSighting(normalizedCodex, normalizeEnemy(rawCombat.enemy, rawCombat.currentTier, normalizedRunContext)),
     replay: normalizedReplay,
     replayLibrary: normalizedReplayLibrary,
   };

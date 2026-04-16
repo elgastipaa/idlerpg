@@ -108,9 +108,17 @@ const STATUS_METADATA = {
     label: "Sangrado",
     description: "Dano por tick. Mas stacks y mas potencia vuelven mucho mas caro dejarlo correr.",
   },
+  poison: {
+    label: "Veneno",
+    description: "Dano por tick sobre el jugador. Escala si la pelea se alarga demasiado.",
+  },
   fracture: {
     label: "Fractura",
     description: "Reduce la defensa efectiva del objetivo y mejora los golpes que siguen.",
+  },
+  voidFracture: {
+    label: "Fisura del Vacio",
+    description: "DoT abisal aplicado por criticos; castiga bosses que sobreviven varios ticks.",
   },
   mark: {
     label: "Marca",
@@ -210,6 +218,32 @@ function formatTickCount(ticks = 0) {
   return `${value} tick${value === 1 ? "" : "s"}`;
 }
 
+function applyMitigationPreview(value = 0, mitigation = 0) {
+  const numeric = Math.max(0, Number(value || 0));
+  if (!numeric) return 0;
+  const clamped = Math.min(0.9, Math.max(0, Number(mitigation || 0)));
+  return Math.max(0, Math.floor(numeric * (1 - clamped)));
+}
+
+function formatAbyssBossUpgradeSummary(profile = null) {
+  if (!profile) return "";
+  const affixText = `+${Math.max(0, Number(profile.affixCount || 0))} afijos`;
+  const mechanicText = `+${Math.max(0, Number(profile.mechanicCount || 0))} mecanicas`;
+  const intensityBonus = Math.max(0, Number(profile.mechanicIntensity || 1) - 1);
+  const intensityText = intensityBonus > 0.001 ? ` · intensidad +${Math.round(intensityBonus * 100)}%` : "";
+  return `${affixText} · ${mechanicText}${intensityText}`;
+}
+
+function getIntelSourceMeta(id, depthIds = new Set(), mutatorIds = new Set()) {
+  if (depthIds.has(id)) {
+    return { label: "Abismo", colors: { bg: "var(--tone-warning-soft, #fff7ed)", fg: "var(--tone-warning-strong, #c2410c)", border: "rgba(245,158,11,0.22)" } };
+  }
+  if (mutatorIds.has(id)) {
+    return { label: "Anomalia", colors: { bg: "var(--tone-accent-soft, #eef2ff)", fg: "var(--tone-accent, #4338ca)", border: "rgba(99,102,241,0.18)" } };
+  }
+  return { label: "Base", colors: { bg: "var(--color-background-secondary, #fff)", fg: "var(--color-text-secondary, #475569)", border: "var(--color-border-primary, #e2e8f0)" } };
+}
+
 function getStackedMultiplier(perStackMultiplier = 1, stacks = 0) {
   return Math.pow(Math.max(1, Number(perStackMultiplier || 1)), Math.max(0, Number(stacks || 0)));
 }
@@ -267,8 +301,15 @@ export default function Combat({ state, dispatch }) {
   const isDarkMode = state.settings?.theme === "dark";
   const baseStats = useMemo(() => calcStats(player), [player]);
   const legendaryBonuses = useMemo(
-    () => getLegendaryStaticBonuses({ player, enemy, stats: baseStats }),
-    [player, enemy, baseStats]
+    () => getLegendaryStaticBonuses({
+      player,
+      enemy,
+      stats: baseStats,
+      currentTier: combat.currentTier || enemy?.tier || 1,
+      maxTier: combat.maxTier || combat.currentTier || enemy?.tier || 1,
+      bossesKilledThisRun: combat.runStats?.bossKills || combat.analytics?.bossKills || 0,
+    }),
+    [player, enemy, baseStats, combat.currentTier, combat.maxTier, combat.runStats?.bossKills, combat.analytics?.bossKills]
   );
   const combatEffectMods = useMemo(() => computeEffectModifiers(effects || []), [effects]);
   const effectiveDamageInCombat = Math.max(
@@ -449,11 +490,25 @@ export default function Combat({ state, dispatch }) {
     }));
   };
   const enemyIdentityLabel = [enemy.familyName, enemy.familyTraitName].filter(Boolean).join(" · ");
+  const abyssMutator = enemy.abyssMutator || null;
+  const abyssBossProfile = enemy.abyssBossProfile || null;
+  const bossDepthSummary = enemy.isBoss ? formatAbyssBossUpgradeSummary(abyssBossProfile) : "";
+  const depthAffixIds = new Set(enemy.depthAffixIds || []);
+  const depthMechanicIds = new Set(enemy.depthMechanicIds || []);
+  const mutatorAffixIds = new Set(enemy.mutatorAffixIds || []);
+  const mutatorMechanicIds = new Set(enemy.mutatorMechanicIds || []);
+  const bossMechanicMitigation = enemy.isBoss
+    ? Math.min(
+      0.75,
+      Math.max(0, Number(baseStats.bossMechanicMitigation || 0)) +
+        (Number(enemy?.abyssDepth || 0) > 0 ? Math.max(0, Number(baseStats.abyssBossMechanicMitigation || 0)) : 0)
+    )
+    : 0;
   const enemyIntelChips = [
     ...(enemy.monsterAffixes || []).slice(0, 2).map(affix => ({ id: `monster-${affix.id || affix.name}`, label: affix.name })),
     ...(enemy.mechanics || []).slice(0, 2).map(mechanic => ({ id: `mech-${mechanic.id || mechanic.name}`, label: mechanic.name })),
   ].filter(Boolean);
-  const enemyLegendaryDrops = useMemo(() => getTargetedLegendaryDropsForEnemy(enemy), [enemy]);
+  const enemyLegendaryDrops = useMemo(() => getTargetedLegendaryDropsForEnemy(enemy, { abyss: state?.abyss || {} }), [enemy, state?.abyss]);
   const missingEnemyPowers = useMemo(() => {
     const discoveries = state?.codex?.powerDiscoveries || {};
     return enemyLegendaryDrops.filter(drop => !(discoveries?.[drop?.power?.id] > 0));
@@ -492,6 +547,15 @@ export default function Combat({ state, dispatch }) {
       combatFlowStacks > 0
         ? 1 + combatFlowStacks * Math.max(0, Number(baseStats.combatFlowPerStack || 0))
         : 1;
+    const poisonStacks = Math.max(0, Number(enemy?.runtime?.poisonStacksOnPlayer || 0));
+    const poisonPerStack = Math.max(0, Number(enemy?.runtime?.poisonPerStackOnPlayer || 0));
+    const poisonTicks = Math.max(0, Number(enemy?.runtime?.poisonTicksRemainingOnPlayer || 0));
+    const poisonTickDamage = poisonStacks > 0 && poisonTicks > 0
+      ? applyMitigationPreview(
+        Math.max(1, Math.floor(poisonStacks * poisonPerStack)),
+        (enemy?.mechanics || []).some(mechanic => mechanic.id === "poison_stacks") ? bossMechanicMitigation : 0
+      )
+      : 0;
 
     if (rageStacks > 0) statuses.push({
       id: "rage",
@@ -543,11 +607,23 @@ export default function Combat({ state, dispatch }) {
         description: STATUS_METADATA.volatile.description,
       });
     }
+    if (poisonStacks > 0) {
+      statuses.push({
+        id: "poison",
+        label: STATUS_METADATA.poison.label,
+        value: `x${poisonStacks}`,
+        tone: "danger",
+        detail: `${poisonTickDamage.toLocaleString()}/tick · ${formatTickCount(poisonTicks)}`,
+        description: STATUS_METADATA.poison.description,
+      });
+    }
     return statuses;
   }, [
     baseStats.bloodDebt,
+    baseStats.bossMechanicMitigation,
     baseStats.combatFlowMaxStacks,
     baseStats.combatFlowPerStack,
+    baseStats.abyssBossMechanicMitigation,
     baseStats.fortress,
     baseStats.titanicMomentum,
     combat?.pendingMageVolatileMult,
@@ -555,7 +631,13 @@ export default function Combat({ state, dispatch }) {
     enemy?.runtime?.flowStacks,
     enemy?.runtime?.mageFlowBonusMult,
     enemy?.runtime?.mageFlowHitsRemaining,
+    enemy?.runtime?.poisonPerStackOnPlayer,
+    enemy?.runtime?.poisonStacksOnPlayer,
+    enemy?.runtime?.poisonTicksRemainingOnPlayer,
+    enemy?.abyssDepth,
+    enemy?.mechanics,
     player.class,
+    bossMechanicMitigation,
   ]);
   const enemyStatusPills = useMemo(() => {
     const runtime = enemy?.runtime || {};
@@ -563,6 +645,10 @@ export default function Combat({ state, dispatch }) {
     const bleedTickDamage =
       (runtime.bleedStacks || 0) > 0 && (runtime.bleedPerStack || 0) > 0 && (runtime.bleedTicksRemaining || 0) > 0
         ? Math.max(1, Math.floor(Number(runtime.bleedStacks || 0) * Number(runtime.bleedPerStack || 0)))
+        : 0;
+    const voidFractureTickDamage =
+      (runtime.voidFractureStacks || 0) > 0 && (runtime.voidFracturePerStack || 0) > 0 && (runtime.voidFractureTicksRemaining || 0) > 0
+        ? Math.max(1, Math.floor(Number(runtime.voidFractureStacks || 0) * Number(runtime.voidFracturePerStack || 0)))
         : 0;
     const fractureReduction = Math.min(0.55, Number(runtime.fractureStacks || 0) * 0.1);
     const memoryBonusPerStack =
@@ -597,6 +683,14 @@ export default function Combat({ state, dispatch }) {
       tone: "warning",
       detail: `${formatSignedPercent(-fractureReduction)} defensa · ${formatTickCount(runtime.fractureTicksRemaining)}`,
       description: STATUS_METADATA.fracture.description,
+    });
+    if ((runtime.voidFractureStacks || 0) > 0) statuses.push({
+      id: "void-fracture",
+      label: STATUS_METADATA.voidFracture.label,
+      value: `x${runtime.voidFractureStacks}`,
+      tone: "boss",
+      detail: `${voidFractureTickDamage.toLocaleString()}/tick · ${formatTickCount(runtime.voidFractureTicksRemaining)}`,
+      description: STATUS_METADATA.voidFracture.description,
     });
     if ((runtime.markStacks || 0) > 0) statuses.push({
       id: "mark",
@@ -691,6 +785,8 @@ export default function Combat({ state, dispatch }) {
               <button
                 title={[
                   `Tier ${currentTier} / ${maxTier}`,
+                  abyssMutator ? `Anomalia: ${abyssMutator.name}` : "",
+                  bossDepthSummary ? `Eco Abisal: ${bossDepthSummary}` : "",
                   enemy.familyTraitName ? `Rasgo: ${enemy.familyTraitName}` : "",
                   (enemy.monsterAffixes || []).length ? `Afijos: ${(enemy.monsterAffixes || []).map(affix => affix.name).join(", ")}` : "",
                   (enemy.mechanics || []).length ? `Boss: ${(enemy.mechanics || []).map(mechanic => mechanic.name).join(", ")}` : "",
@@ -735,6 +831,8 @@ export default function Combat({ state, dispatch }) {
         <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0 }}>
           <button
             title={[
+              abyssMutator ? `Anomalia: ${abyssMutator.name}${abyssMutator.bossClause && enemy.isBoss ? ` · ${abyssMutator.bossClause}` : ""}` : "",
+              bossDepthSummary ? `Eco Abisal: ${bossDepthSummary}` : "",
               enemy.familyName ? `${enemy.familyName}: ${enemy.familyTraitName || "Sin rasgo visible"}` : enemy.familyTraitName || "Sin rasgo visible",
               ...(enemy.monsterAffixes || []).map(affix => `${affix.name}: ${affix.description}`),
               ...(enemy.mechanics || []).map(mechanic => `${mechanic.name}: ${mechanic.description}`),
@@ -763,7 +861,17 @@ export default function Combat({ state, dispatch }) {
                 {enemyIdentityLabel}
               </span>
             )}
-            {(enemyIntelChips.length > 0) && (
+            {abyssMutator && (
+              <span style={{ fontSize: "0.52rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-accent-soft, #eef2ff)", color: "var(--tone-accent, #4338ca)", border: "1px solid rgba(99,102,241,0.18)" }}>
+                {`Abismo ${enemy.abyssDepth} · ${abyssMutator.name}`}
+              </span>
+            )}
+            {bossDepthSummary && (
+              <span style={{ fontSize: "0.52rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-warning-soft, #fff7ed)", color: "var(--tone-warning-strong, #c2410c)", border: "1px solid rgba(245,158,11,0.22)" }}>
+                {bossDepthSummary}
+              </span>
+            )}
+            {(enemyIntelChips.length > 0 || abyssMutator || bossDepthSummary) && (
               <button
                 onClick={() => togglePanel("enemyIntel")}
                 style={{
@@ -783,18 +891,50 @@ export default function Combat({ state, dispatch }) {
           </div>
           {!isPanelCollapsed("enemyIntel") && (
             <div style={{ display: "grid", gap: "8px", marginTop: "8px", width: "100%" }}>
+              {abyssMutator && (
+                <div style={combatIntelPanelStyle}>
+                  <div style={combatIntelTitleStyle}>Anomalia del Ciclo</div>
+                  <div style={combatIntelEntryStyle}>
+                    <div style={combatIntelLabelStyle}>{abyssMutator.name}</div>
+                    <div style={combatIntelDescriptionStyle}>{abyssMutator.description}</div>
+                    {enemy.isBoss && abyssMutator.bossClause && (
+                      <div style={{ ...combatIntelDescriptionStyle, color: "var(--tone-accent, #4338ca)", fontWeight: "800" }}>
+                        {abyssMutator.bossClause}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {bossDepthSummary && (
+                <div style={combatIntelPanelStyle}>
+                  <div style={combatIntelTitleStyle}>Eco Abisal</div>
+                  <div style={combatIntelEntryStyle}>
+                    <div style={combatIntelLabelStyle}>{bossDepthSummary}</div>
+                    <div style={combatIntelDescriptionStyle}>
+                      Mejoras seeded del boss para esta run. Se mantienen fijas hasta el proximo prestige.
+                    </div>
+                  </div>
+                </div>
+              )}
               {(enemy.monsterAffixes || []).length > 0 && (
                 <div style={combatIntelPanelStyle}>
                   <div style={combatIntelTitleStyle}>Afijos</div>
                   <div style={{ display: "grid", gap: "6px" }}>
-                    {(enemy.monsterAffixes || []).map(affix => (
+                    {(enemy.monsterAffixes || []).map(affix => {
+                      const sourceMeta = getIntelSourceMeta(affix.id, depthAffixIds, mutatorAffixIds);
+                      return (
                       <div key={`affix-${affix.id || affix.name}`} style={combatIntelEntryStyle}>
-                        <div style={combatIntelLabelStyle}>{affix.name}</div>
+                        <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                          <div style={combatIntelLabelStyle}>{affix.name}</div>
+                          <span style={{ fontSize: "0.5rem", fontWeight: "900", borderRadius: "999px", padding: "2px 6px", background: sourceMeta.colors.bg, color: sourceMeta.colors.fg, border: `1px solid ${sourceMeta.colors.border}` }}>
+                            {sourceMeta.label}
+                          </span>
+                        </div>
                         {affix.description && (
                           <div style={combatIntelDescriptionStyle}>{affix.description}</div>
                         )}
                       </div>
-                    ))}
+                    )})}
                   </div>
                 </div>
               )}
@@ -802,14 +942,21 @@ export default function Combat({ state, dispatch }) {
                 <div style={combatIntelPanelStyle}>
                   <div style={combatIntelTitleStyle}>Mecanicas</div>
                   <div style={{ display: "grid", gap: "6px" }}>
-                    {(enemy.mechanics || []).map(mechanic => (
+                    {(enemy.mechanics || []).map(mechanic => {
+                      const sourceMeta = getIntelSourceMeta(mechanic.id, depthMechanicIds, mutatorMechanicIds);
+                      return (
                       <div key={`mech-${mechanic.id || mechanic.name}`} style={combatIntelEntryStyle}>
-                        <div style={combatIntelLabelStyle}>{mechanic.name}</div>
+                        <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                          <div style={combatIntelLabelStyle}>{mechanic.name}</div>
+                          <span style={{ fontSize: "0.5rem", fontWeight: "900", borderRadius: "999px", padding: "2px 6px", background: sourceMeta.colors.bg, color: sourceMeta.colors.fg, border: `1px solid ${sourceMeta.colors.border}` }}>
+                            {sourceMeta.label}
+                          </span>
+                        </div>
                         {mechanic.description && (
                           <div style={combatIntelDescriptionStyle}>{mechanic.description}</div>
                         )}
                       </div>
-                    ))}
+                    )})}
                   </div>
                 </div>
               )}

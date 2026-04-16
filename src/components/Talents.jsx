@@ -123,6 +123,10 @@ function formatTalentBonus(effect = {}, { forcePercent = false, allowMultiplierX
     return `+${formatTalentNumber(effect.flat)}`;
   }
 
+  if (effect.ratio != null) {
+    return `+${formatTalentNumber(effect.ratio * 100)}%`;
+  }
+
   if (effect.multiplier != null) {
     if (allowMultiplierX && effect.multiplier >= 2) {
       return `x${formatTalentNumber(effect.multiplier)}`;
@@ -137,9 +141,7 @@ function formatPctValue(value) {
   return `${formatTalentNumber((Number(value || 0)) * 100)}%`;
 }
 
-function buildTalentEffectSummary(talent) {
-  if (!talent?.effect) return "";
-  const effect = talent.effect || {};
+function buildSingleTalentEffectSummary(effect = {}) {
   const stat = effect.stat;
   const value = Number(effect.flat ?? 0);
 
@@ -169,9 +171,9 @@ function buildTalentEffectSummary(talent) {
     case "fractureChance":
       return `${formatTalentBonus(effect, { forcePercent: true })} fractura`;
     case "regen":
-      return `${formatTalentBonus(effect)} regen`;
+      return `${formatTalentBonus(effect)} vida maxima como regen`;
     case "thorns":
-      return `${formatTalentBonus(effect)} espinas`;
+      return `${formatTalentBonus(effect)} defensa como espinas`;
     case "battleHardened":
       return `+${formatTalentNumber(value * 1.2)}% defensa · +${formatTalentNumber(value)}% vida`;
     case "heavyImpact":
@@ -235,8 +237,16 @@ function buildTalentEffectSummary(talent) {
     case "cataclysm":
       return `Tras kill: opener +${formatTalentNumber(value * 12)}% · sostenido ${formatTalentNumber((Math.max(0.7, 1 - value * 0.08)) * 100)}%`;
     default:
-      return buildTalentDescription(talent);
+      return "";
   }
+}
+
+function buildTalentEffectSummary(talent) {
+  if (!talent?.effect) return "";
+  const effects = [talent.effect, ...(talent.extraEffects || [])].filter(Boolean);
+  const parts = effects.map(effect => buildSingleTalentEffectSummary(effect)).filter(Boolean);
+  if (parts.length > 0) return parts.join(" · ");
+  return buildTalentDescription(talent);
 }
 
 function buildTalentDescription(talent) {
@@ -291,7 +301,10 @@ function buildTalentDescription(talent) {
       return "Ganas mucha defensa, pero sacrificas parte de tu velocidad y dano base.";
     }
     if (effect.stat === "regen") {
-      return `Regeneras ${formatTalentBonus(effect)} HP extra por tick.`;
+      return `Regeneras ${formatTalentBonus(effect)} de tu vida maxima por tick.`;
+    }
+    if (effect.stat === "thorns") {
+      return `Reflejas dano equivalente a ${formatTalentBonus(effect)} de tu defensa.`;
     }
     if (effect.stat === "goldBonus") {
       return `Ganas ${formatTalentBonus(effect)} oro adicional por kill.`;
@@ -319,6 +332,9 @@ function buildTalentDescription(talent) {
   if (trigger.stat === "onDamageTaken") {
     if (effect.stat === "heal") {
       return `Al recibir dano, curas ${formatTalentBonus(effect)} HP.`;
+    }
+    if (effect.stat === "regen") {
+      return `${effect.stackable && effect.maxStacks > 1 ? "Al recibir dano, acumulas" : "Al recibir dano, ganas"} ${formatTalentBonus(effect)} de tu vida maxima como regen${effect.stackable && effect.maxStacks > 1 ? " por stack" : ""}${effect.duration == null ? "" : ` durante ${pluralizeTicks(effect.duration)}`}${stackText}.`;
     }
     return `${effect.stackable && effect.maxStacks > 1 ? "Al recibir dano, acumulas" : "Al recibir dano, ganas"} ${formatTalentBonus(effect)} ${statLabel}${effect.stackable && effect.maxStacks > 1 ? " por stack" : ""}${effect.duration == null ? "" : ` durante ${pluralizeTicks(effect.duration)}`}${stackText}.`;
   }
@@ -447,6 +463,14 @@ function getNodeTitle(node) {
   return (node?.talent?.name || "").replace(/\s+(II|III|IV)$/, "");
 }
 
+function toTitleCaseLabel(value = "") {
+  return String(value || "")
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
 function getGroupedColumns(nodes = []) {
   const grouped = new Map();
   for (const node of nodes) {
@@ -465,14 +489,15 @@ function getGroupedColumns(nodes = []) {
 }
 
 function buildNodeRequirementText(state, node, nodes, nodeState) {
-  const parts = [];
+  const skillParts = [];
+  const gateParts = [];
   const prereqNames = (node.prereqs || [])
     .map(prereqId => nodes.find(candidate => candidate.id === getBaseTalentId(prereqId)))
     .filter(Boolean)
     .map(getNodeTitle);
 
   if (prereqNames.length > 0) {
-    parts.push(`Requiere desbloquear: ${prereqNames.join(node.prereqMode === "any" ? " o " : " + ")}`);
+    skillParts.push(`Requiere desbloquear: ${prereqNames.join(node.prereqMode === "any" ? " o " : " + ")}`);
   }
 
   const unlockCondition = nodeState?.nextTalent?.unlockCondition || null;
@@ -484,15 +509,19 @@ function buildNodeRequirementText(state, node, nodes, nodeState) {
           ? "Requiere nivel"
           : unlockCondition.stat === "kills"
             ? "Requiere bajas"
-            : unlockCondition.stat === "gold"
+          : unlockCondition.stat === "gold"
               ? "Requiere oro"
               : unlockCondition.stat;
-      parts.push(`${statLabel} ${unlockCondition.value}`);
+      gateParts.push(`${statLabel} ${unlockCondition.value}`);
     }
   }
 
   if (!nodeState.treeSpendGate.met && nodeState.treeSpendGate.required > 0) {
-    parts.push(`Gasta ${nodeState.treeSpendGate.remaining} TP mas en el arbol`);
+    gateParts.push(`Gasta ${nodeState.treeSpendGate.remaining} TP mas en el arbol`);
+  }
+
+  if (!nodeState.segmentSpendGate.met && nodeState.segmentSpendGate.required > 0) {
+    gateParts.push(`Gasta ${nodeState.segmentSpendGate.remaining} TP mas en el tramo base`);
   }
 
   const exclusiveGroup = node?.talent?.exclusiveGroup || null;
@@ -505,11 +534,11 @@ function buildNodeRequirementText(state, node, nodes, nodeState) {
         talent.exclusiveGroup === exclusiveGroup
     );
     if (conflicting) {
-      parts.push(`Ya elegiste: ${conflicting.name}`);
+      skillParts.push(`Ya elegiste: ${conflicting.name}`);
     }
   }
 
-  return parts.join(" · ");
+  return [skillParts.join(" · "), gateParts.join(" · ")].filter(Boolean).join("\n");
 }
 
 function getNodeActionLabel(nodeState, compact = false) {
@@ -582,7 +611,15 @@ function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, pre
       </div>
 
       {prereqText && (
-        <div style={{ fontSize: "0.6rem", fontWeight: "800", color: nodeState.allRequirementsMet ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #D85A30)" }}>
+        <div
+          style={{
+            fontSize: "0.6rem",
+            fontWeight: "800",
+            color: nodeState.allRequirementsMet ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #D85A30)",
+            lineHeight: 1.25,
+            whiteSpace: "pre-line",
+          }}
+        >
           {prereqText}
         </div>
       )}
@@ -680,7 +717,15 @@ function MobileTalentNodeRow({ node, nodeState, justUnlocked, dispatch, prereqTe
       )}
 
       {prereqText && (
-        <div style={{ fontSize: "0.55rem", color: nodeState.allRequirementsMet ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #D85A30)", fontWeight: "800" }}>
+        <div
+          style={{
+            fontSize: "0.55rem",
+            color: nodeState.allRequirementsMet ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #D85A30)",
+            fontWeight: "800",
+            lineHeight: 1.25,
+            whiteSpace: "pre-line",
+          }}
+        >
           {prereqText}
         </div>
       )}
@@ -700,7 +745,10 @@ export default function Talents({ state, dispatch }) {
   const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < 768 : false);
   const [selectedTreeId, setSelectedTreeId] = useState(null);
   const [recentUnlocks, setRecentUnlocks] = useState({});
+  const [canScrollTreesLeft, setCanScrollTreesLeft] = useState(false);
+  const [canScrollTreesRight, setCanScrollTreesRight] = useState(false);
   const trackedUnlocksRef = useRef(unlockedTalents || []);
+  const treeTabsScrollerRef = useRef(null);
 
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768);
@@ -740,6 +788,29 @@ export default function Talents({ state, dispatch }) {
   }, [treesByProgression, state]);
   const offSpecTreeCount = treeData.filter(item => item.tree.isOffSpec).length;
 
+  useEffect(() => {
+    const node = treeTabsScrollerRef.current;
+    if (!node || treeData.length <= 1) {
+      setCanScrollTreesLeft(false);
+      setCanScrollTreesRight(false);
+      return undefined;
+    }
+
+    const syncTreeScrollState = () => {
+      const maxScrollLeft = Math.max(0, node.scrollWidth - node.clientWidth);
+      setCanScrollTreesLeft(node.scrollLeft > 6);
+      setCanScrollTreesRight(node.scrollLeft < maxScrollLeft - 6);
+    };
+
+    syncTreeScrollState();
+    node.addEventListener("scroll", syncTreeScrollState, { passive: true });
+    window.addEventListener("resize", syncTreeScrollState);
+    return () => {
+      node.removeEventListener("scroll", syncTreeScrollState);
+      window.removeEventListener("resize", syncTreeScrollState);
+    };
+  }, [treeData.length, isMobile]);
+
   if (!playerClass) {
     return (
       <div style={emptyContainerStyle}>
@@ -759,30 +830,21 @@ export default function Talents({ state, dispatch }) {
     () => treeData.reduce((total, item) => total + item.nodes.filter(node => canUnlockNode(state, node.talent.id)).length, 0),
     [treeData, state]
   );
-  const treeHeaderStickyTop = treeData.length > 1
-    ? (isMobile ? 154 : 142)
-    : (isMobile ? 92 : 80);
+  const treeHeaderStickyTop = "var(--app-header-offset, 96px)";
 
   return (
-    <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "15px", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", minHeight: "100%" }}>
-      <div style={{ position: "sticky", top: 0, zIndex: 28, display: "flex", flexDirection: "column", gap: "10px", background: "var(--color-background-primary, #f8fafc)", paddingBottom: "4px" }}>
+    <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "6px", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", minHeight: "100%" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px", paddingBottom: "4px" }}>
         <header style={headerStyle}>
           <div>
             <div style={{ fontSize: "0.6rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase" }}>Arbol de Talentos</div>
-            <div style={{ fontSize: "1rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{playerClass.toUpperCase()} {playerSpec && `- ${playerSpec.toUpperCase()}`}</div>
+            <div style={{ fontSize: "1rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{toTitleCaseLabel(playerClass)} {playerSpec && `- ${toTitleCaseLabel(playerSpec)}`}</div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: "0.8rem", fontWeight: "900", color: "var(--tone-success, #1D9E75)" }}>{talentPoints} TP</div>
             <div style={{ fontSize: "0.65rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>{Object.values(talentLevels || {}).filter(value => Number(value) > 0).length || unlockedTalents.length} nodos comprados</div>
             <div style={{ fontSize: "0.58rem", color: totalBuyableNodes > 0 ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", marginTop: "4px" }}>
               {totalBuyableNodes > 0 ? `${totalBuyableNodes} nodos comprables ahora` : "Sin compras disponibles ahora"}
-            </div>
-            <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", marginTop: "4px", lineHeight: 1.25 }}>
-              {playerLevel >= CROSS_SPEC_UNLOCK_LEVEL
-                ? offSpecTreeCount > 0
-                  ? `Arbol secundario activo · costo x${OFF_SPEC_COST_MULTIPLIER} TP`
-                  : "Arbol secundario activo"
-                : `Arbol secundario al nivel ${CROSS_SPEC_UNLOCK_LEVEL}`}
             </div>
             {unlockedTalents.length > 0 && (
               <button
@@ -796,61 +858,89 @@ export default function Talents({ state, dispatch }) {
         </header>
 
         {treeData.length > 1 && (
-          <section style={tabsWrapStyle}>
-            {treeData.map(({ tree, progress, nodes }) => {
-              const active = tree.id === selectedTreeId;
-              return (
-                <button
-                  key={tree.id}
-                  onClick={() => setSelectedTreeId(tree.id)}
-                  style={{
-                    ...tabStyle,
-                    background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #fff)",
-                    color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #475569)",
-                    borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
-                  }}
-                >
-                  <span style={{ fontWeight: "900" }}>{tree.name}</span>
-                  {tree.isOffSpec && (
-                    <span style={{ fontSize: "0.54rem", fontWeight: "900", color: "var(--tone-warning, #b45309)" }}>
-                      Secundario x{OFF_SPEC_COST_MULTIPLIER}
-                    </span>
-                  )}
-                  <span style={{ opacity: 0.75 }}>{progress}/{nodes.length}</span>
-                </button>
-              );
-            })}
+          <section style={{ position: "relative" }}>
+            <div ref={treeTabsScrollerRef} style={tabsWrapStyle}>
+              {treeData.map(({ tree, progress, nodes }) => {
+                const active = tree.id === selectedTreeId;
+                return (
+                  <button
+                    key={tree.id}
+                    onClick={() => setSelectedTreeId(tree.id)}
+                    style={{
+                      ...tabStyle,
+                      background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #fff)",
+                      color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #475569)",
+                      borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
+                    }}
+                  >
+                    <span style={{ fontWeight: "900" }}>{tree.name}</span>
+                    {tree.isOffSpec && (
+                      <span style={{ fontSize: "0.54rem", fontWeight: "900", color: "var(--tone-warning, #b45309)" }}>
+                        Secundario x{OFF_SPEC_COST_MULTIPLIER}
+                      </span>
+                    )}
+                    <span style={{ opacity: 0.75 }}>{progress}/{nodes.length}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {canScrollTreesLeft && <div style={treeTabsFadeStyle("left")} />}
+            {canScrollTreesRight && <div style={treeTabsFadeStyle("right")} />}
+            {canScrollTreesLeft && <div style={treeTabsHintStyle("left")}>←</div>}
+            {canScrollTreesRight && <div style={treeTabsHintStyle("right")}>→</div>}
           </section>
         )}
       </div>
 
       {visibleTrees.map(({ tree, nodes, progress }) => (
-        <section key={tree.id} style={treeSectionStyle}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: "10px", marginBottom: "12px", flexWrap: "wrap", position: "sticky", top: treeHeaderStickyTop, zIndex: 16, background: "var(--color-background-secondary, #fff)", paddingBottom: "8px" }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                <div style={{ fontSize: "0.7rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: TREE_COLORS[tree.id] || "var(--tone-neutral-strong, #1e293b)" }}>{tree.name}</div>
-                {tree.isOffSpec && (
-                  <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-warning, #9a3412)", background: "var(--tone-warning-soft, #fff7ed)", border: "1px solid var(--tone-warning, #fdba74)", borderRadius: "999px", padding: "2px 7px" }}>
-                    SECUNDARIO x{OFF_SPEC_COST_MULTIPLIER}
-                  </span>
-                )}
-                {selectedTreeBuyableNodes.length > 0 && (
-                  <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-success-strong, #166534)", background: "var(--tone-success-soft, #ecfdf5)", border: "1px solid var(--tone-success, #86efac)", borderRadius: "999px", padding: "2px 7px" }}>
-                    {selectedTreeBuyableNodes.length} disponibles
-                  </span>
-                )}
-              </div>
-              <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>{tree.description}</div>
-              {selectedTreeBuyableNodes[0] && (
-                <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", marginTop: "5px" }}>
-                  Recomendado ahora: {getNodeTitle(selectedTreeBuyableNodes[0])}
+        <section key={tree.id} style={treeSectionWrapStyle}>
+          <div
+            style={{
+              marginInline: "-14px",
+              position: "sticky",
+              top: treeHeaderStickyTop,
+              zIndex: 48,
+              marginBottom: 0,
+              paddingTop: "6px",
+              background: "var(--color-background-primary, #f8fafc)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "end",
+                gap: "10px",
+                flexWrap: "wrap",
+                background: "var(--color-background-secondary, #fff)",
+                padding: "6px 14px 8px",
+                boxShadow: "0 12px 18px -18px rgba(15,23,42,0.5)",
+                border: "1px solid var(--color-border-primary, #e2e8f0)",
+                borderBottom: "1px solid var(--color-border-primary, #e2e8f0)",
+                borderRadius: "18px 18px 0 0",
+              }}
+            >
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                  <div style={{ fontSize: "0.7rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: TREE_COLORS[tree.id] || "var(--tone-neutral-strong, #1e293b)" }}>{tree.name}</div>
+                  {tree.isOffSpec && (
+                    <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-warning, #9a3412)", background: "var(--tone-warning-soft, #fff7ed)", border: "1px solid var(--tone-warning, #fdba74)", borderRadius: "999px", padding: "2px 7px" }}>
+                      SECUNDARIO x{OFF_SPEC_COST_MULTIPLIER}
+                    </span>
+                  )}
+                  {selectedTreeBuyableNodes.length > 0 && (
+                    <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-success-strong, #166534)", background: "var(--tone-success-soft, #ecfdf5)", border: "1px solid var(--tone-success, #86efac)", borderRadius: "999px", padding: "2px 7px" }}>
+                      {selectedTreeBuyableNodes.length} disponibles
+                    </span>
+                  )}
                 </div>
-              )}
+                <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>{tree.description}</div>
+              </div>
+              <div style={{ fontSize: "0.68rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>{progress}/{nodes.length}</div>
             </div>
-            <div style={{ fontSize: "0.68rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>{progress}/{nodes.length}</div>
           </div>
 
+          <div style={treeBodyStyle}>
           {isMobile ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {getGroupedColumns(nodes).map(({ segmentKey, label, nodes: columnNodes }) => (
@@ -920,6 +1010,7 @@ export default function Talents({ state, dispatch }) {
               </div>
             </div>
           )}
+          </div>
         </section>
       ))}
     </div>
@@ -948,18 +1039,27 @@ const headerStyle = {
   border: "1px solid var(--color-border-primary, #e2e8f0)",
 };
 
-const treeSectionStyle = {
+const treeSectionWrapStyle = {
+  position: "relative",
+};
+
+const treeBodyStyle = {
   background: "var(--color-background-secondary, #ffffff)",
   border: "1px solid var(--color-border-primary, #e2e8f0)",
-  borderRadius: "18px",
-  padding: "14px",
+  borderTop: "none",
+  borderRadius: "0 0 18px 18px",
+  marginInline: "-14px",
+  padding: "12px 14px 14px",
   boxShadow: "0 2px 6px var(--color-shadow, rgba(0,0,0,0.04))",
 };
 
 const tabsWrapStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
+  display: "flex",
   gap: "8px",
+  overflowX: "auto",
+  padding: "0 18px 2px 0",
+  scrollbarWidth: "none",
+  scrollBehavior: "smooth",
 };
 
 const tabStyle = {
@@ -972,7 +1072,40 @@ const tabStyle = {
   gap: "3px",
   fontSize: "0.7rem",
   cursor: "pointer",
+  flexShrink: 0,
+  minWidth: "148px",
 };
+
+const treeTabsFadeStyle = (side = "right") => ({
+  position: "absolute",
+  top: 0,
+  bottom: 2,
+  [side]: 0,
+  width: "26px",
+  pointerEvents: "none",
+  background: side === "right"
+    ? "linear-gradient(90deg, rgba(248,250,252,0), var(--color-background-primary, #f8fafc))"
+    : "linear-gradient(270deg, rgba(248,250,252,0), var(--color-background-primary, #f8fafc))",
+});
+
+const treeTabsHintStyle = (side = "right") => ({
+  position: "absolute",
+  top: "50%",
+  transform: "translateY(-50%)",
+  [side]: "2px",
+  width: "18px",
+  height: "18px",
+  borderRadius: "999px",
+  background: "var(--color-background-primary, #f8fafc)",
+  border: "1px solid var(--color-border-primary, #e2e8f0)",
+  color: "var(--color-text-tertiary, #94a3b8)",
+  fontSize: "0.6rem",
+  fontWeight: "900",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  pointerEvents: "none",
+});
 
 const upgradeHintStyle = {
   background: "var(--color-background-tertiary, #f8fafc)",

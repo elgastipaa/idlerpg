@@ -491,3 +491,105 @@ export const SUFFIXES = [
     },
   },
 ];
+
+export const ABYSS_PREFIXES = [
+  {
+    id: "abyss_prefix_void_strike",
+    stat: "voidStrikeChance",
+    scaling: "percent",
+    source: "abyss",
+    category: "abyss_void_strike",
+    tiers: {
+      3: { label: "Vacio Cortante", value: { min: 0.06, max: 0.1 }, weight: 18 },
+      2: { label: "de la Incision Abisal", value: { min: 0.12, max: 0.18 }, weight: 9 },
+      1: { label: "de la Hendidura Total", value: { min: 0.2, max: 0.28 }, weight: 3 },
+    },
+  },
+  {
+    id: "abyss_prefix_abyssal_crit",
+    stat: "abyssalCritFractureChance",
+    scaling: "percent",
+    source: "abyss",
+    category: "abyss_crit_fracture",
+    tiers: {
+      3: { label: "Abisal", value: { min: 0.08, max: 0.12 }, weight: 18 },
+      2: { label: "de la Fisura Negra", value: { min: 0.14, max: 0.2 }, weight: 9 },
+      1: { label: "de la Ruptura del Vacio", value: { min: 0.24, max: 0.32 }, weight: 3 },
+    },
+  },
+  {
+    id: "abyss_prefix_echo_hit",
+    stat: "echoHitChance",
+    scaling: "percent",
+    source: "abyss",
+    category: "abyss_echo_hit",
+    tiers: {
+      3: { label: "Ecofractal", value: { min: 0.08, max: 0.12 }, weight: 18 },
+      2: { label: "de la Reverberacion", value: { min: 0.14, max: 0.18 }, weight: 9 },
+      1: { label: "del Eco Infinito", value: { min: 0.22, max: 0.28 }, weight: 3 },
+    },
+  },
+  {
+    id: "abyss_prefix_corruption_amp",
+    stat: "enemyAffixDamagePct",
+    scaling: "percent",
+    source: "abyss",
+    category: "abyss_corruption_amp",
+    tiers: {
+      3: { label: "Corruptora", value: { min: 0.05, max: 0.08 }, weight: 18 },
+      2: { label: "del Castigo Corrupto", value: { min: 0.1, max: 0.15 }, weight: 9 },
+      1: { label: "de la Amplificacion Abisal", value: { min: 0.18, max: 0.24 }, weight: 3 },
+    },
+  },
+];
+
+export const ABYSS_SUFFIXES = [
+  {
+    id: "abyss_suffix_void_leech",
+    stat: "enemyAffixLifesteal",
+    scaling: "percent",
+    source: "abyss",
+    category: "abyss_void_leech",
+    tiers: {
+      3: { label: "del Drenaje Negro", value: { min: 0.02, max: 0.04 }, weight: 18 },
+      2: { label: "del Hambre Abisal", value: { min: 0.05, max: 0.08 }, weight: 9 },
+      1: { label: "del Banquete del Vacio", value: { min: 0.1, max: 0.14 }, weight: 3 },
+    },
+  },
+  {
+    id: "abyss_suffix_phase_skin",
+    stat: "phaseSkin",
+    scaling: "flat",
+    source: "abyss",
+    category: "abyss_phase_skin",
+    tiers: {
+      3: { label: "de la Piel Fase", value: { min: 1, max: 1 }, weight: 12 },
+      2: { label: "del Velo Fase", value: { min: 1, max: 1 }, weight: 6 },
+      1: { label: "de la Segunda Fase", value: { min: 1, max: 1 }, weight: 2 },
+    },
+  },
+  {
+    id: "abyss_suffix_regen",
+    stat: "abyssRegenFlat",
+    scaling: "flat",
+    source: "abyss",
+    category: "abyss_regen",
+    tiers: {
+      3: { label: "de la Marea Negra", value: { min: 2, max: 4 }, weight: 18 },
+      2: { label: "de la Savia Abisal", value: { min: 5, max: 8 }, weight: 9 },
+      1: { label: "del Pulso Sin Fondo", value: { min: 10, max: 16 }, weight: 3 },
+    },
+  },
+  {
+    id: "abyss_suffix_fracture_ward",
+    stat: "bossMechanicMitigation",
+    scaling: "percent",
+    source: "abyss",
+    category: "abyss_fracture_ward",
+    tiers: {
+      3: { label: "del Resguardo Roto", value: { min: 0.04, max: 0.07 }, weight: 18 },
+      2: { label: "del Muro Abisal", value: { min: 0.08, max: 0.12 }, weight: 9 },
+      1: { label: "de la Guardia del Fin", value: { min: 0.14, max: 0.2 }, weight: 3 },
+    },
+  },
+];

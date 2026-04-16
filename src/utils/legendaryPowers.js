@@ -1,6 +1,7 @@
 import { ITEMS } from "../data/items";
 import { LEGENDARY_POWERS } from "../data/legendaryPowers";
 import { MOD_TYPES } from "../engine/modifiers/modTypes";
+import { hasAbyssUnlock } from "../engine/progression/abyssProgression";
 
 const POWER_BY_ID = new Map(LEGENDARY_POWERS.map(power => [power.id, power]));
 
@@ -21,6 +22,11 @@ export function getItemsForLegendaryPower(powerId) {
   return ITEMS.filter(item => item?.legendaryPowerId === powerId);
 }
 
+export function isLegendaryContentUnlocked(entry = {}, abyss = {}) {
+  const unlockKey = entry?.unlockKey || entry?.power?.unlockKey || null;
+  return !unlockKey || hasAbyssUnlock(abyss, unlockKey);
+}
+
 export function getLegendaryPowerSources(powerId) {
   const items = getItemsForLegendaryPower(powerId);
   const bossIds = [...new Set(items.flatMap(item => item?.huntSources?.bosses || []))];
@@ -38,9 +44,18 @@ export function getEquippedLegendaryPowers(player = {}) {
     .filter(entry => entry.power);
 }
 
-export function getLegendaryStaticBonuses({ player = {}, enemy = null, stats = {} } = {}) {
+export function getLegendaryStaticBonuses({
+  player = {},
+  enemy = null,
+  stats = {},
+  currentTier = 1,
+  maxTier = 1,
+  bossesKilledThisRun = 0,
+} = {}) {
   const powers = getEquippedLegendaryPowers(player);
   const hpPct = (player?.hp || 0) / Math.max(1, stats?.maxHp || 1);
+  const highestRelevantTier = Math.max(Number(currentTier || 1), Number(maxTier || 1));
+  const completedAbyssStrata = Math.max(0, Math.floor(highestRelevantTier / 25) - 1);
   const bonuses = {
     damageFlat: 0,
     damageMult: 1,
@@ -61,6 +76,8 @@ export function getLegendaryStaticBonuses({ player = {}, enemy = null, stats = {
     flowHits: 0,
     spellMemoryMarkEffectPerStack: 0,
     freshTargetDamageMult: 1,
+    bloodPact: false,
+    preserveMemoryInAbyss: false,
   };
 
   for (const { power } of powers) {
@@ -151,6 +168,24 @@ export function getLegendaryStaticBonuses({ player = {}, enemy = null, stats = {
         bonuses.flowHits += 1;
         bonuses.spellMemoryMarkEffectPerStack += 0.01;
         break;
+      case "abyss_blood_pact":
+        bonuses.bloodPact = true;
+        break;
+      case "abyss_resonance":
+        if (completedAbyssStrata > 0) {
+          bonuses.damageMult *= 1 + completedAbyssStrata * 0.07;
+          bonuses.defenseMult *= 1 + completedAbyssStrata * 0.06;
+          bonuses.attackSpeed += completedAbyssStrata * 0.015;
+          bonuses.critDamage += completedAbyssStrata * 0.05;
+          bonuses.regen += completedAbyssStrata * 2;
+        }
+        break;
+      case "eternal_memory":
+        bonuses.preserveMemoryInAbyss = true;
+        break;
+      case "bottomless_fury":
+        bonuses.critChance += Math.max(0, Number(bossesKilledThisRun || 0)) * 0.02;
+        break;
       default:
         break;
     }
@@ -161,6 +196,7 @@ export function getLegendaryStaticBonuses({ player = {}, enemy = null, stats = {
 
 export function getLegendaryPostAttackEffects({
   player = {},
+  enemy = null,
   didCrit = false,
   enemyKilled = false,
   tookDamage = false,
@@ -246,6 +282,20 @@ export function getLegendaryPostAttackEffects({
           logs.push("Contragolpe del Ancla endurece tu respuesta.");
         }
         break;
+      case "abyss_void_eye":
+        if (didCrit && enemy?.isBoss) {
+          effects.push({
+            source: "item",
+            sourceId: "legendary:abyss_void_eye",
+            duration: 3,
+            maxStacks: 1,
+            modifiers: [
+              { type: MOD_TYPES.ENEMY_DAMAGE_TAKEN_MULT, value: 1.16 },
+            ],
+          });
+          logs.push("Ojo del Vacio deja al boss expuesto.");
+        }
+        break;
       default:
         break;
     }
@@ -254,10 +304,11 @@ export function getLegendaryPostAttackEffects({
   return { effects, logs };
 }
 
-export function getTargetedLegendaryDropsForEnemy(enemy = null) {
+export function getTargetedLegendaryDropsForEnemy(enemy = null, { abyss = {} } = {}) {
   if (!enemy) return [];
   return ITEMS.filter(item => {
     if (!item?.legendaryPowerId) return false;
+    if (!isLegendaryContentUnlocked(item, abyss)) return false;
     const bosses = item?.huntSources?.bosses || [];
     const families = item?.huntSources?.families || [];
     return bosses.includes(enemy.id) || families.includes(enemy.family);

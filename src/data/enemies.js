@@ -3,12 +3,34 @@ function scaledValue(base, growth, tier, flatPerTier = 0) {
   return Math.max(1, Math.floor(base * Math.pow(growth, normalizedTier) + normalizedTier * flatPerTier));
 }
 
-function getAffixesForTier(tier) {
+export function getEnemyAffixesForTier(tier) {
   if (tier < 4) return [];
   if (tier < 8) return ["armored", "bulky", "regenerating", "spiky"];
   if (tier < 13) return ["armored", "bulky", "regenerating", "spiky", "enraged", "crit_immune"];
   if (tier < 18) return ["armored", "bulky", "regenerating", "spiky", "enraged", "crit_immune", "tanky", "reflective", "vampiric"];
   return ["armored", "bulky", "regenerating", "spiky", "enraged", "crit_immune", "tanky", "reflective", "vampiric", "lethal", "thorns_master"];
+}
+
+export function getEnemyBaselineStatsForTier(tier = 1) {
+  const normalizedTier = Math.max(1, Math.floor(Number(tier || 1)));
+  const maxHp = scaledValue(58, 1.27, normalizedTier, 6);
+  const damage = scaledValue(6, 1.23, normalizedTier, 1);
+  const defense = Math.max(0, Math.floor(2 + normalizedTier * 1.4 + Math.max(0, normalizedTier - 5) * 0.55));
+  const xpReward = scaledValue(16, 1.255, normalizedTier, 4);
+  const goldReward = scaledValue(6, 1.23, normalizedTier, 1.5);
+  const essenceReward = 1 + Math.floor(Math.max(0, normalizedTier - 1) / 6);
+
+  return {
+    tier: normalizedTier,
+    hp: maxHp,
+    maxHp,
+    damage,
+    defense,
+    xpReward,
+    goldReward,
+    essenceReward,
+    possibleAffixes: getEnemyAffixesForTier(normalizedTier),
+  };
 }
 
 const ENEMY_BLUEPRINTS = [
@@ -41,26 +63,13 @@ const ENEMY_BLUEPRINTS = [
 
 export const ENEMIES = ENEMY_BLUEPRINTS.map((blueprint, index) => {
   const tier = index + 1;
-  const maxHp = scaledValue(58, 1.27, tier, 6);
-  const damage = scaledValue(6, 1.23, tier, 1);
-  const defense = Math.max(0, Math.floor(2 + tier * 1.4 + Math.max(0, tier - 5) * 0.55));
-  const xpReward = scaledValue(16, 1.255, tier, 4);
-  const goldReward = scaledValue(6, 1.23, tier, 1.5);
-  const essenceReward = 1 + Math.floor(Math.max(0, tier - 1) / 6);
+  const baseline = getEnemyBaselineStatsForTier(tier);
 
   return {
     id: blueprint.id,
     name: blueprint.name,
     family: blueprint.family,
-    possibleAffixes: getAffixesForTier(tier),
-    tier,
-    hp: maxHp,
-    maxHp,
-    damage,
-    defense,
-    xpReward,
-    goldReward,
-    essenceReward,
+    ...baseline,
     isBoss: false,
   };
 });

@@ -2,8 +2,10 @@ import { BOSSES } from "../../data/bosses";
 import { ENEMIES } from "../../data/enemies";
 import { ENEMY_FAMILIES } from "../../data/encounters";
 import { LEGENDARY_POWERS } from "../../data/legendaryPowers";
+import { BASE_TIER_COUNT, BOSS_SLOT_COUNT, BOSS_SLOT_INTERVAL, normalizeRunContext, resolveEncounterForTier } from "../combat/encounterRouting";
 import { refreshStats } from "../combat/statEngine";
 import { getLegendaryPowerSources, getTargetedLegendaryDropsForEnemy } from "../../utils/legendaryPowers";
+import { hasAbyssUnlock } from "./abyssProgression";
 
 const FAMILY_MASTERY = {
   ooze: {
@@ -152,6 +154,7 @@ const BONUS_KEYS = [
   "markEffectPerStack",
   "goldPct",
 ];
+const BOSS_BY_ID = new Map(BOSSES.map(boss => [boss.id, boss]));
 
 function emptyBonuses() {
   return BONUS_KEYS.reduce((acc, key) => {
@@ -213,6 +216,10 @@ function addBonus(target, bonus = {}) {
     target[key] = (target[key] || 0) + value;
   }
   return target;
+}
+
+function getVisibleLegendaryPowers(abyss = {}) {
+  return LEGENDARY_POWERS.filter(power => !power.unlockKey || hasAbyssUnlock(abyss, power.unlockKey));
 }
 
 export function computeCodexBonuses(codex = {}) {
@@ -297,8 +304,8 @@ export function recordLegendaryPowerDiscovery(codex = {}, item = null, gain = 1)
   };
 }
 
-export function getCodexLegendaryPowerEntries(codex = {}) {
-  return LEGENDARY_POWERS.map(power => {
+export function getCodexLegendaryPowerEntries(codex = {}, { abyss = {} } = {}) {
+  return getVisibleLegendaryPowers(abyss).map(power => {
     const discoveries = Number(codex?.powerDiscoveries?.[power.id] || 0);
     const sources = getLegendaryPowerSources(power.id);
     const mastery = getLegendaryPowerMastery(power.id, codex);
@@ -351,14 +358,14 @@ export function getLegendaryPowerHuntBias(codex = {}, powerId = null) {
   return getLegendaryPowerMastery(powerId, codex).huntBias || 0;
 }
 
-export function getUnlockedLegendaryPowers(codex = {}, { specialization = null, className = null } = {}) {
+export function getUnlockedLegendaryPowers(codex = {}, { specialization = null, className = null, abyss = {} } = {}) {
   const preferredArchetypes = [specialization, className].filter(Boolean);
   const defaultArchetype = className || "warrior";
-  return getCodexLegendaryPowerEntries(codex)
+  return getCodexLegendaryPowerEntries(codex, { abyss })
     .filter(entry => entry.unlocked)
     .sort((left, right) => {
-      const leftPreferred = preferredArchetypes.includes(left.archetype) || left.archetype === defaultArchetype;
-      const rightPreferred = preferredArchetypes.includes(right.archetype) || right.archetype === defaultArchetype;
+      const leftPreferred = left.archetype === "general" || preferredArchetypes.includes(left.archetype) || left.archetype === defaultArchetype;
+      const rightPreferred = right.archetype === "general" || preferredArchetypes.includes(right.archetype) || right.archetype === defaultArchetype;
       if (leftPreferred !== rightPreferred) return leftPreferred ? -1 : 1;
       if ((right.mastery?.rank || 0) !== (left.mastery?.rank || 0)) return (right.mastery?.rank || 0) - (left.mastery?.rank || 0);
       if ((right.discoveries || 0) !== (left.discoveries || 0)) return (right.discoveries || 0) - (left.discoveries || 0);
@@ -366,27 +373,95 @@ export function getUnlockedLegendaryPowers(codex = {}, { specialization = null, 
     });
 }
 
-export function getHighestUnlockedTierForFamily(familyId, maxTier = 1) {
-  return [...ENEMIES]
-    .filter(enemy => enemy.family === familyId && enemy.tier <= maxTier)
-    .sort((left, right) => right.tier - left.tier)[0]?.tier || null;
+export function getHighestUnlockedTierForFamily(familyId, maxTier = 1, runContext = null) {
+  const normalizedMaxTier = Math.max(1, Math.floor(Number(maxTier || 1)));
+  for (let tier = normalizedMaxTier; tier >= 1; tier -= 1) {
+    if (resolveEncounterForTier(tier, runContext)?.family === familyId) {
+      return tier;
+    }
+  }
+  return null;
 }
 
-export function getBestUnlockedTierForPower(entry = {}, maxTier = 1) {
+export function getEarliestTierForFamily(familyId, runContext = null) {
+  for (let tier = 1; tier <= BASE_TIER_COUNT; tier += 1) {
+    if (resolveEncounterForTier(tier, runContext)?.family === familyId) {
+      return tier;
+    }
+  }
+  return null;
+}
+
+function getHighestUnlockedTierForRunSlot(slot = 1, maxTier = 1) {
+  const normalizedTier = Math.max(1, Math.floor(Number(maxTier || 1)));
+  const normalizedSlot = Math.max(1, Math.min(BOSS_SLOT_COUNT, Math.floor(Number(slot || 1))));
+  const firstTier = normalizedSlot * BOSS_SLOT_INTERVAL;
+  if (normalizedTier < firstTier) return null;
+  const unlockedCycles = Math.floor((normalizedTier - firstTier) / BASE_TIER_COUNT);
+  return firstTier + unlockedCycles * BASE_TIER_COUNT;
+}
+
+function getCurrentRunBossInfoMap(runContext = null, maxTier = 1) {
+  if (!runContext) return new Map();
+
+  const normalizedRunContext = normalizeRunContext(runContext);
+  const infoByBossId = new Map();
+
+  for (let slot = 1; slot <= BOSS_SLOT_COUNT; slot += 1) {
+    const bossId = normalizedRunContext?.bossSlots?.[slot];
+    if (!bossId || !BOSS_BY_ID.has(bossId)) continue;
+
+    const earliestCurrentRunTier = slot * BOSS_SLOT_INTERVAL;
+    const bestUnlockedTier = getHighestUnlockedTierForRunSlot(slot, maxTier);
+    const previous = infoByBossId.get(bossId);
+
+    infoByBossId.set(bossId, {
+      inCurrentRoute: true,
+      currentRunSlot: previous?.currentRunSlot != null ? Math.min(previous.currentRunSlot, slot) : slot,
+      earliestCurrentRunTier: previous?.earliestCurrentRunTier != null ? Math.min(previous.earliestCurrentRunTier, earliestCurrentRunTier) : earliestCurrentRunTier,
+      bestUnlockedTier: Math.max(previous?.bestUnlockedTier || 0, bestUnlockedTier || 0) || null,
+    });
+  }
+
+  return infoByBossId;
+}
+
+function getCurrentRunBossInfo(bossId, { maxTier = 1, runContext = null, infoByBossId = null } = {}) {
+  const currentRunInfo = (infoByBossId || getCurrentRunBossInfoMap(runContext, maxTier)).get(bossId);
+  if (currentRunInfo) return currentRunInfo;
+
+  return {
+    inCurrentRoute: false,
+    currentRunSlot: null,
+    earliestCurrentRunTier: null,
+    bestUnlockedTier: null,
+  };
+}
+
+export function getHighestUnlockedTierForBoss(bossId, maxTier = 1, runContext = null) {
+  const currentRunTier = getCurrentRunBossInfo(bossId, { maxTier, runContext }).bestUnlockedTier;
+  if (currentRunTier != null) return currentRunTier;
+  if (runContext) return null;
+  const staticTier = BOSS_BY_ID.get(bossId)?.tier || null;
+  return staticTier != null && staticTier <= maxTier ? staticTier : null;
+}
+
+export function getBestUnlockedTierForPower(entry = {}, maxTier = 1, runContext = null) {
   const bossTier = (entry.sources?.bossIds || [])
-    .map(bossId => BOSSES.find(boss => boss.id === bossId)?.tier || null)
-    .filter(tier => tier != null && tier <= maxTier)
+    .map(bossId => getHighestUnlockedTierForBoss(bossId, maxTier, runContext))
+    .filter(tier => tier != null)
     .sort((left, right) => right - left)[0] || null;
   if (bossTier) return bossTier;
 
   return (entry.sources?.familyIds || [])
-    .map(familyId => getHighestUnlockedTierForFamily(familyId, maxTier))
+    .map(familyId => getHighestUnlockedTierForFamily(familyId, maxTier, runContext))
     .filter(Boolean)
     .sort((left, right) => right - left)[0] || null;
 }
 
 function matchesPreferredArchetype(entry = {}, specialization = null, className = null) {
   if (!entry?.archetype) return false;
+  if (entry.archetype === "general") return true;
   const fallbackArchetype = className || "warrior";
   return entry.archetype === specialization || entry.archetype === className || entry.archetype === fallbackArchetype;
 }
@@ -411,43 +486,53 @@ export function getCodexFamilyEntries(codex = {}) {
   });
 }
 
-export function getCodexBossEntries(codex = {}) {
+export function getCodexBossEntries(codex = {}, { maxTier = 1, runContext = null, abyss = {} } = {}) {
+  const normalizedMaxTier = Number(maxTier || 1);
+  const currentRunInfoById = getCurrentRunBossInfoMap(runContext, normalizedMaxTier);
+
   return BOSSES.map(boss => {
     const kills = Number(codex?.bossKills?.[boss.id] || 0);
     const mastery = BOSS_MASTERY[boss.id] || { milestones: [] };
     const unlockedCount = mastery.milestones.filter(milestone => kills >= milestone.kills).length;
     const nextMilestone = mastery.milestones.find(milestone => kills < milestone.kills) || null;
+    const currentRunInfo = getCurrentRunBossInfo(boss.id, {
+      maxTier: normalizedMaxTier,
+      runContext,
+      infoByBossId: currentRunInfoById,
+    });
     return {
       id: boss.id,
       seen: !!codex?.bossSeen?.[boss.id],
       name: boss.name,
       family: boss.family,
       tier: boss.tier,
+      baseTier: boss.tier,
       intro: boss.intro,
       huntLabel: boss.huntLabel || null,
       huntDescription: boss.huntDescription || null,
       favoredFamilies: [...(boss.favoredFamilies || [])],
       favoredStats: [...(boss.favoredStats || [])],
-      legendaryDrops: getTargetedLegendaryDropsForEnemy(boss),
+      legendaryDrops: getTargetedLegendaryDropsForEnemy(boss, { abyss }),
       milestones: mastery.milestones,
       kills,
       unlockedCount,
       nextMilestone,
+      ...currentRunInfo,
     };
   });
 }
 
-export function getCodexUnlockedMilestones(codex = {}) {
+export function getCodexUnlockedMilestones(codex = {}, { abyss = {} } = {}) {
   const masteryMilestones = [...getCodexFamilyEntries(codex), ...getCodexBossEntries(codex)]
     .reduce((total, entry) => total + (entry.unlockedCount || 0), 0);
-  const unlockedPowers = getCodexLegendaryPowerEntries(codex)
+  const unlockedPowers = getCodexLegendaryPowerEntries(codex, { abyss })
     .reduce((total, entry) => total + Math.max(0, entry.mastery?.rank || 0), 0);
   return masteryMilestones + unlockedPowers;
 }
 
-export function getCodexHuntOverview(codex = {}, { maxTier = 1, specialization = null, className = null } = {}) {
-  const powerEntries = getCodexLegendaryPowerEntries(codex);
-  const bossEntries = getCodexBossEntries(codex);
+export function getCodexHuntOverview(codex = {}, { maxTier = 1, specialization = null, className = null, runContext = null, abyss = {} } = {}) {
+  const powerEntries = getCodexLegendaryPowerEntries(codex, { abyss });
+  const bossEntries = getCodexBossEntries(codex, { maxTier, runContext, abyss });
   const familyEntries = getCodexFamilyEntries(codex);
   const discoveries = codex?.powerDiscoveries || {};
 
@@ -455,7 +540,7 @@ export function getCodexHuntOverview(codex = {}, { maxTier = 1, specialization =
     .filter(entry => !entry.unlocked)
     .map(entry => ({
       ...entry,
-      sourceTier: getBestUnlockedTierForPower(entry, maxTier),
+      sourceTier: getBestUnlockedTierForPower(entry, maxTier, runContext),
       preferredArchetype: matchesPreferredArchetype(entry, specialization, className),
     }))
     .filter(entry => entry.sourceTier != null)
@@ -468,7 +553,7 @@ export function getCodexHuntOverview(codex = {}, { maxTier = 1, specialization =
     .filter(entry => entry.unlocked && entry.mastery?.nextRank)
     .map(entry => ({
       ...entry,
-      sourceTier: getBestUnlockedTierForPower(entry, maxTier),
+      sourceTier: getBestUnlockedTierForPower(entry, maxTier, runContext),
       preferredArchetype: matchesPreferredArchetype(entry, specialization, className),
       remainingCopies: Math.max(0, Number(entry.mastery?.nextRank?.discoveries || 0) - Number(entry.discoveries || 0)),
     }))
@@ -479,7 +564,7 @@ export function getCodexHuntOverview(codex = {}, { maxTier = 1, specialization =
     });
 
   const hotBosses = bossEntries
-    .filter(entry => entry.seen && entry.tier <= maxTier && (entry.legendaryDrops?.length || 0) > 0)
+    .filter(entry => entry.seen && entry.inCurrentRoute && entry.bestUnlockedTier != null && (entry.legendaryDrops?.length || 0) > 0)
     .map(entry => {
       const missingCount = (entry.legendaryDrops || []).filter(drop => !(discoveries?.[drop?.power?.id] > 0)).length;
       const masteryCount = (entry.legendaryDrops || []).filter(drop => {
@@ -489,20 +574,21 @@ export function getCodexHuntOverview(codex = {}, { maxTier = 1, specialization =
       const preferredCount = (entry.legendaryDrops || []).filter(drop => matchesPreferredArchetype(drop.power, specialization, className)).length;
       return {
         ...entry,
+        sourceTier: entry.bestUnlockedTier,
         missingCount,
         masteryCount,
         preferredCount,
-        score: missingCount * 10 + masteryCount * 5 + preferredCount * 3 + entry.tier * 0.25,
+        score: missingCount * 10 + masteryCount * 5 + preferredCount * 3 + entry.bestUnlockedTier * 0.25,
       };
     })
     .filter(entry => entry.score > 0)
-    .sort((left, right) => right.score - left.score || left.tier - right.tier)
+    .sort((left, right) => right.score - left.score || left.sourceTier - right.sourceTier)
     .slice(0, 4);
 
   const hotFamilies = familyEntries
     .filter(entry => entry.seen)
     .map(entry => {
-      const sourceTier = getHighestUnlockedTierForFamily(entry.id, maxTier);
+      const sourceTier = getHighestUnlockedTierForFamily(entry.id, maxTier, runContext);
       const relatedPowers = powerEntries.filter(power => (power.sources?.familyIds || []).includes(entry.id));
       const missingCount = relatedPowers.filter(power => !power.unlocked).length;
       const masteryCount = relatedPowers.filter(power => power.unlocked && power.mastery?.nextRank).length;

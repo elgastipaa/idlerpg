@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PREFIXES, SUFFIXES } from "../data/affixes";
+import { ABYSS_PREFIXES, ABYSS_SUFFIXES, PREFIXES, SUFFIXES } from "../data/affixes";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
 import { getAffixTierGlyph, getRarityColor } from "../constants/rarity";
 import { ASCEND_COSTS } from "../constants/craftingCosts";
@@ -9,6 +9,7 @@ import {
   getCraftUsageSummary,
 } from "../engine/crafting/craftingEngine";
 import { getUnlockedLegendaryPowers } from "../engine/progression/codexEngine";
+import { hasAbyssUnlock } from "../engine/progression/abyssProgression";
 import {
   ITEM_STAT_LABELS as STAT_LABELS,
   formatItemNumber as formatValue,
@@ -21,6 +22,7 @@ import {
   formatEconomySummary,
   getTopCompareEntries,
 } from "../utils/itemPresentation";
+import { buildItemFromAffixes, computeImplicitUpgradeBonus, computeUpgradeBonus, mergeBonusMaps } from "../utils/loot";
 import { getCompactRarityLabel, getItemGlyph, getUpgradeBadgeTone, ITEM_SLOT_GLYPHS } from "../utils/itemVisuals";
 import {
   FORGE_MODE_META,
@@ -71,12 +73,12 @@ export default function Crafting({ state, dispatch }) {
   }, [player]);
   const unlockedLegendaryPowers = useMemo(() => {
     try {
-      return getUnlockedLegendaryPowers(state?.codex || {}, { specialization: player?.specialization, className: player?.class });
+      return getUnlockedLegendaryPowers(state?.codex || {}, { specialization: player?.specialization, className: player?.class, abyss: state?.abyss || {} });
     } catch (error) {
       console.error("Crafting legendary powers fallback", error);
       return [];
     }
-  }, [state?.codex, player?.specialization, player?.class]);
+  }, [state?.codex, state?.abyss, player?.specialization, player?.class]);
   const unlockedLegendaryPowerMap = useMemo(
     () => Object.fromEntries(unlockedLegendaryPowers.map(power => [power.id, power])),
     [unlockedLegendaryPowers]
@@ -185,7 +187,9 @@ export default function Crafting({ state, dispatch }) {
     };
   }, [isMobile, mode, selectedItem]);
 
-  const affixTemplatesByStat = useMemo(() => Object.fromEntries([...PREFIXES, ...SUFFIXES].map(entry => [entry.stat, entry])), []);
+  const affixTemplatesByStat = useMemo(() => Object.fromEntries([...PREFIXES, ...SUFFIXES, ...ABYSS_PREFIXES, ...ABYSS_SUFFIXES].map(entry => [entry.stat, entry])), []);
+  const hasAbyssCraftingAffixes = hasAbyssUnlock(state?.abyss || {}, "craftingAffixes");
+  const canUseAbyssCraftingOnSelection = hasAbyssCraftingAffixes && ["epic", "legendary"].includes(selectedItem?.rarity);
 
   const selectedItemReforgeOptions = useMemo(() => {
     if (!selectedItem || mode !== "reforge" || selectedAffixIndex == null) return [];
@@ -329,6 +333,52 @@ export default function Crafting({ state, dispatch }) {
   const focusedAffixLabel = focusedAffix ? (STAT_LABELS[focusedAffix.stat] || focusedAffix.stat) : null;
   const selectedCurrentAffix = selectedItem && selectedAffixIndex != null ? selectedItem.affixes?.[selectedAffixIndex] : null;
   const selectedUpgradeTrackFeedback = selectedItem && upgradeTrackFeedback?.itemId === selectedItem.id ? upgradeTrackFeedback : null;
+  const selectedUpgradePreview = useMemo(() => {
+    if (!selectedItem || mode !== "upgrade") return null;
+    const currentLevel = Math.max(0, Number(selectedItem.level || 0));
+    if (currentLevel >= 10) return null;
+
+    const nextLevel = currentLevel + 1;
+    const baseBonus = selectedItem.baseBonus || {};
+    const implicitBonus = selectedItem.implicitBonus || {};
+    const upgradeBonus = computeUpgradeBonus(baseBonus, selectedItem.type, nextLevel);
+    const implicitUpgradeBonus = computeImplicitUpgradeBonus(implicitBonus, selectedItem.type, nextLevel);
+    const { bonus } = buildItemFromAffixes(
+      {
+        ...selectedItem,
+        bonus: mergeBonusMaps(baseBonus, upgradeBonus, implicitBonus, implicitUpgradeBonus),
+      },
+      selectedItem.affixes || []
+    );
+
+    return {
+      ...selectedItem,
+      level: nextLevel,
+      upgradeBonus,
+      implicitUpgradeBonus,
+      bonus,
+    };
+  }, [mode, selectedItem]);
+  const selectedUpgradeAffectedStats = useMemo(() => {
+    if (!selectedItem || !selectedUpgradePreview) return [];
+    const changedKeys = Array.from(
+      new Set([
+        ...Object.keys(selectedItem.bonus || {}),
+        ...Object.keys(selectedUpgradePreview.bonus || {}),
+      ])
+    );
+    return changedKeys
+      .map(key => {
+        const currentVal = selectedItem?.bonus?.[key] || 0;
+        const nextVal = selectedUpgradePreview?.bonus?.[key] || 0;
+        const delta = nextVal - currentVal;
+        const equippedVal = selectedCompareItem?.bonus?.[key] || 0;
+        return { key, currentVal, nextVal, delta, equippedVal, diffVsEquipped: nextVal - equippedVal };
+      })
+      .filter(entry => Math.abs(entry.delta) > 0.0001)
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+      .slice(0, 6);
+  }, [selectedCompareItem, selectedItem, selectedUpgradePreview]);
   const selectedCurrentOptionIsKeep =
     mode === "reforge" &&
     !!selectedReforgeOption &&
@@ -385,7 +435,9 @@ export default function Crafting({ state, dispatch }) {
       }
       return focusedAffix
         ? `La pieza ya quedo fijada a ${focusedAffixLabel}.`
-        : "Pagas la reforja, ves opciones y despues decidis si cambias.";
+        : canUseAbyssCraftingOnSelection
+          ? "Pagas la reforja, ves opciones y despues decidis si cambias. Esta pieza puede abrir affixes de Abismo."
+          : "Pagas la reforja, ves opciones y despues decidis si cambias.";
     }
     if (mode === "ascend") {
       if (selectedActionReq?.nextRarity === "legendary") {
@@ -487,6 +539,7 @@ export default function Crafting({ state, dispatch }) {
             itemId: selectedItem.id,
             affixIndex: selectedAffixIndex,
             favoredStats: activeBuildTag?.conditions?.prefersStats || [],
+            allowAbyssAffixes: hasAbyssCraftingAffixes && ["epic", "legendary"].includes(selectedItem?.rarity),
           },
         });
         setSelectedReforgeOption(null);
@@ -760,6 +813,7 @@ export default function Crafting({ state, dispatch }) {
                         +{formatStatValue(af.stat, af.rolledValue ?? af.value ?? 0)} {STAT_LABELS[af.stat] || af.stat} {af.tier ? `(T${af.tier})` : ""}
                         {af.label ? ` · ${af.label}` : ""}
                         {af.perfectRoll ? " PERFECT" : ""}
+                        {af.source === "abyss" ? " · ABISMO" : ""}
                         </div>
                         {isFocusedLine && (
                           <span style={{ fontSize: "0.48rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-violet, #7c3aed)", color: "#fff", flexShrink: 0 }}>
@@ -857,6 +911,29 @@ export default function Crafting({ state, dispatch }) {
                   );
                 })}
               </div>
+              {selectedUpgradePreview && (
+                <div style={{ marginTop: "10px", display: "grid", gap: "8px" }}>
+                  <div style={{ fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "900", textTransform: "uppercase" }}>
+                    Impacto del proximo +1
+                  </div>
+                  <div style={{ display: "grid", gap: "5px" }}>
+                    {selectedUpgradeAffectedStats.map(({ key, currentVal, nextVal, delta, diffVsEquipped }) => (
+                      <div key={`upgrade-preview-${key}`} style={{ display: "flex", justifyContent: "space-between", gap: "8px", fontSize: "0.64rem", color: "var(--color-text-secondary, #475569)", fontWeight: "800" }}>
+                        <span>{STAT_LABELS[key] || key}</span>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                          <span style={{ color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>
+                            {formatStatValue(key, currentVal)} → {formatStatValue(key, nextVal)}
+                          </span>
+                          <span style={diffBadgeStyle(delta)}>{formatDiffValue(key, delta)}</span>
+                          <span style={diffBadgeStyle(diffVsEquipped)}>
+                            {diffVsEquipped !== 0 ? formatDiffValue(key, diffVsEquipped) : "0"} vs eq
+                          </span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -967,7 +1044,10 @@ export default function Crafting({ state, dispatch }) {
                   <button key={`${option.id}-${index}`} onClick={() => setSelectedReforgeOption(option)} style={{ width: "100%", textAlign: "left", border: "1px solid", borderColor: selectedReforgeOption?.id === option.id && selectedReforgeOption?.stat === option.stat ? "var(--tone-violet, #7c3aed)" : "var(--color-border-primary, #ddd6fe)", background: selectedReforgeOption?.id === option.id && selectedReforgeOption?.stat === option.stat ? "var(--tone-violet-soft, #f3e8ff)" : "var(--color-background-secondary, #fff)", color: "var(--color-text-primary, #1e293b)", borderRadius: "10px", padding: "8px 10px", cursor: "pointer" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
                       <div style={{ fontSize: "0.68rem", fontWeight: "900" }}>{STAT_LABELS[option.stat] || option.stat} (T{option.tier})</div>
-                      {index === 0 && <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-warning-soft, #fef3c7)", color: "var(--tone-warning, #92400e)", border: "1px solid var(--tone-warning, #fcd34d)" }}>ACTUAL</span>}
+                      <div style={{ display: "flex", gap: "4px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                        {option.source === "abyss" && <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "rgba(8,145,178,0.14)", color: "#0f766e", border: "1px solid rgba(13,148,136,0.24)" }}>ABISMO</span>}
+                        {index === 0 && <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-warning-soft, #fef3c7)", color: "var(--tone-warning, #92400e)", border: "1px solid var(--tone-warning, #fcd34d)" }}>ACTUAL</span>}
+                      </div>
                     </div>
                     <div style={{ fontSize: "0.62rem", color: "var(--tone-violet, #6d28d9)", marginTop: "3px" }}>+{formatStatValue(option.stat, option.rolledValue ?? option.value ?? 0)} · {option.kind === "prefix" ? "Prefijo" : "Sufijo"}</div>
                     {index === 0 && (

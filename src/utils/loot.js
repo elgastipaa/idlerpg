@@ -1,7 +1,7 @@
 ﻿import { ITEMS, ITEM_RARITY_BLUEPRINT, ITEM_ROLL_RULES_V2 } from "../data/items";
 import { ITEM_FAMILIES } from "../data/itemFamilies";
 import { rollAffixes } from "../engine/affixesEngine";
-import { getLegendaryPowerById } from "./legendaryPowers";
+import { getLegendaryPowerById, isLegendaryContentUnlocked } from "./legendaryPowers";
 
 const DROP_CONFIG = {
   base: 0.08,
@@ -80,6 +80,7 @@ export function generateLoot({
   favoredStatWeightMultiplier = 2.4,
   rarityFloor = null,
   rarityBonus = 0,
+  abyss = {},
 } = {}) {
   const tier = enemy?.tier || 1;
   let dropChance = DROP_CONFIG.base;
@@ -100,6 +101,7 @@ export function generateLoot({
     preferredArchetypes,
     preferredPowerBias,
     offArchetypeLegendaryPenalty,
+    abyss,
   });
   if (!baseItem) return null;
   const family = getFamilyForBaseItem(baseItem);
@@ -185,6 +187,7 @@ function getDropBiasMultiplier(
     preferredArchetypes = [],
     preferredPowerBias = 0.42,
     offArchetypeLegendaryPenalty = 0.86,
+    abyss = {},
   } = {}
 ) {
   let multiplier = 1;
@@ -196,7 +199,9 @@ function getDropBiasMultiplier(
     (enemy?.family && (huntSources.families || []).includes(enemy.family));
   const legendaryPower = item?.legendaryPowerId ? getLegendaryPowerById(item.legendaryPowerId) : null;
   const matchesPreferredPower =
-    !!legendaryPower?.archetype && preferredArchetypeSet.has(legendaryPower.archetype);
+    !legendaryPower?.archetype ||
+    legendaryPower.archetype === "general" ||
+    preferredArchetypeSet.has(legendaryPower.archetype);
 
   if (enemy?.id && (huntSources.bosses || []).includes(enemy.id)) {
     multiplier *= 8;
@@ -219,7 +224,7 @@ function getDropBiasMultiplier(
   if (item?.legendaryPowerId && preferredArchetypeSet.size > 0) {
     if (matchesPreferredPower) {
       multiplier *= 1 + Math.max(0, Number(preferredPowerBias || 0));
-    } else if (legendaryPower?.archetype) {
+    } else if (legendaryPower?.archetype && legendaryPower.archetype !== "general") {
       multiplier *= Math.max(0.4, Number(offArchetypeLegendaryPenalty || 1));
     }
   }
@@ -235,7 +240,7 @@ function pickItemByRarity(rarity, favoredFamilies = [], enemy = null, options = 
   const startIndex = Math.max(0, RARITY_ORDER.indexOf(rarity));
 
   for (let index = startIndex; index < RARITY_ORDER.length; index += 1) {
-    const pool = ITEMS.filter(item => item.rarity === RARITY_ORDER[index]);
+    const pool = ITEMS.filter(item => item.rarity === RARITY_ORDER[index] && isLegendaryContentUnlocked(item, options.abyss));
     if (!pool.length) continue;
     return pickWeightedItem(pool, item => (item.dropChance || 1) * getDropBiasMultiplier(item, favoredFamilies, enemy, options));
   }
@@ -389,21 +394,60 @@ export function computeUpgradeBonus(baseBonus = {}, itemType = "weapon", level =
   if (steps <= 0) return {};
 
   const result = {};
-  const scaleFlat = (value, ratio) => Math.round(value * ratio * steps * 100) / 100;
+  const buildCompoundBonus = (value, stepMultipliers = []) => {
+    const baseValue = Math.max(0, Number(value || 0));
+    if (baseValue <= 0) return 0;
+
+    let totalMultiplier = 1;
+    for (let index = 0; index < Math.min(steps, stepMultipliers.length); index += 1) {
+      totalMultiplier *= stepMultipliers[index];
+    }
+    return Math.round((baseValue * totalMultiplier - baseValue) * 100) / 100;
+  };
+
+  const coreStepMultipliers =
+    itemType === "weapon"
+      ? [1.13, 1.13, 1.13, 1.13, 1.13, 1.18, 1.18, 1.18, 1.32, 1.32]
+      : [1.125, 1.125, 1.125, 1.125, 1.125, 1.175, 1.175, 1.175, 1.3, 1.3];
+  const healthStepMultipliers = [1.1, 1.1, 1.1, 1.1, 1.1, 1.145, 1.145, 1.145, 1.26, 1.26];
 
   if (itemType === "weapon" && (baseBonus.damage || 0) > 0) {
-    result.damage = scaleFlat(baseBonus.damage || 0, 0.12);
+    result.damage = buildCompoundBonus(baseBonus.damage || 0, coreStepMultipliers);
   }
 
   if (itemType === "armor" && (baseBonus.defense || 0) > 0) {
-    result.defense = scaleFlat(baseBonus.defense || 0, 0.12);
+    result.defense = buildCompoundBonus(baseBonus.defense || 0, coreStepMultipliers);
   }
 
   if ((baseBonus.healthMax || 0) > 0) {
-    result.healthMax = scaleFlat(baseBonus.healthMax || 0, 0.08);
+    result.healthMax = buildCompoundBonus(baseBonus.healthMax || 0, healthStepMultipliers);
   }
 
   return Object.fromEntries(Object.entries(result).filter(([, value]) => value > 0));
+}
+
+export function computeImplicitUpgradeBonus(implicitBonus = {}, itemType = "weapon", level = 0) {
+  const steps = Math.max(0, level || 0);
+  if (steps <= 0 || !implicitBonus || typeof implicitBonus !== "object") return {};
+
+  const stepMultipliers =
+    itemType === "weapon"
+      ? [1.08, 1.08, 1.08, 1.08, 1.08, 1.095, 1.095, 1.095, 1.21, 1.21]
+      : [1.0845, 1.0845, 1.0845, 1.0845, 1.0845, 1.1007, 1.1007, 1.1007, 1.2248, 1.2248];
+  let totalMultiplier = 1;
+  for (let index = 0; index < Math.min(steps, stepMultipliers.length); index += 1) {
+    totalMultiplier *= stepMultipliers[index];
+  }
+
+  return Object.fromEntries(
+    Object.entries(implicitBonus)
+      .map(([stat, value]) => {
+        const baseValue = Math.max(0, Number(value || 0));
+        const upgradedValue = baseValue * totalMultiplier;
+        return [stat, Math.round((upgradedValue - baseValue) * 1000) / 1000];
+      })
+      .filter(([, value]) => value > 0)
+  );
 }
 
 function getItemFamilyId(baseItem) {
@@ -472,11 +516,11 @@ export function materializeItem({
     ensureMinBaseLines: false,
   });
   const upgradeBonus = computeUpgradeBonus(resolvedBaseBonus || {}, baseItem.type, itemLevel);
-
   const { familyId, familyName, implicitBonus } = getFamilyImplicit(baseItem, rarity);
+  const implicitUpgradeBonus = computeImplicitUpgradeBonus(implicitBonus, baseItem.type, itemLevel);
   const implicitBaseItem = {
     ...baseItem,
-    bonus: mergeBonusMaps(resolvedBaseBonus || {}, upgradeBonus, implicitBonus),
+    bonus: mergeBonusMaps(resolvedBaseBonus || {}, upgradeBonus, implicitBonus, implicitUpgradeBonus),
   };
   const { name, bonus } = buildItemFromAffixes(implicitBaseItem, affixes);
 
@@ -492,6 +536,7 @@ export function materializeItem({
     baseBonus: { ...(resolvedBaseBonus || {}) },
     upgradeBonus,
     implicitBonus,
+    implicitUpgradeBonus,
     affixes,
     itemTier: resolvedTier,
     level: itemLevel,

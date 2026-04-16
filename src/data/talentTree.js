@@ -1,3 +1,5 @@
+import { TALENT_SINK_NODES } from "./talentSinks";
+
 // Source of truth for authored tree layout, columns and direct prereq wiring.
 export const TALENT_TREES = [
   {
@@ -15,6 +17,7 @@ export const TALENT_TREES = [
       { talentId: "warrior_combat_flow", x: 2, y: 1, segment: "gameplay", prereqs: ["warrior_precision_strikes"], requiredSegment: "basic", minSegmentPointsSpent: 25 },
       { talentId: "warrior_iron_conversion", x: 3, y: 0, segment: "keystone", prereqs: ["warrior_blood_strikes", "warrior_combat_flow"], prereqMode: "any", minTreePointsSpent: 40 },
       { talentId: "warrior_crushing_weight", x: 3, y: 1, segment: "keystone", prereqs: ["warrior_heavy_impact", "warrior_precision_strikes"], prereqMode: "any", minTreePointsSpent: 40 },
+      ...TALENT_SINK_NODES.warrior_general,
     ],
   },
   {
@@ -32,6 +35,7 @@ export const TALENT_TREES = [
       { talentId: "berserker_execution", x: 2, y: 1, segment: "gameplay", prereqs: ["berserker_savage_power"], requiredSegment: "basic", minSegmentPointsSpent: 25 },
       { talentId: "berserker_last_breath", x: 3, y: 0, segment: "keystone", prereqs: ["berserker_last_stand", "berserker_execution"], prereqMode: "any", minTreePointsSpent: 40 },
       { talentId: "berserker_frenzied_chain", x: 3, y: 1, segment: "keystone", prereqs: ["berserker_blood_debt", "berserker_execution"], prereqMode: "any", minTreePointsSpent: 40 },
+      ...TALENT_SINK_NODES.berserker,
     ],
   },
   {
@@ -49,6 +53,7 @@ export const TALENT_TREES = [
       { talentId: "juggernaut_spiked_defense", x: 2, y: 1, segment: "gameplay", prereqs: ["juggernaut_recovery"], requiredSegment: "basic", minSegmentPointsSpent: 25 },
       { talentId: "juggernaut_unmoving_mountain", x: 3, y: 0, segment: "keystone", prereqs: ["juggernaut_iron_core", "juggernaut_fortress_core"], prereqMode: "any", minTreePointsSpent: 40 },
       { talentId: "juggernaut_titanic_momentum", x: 3, y: 1, segment: "keystone", prereqs: ["juggernaut_fortress_core", "juggernaut_spiked_defense"], prereqMode: "any", minTreePointsSpent: 40 },
+      ...TALENT_SINK_NODES.juggernaut,
     ],
   },
   {
@@ -66,6 +71,7 @@ export const TALENT_TREES = [
       { talentId: "mage_arcane_flow", x: 2, y: 1, segment: "gameplay", prereqs: ["mage_arcane_power"], requiredSegment: "basic", minSegmentPointsSpent: 25 },
       { talentId: "mage_overchannel", x: 3, y: 0, segment: "keystone", prereqs: ["mage_arcane_echo", "mage_arcane_mark"], prereqMode: "any", minTreePointsSpent: 40 },
       { talentId: "mage_perfect_cast", x: 3, y: 1, segment: "keystone", prereqs: ["mage_arcane_mark", "mage_arcane_flow"], prereqMode: "any", minTreePointsSpent: 40 },
+      ...TALENT_SINK_NODES.mage_general,
     ],
   },
   {
@@ -83,6 +89,7 @@ export const TALENT_TREES = [
       { talentId: "sorcerer_overload", x: 2, y: 1, segment: "gameplay", prereqs: ["sorcerer_spell_power"], requiredSegment: "basic", minSegmentPointsSpent: 25 },
       { talentId: "sorcerer_cataclysm", x: 3, y: 0, segment: "keystone", prereqs: ["sorcerer_chain_burst", "sorcerer_overload"], prereqMode: "any", minTreePointsSpent: 40 },
       { talentId: "sorcerer_volatile_casting", x: 3, y: 1, segment: "keystone", prereqs: ["sorcerer_unstable_power", "sorcerer_overload"], prereqMode: "any", minTreePointsSpent: 40 },
+      ...TALENT_SINK_NODES.sorcerer,
     ],
   },
   {
@@ -100,6 +107,7 @@ export const TALENT_TREES = [
       { talentId: "arcanist_spell_memory", x: 2, y: 1, segment: "gameplay", prereqs: ["arcanist_precision"], requiredSegment: "basic", minSegmentPointsSpent: 25 },
       { talentId: "arcanist_time_loop", x: 3, y: 0, segment: "keystone", prereqs: ["arcanist_mark_transfer", "arcanist_spell_memory"], prereqMode: "any", minTreePointsSpent: 40 },
       { talentId: "arcanist_absolute_control", x: 3, y: 1, segment: "keystone", prereqs: ["arcanist_temporal_flow", "arcanist_spell_memory"], prereqMode: "any", minTreePointsSpent: 40 },
+      ...TALENT_SINK_NODES.arcanist,
     ],
   },
 ];

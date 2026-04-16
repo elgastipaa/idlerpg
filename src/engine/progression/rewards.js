@@ -24,6 +24,7 @@ export function calculateRewards({
   playerStats,
   player = null,
   codex = null,
+  abyss = null,
   eventMods,
   prestige,
   isCrit,
@@ -31,6 +32,9 @@ export function calculateRewards({
   runSigilId = "free",
 }) {
   const runSigil = getRunSigilRewardModifiers(runSigilId);
+  const isAbyssEnemy = Number(enemy?.abyssDepth || 0) > 0;
+  const abyssEssenceMult = isAbyssEnemy ? 1 + Math.max(0, Number(playerStats?.abyssEssenceMult || 0)) : 1;
+  const abyssLootQuality = isAbyssEnemy ? Math.max(0, Number(playerStats?.abyssLootQuality || 0)) : 0;
   const critGoldBonus = (isCrit && unlockedTalents.includes("rogue_opportunist")) ? 5 : 0;
   const discoveredPowerIds = Object.entries(codex?.powerDiscoveries || {})
     .filter(([, discoveries]) => Number(discoveries || 0) > 0)
@@ -49,6 +53,7 @@ export function calculateRewards({
   const essenceGained = Math.floor(
     Math.max(0, (enemy.essenceReward || (enemy.isBoss ? 5 : 1)) + (playerStats.essenceBonus || 0)) *
       (eventMods.essenceMult || 1) *
+      abyssEssenceMult *
       (runSigil.essenceMult || 1)
   );
 
@@ -67,7 +72,14 @@ export function calculateRewards({
     offArchetypeLegendaryPenalty: 0.86,
     favoredStatWeightMultiplier: enemy?.isBoss ? 3.2 : 2.4,
     rarityFloor: enemy?.guaranteedRarityFloor || null,
-    rarityBonus: mergeRarityBonus(enemy?.dropRarityBonus || 0, runSigil.rarityBonus || {}),
+    rarityBonus: mergeRarityBonus(
+      enemy?.dropRarityBonus || 0,
+      runSigil.rarityBonus || {},
+      abyssLootQuality > 0
+        ? { rare: abyssLootQuality * 0.5, epic: abyssLootQuality, legendary: abyssLootQuality * 0.7 }
+        : {}
+    ),
+    abyss,
   });
 
   return { goldGained, xpGained, essenceGained, loot };

@@ -1,10 +1,10 @@
-﻿import { PREFIXES, SUFFIXES } from "../data/affixes";
+﻿import { ABYSS_PREFIXES, ABYSS_SUFFIXES, PREFIXES, SUFFIXES } from "../data/affixes";
 import { ITEM_RARITY_BLUEPRINT, ITEM_ROLL_RULES_V2 } from "../data/items";
 import { normalizeLegacyStatKey } from "../utils/loot";
 
 const OVERLAP_ELIGIBLE_RARITIES = new Set(ITEM_ROLL_RULES_V2.allowBaseImplicitAffixOverlapRarities || []);
 
-const ALL_AFFIXES = [...PREFIXES, ...SUFFIXES];
+const ALL_AFFIXES = [...PREFIXES, ...SUFFIXES, ...ABYSS_PREFIXES, ...ABYSS_SUFFIXES];
 const TIER_WEIGHT_BY_ITEM_TIER = [
   { maxTier: 4, weights: { 1: 0.05, 2: 0.45, 3: 1.0 } },
   { maxTier: 8, weights: { 1: 0.2, 2: 0.7, 3: 1.0 } },
@@ -100,6 +100,7 @@ function buildRolledAffix(affix, tierEntry) {
     tier: tierEntry.tier,
     tierLabel: tierEntry.label,
     label: tierEntry.label,
+    source: affix.source || "base",
     value: rolledValue,
     rolledValue,
     range: { min, max },
@@ -270,13 +271,14 @@ export function polishAffix(item, affixIndex) {
   ));
 }
 
-export function generateReforgeOptions(item, affixIndex, optionCount = 2, favoredStats = []) {
+export function generateReforgeOptions(item, affixIndex, optionCount = 2, favoredStats = [], extraPool = []) {
   const currentAffixes = item?.affixes || [];
   const targetAffix = currentAffixes[affixIndex];
   if (!targetAffix?.id) return [];
 
   const kind = getAffixKind(targetAffix);
-  const pool = kind === "suffix" ? SUFFIXES : PREFIXES;
+  const extraKindPool = (extraPool || []).filter(affix => getAffixKind(affix) === kind);
+  const pool = [...(kind === "suffix" ? SUFFIXES : PREFIXES), ...extraKindPool];
   const usedCategories = new Set(
     currentAffixes
       .filter((affix, index) => index !== affixIndex)

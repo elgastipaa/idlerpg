@@ -40,6 +40,21 @@ export function calcStats(player) {
   const eqFractureChance = (weapon?.bonus?.fractureChance || 0) + (armor?.bonus?.fractureChance || 0);
   const eqMarkChance = (weapon?.bonus?.markChance || 0) + (armor?.bonus?.markChance || 0);
   const eqMarkEffectPerStack = (weapon?.bonus?.markEffectPerStack || 0) + (armor?.bonus?.markEffectPerStack || 0);
+  const eqAbyssDamagePct = (weapon?.bonus?.abyssDamagePct || 0) + (armor?.bonus?.abyssDamagePct || 0);
+  const eqAbyssEnemyAffixPenaltyReduction = (weapon?.bonus?.abyssEnemyAffixPenaltyReduction || 0) + (armor?.bonus?.abyssEnemyAffixPenaltyReduction || 0);
+  const eqAbyssNormalEnemyPenaltyReduction = (weapon?.bonus?.abyssNormalEnemyPenaltyReduction || 0) + (armor?.bonus?.abyssNormalEnemyPenaltyReduction || 0);
+  const eqAbyssLootQuality = (weapon?.bonus?.abyssLootQuality || 0) + (armor?.bonus?.abyssLootQuality || 0);
+  const eqAbyssEssenceMult = (weapon?.bonus?.abyssEssenceMult || 0) + (armor?.bonus?.abyssEssenceMult || 0);
+  const eqAbyssBossMechanicMitigation = (weapon?.bonus?.abyssBossMechanicMitigation || 0) + (armor?.bonus?.abyssBossMechanicMitigation || 0);
+  const eqAbyssMutatorOffensePct = (weapon?.bonus?.abyssMutatorOffensePct || 0) + (armor?.bonus?.abyssMutatorOffensePct || 0);
+  const eqVoidStrikeChance = (weapon?.bonus?.voidStrikeChance || 0) + (armor?.bonus?.voidStrikeChance || 0);
+  const eqAbyssalCritFractureChance = (weapon?.bonus?.abyssalCritFractureChance || 0) + (armor?.bonus?.abyssalCritFractureChance || 0);
+  const eqEchoHitChance = (weapon?.bonus?.echoHitChance || 0) + (armor?.bonus?.echoHitChance || 0);
+  const eqEnemyAffixDamagePct = (weapon?.bonus?.enemyAffixDamagePct || 0) + (armor?.bonus?.enemyAffixDamagePct || 0);
+  const eqEnemyAffixLifesteal = (weapon?.bonus?.enemyAffixLifesteal || 0) + (armor?.bonus?.enemyAffixLifesteal || 0);
+  const eqPhaseSkin = (weapon?.bonus?.phaseSkin || 0) + (armor?.bonus?.phaseSkin || 0);
+  const eqAbyssRegenFlat = (weapon?.bonus?.abyssRegenFlat || 0) + (armor?.bonus?.abyssRegenFlat || 0);
+  const eqBossMechanicMitigation = (weapon?.bonus?.bossMechanicMitigation || 0) + (armor?.bonus?.bossMechanicMitigation || 0);
 
   const battleHardened = Math.max(0, player.battleHardened || 0);
   const heavyImpact = Math.max(0, player.heavyImpact || 0);
@@ -188,6 +203,7 @@ export function calcStats(player) {
     critChance,
     maxHp,
     regen: (player.flatRegen || 0) + (prestige.healthRegen || 0) + (codex.healthRegen || 0) + eqRegen,
+    regenPctMaxHp: (player.regenPctMaxHp || 0) + (prestige.regenPctMaxHp || 0),
     goldPct:  (player.goldPct  || 0) + (prestige.goldPct || 0) + (codex.goldPct || 0) + eqGoldPct,
     flatGold: (player.flatGold || 0) + eqFlatGold,
     xpPct:    (player.xpPct   || 0) + (prestige.xpPct || 0) + (codex.xpPct || 0) + eqXpPct,
@@ -219,6 +235,7 @@ export function calcStats(player) {
     critOnLowHp: (player.critOnLowHp || 0) + (prestige.critOnLowHp || 0) + eqCritOnLowHp,
     damageOnKill: (player.damageOnKill || 0) + (prestige.damageOnKill || 0) + eqDamageOnKill,
     thorns: (player.thorns || 0) + (prestige.thorns || 0) + (codex.thorns || 0) + eqThorns,
+    thornsDefenseRatio: (player.thornsDefenseRatio || 0) + (prestige.thornsDefenseRatio || 0),
     essenceBonus: (player.essenceBonus || 0) + (prestige.essenceBonus || 0) + (codex.essenceBonus || 0) + eqEssenceBonus,
     lootBonus: (player.lootBonus || 0) + (prestige.lootBonus || 0) + (codex.lootBonus || 0) + eqLootBonus,
     luck: (player.luck || 0) + (prestige.luck || 0) + (codex.luck || 0) + eqLuck,
@@ -298,6 +315,21 @@ export function calcStats(player) {
     cataclysmSustainMult,
     volatileCritNextHitMult,
     volatileFailNextHitMult,
+    abyssDamagePct: Math.max(0, (player.abyssDamagePct || 0) + (prestige.abyssDamagePct || 0) + (codex.abyssDamagePct || 0) + eqAbyssDamagePct),
+    abyssEnemyAffixPenaltyReduction: Math.max(0, (player.abyssEnemyAffixPenaltyReduction || 0) + (prestige.abyssEnemyAffixPenaltyReduction || 0) + eqAbyssEnemyAffixPenaltyReduction),
+    abyssNormalEnemyPenaltyReduction: Math.max(0, (player.abyssNormalEnemyPenaltyReduction || 0) + (prestige.abyssNormalEnemyPenaltyReduction || 0) + eqAbyssNormalEnemyPenaltyReduction),
+    abyssLootQuality: Math.max(0, (player.abyssLootQuality || 0) + (prestige.abyssLootQuality || 0) + eqAbyssLootQuality),
+    abyssEssenceMult: Math.max(0, (player.abyssEssenceMult || 0) + (prestige.abyssEssenceMult || 0) + eqAbyssEssenceMult),
+    abyssBossMechanicMitigation: Math.max(0, (player.abyssBossMechanicMitigation || 0) + (prestige.abyssBossMechanicMitigation || 0) + eqAbyssBossMechanicMitigation),
+    abyssMutatorOffensePct: Math.max(0, (player.abyssMutatorOffensePct || 0) + (prestige.abyssMutatorOffensePct || 0) + eqAbyssMutatorOffensePct),
+    voidStrikeChance: Math.max(0, (player.voidStrikeChance || 0) + eqVoidStrikeChance),
+    abyssalCritFractureChance: Math.max(0, (player.abyssalCritFractureChance || 0) + eqAbyssalCritFractureChance),
+    echoHitChance: Math.max(0, (player.echoHitChance || 0) + eqEchoHitChance),
+    enemyAffixDamagePct: Math.max(0, (player.enemyAffixDamagePct || 0) + eqEnemyAffixDamagePct),
+    enemyAffixLifesteal: Math.max(0, (player.enemyAffixLifesteal || 0) + eqEnemyAffixLifesteal),
+    phaseSkin: Math.max(0, (player.phaseSkin || 0) + eqPhaseSkin),
+    abyssRegenFlat: Math.max(0, (player.abyssRegenFlat || 0) + eqAbyssRegenFlat),
+    bossMechanicMitigation: Math.max(0, (player.bossMechanicMitigation || 0) + eqBossMechanicMitigation),
   };
 }
 

@@ -32,6 +32,14 @@ export function calcItemRating(item) {
     cooldownReduction = 0,
     skillPower = 0,
     lootBonus = 0,
+    voidStrikeChance = 0,
+    abyssalCritFractureChance = 0,
+    echoHitChance = 0,
+    enemyAffixDamagePct = 0,
+    enemyAffixLifesteal = 0,
+    phaseSkin = 0,
+    abyssRegenFlat = 0,
+    bossMechanicMitigation = 0,
   } = item.bonus;
   const effectiveMultiHit = multiHitChance + cooldownReduction;
   const effectiveCritDamage = critDamage + skillPower;
@@ -51,12 +59,20 @@ export function calcItemRating(item) {
     bleedDamage * (isWeapon ? 280 : 120) +
     fractureChance * (isWeapon ? 210 : 90) +
     markChance * (isWeapon ? 260 : 150) +
-    markEffectPerStack * (isWeapon ? 240 : 145) +
+    markEffectPerStack * (isWeapon ? 280 : 165) +
     dodgeChance * (isWeapon ? 115 : 215) +
-    blockChance * (isWeapon ? 105 : 245) +
-    damageOnKill * (isWeapon ? 11 : 5) +
-    critOnLowHp * (isWeapon ? 180 : 95) +
-    thorns * (isWeapon ? 2.5 : 6.5);
+    blockChance * (isWeapon ? 105 : 270) +
+    damageOnKill * (isWeapon ? 16 : 7) +
+    critOnLowHp * (isWeapon ? 210 : 110) +
+    thorns * (isWeapon ? 4 : 7.5) +
+    voidStrikeChance * (isWeapon ? 340 : 180) +
+    abyssalCritFractureChance * (isWeapon ? 280 : 140) +
+    echoHitChance * (isWeapon ? 320 : 160) +
+    enemyAffixDamagePct * (isWeapon ? 260 : 120) +
+    enemyAffixLifesteal * (isWeapon ? 220 : 140) +
+    phaseSkin * (isWeapon ? 80 : 220) +
+    abyssRegenFlat * (isWeapon ? 6 : 12) +
+    bossMechanicMitigation * (isWeapon ? 120 : 260);
   const economyScore =
     goldBonus * 0.05 +
     xpBonus * 6 +

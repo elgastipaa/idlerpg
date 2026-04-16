@@ -6,6 +6,7 @@ export const MOD_TYPES = {
   ATTACK_SPEED_FLAT: "attackSpeedFlat",
   CRIT_CHANCE: "critChance",
   REGEN_FLAT: "regenFlat",
+  REGEN_PERCENT_MAX_HP: "regenPercentMaxHp",
   HEAL_FLAT: "healFlat",
   HEAL_PERCENT_MAX_HP: "healPercentMaxHp",
   ENEMY_DAMAGE_TAKEN_MULT: "enemyDamageTakenMult",
@@ -13,4 +14,5 @@ export const MOD_TYPES = {
   LIFESTEAL_FLAT: "lifestealFlat",
   LIFESTEAL_PERCENT_DAMAGE: "lifestealPercentDamage",
   THORNS_FLAT: "thornsFlat",
+  THORNS_DEFENSE_RATIO: "thornsDefenseRatio",
 };

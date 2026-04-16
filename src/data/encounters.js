@@ -41,6 +41,85 @@ export const BOSS_MECHANICS = {
     type: "double_strike",
     params: { every: 5 },
   },
+  lifesteal_reflect: {
+    id: "lifesteal_reflect",
+    name: "Banquete Carmesi",
+    description: "Recupera vida equivalente a una parte del dano que recibe.",
+    type: "lifesteal_reflect",
+    params: { healPct: 0.16 },
+  },
+  poison_stacks: {
+    id: "poison_stacks",
+    name: "Miasma Acumulativo",
+    description: "Aplica veneno acumulativo que escala con la duracion del combate.",
+    type: "poison_stacks",
+    params: { chance: 0.42, basePctMaxHp: 0.012, rampPctPerTick: 0.0007, duration: 4, maxStacks: 4 },
+  },
+  thorns_aura: {
+    id: "thorns_aura",
+    name: "Aura de Espinas",
+    description: "Cada golpe contra el boss devuelve dano fijo y una fraccion del impacto.",
+    type: "thorns_aura",
+    params: {},
+    runtime: { flatThorns: 18, reflectRatio: 0.06 },
+  },
+  phase_reset: {
+    id: "phase_reset",
+    name: "Reset de Fase",
+    description: "Al caer a vida critica, reinicia la pelea una vez y vuelve a 60% de vida.",
+    type: "phase_reset",
+    params: { triggerThreshold: 0.3, resetToPct: 0.6 },
+  },
+  mark_reversal: {
+    id: "mark_reversal",
+    name: "Reversion de Marca",
+    description: "Si acumulas Marca sobre el boss, la devuelve como castigo directo.",
+    type: "mark_reversal",
+    params: { damagePerMarkPct: 0.06 },
+  },
+  regen_passive: {
+    id: "regen_passive",
+    name: "Regeneracion Pasiva",
+    description: "Regenera vida constantemente y obliga a mantener dano real.",
+    type: "regen_passive",
+    params: {},
+    runtime: { regenPerTick: 10, regenPctMaxHp: 0.003 },
+  },
+  spell_mirror: {
+    id: "spell_mirror",
+    name: "Espejo Arcano",
+    description: "Refleja parte del dano magico recibido de vuelta al jugador.",
+    type: "spell_mirror",
+    params: { reflectPct: 0.18 },
+  },
+};
+
+export const ABYSS_BOSS_AFFIX_POOLS = {
+  aggressive: ["lethal", "enraged", "vampiric", "reflective"],
+  defensive: ["armored", "bulky", "tanky", "thorns_master", "regenerating"],
+  control: ["crit_immune", "reflective", "regenerating", "armored", "vampiric"],
+  final: ["armored", "bulky", "tanky", "regenerating", "reflective", "lethal", "crit_immune", "thorns_master"],
+};
+
+export const ABYSS_BOSS_MECHANIC_POOLS = {
+  aggressive: ["double_strike", "enrage_low_hp", "lifesteal_reflect", "poison_stacks", "armor_shred"],
+  defensive: ["shield_every_n", "absorb_first_crit", "thorns_aura", "regen_passive", "crit_immunity"],
+  control: ["armor_shred", "crit_immunity", "spell_mirror", "mark_reversal", "phase_reset", "poison_stacks"],
+  final: [
+    "absorb_first_crit",
+    "enrage_low_hp",
+    "shield_every_n",
+    "armor_shred",
+    "crit_immunity",
+    "double_strike",
+    "lifesteal_reflect",
+    "poison_stacks",
+    "thorns_aura",
+    "phase_reset",
+    "mark_reversal",
+    "regen_passive",
+    "spell_mirror",
+  ],
 };
 
 export const ENEMY_FAMILIES = {

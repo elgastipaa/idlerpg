@@ -7,12 +7,16 @@ import {
   getPrestigePreview,
   getPrestigeNodeLevel,
   getPrestigeBonusRows,
+  isPrestigeBranchUnlocked,
 } from "../engine/progression/prestigeEngine";
+import { getAbyssUnlockEntries } from "../engine/progression/abyssProgression";
 
 const PERCENT_KEYS = new Set([
   "damagePct",
   "defensePct",
   "hpPct",
+  "regenPctMaxHp",
+  "thornsDefenseRatio",
   "goldPct",
   "xpPct",
   "attackSpeed",
@@ -39,12 +43,20 @@ const PERCENT_KEYS = new Set([
   "ascendCostReduction",
   "ascendImprintCostReduction",
   "discoveredPowerBias",
+  "abyssDamagePct",
+  "abyssEnemyAffixPenaltyReduction",
+  "abyssNormalEnemyPenaltyReduction",
+  "abyssLootQuality",
+  "abyssEssenceMult",
+  "abyssBossMechanicMitigation",
+  "abyssMutatorOffensePct",
 ]);
 
 const BONUS_LABELS = {
   damagePct: "Dano",
   defensePct: "Defensa",
   hpPct: "Vida",
+  regenPctMaxHp: "Regen",
   flatDamage: "Dano plano",
   flatDefense: "Defensa plana",
   healthRegen: "Regen",
@@ -59,6 +71,7 @@ const BONUS_LABELS = {
   critOnLowHp: "Crit baja vida",
   damageOnKill: "Dano al matar",
   thorns: "Espinas",
+  thornsDefenseRatio: "Espinas desde defensa",
   essenceBonus: "Esencia",
   lootBonus: "Botin",
   luck: "Suerte",
@@ -82,6 +95,13 @@ const BONUS_LABELS = {
   ascendImprintCostReduction: "Ascender con poder",
   reforgeOptionCount: "Opciones de reforja",
   discoveredPowerBias: "Caza de poderes",
+  abyssDamagePct: "Dano Abismo",
+  abyssEnemyAffixPenaltyReduction: "Castigo de anomalias",
+  abyssNormalEnemyPenaltyReduction: "Presion trash",
+  abyssLootQuality: "Calidad de loot Abismo",
+  abyssEssenceMult: "Esencia Abismo",
+  abyssBossMechanicMitigation: "Mitigacion Abismo",
+  abyssMutatorOffensePct: "Ofensiva por anomalia",
 };
 
 function formatNumber(value) {
@@ -92,8 +112,11 @@ function formatNumber(value) {
 }
 
 function formatBonus(key, value) {
-  if (PERCENT_KEYS.has(key)) return `+${formatNumber(value * 100)}%`;
-  return `+${formatNumber(value)}`;
+  const numeric = Number(value || 0);
+  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
+  const magnitude = Math.abs(numeric);
+  if (PERCENT_KEYS.has(key)) return `${sign}${formatNumber(magnitude * 100)}%`;
+  return `${sign}${formatNumber(magnitude)}`;
 }
 
 function summarizeEffectEntries(entries = [], { emptyLabel = "Sin invertir", max = 3 } = {}) {
@@ -156,14 +179,24 @@ export default function Prestige({ state, dispatch }) {
   const recommendedNode = purchasableNodes[0] || null;
   const resetBreakdown = (prestigePreview.breakdown || []).filter(entry => (entry.echoes || 0) > 0);
   const highlightedBonuses = bonusRows.slice(0, 6);
+  const abyssUnlocks = useMemo(() => getAbyssUnlockEntries(state?.abyss || {}), [state?.abyss]);
+  const highestAbyssDepth = Number(state?.abyss?.highestDepthReached || 0);
+  const highestAbyssTier = Number(state?.abyss?.highestTierReached || 1);
   const activeBranch = PRESTIGE_BRANCHES.find(branch => branch.id === (activeBranchId || PRESTIGE_BRANCHES[0]?.id)) || PRESTIGE_BRANCHES[0];
+  const activeBranchUnlocked = isPrestigeBranchUnlocked(state, activeBranch);
   const branchSummaries = useMemo(() => Object.fromEntries(
     PRESTIGE_BRANCHES.map(branch => {
       const branchNodes = PRESTIGE_TREE_NODES.filter(node => node.branch === branch.id);
       const activeNodes = branchNodes.filter(node => (prestige.nodes?.[node.id] || 0) > 0).length;
       const investedLevels = branchNodes.reduce((total, node) => total + (prestige.nodes?.[node.id] || 0), 0);
       const purchasableNow = branchNodes.filter(node => canPurchasePrestigeNode(state, node).ok).length;
-      return [branch.id, { activeNodes, investedLevels, purchasableNow, totalNodes: branchNodes.length }];
+      return [branch.id, {
+        activeNodes,
+        investedLevels,
+        purchasableNow,
+        totalNodes: branchNodes.length,
+        unlocked: isPrestigeBranchUnlocked(state, branch),
+      }];
     })
   ), [prestige.nodes, state]);
   const activeBranchNodes = useMemo(
@@ -271,6 +304,51 @@ export default function Prestige({ state, dispatch }) {
       <section style={summaryPanelStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
           <div>
+            <div style={sectionTitleStyle}>Hitos de Abismo</div>
+            <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "4px" }}>
+              Progreso historico de cuenta. No se reinicia al prestigiar.
+            </div>
+          </div>
+          <div style={summaryBadgeStyle}>
+            {highestAbyssDepth > 0 ? `Abismo ${highestAbyssDepth}` : "Mundo base"}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: "8px", marginTop: "12px" }}>
+          {abyssUnlocks.map(unlock => (
+            <div
+              key={unlock.id}
+              style={{
+                borderRadius: "12px",
+                border: "1px solid",
+                borderColor: unlock.unlocked ? "rgba(99,102,241,0.24)" : "rgba(148,163,184,0.18)",
+                background: unlock.unlocked ? "rgba(79,70,229,0.12)" : "rgba(255,255,255,0.04)",
+                padding: "10px",
+                display: "grid",
+                gap: "4px",
+              }}
+            >
+              <div style={{ fontSize: "0.62rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: unlock.unlocked ? "#c7d2fe" : "#94a3b8" }}>
+                {unlock.name}
+              </div>
+              <div style={{ fontSize: "0.78rem", fontWeight: 900, color: unlock.unlocked ? "#f8fafc" : "#e2e8f0" }}>
+                {unlock.reward}
+              </div>
+              <div style={{ fontSize: "0.64rem", color: unlock.unlocked ? "#cbd5e1" : "#94a3b8" }}>
+                {unlock.unlocked ? "Registrado" : `Llega al Tier ${unlock.minTier}`}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ ...smallCopyStyle, marginTop: "10px", color: "#94a3b8" }}>
+          Pico historico: Tier {formatNumber(highestAbyssTier)}.
+        </div>
+      </section>
+
+      <section style={summaryPanelStyle}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <div>
             <div style={sectionTitleStyle}>Ramas</div>
             <div style={{ fontSize: "0.74rem", color: "#94a3b8", marginTop: "4px" }}>Mira una rama a la vez. Es mas facil leer progreso, costos y proximo nodo util.</div>
           </div>
@@ -291,6 +369,7 @@ export default function Prestige({ state, dispatch }) {
             {PRESTIGE_BRANCHES.map(branch => {
               const active = activeBranch?.id === branch.id;
               const summary = branchSummaries[branch.id] || { activeNodes: 0, investedLevels: 0, purchasableNow: 0, totalNodes: 0 };
+              const unlocked = summary.unlocked !== false;
               return (
                 <button
                   key={`branch-tab-${branch.id}`}
@@ -298,20 +377,28 @@ export default function Prestige({ state, dispatch }) {
                   style={{
                     minWidth: isMobile ? "138px" : "158px",
                     border: "1px solid",
-                    borderColor: active ? `${branch.color}88` : "rgba(255,255,255,0.12)",
+                    borderColor: active ? `${branch.color}88` : unlocked ? "rgba(255,255,255,0.12)" : "#334155",
                     background: active ? `${branch.color}22` : "#0f172a",
-                    color: active ? branch.color : "#cbd5e1",
+                    color: active ? branch.color : unlocked ? "#cbd5e1" : "#94a3b8",
                     borderRadius: "12px",
                     padding: "9px 10px",
                     cursor: "pointer",
                     textAlign: "left",
                     flexShrink: 0,
+                    opacity: unlocked ? 1 : 0.78,
                   }}
                 >
-                  <div style={{ fontSize: "0.66rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em" }}>{branch.name}</div>
+                  <div style={{ fontSize: "0.66rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    {branch.name}{!unlocked ? " · LOCK" : ""}
+                  </div>
                   <div style={{ fontSize: "0.56rem", color: active ? "#e2e8f0" : "#94a3b8", marginTop: "4px", fontWeight: 800 }}>
                     {summary.activeNodes}/{summary.totalNodes} nodos · {summary.investedLevels} niveles
                   </div>
+                  {!unlocked && (
+                    <div style={{ fontSize: "0.54rem", color: "#cbd5e1", marginTop: "4px", fontWeight: 900 }}>
+                      Requiere Abismo I
+                    </div>
+                  )}
                   {summary.purchasableNow > 0 && (
                     <div style={{ fontSize: "0.54rem", color: branch.color, marginTop: "4px", fontWeight: 900 }}>
                       {summary.purchasableNow} comprable{summary.purchasableNow === 1 ? "" : "s"}
@@ -344,6 +431,11 @@ export default function Prestige({ state, dispatch }) {
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" }}>
               <span style={metaChipStyle}>{branchSummaries[activeBranch.id]?.activeNodes || 0}/{branchSummaries[activeBranch.id]?.totalNodes || activeBranchNodes.length} nodos</span>
               <span style={metaChipStyle}>{branchSummaries[activeBranch.id]?.investedLevels || 0} niveles</span>
+              {!activeBranchUnlocked && (
+                <span style={{ ...metaChipStyle, borderColor: "#475569", color: "#cbd5e1" }}>
+                  Desbloquea Abismo I
+                </span>
+              )}
               {(branchSummaries[activeBranch.id]?.purchasableNow || 0) > 0 && (
                 <span style={{ ...metaChipStyle, borderColor: `${activeBranch.color}55`, color: activeBranch.color }}>
                   {branchSummaries[activeBranch.id]?.purchasableNow || 0} comprables
@@ -407,6 +499,10 @@ export default function Prestige({ state, dispatch }) {
                           <span style={nodeStatusPillStyle(purchase.ok, tone, activeBranch.color)}>
                             {level >= node.maxLevel
                               ? "Max"
+                              : purchase.reason === "unlock"
+                                ? "Falta Abismo I"
+                                : purchase.reason === "exclusive"
+                                  ? "Excluyente"
                               : purchase.reason === "class"
                                 ? "Otra spec"
                                 : purchase.reason === "requires"
@@ -424,7 +520,11 @@ export default function Prestige({ state, dispatch }) {
                               ? "Maximo"
                               : purchase.ok
                                 ? `Comprar ${purchase.cost}`
-                                : "No disponible"}
+                                : purchase.reason === "unlock"
+                                  ? "Bloqueado"
+                                  : purchase.reason === "exclusive"
+                                    ? "Elegido otro"
+                                    : "No disponible"}
                           </button>
                         </div>
                       </div>

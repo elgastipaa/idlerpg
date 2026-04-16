@@ -1,10 +1,10 @@
 ﻿import { spawnEnemy } from "./enemyEngine";
+import { createRunContext } from "./encounterRouting";
 import { calcStats } from "./statEngine";
 import { calculateRewards } from "../progression/rewards";
 import { checkAchievements } from "../progression/achievementEngine";
 import { processTriggerTalents } from "../talents/talentEngine";
 import { applyLevelUp } from "../leveling";
-import { ENEMIES } from "../../data/enemies";
 import { addToInventory, calcItemRating } from "../inventory/inventoryEngine";
 import { getPlayerBuildTag } from "../../utils/buildIdentity";
 import {
@@ -38,6 +38,8 @@ const BLEED_STACK_CAP = 4;
 const BLEED_DURATION_TICKS = 4;
 const FRACTURE_STACK_CAP = 5;
 const FRACTURE_DURATION_TICKS = 5;
+const VOID_FRACTURE_STACK_CAP = 3;
+const VOID_FRACTURE_DURATION_TICKS = 4;
 const FRACTURE_DEFENSE_REDUCTION_PER_STACK = 0.1;
 const ENEMY_DEFENSE_SCALING = 260;
 let floatEventSequence = 0;
@@ -120,6 +122,7 @@ function buildTriggerCounters(
 function getEmptyRunStats() {
   return {
     kills: 0,
+    bossKills: 0,
     damageDealt: 0,
     gold: 0,
     xp: 0,
@@ -251,6 +254,55 @@ function getBleedTickDamage(runtime = {}) {
   return Math.max(1, Math.floor(stacks * perStack));
 }
 
+function getVoidFractureTickDamage(runtime = {}) {
+  const stacks = Math.max(0, Number(runtime?.voidFractureStacks || 0));
+  const perStack = Math.max(0, Number(runtime?.voidFracturePerStack || 0));
+  const duration = Math.max(0, Number(runtime?.voidFractureTicksRemaining || 0));
+  if (!stacks || !perStack || !duration) return 0;
+  return Math.max(1, Math.floor(stacks * perStack));
+}
+
+function getPlayerPoisonTickDamage(runtime = {}) {
+  const stacks = Math.max(0, Number(runtime?.poisonStacksOnPlayer || 0));
+  const perStack = Math.max(0, Number(runtime?.poisonPerStackOnPlayer || 0));
+  const duration = Math.max(0, Number(runtime?.poisonTicksRemainingOnPlayer || 0));
+  if (!stacks || !perStack || !duration) return 0;
+  return Math.max(1, Math.floor(stacks * perStack));
+}
+
+function applyMitigatedDamage(value = 0, mitigation = 0) {
+  const numeric = Math.max(0, Number(value || 0));
+  if (!numeric) return 0;
+  const clampedMitigation = Math.min(0.9, Math.max(0, Number(mitigation || 0)));
+  return Math.max(0, Math.floor(numeric * (1 - clampedMitigation)));
+}
+
+function hasEnemyAffixPressure(enemy = null) {
+  return Math.max(0, Number(enemy?.monsterAffixes?.length || 0)) > 0;
+}
+
+function getAbyssMutatorSeverity(enemy = null) {
+  const mutator = enemy?.abyssMutator;
+  if (!mutator) return 0;
+
+  const countStatEntries = modifiers =>
+    Object.values(modifiers?.stats || {}).reduce((count, value) => (
+      Number(value || 1) !== 1 ? count + 1 : count
+    ), 0);
+
+  const commonStats = countStatEntries(mutator.commonModifiers);
+  const bossStats = countStatEntries(mutator.bossModifiers);
+  const affixCount =
+    Math.max(0, Number(mutator?.commonModifiers?.affixIds?.length || 0)) +
+    Math.max(0, Number(mutator?.bossModifiers?.affixIds?.length || 0));
+  const mechanicCount = Math.max(0, Number(mutator?.bossModifiers?.mechanicIds?.length || 0));
+
+  return Math.max(
+    0.75,
+    commonStats * 0.18 + bossStats * 0.14 + affixCount * 0.28 + mechanicCount * 0.36
+  );
+}
+
 function rollDamageRangeMultiplier(stats = {}) {
   const min = Math.max(0.25, Number(stats.damageRangeMin || 1));
   const max = Math.max(min, Number(stats.damageRangeMax || 1));
@@ -268,8 +320,14 @@ function hydrateSpawnedEnemy(enemy, runtimePatch = {}) {
       bleedStacks: 0,
       bleedPerStack: 0,
       bleedTicksRemaining: 0,
+      poisonStacksOnPlayer: 0,
+      poisonPerStackOnPlayer: 0,
+      poisonTicksRemainingOnPlayer: 0,
       fractureStacks: 0,
       fractureTicksRemaining: 0,
+      voidFractureStacks: 0,
+      voidFracturePerStack: 0,
+      voidFractureTicksRemaining: 0,
       flowStacks: 0,
       markStacks: 0,
       markTicksRemaining: 0,
@@ -277,6 +335,9 @@ function hydrateSpawnedEnemy(enemy, runtimePatch = {}) {
       mageFlowHitsRemaining: 0,
       mageMemoryStacks: 0,
       mageTemporalFlowStacks: 0,
+      phaseResetUsed: false,
+      phaseSkinUsed: false,
+      bloodPactUsed: false,
       ...(enemy.runtime || {}),
       ...(runtimePatch || {}),
     },
@@ -287,8 +348,8 @@ export function processTick(state) {
   if (state.combat?.pendingRunSetup) return state;
   const enemy = state.combat.enemy;
   if (!enemy) return state;
-  const activeRunSigilId = state.combat?.activeRunSigilId || "free";
-  const runSigilCodexModifiers = getRunSigilCodexModifiers(activeRunSigilId);
+  const activeRunSigilIds = state.combat?.activeRunSigilIds || state.combat?.activeRunSigilId || "free";
+  const runSigilCodexModifiers = getRunSigilCodexModifiers(activeRunSigilIds);
   const sightedCodex = recordCodexSighting(state.codex || {}, enemy);
   const lootRuleSet = buildLootRuleSet(state.settings?.lootRules, state.player, enemy);
   const enemyRuntime = enemy.runtime || {};
@@ -307,11 +368,42 @@ export function processTick(state) {
   };
   const s = calcStats(state.player);
   const initialMageVolatileMult = Math.max(0.2, Number(state.combat.pendingMageVolatileMult || 1));
-  const legendaryBonuses = getLegendaryStaticBonuses({ player: state.player, enemy, stats: s });
+  const legendaryBonuses = getLegendaryStaticBonuses({
+    player: state.player,
+    enemy,
+    stats: s,
+    currentTier: currentCombatTier,
+    maxTier: state.combat.maxTier || currentCombatTier,
+    bossesKilledThisRun: state.combat.runStats?.bossKills || 0,
+  });
   const unlockedTalents = state.player.unlockedTalents || [];
   const effectsToApply = [];
   const preLegendaryEffects = [];
   const preLegendaryLogs = [];
+  const isAbyssEnemy = Number(enemy?.abyssDepth || 0) > 0;
+  const hasEnemyAffixes = hasEnemyAffixPressure(enemy);
+  const abyssMutatorSeverity = getAbyssMutatorSeverity(enemy);
+  const abyssPenaltyReduction = isAbyssEnemy
+    ? Math.min(
+        0.75,
+        Math.max(0, Number(s.abyssEnemyAffixPenaltyReduction || 0)) +
+          (!enemy.isBoss ? Math.max(0, Number(s.abyssNormalEnemyPenaltyReduction || 0)) : 0)
+      )
+    : 0;
+  const abyssRegenBonus = isAbyssEnemy
+    ? Math.floor(
+        Math.max(0, Number(s.abyssRegenFlat || 0)) *
+          Math.max(1, Number(enemy?.abyssDepth || 1)) *
+          Math.max(1, Number(enemy?.cycleTier || currentCombatTier || 1) / 25)
+      )
+    : 0;
+  const bossMechanicMitigation = enemy.isBoss
+    ? Math.min(
+        0.75,
+        Math.max(0, Number(s.bossMechanicMitigation || 0)) +
+          (isAbyssEnemy ? Math.max(0, Number(s.abyssBossMechanicMitigation || 0)) : 0)
+      )
+    : 0;
 
   const { effects: preTriggerEffects, logs: preTriggerLogs } = processTriggerTalents({
     unlockedTalents,
@@ -349,7 +441,13 @@ export function processTick(state) {
   const playerLowHp = state.player.hp / s.maxHp <= 0.3;
   const hasClericBlessing = unlockedTalents.includes("cleric_blessing");
   const regenAmount = Math.floor(
-    (1 + (s.regen || 0) + (hasClericBlessing ? 5 : 0) + (effectMods.regen || 0) + (legendaryBonuses.regen || 0)) *
+    (1 +
+      (s.regen || 0) +
+      Math.floor(s.maxHp * ((s.regenPctMaxHp || 0) + (effectMods.regenPctMaxHp || 0))) +
+      (hasClericBlessing ? 5 : 0) +
+      (effectMods.regen || 0) +
+      (legendaryBonuses.regen || 0) +
+      abyssRegenBonus) *
       (eventMods.regenMult || 1)
   );
 
@@ -373,10 +471,25 @@ export function processTick(state) {
     Math.floor((s.defense + (effectMods.defenseFlat || 0)) * (effectMods.defenseMult || 1) * (legendaryBonuses.defenseMult || 1))
   );
   const currentTick = (state.combat.ticksInCurrentRun || 0) + 1;
-  const enemyRegenPerTick = Math.max(0, enemyRuntime.regenPerTick || 0);
-  const enemyFlatReduction = Math.max(0, enemyRuntime.flatDamageReduction || 0);
-  const enemyFlatThorns = Math.max(0, enemyRuntime.flatThorns || 0);
-  const enemyThornsRatio = Math.max(0, enemyRuntime.reflectRatio || 0);
+  const enemyRegenPerTick = Math.max(
+    0,
+    Math.floor(
+      ((enemyRuntime.regenPerTick || 0) + enemy.maxHp * Math.max(0, Number(enemyRuntime.regenPctMaxHp || 0))) *
+        (1 - abyssPenaltyReduction)
+    )
+  );
+  const enemyFlatReduction = Math.max(
+    0,
+    Math.floor((enemyRuntime.flatDamageReduction || 0) * (1 - abyssPenaltyReduction))
+  );
+  const enemyFlatThorns = Math.max(
+    0,
+    Math.floor((enemyRuntime.flatThorns || 0) * (1 - abyssPenaltyReduction))
+  );
+  const enemyThornsRatio = Math.max(
+    0,
+    (enemyRuntime.reflectRatio || 0) * (1 - abyssPenaltyReduction)
+  );
   const enemyCritImmune =
     !!enemyRuntime.critImmune ||
     (hasBossMechanic(enemy, "crit_immunity") &&
@@ -403,10 +516,18 @@ export function processTick(state) {
       : 1;
 
   const statusBleedTickDamage = getBleedTickDamage(enemyRuntime);
+  const statusVoidFractureTickDamage = getVoidFractureTickDamage(enemyRuntime);
+  const statusPlayerPoisonTickDamage = getPlayerPoisonTickDamage(enemyRuntime);
   const nextEnemyRuntime = {
     ...enemyRuntime,
     bleedTicksRemaining:
       Math.max(0, Number(enemyRuntime.bleedTicksRemaining || 0) - (statusBleedTickDamage > 0 ? 1 : 0)),
+    poisonTicksRemainingOnPlayer:
+      Math.max(
+        0,
+        Number(enemyRuntime.poisonTicksRemainingOnPlayer || 0) -
+          (statusPlayerPoisonTickDamage > 0 ? 1 : 0)
+      ),
     fractureTicksRemaining:
       Math.max(
         0,
@@ -419,15 +540,28 @@ export function processTick(state) {
         Number(enemyRuntime.markTicksRemaining || 0) -
           ((enemyRuntime.markStacks || 0) > 0 ? 1 : 0)
       ),
+    voidFractureTicksRemaining:
+      Math.max(
+        0,
+        Number(enemyRuntime.voidFractureTicksRemaining || 0) -
+          ((enemyRuntime.voidFractureStacks || 0) > 0 ? 1 : 0)
+      ),
     mageFlowBonusMult: Math.max(1, Number(enemyRuntime.mageFlowBonusMult || 1)),
     mageFlowHitsRemaining: Math.max(0, Number(enemyRuntime.mageFlowHitsRemaining || 0)),
     mageMemoryStacks: Math.max(0, Number(enemyRuntime.mageMemoryStacks || 0)),
     mageTemporalFlowStacks: Math.max(0, Number(enemyRuntime.mageTemporalFlowStacks || 0)),
     hasTakenPlayerHit: !!enemyRuntime.hasTakenPlayerHit,
+    phaseResetUsed: !!enemyRuntime.phaseResetUsed,
+    phaseSkinUsed: !!enemyRuntime.phaseSkinUsed,
+    bloodPactUsed: !!enemyRuntime.bloodPactUsed,
   };
   if ((nextEnemyRuntime.bleedTicksRemaining || 0) <= 0) {
     nextEnemyRuntime.bleedStacks = 0;
     nextEnemyRuntime.bleedPerStack = 0;
+  }
+  if ((nextEnemyRuntime.poisonTicksRemainingOnPlayer || 0) <= 0) {
+    nextEnemyRuntime.poisonStacksOnPlayer = 0;
+    nextEnemyRuntime.poisonPerStackOnPlayer = 0;
   }
   if ((nextEnemyRuntime.fractureTicksRemaining || 0) <= 0) {
     nextEnemyRuntime.fractureStacks = 0;
@@ -435,14 +569,23 @@ export function processTick(state) {
   if ((nextEnemyRuntime.markTicksRemaining || 0) <= 0) {
     nextEnemyRuntime.markStacks = 0;
   }
+  if ((nextEnemyRuntime.voidFractureTicksRemaining || 0) <= 0) {
+    nextEnemyRuntime.voidFractureStacks = 0;
+    nextEnemyRuntime.voidFracturePerStack = 0;
+  }
   if ((nextEnemyRuntime.mageFlowHitsRemaining || 0) <= 0) {
     nextEnemyRuntime.mageFlowBonusMult = 1;
   }
 
   const bleedTickDamage = statusBleedTickDamage;
+  const voidFractureTickDamage = statusVoidFractureTickDamage;
+  const playerPoisonTickDamage =
+    hasBossMechanic(enemy, "poison_stacks")
+      ? applyMitigatedDamage(statusPlayerPoisonTickDamage, bossMechanicMitigation)
+      : statusPlayerPoisonTickDamage;
   const enemyHpAfterStatuses = Math.max(
     0,
-    Math.min(enemy.maxHp, enemy.hp - bleedTickDamage + enemyRegenPerTick)
+    Math.min(enemy.maxHp, enemy.hp - bleedTickDamage - voidFractureTickDamage + enemyRegenPerTick)
   );
   const totalAttackSpeed = Math.max(
     0,
@@ -457,10 +600,19 @@ export function processTick(state) {
     if (hitCount > 0 && Math.random() < totalAttackSpeed) hitCount += 1;
     if (hitCount > 0 && Math.random() < totalMultiHitChance) hitCount += 1;
   }
+  const baseHitCount = hitCount;
+  const totalEchoHitChance = Math.max(0, Math.min(0.55, Number(s.echoHitChance || 0)));
+  const echoHitTriggered = hitCount > 0 && Math.random() < totalEchoHitChance;
+  if (echoHitTriggered) hitCount += 1;
   const pendingOnKillDamage = state.combat.pendingOnKillDamage || 0;
   const totalBleedChance = Math.max(0, Math.min(CRIT_CAP, s.bleedChance || 0));
   const totalBleedDamage = Math.max(0, s.bleedDamage || 0);
   const totalFractureChance = Math.max(0, Math.min(CRIT_CAP, s.fractureChance || 0));
+  const totalVoidStrikeChance = Math.max(0, Math.min(0.45, Number(s.voidStrikeChance || 0)));
+  const totalAbyssalCritFractureChance = Math.max(
+    0,
+    Math.min(CRIT_CAP, Number(s.abyssalCritFractureChance || 0))
+  );
   const totalMarkChance = Math.max(
     0,
     Math.min(CRIT_CAP, (s.markChance || 0) + (legendaryBonuses.markChance || 0))
@@ -471,6 +623,8 @@ export function processTick(state) {
   let appliedBleedStacks = 0;
   let appliedFractureStacks = 0;
   let appliedMarkStacks = 0;
+  let appliedVoidFractureStacks = 0;
+  let voidStrikeHits = 0;
   let pendingMageVolatileMult = initialMageVolatileMult;
   const openingHitPending = !enemyRuntime.openingHitSpent && (s.openingHitDamageMult || 1) > 1;
   const executeThreshold = Math.max(0.15, Number(s.executeThreshold || 0));
@@ -523,6 +677,17 @@ export function processTick(state) {
         hitIndex > 0 && (s.overchannelPenaltyPerExtraHit || 0) > 0
           ? Math.max(0.45, 1 - Number(s.overchannelPenaltyPerExtraHit || 0) * hitIndex)
           : 1;
+      const echoHitMult = hitIndex >= baseHitCount ? 0.4 : 1;
+      const corruptionAmpMult = hasEnemyAffixes ? 1 + Math.max(0, Number(s.enemyAffixDamagePct || 0)) : 1;
+      const abyssDamageMult = isAbyssEnemy ? 1 + Math.max(0, Number(s.abyssDamagePct || 0)) : 1;
+      const abyssMutatorOffenseMult =
+        isAbyssEnemy && abyssMutatorSeverity > 0
+          ? 1 + Math.max(0, Number(s.abyssMutatorOffensePct || 0)) * abyssMutatorSeverity
+          : 1;
+      const abyssPenaltyCounterMult =
+        isAbyssEnemy && abyssPenaltyReduction > 0
+          ? 1 + abyssPenaltyReduction * (enemy.isBoss ? 0.18 : 0.14)
+          : 1;
 
       if (hitEnemyHpPct < 0.3) {
         if (unlockedTalents.includes("shadowblade_execution")) hitLowHpMult *= 1.5;
@@ -541,7 +706,8 @@ export function processTick(state) {
       const hitCrit = rawCrit && !bossAbsorbCrit;
       const critMultiplier = hitCrit ? 2 + (s.critDamage || 0) + (legendaryBonuses.critDamage || 0) : 1;
       const fracturedDefense = getFractureReducedDefense(enemy.defense || 0, nextEnemyRuntime.fractureStacks || 0);
-      const enemyDefenseMultiplier = getEnemyDefenseMultiplier(fracturedDefense);
+      const didVoidStrike = Math.random() < totalVoidStrikeChance;
+      const enemyDefenseMultiplier = didVoidStrike ? 1 : getEnemyDefenseMultiplier(fracturedDefense);
       const openingHitMultiplier =
         hitIndex === 0 && openingHitPending
           ? Math.max(1, s.openingHitDamageMult || 1)
@@ -567,6 +733,11 @@ export function processTick(state) {
           rangeRoll *
           Math.max(0.7, Number(s.cataclysmSustainMult || 1)) *
           overchannelChainPenalty *
+          echoHitMult *
+          corruptionAmpMult *
+          abyssDamageMult *
+          abyssMutatorOffenseMult *
+          abyssPenaltyCounterMult *
           (hitIndex > 0
             ? Math.max(0.35, Number(s.multiHitDamageMult || 1) + Number(legendaryBonuses.multiHitDamageMult || 0))
             : 1) *
@@ -582,6 +753,7 @@ export function processTick(state) {
       playerDmg += hitDamage;
       if (hitCrit) didCrit = true;
       if (bossAbsorbCrit) consumedFirstCritShield = true;
+      if (didVoidStrike && hitDamage > 0) voidStrikeHits += 1;
       if (hitDamage > 0) {
         nextEnemyRuntime.hasTakenPlayerHit = true;
       }
@@ -610,6 +782,23 @@ export function processTick(state) {
         );
         nextEnemyRuntime.bleedTicksRemaining = BLEED_DURATION_TICKS;
         appliedBleedStacks += 1;
+      }
+
+      if (hitDamage > 0 && hitCrit && Math.random() < totalAbyssalCritFractureChance) {
+        const voidFracturePerStack = Math.max(
+          1,
+          Math.floor(hitDamage * (0.035 + Math.max(0, Number(enemy?.abyssDepth || 0)) * 0.008))
+        );
+        nextEnemyRuntime.voidFractureStacks = Math.min(
+          VOID_FRACTURE_STACK_CAP,
+          Number(nextEnemyRuntime.voidFractureStacks || 0) + 1
+        );
+        nextEnemyRuntime.voidFracturePerStack = Math.max(
+          Number(nextEnemyRuntime.voidFracturePerStack || 0),
+          voidFracturePerStack
+        );
+        nextEnemyRuntime.voidFractureTicksRemaining = VOID_FRACTURE_DURATION_TICKS;
+        appliedVoidFractureStacks += 1;
       }
 
       if (hitDamage > 0 && totalMarkChance > 0 && Math.random() < totalMarkChance) {
@@ -674,32 +863,177 @@ export function processTick(state) {
   const critText = didCrit ? " [CRIT]" : "";
   const enemyHpBeforeDamage = enemyHpAfterStatuses;
   const armorShred = getBossMechanic(enemy, "armor_shred");
+  const lifestealReflect = getBossMechanic(enemy, "lifesteal_reflect");
+  const poisonMechanic = getBossMechanic(enemy, "poison_stacks");
+  const phaseResetMechanic = getBossMechanic(enemy, "phase_reset");
+  const markReversalMechanic = getBossMechanic(enemy, "mark_reversal");
+  const spellMirrorMechanic = getBossMechanic(enemy, "spell_mirror");
   const ignoreDefenseThisTick =
     !!armorShred && currentTick % (armorShred.params?.every || 6) === 0;
-  const enemyDamageBase = enemyHpBeforeDamage <= 0
+  const abyssBossDamageMitigation = enemy.isBoss && isAbyssEnemy
+    ? Math.min(0.7, Math.max(0, Number(s.abyssBossMechanicMitigation || 0)))
+    : 0;
+  let enemyDamageBase = enemyHpBeforeDamage <= 0
     ? 0
     : evaded
     ? 0
     : Math.max(1, Math.floor(enemy.damage * enemyDamageMult * bossDamageMult) - (ignoreDefenseThisTick ? 0 : effectiveDefense));
+  if (!enemy.isBoss && isAbyssEnemy && abyssPenaltyReduction > 0) {
+    enemyDamageBase = Math.max(0, Math.floor(enemyDamageBase * (1 - abyssPenaltyReduction * 0.28)));
+  }
+  if (enemy.isBoss && abyssBossDamageMitigation > 0) {
+    enemyDamageBase = Math.max(0, Math.floor(enemyDamageBase * (1 - abyssBossDamageMitigation)));
+  }
+  if (ignoreDefenseThisTick && bossMechanicMitigation > 0) {
+    enemyDamageBase = Math.max(0, Math.floor(enemyDamageBase * (1 - bossMechanicMitigation)));
+  }
   const blocked =
     !evaded &&
     enemyDamageBase > 0 &&
     Math.random() < Math.min(CRIT_CAP, Math.max(0, (s.blockChance || 0) + (legendaryBonuses.blockChance || 0)));
-  const enemyDmg = blocked ? 0 : enemyDamageBase * enemyStrikeCount;
+  let enemyDmg = blocked ? 0 : enemyDamageBase * enemyStrikeCount;
+  let reversedMarkStacks = 0;
+  let markReversalDamage = 0;
+  if (
+    markReversalMechanic &&
+    !evaded &&
+    (nextEnemyRuntime.markStacks || 0) > 0
+  ) {
+    reversedMarkStacks = Math.max(0, Number(nextEnemyRuntime.markStacks || 0));
+    markReversalDamage = Math.max(
+      1,
+      Math.floor(
+        enemy.damage *
+          reversedMarkStacks *
+          Math.max(0, Number(markReversalMechanic.params?.damagePerMarkPct || 0.06))
+      )
+    );
+    markReversalDamage = applyMitigatedDamage(markReversalDamage, bossMechanicMitigation);
+    nextEnemyRuntime.markStacks = 0;
+    nextEnemyRuntime.markTicksRemaining = 0;
+    enemyDmg += markReversalDamage;
+  }
+  if (!blocked && enemyStrikeCount > 1 && bossMechanicMitigation > 0) {
+    enemyDmg = Math.max(0, Math.floor(enemyDmg * (1 - bossMechanicMitigation)));
+  }
   const tookDamage = enemyDmg > 0;
   const regenHp = Math.min(s.maxHp, preImmediate.hp + regenAmount);
   const appliedRegen = Math.max(0, regenHp - preImmediate.hp);
-  let newPlayerHp = regenHp - enemyDmg;
-  const thornsDamage = tookDamage ? Math.max(0, Math.floor((s.thorns || 0) + (effectMods.thornsFlat || 0))) : 0;
+  const hpAfterPoison = Math.max(0, regenHp - playerPoisonTickDamage);
+  let newPlayerHp = hpAfterPoison - enemyDmg;
+  let appliedPoisonStacksToPlayer = 0;
+  if (poisonMechanic && tookDamage) {
+    const poisonChance = Math.min(0.85, Math.max(0, Number(poisonMechanic.params?.chance || 0.42)));
+    for (let strikeIndex = 0; strikeIndex < enemyStrikeCount; strikeIndex += 1) {
+      if (Math.random() < poisonChance) {
+        appliedPoisonStacksToPlayer += 1;
+      }
+    }
+    if (appliedPoisonStacksToPlayer > 0) {
+      const poisonPerStack = Math.max(
+        1,
+        Math.floor(
+          s.maxHp *
+            Math.min(
+              0.035,
+              Math.max(0, Number(poisonMechanic.params?.basePctMaxHp || 0.012)) +
+                currentTick * Math.max(0, Number(poisonMechanic.params?.rampPctPerTick || 0.0007))
+            )
+        )
+      );
+      nextEnemyRuntime.poisonStacksOnPlayer = Math.min(
+        Math.max(1, Number(poisonMechanic.params?.maxStacks || 4)),
+        Number(nextEnemyRuntime.poisonStacksOnPlayer || 0) + appliedPoisonStacksToPlayer
+      );
+      nextEnemyRuntime.poisonPerStackOnPlayer = Math.max(
+        Number(nextEnemyRuntime.poisonPerStackOnPlayer || 0),
+        poisonPerStack
+      );
+      nextEnemyRuntime.poisonTicksRemainingOnPlayer = Math.max(
+        1,
+        Number(poisonMechanic.params?.duration || 4)
+      );
+    }
+  }
+  const thornsDamage = tookDamage
+    ? Math.max(
+        0,
+        Math.floor(
+          (s.thorns || 0) +
+            Math.floor(s.defense * ((s.thornsDefenseRatio || 0) + (effectMods.thornsDefenseRatio || 0))) +
+            (effectMods.thornsFlat || 0)
+        )
+      )
+    : 0;
+  const thornsAura = getBossMechanic(enemy, "thorns_aura");
+  const thornsAuraFlat = Math.max(
+    0,
+    Math.floor((thornsAura?.runtime?.flatThorns || 0) * (1 - abyssPenaltyReduction))
+  );
+  const thornsAuraRatio = Math.max(
+    0,
+    Number(thornsAura?.runtime?.reflectRatio || 0) * (1 - abyssPenaltyReduction)
+  );
+  const nonMechanicThornsFlat = Math.max(0, enemyFlatThorns - thornsAuraFlat);
+  const nonMechanicThornsRatio = Math.max(0, enemyThornsRatio - thornsAuraRatio);
   const reflectedToPlayer =
     playerDmg > 0
-      ? Math.floor(playerDmg * enemyThornsRatio) + enemyFlatThorns
+      ? (
+        Math.floor(playerDmg * nonMechanicThornsRatio) +
+        nonMechanicThornsFlat +
+        applyMitigatedDamage(
+          Math.floor(playerDmg * thornsAuraRatio) + thornsAuraFlat,
+          bossMechanicMitigation
+        )
+      )
       : 0;
-  newPlayerHp -= reflectedToPlayer;
+  const spellMirrorDamage =
+    spellMirrorMechanic && s.isMage && playerDmg > 0
+      ? applyMitigatedDamage(
+        Math.max(1, Math.floor(playerDmg * Math.max(0, Number(spellMirrorMechanic.params?.reflectPct || 0.18)))),
+        bossMechanicMitigation
+      )
+      : 0;
+  newPlayerHp -= reflectedToPlayer + spellMirrorDamage;
+  const tookAnyDamage = tookDamage || playerPoisonTickDamage > 0 || reflectedToPlayer > 0 || spellMirrorDamage > 0;
   const playerHpBeforePostImmediate = newPlayerHp;
   const directOutgoingDamage = playerDmg + thornsDamage;
-  const totalOutgoingDamage = directOutgoingDamage + bleedTickDamage;
-  const newEnemyHp = enemyHpBeforeDamage - directOutgoingDamage;
+  const totalOutgoingDamage = directOutgoingDamage + bleedTickDamage + voidFractureTickDamage;
+  let newEnemyHp = enemyHpBeforeDamage - directOutgoingDamage;
+  let phaseResetTriggered = false;
+  if (
+    phaseResetMechanic &&
+    !nextEnemyRuntime.phaseResetUsed &&
+    newEnemyHp / Math.max(1, enemy.maxHp) <= Math.max(0.05, Number(phaseResetMechanic.params?.triggerThreshold || 0.3))
+  ) {
+    phaseResetTriggered = true;
+    nextEnemyRuntime.phaseResetUsed = true;
+    newEnemyHp = Math.max(newEnemyHp, Math.floor(enemy.maxHp * Math.max(0.3, Number(phaseResetMechanic.params?.resetToPct || 0.6))));
+    nextEnemyRuntime.bleedStacks = 0;
+    nextEnemyRuntime.bleedPerStack = 0;
+    nextEnemyRuntime.bleedTicksRemaining = 0;
+    nextEnemyRuntime.fractureStacks = 0;
+    nextEnemyRuntime.fractureTicksRemaining = 0;
+    nextEnemyRuntime.voidFractureStacks = 0;
+    nextEnemyRuntime.voidFracturePerStack = 0;
+    nextEnemyRuntime.voidFractureTicksRemaining = 0;
+    nextEnemyRuntime.markStacks = 0;
+    nextEnemyRuntime.markTicksRemaining = 0;
+    nextEnemyRuntime.flowStacks = 0;
+    nextEnemyRuntime.mageFlowBonusMult = 1;
+    nextEnemyRuntime.mageFlowHitsRemaining = 0;
+    nextEnemyRuntime.mageMemoryStacks = 0;
+    nextEnemyRuntime.mageTemporalFlowStacks = 0;
+    nextEnemyRuntime.hasTakenPlayerHit = false;
+    nextEnemyRuntime.openingHitSpent = false;
+  }
+  const lifestealReflectHeal =
+    lifestealReflect && playerDmg > 0
+      ? Math.max(1, Math.floor(playerDmg * Math.max(0, Number(lifestealReflect.params?.healPct || 0.16))))
+      : 0;
+  if (lifestealReflectHeal > 0) {
+    newEnemyHp = Math.min(enemy.maxHp, newEnemyHp + lifestealReflectHeal);
+  }
   const enemyKilled = newEnemyHp <= 0;
   const mitigatedHit =
     !evaded &&
@@ -710,7 +1044,12 @@ export function processTick(state) {
   const blockText = blocked ? " [BLOCK]" : "";
   const thornsText = thornsDamage > 0 ? ` [ESPINAS ${thornsDamage}]` : "";
   const bleedText = bleedTickDamage > 0 ? ` [SANGRADO ${bleedTickDamage}]` : "";
+  const voidFractureText = voidFractureTickDamage > 0 ? ` [FISURA ${voidFractureTickDamage}]` : "";
   const reflectText = reflectedToPlayer > 0 ? ` [REFLEJO ${reflectedToPlayer}]` : "";
+  const poisonText = playerPoisonTickDamage > 0 ? ` [VENENO ${playerPoisonTickDamage}]` : "";
+  const spellMirrorText = spellMirrorDamage > 0 ? ` [ESPEJO ${spellMirrorDamage}]` : "";
+  const lifestealReflectText = lifestealReflectHeal > 0 ? ` [DRENA ${lifestealReflectHeal}]` : "";
+  const phaseResetText = phaseResetTriggered ? " [RESET DE FASE]" : "";
   const fractureText =
     (nextEnemyRuntime.fractureStacks || 0) > 0
       ? ` [FRACTURA ${nextEnemyRuntime.fractureStacks}]`
@@ -731,9 +1070,12 @@ export function processTick(state) {
     (nextEnemyRuntime.mageTemporalFlowStacks || 0) > 0
       ? ` [RAMPA ${nextEnemyRuntime.mageTemporalFlowStacks}]`
       : "";
+  let survivalLog = null;
+  let survivalLabel = "";
+  let bloodPactGoldLoss = 0;
   const nextTriggerCounters = buildTriggerCounters(state.combat.triggerCounters, {
     didCrit,
-    tookDamage,
+    tookDamage: tookAnyDamage,
     enemyKilled,
     hitCount,
   });
@@ -741,7 +1083,6 @@ export function processTick(state) {
   const tierPressure = Math.max(10, Math.round(12 + currentCombatTier * 10 + currentCombatTier * currentCombatTier * 1.5));
   const canAdvanceThisTick =
     !state.combat.autoAdvance &&
-    currentCombatTier < ENEMIES.length &&
     currentCombatTier >= (state.combat.maxTier || 1) &&
     newPlayerHp / Math.max(1, s.maxHp) > 0.68 &&
     snapshotDamage > tierPressure;
@@ -754,7 +1095,7 @@ export function processTick(state) {
         : state.combat.sessionKills || 0,
       didCrit,
       playerHpPct: Math.max(0, newPlayerHp) / s.maxHp,
-      tookDamage,
+      tookDamage: tookAnyDamage,
       enemyKilled,
     },
     triggerStats: ["crit", "onKill", "onDamageTaken"],
@@ -763,9 +1104,10 @@ export function processTick(state) {
     splitImmediateEffects(postTriggerEffects);
   const { effects: postLegendaryEffects, logs: postLegendaryLogs } = getLegendaryPostAttackEffects({
     player: state.player,
+    enemy,
     didCrit,
     enemyKilled,
-    tookDamage,
+    tookDamage: tookAnyDamage,
     blocked,
   });
 
@@ -777,7 +1119,10 @@ export function processTick(state) {
     totals: {
       ...postTriggerModTotals,
       lifestealPercentDamage:
-        (postTriggerModTotals.lifestealPercentDamage || 0) + (s.lifesteal || 0) + (legendaryBonuses.lifesteal || 0),
+        (postTriggerModTotals.lifestealPercentDamage || 0) +
+        (s.lifesteal || 0) +
+        (legendaryBonuses.lifesteal || 0) +
+        (hasEnemyAffixes ? Math.max(0, Number(s.enemyAffixLifesteal || 0)) : 0),
     },
     context: {
       didCrit,
@@ -785,13 +1130,31 @@ export function processTick(state) {
       damageDealt: playerDmg,
     },
   });
-  newPlayerHp = immediatePostTrigger.hp;
-  const postImmediateHeal = Math.max(0, newPlayerHp - playerHpBeforePostImmediate);
+  const hpAfterPostImmediate = immediatePostTrigger.hp;
+  newPlayerHp = hpAfterPostImmediate;
+  let playerGoldAfterCombat = immediatePostTrigger.gold;
+  const postImmediateHeal = Math.max(0, hpAfterPostImmediate - playerHpBeforePostImmediate);
+  if (newPlayerHp <= 0 && !nextEnemyRuntime.phaseSkinUsed && Math.max(0, Number(s.phaseSkin || 0)) > 0) {
+    nextEnemyRuntime.phaseSkinUsed = true;
+    newPlayerHp = 1;
+    survivalLabel = " [PHASE]";
+    survivalLog = "Phase Skin absorbe el golpe fatal.";
+  } else if (newPlayerHp <= 0 && legendaryBonuses.bloodPact && !nextEnemyRuntime.bloodPactUsed) {
+    nextEnemyRuntime.bloodPactUsed = true;
+    const runGoldLoss = Math.max(0, Math.floor((state.combat.runStats?.gold || 0) * 0.3));
+    const appliedGoldLoss = Math.min(playerGoldAfterCombat, runGoldLoss);
+    bloodPactGoldLoss = appliedGoldLoss;
+    playerGoldAfterCombat = sanitizeCurrencyValue(playerGoldAfterCombat - appliedGoldLoss, SAFE_RUNTIME_GOLD_CAP);
+    newPlayerHp = 1;
+    survivalLabel = " [PACTO]";
+    survivalLog = `Pacto de Sangre evita la muerte y consume ${appliedGoldLoss} oro de la run.`;
+  }
   const primaryDamageFloat = createCombatFloatEvent("damage", playerDmg, { crit: didCrit });
   const thornsDamageFloat = createCombatFloatEvent("thornsDamage", thornsDamage, { source: "thorns" });
   const nextFloatEvents = appendCombatFloatEvents(state.combat.floatEvents, [
     primaryDamageFloat,
     bleedTickDamage > 0 ? createCombatFloatEvent("damage", bleedTickDamage, { source: "bleed" }) : null,
+    voidFractureTickDamage > 0 ? createCombatFloatEvent("damage", voidFractureTickDamage, { source: "void" }) : null,
     thornsDamageFloat,
     appliedRegen >= HEAL_FLOAT_THRESHOLD
       ? createCombatFloatEvent("heal", appliedRegen, { source: "regen" })
@@ -863,10 +1226,13 @@ export function processTick(state) {
       deathsByTier: incrementMapValue(sessionAnalytics.deathsByTier, currentCombatTier, 1),
       timeInTier: incrementMapValue(sessionAnalytics.timeInTier, currentCombatTier, 1),
       damageDealt: (sessionAnalytics.damageDealt || 0) + totalOutgoingDamage,
-      damageTaken: (sessionAnalytics.damageTaken || 0) + enemyDmg + reflectedToPlayer,
+      damageTaken: (sessionAnalytics.damageTaken || 0) + enemyDmg + reflectedToPlayer + spellMirrorDamage + playerPoisonTickDamage,
       maxTierReached: Math.max(sessionAnalytics.maxTierReached || 1, state.combat.maxTier || state.combat.currentTier || 1),
       maxLevelReached: Math.max(sessionAnalytics.maxLevelReached || 1, state.player.level || 1),
     };
+    const nextRunContext =
+      state.combat?.runContext ||
+      (Number(state.prestige?.level || 0) >= 1 ? createRunContext() : createRunContext({ firstRun: true }));
     return {
       ...state,
       codex: sightedCodex,
@@ -881,7 +1247,8 @@ export function processTick(state) {
       },
       combat: {
         ...state.combat,
-        enemy: hydrateSpawnedEnemy(spawnEnemy(1)),
+        enemy: hydrateSpawnedEnemy(spawnEnemy(1, nextRunContext)),
+        runContext: nextRunContext,
         currentTier: 1,
         effects: [],
         autoAdvance: false,
@@ -924,7 +1291,7 @@ export function processTick(state) {
       readyToPushByTier: incrementMapValue(sessionAnalytics.readyToPushByTier, currentCombatTier, canAdvanceThisTick ? 1 : 0),
       timeInTier: incrementMapValue(sessionAnalytics.timeInTier, currentCombatTier, 1),
       damageDealt: (sessionAnalytics.damageDealt || 0) + totalOutgoingDamage,
-      damageTaken: (sessionAnalytics.damageTaken || 0) + enemyDmg + reflectedToPlayer,
+      damageTaken: (sessionAnalytics.damageTaken || 0) + enemyDmg + reflectedToPlayer + spellMirrorDamage + playerPoisonTickDamage,
       maxTierReached: Math.max(sessionAnalytics.maxTierReached || 1, state.combat.maxTier || state.combat.currentTier || 1),
       maxLevelReached: Math.max(sessionAnalytics.maxLevelReached || 1, state.player.level || 1),
     };
@@ -932,13 +1299,23 @@ export function processTick(state) {
       bossShieldActive ? " [ESCUDO]" : "",
       consumedFirstCritShield ? " [CRIT ABSORBIDO]" : "",
       enemyRegenPerTick > 0 ? ` [REGEN ${enemyRegenPerTick}]` : "",
+      lifestealReflectText,
+      phaseResetText,
       bleedText,
+      voidFractureText,
       fractureText,
       appliedBleedStacks > 0 ? ` [APLICA SANGRADO x${appliedBleedStacks}]` : "",
       appliedFractureStacks > 0 ? ` [APLICA FRACTURA x${appliedFractureStacks}]` : "",
+      appliedVoidFractureStacks > 0 ? ` [APLICA FISURA x${appliedVoidFractureStacks}]` : "",
+      voidStrikeHits > 0 ? ` [VOID STRIKE x${voidStrikeHits}]` : "",
       ignoreDefenseThisTick ? " [ARMOR SHRED]" : "",
       enemyStrikeCount > 1 ? " [DOBLE GOLPE]" : "",
+      appliedPoisonStacksToPlayer > 0 ? ` [VENENO x${appliedPoisonStacksToPlayer}]` : "",
+      reversedMarkStacks > 0 ? ` [REVERSION x${reversedMarkStacks}]` : "",
+      markReversalDamage > 0 ? ` [REVERSAL ${markReversalDamage}]` : "",
       reflectText,
+      spellMirrorText,
+      poisonText,
       flowStacks > 0 ? ` [FLUJO ${flowStacks}]` : "",
       momentumStacks > 0 ? ` [MOMENTO ${momentumStacks}]` : "",
       markText,
@@ -951,7 +1328,7 @@ export function processTick(state) {
     return {
       ...state,
       codex: sightedCodex,
-      player: { ...state.player, hp: newPlayerHp },
+      player: { ...state.player, hp: newPlayerHp, gold: playerGoldAfterCombat },
       combat: {
         ...state.combat,
         effects: nextEffects,
@@ -971,6 +1348,7 @@ export function processTick(state) {
         latestLootEvent: null,
         runStats: {
           ...previousRunStats,
+          gold: Math.max(0, (previousRunStats.gold || 0) - bloodPactGoldLoss),
           damageDealt: (previousRunStats.damageDealt || 0) + totalOutgoingDamage,
         },
         performanceSnapshot: updatePerformanceSnapshot(
@@ -989,7 +1367,9 @@ export function processTick(state) {
           ...preLegendaryLogs,
           ...postTriggerLogs,
           ...postLegendaryLogs,
-          `Impactas por ${playerDmg}${comboText}${critText}${thornsText}${bleedText} - ${enemy.name}: ${Math.max(0, newEnemyHp)} HP | ${enemy.name} responde por ${enemyDmg}${evadeText}${blockText}${combatNotes} - vos: ${Math.max(0, newPlayerHp)} HP`,
+          ...(phaseResetTriggered ? [`${enemy.name} reinicia la fase y vuelve a entrar a la pelea.`] : []),
+          ...(survivalLog ? [survivalLog] : []),
+          `Impactas por ${playerDmg}${comboText}${critText}${thornsText}${bleedText}${voidFractureText} - ${enemy.name}: ${Math.max(0, newEnemyHp)} HP | ${enemy.name} responde por ${enemyDmg}${evadeText}${blockText}${combatNotes} - vos: ${Math.max(0, newPlayerHp)} HP${survivalLabel}`,
         ].slice(-20),
       },
     };
@@ -1001,18 +1381,19 @@ export function processTick(state) {
     playerStats: s,
     player: state.player,
     codex: sightedCodex,
+    abyss: state.abyss,
     eventMods,
     prestige: state.prestige,
     isCrit: didCrit,
     unlockedTalents,
-    runSigilId: activeRunSigilId,
+    runSigilId: activeRunSigilIds,
   });
 
   let newPlayer = {
     ...state.player,
     hp: newPlayerHp,
     xp: state.player.xp + xpGained,
-    gold: sanitizeCurrencyValue(immediatePostTrigger.gold + goldGained, SAFE_RUNTIME_GOLD_CAP),
+    gold: sanitizeCurrencyValue(playerGoldAfterCombat + goldGained, SAFE_RUNTIME_GOLD_CAP),
     essence: sanitizeCurrencyValue((state.player.essence || 0) + essenceGained, SAFE_RUNTIME_ESSENCE_CAP),
   };
 
@@ -1110,10 +1491,9 @@ export function processTick(state) {
   const currentTier = currentCombatTier;
   const maxTier = Math.max(state.combat.maxTier || 1, currentTier);
   const autoAdvance = state.combat.autoAdvance || false;
-  const maxPossible = ENEMIES.length;
-  const unlockedTier = Math.min(currentTier + 1, maxPossible);
+  const unlockedTier = currentTier + 1;
   const nextTier = autoAdvance ? unlockedTier : currentTier;
-  const newMaxTier = Math.min(Math.max(maxTier, unlockedTier), maxPossible);
+  const newMaxTier = Math.max(maxTier, unlockedTier);
 
   const newStats = {
     ...state.stats,
@@ -1165,7 +1545,7 @@ export function processTick(state) {
       autoExtract: (sessionAnalytics.essenceBySource?.autoExtract || 0) + autoExtractEssence,
     },
     damageDealt: (sessionAnalytics.damageDealt || 0) + totalOutgoingDamage,
-    damageTaken: (sessionAnalytics.damageTaken || 0) + enemyDmg + reflectedToPlayer,
+    damageTaken: (sessionAnalytics.damageTaken || 0) + enemyDmg + reflectedToPlayer + spellMirrorDamage + playerPoisonTickDamage,
     itemsFound: (sessionAnalytics.itemsFound || 0) + (loot ? 1 : 0),
     commonItemsFound: (sessionAnalytics.commonItemsFound || 0) + (loot?.rarity === "common" ? 1 : 0),
     magicItemsFound: (sessionAnalytics.magicItemsFound || 0) + (loot?.rarity === "magic" ? 1 : 0),
@@ -1269,11 +1649,16 @@ export function processTick(state) {
   const nextEnemyFlowHits = Math.max(0, Number(s.flowHits || 0) + Number(legendaryBonuses.flowHits || 0));
   const nextEnemyFlowBonusMult =
     nextEnemyFlowHits > 0 ? Math.max(1, Number(s.flowBonusMult || 1)) : 1;
-  const nextEnemy = hydrateSpawnedEnemy(spawnEnemy(nextTier), {
+  const preservedMageMemoryStacks =
+    legendaryBonuses.preserveMemoryInAbyss && Number(enemy?.abyssDepth || 0) > 0
+      ? Math.max(0, Number(nextEnemyRuntime.mageMemoryStacks || 0))
+      : 0;
+  const nextEnemy = hydrateSpawnedEnemy(spawnEnemy(nextTier, state.combat?.runContext), {
     markStacks: transferredMarkStacks,
     markTicksRemaining: transferredMarkTicks,
     mageFlowBonusMult: nextEnemyFlowBonusMult,
     mageFlowHitsRemaining: nextEnemyFlowHits,
+    mageMemoryStacks: preservedMageMemoryStacks,
     hasTakenPlayerHit: false,
   });
 
@@ -1293,8 +1678,9 @@ export function processTick(state) {
       floatEvents: nextKillFloatEvents,
       runStats: {
         kills: (previousRunStats.kills || 0) + 1,
+        bossKills: (previousRunStats.bossKills || 0) + (enemy.isBoss ? 1 : 0),
         damageDealt: (previousRunStats.damageDealt || 0) + totalOutgoingDamage,
-        gold: (previousRunStats.gold || 0) + goldGained,
+        gold: Math.max(0, (previousRunStats.gold || 0) - bloodPactGoldLoss) + goldGained,
         xp: (previousRunStats.xp || 0) + xpGained,
         essence: (previousRunStats.essence || 0) + essenceGained,
         items: (previousRunStats.items || 0) + (loot ? 1 : 0),
@@ -1322,6 +1708,7 @@ export function processTick(state) {
       latestLootEvent,
       log: [
         ...state.combat.log,
+        ...(survivalLog ? [survivalLog] : []),
         `${enemy.isBoss ? "Boss abatido" : "Victoria"} contra ${enemy.name}! +${goldGained} oro, +${xpGained} XP, +${essenceGained} esencia${lootText}${droppedText}${autoLootLog}${thornsText}${reflectText}${latestLootEvent?.highlight ? ` [${latestLootEvent.highlight.label.toUpperCase()}]` : ""}`,
         ...(newlyUnlockedLegendaryPower ? [`CODEX: desbloqueaste ${newlyUnlockedLegendaryPower.name}. Ya podes injertarlo al ascender a legendario.`] : []),
         ...achievementLogs,

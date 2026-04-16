@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
+import { getCraftUsageSummary } from "../engine/crafting/craftingEngine";
 import { getLootHighlights } from "../utils/lootHighlights";
 import { AVAILABLE_HUNT_STATS, getHuntProfiles, resolveLootRuleWishlist } from "../utils/lootFilter";
 import { getRarityColor } from "../constants/rarity";
@@ -16,7 +17,6 @@ import {
   getAffixDots,
   getPrioritizedStatEntries,
   getTopCompareEntries,
-  getCompareSummary,
   getItemLocation,
   getLegendaryPowerSummary,
 } from "../utils/itemPresentation";
@@ -30,7 +30,7 @@ const LOOT_ACTION_OPTIONS = [
   { id: "extract", label: "Extraer" },
 ];
 function getCardHighlights(highlights = []) {
-  return highlights.filter(highlight => !["t1", "legendary", "epic"].includes(highlight.id));
+  return [];
 }
 
 function sameWishlist(left = [], right = []) {
@@ -595,7 +595,7 @@ function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode
       {affixDots.length > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
           <span style={{ fontSize: "0.52rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", marginRight: "2px" }}>
-            Affix
+            Afijos
           </span>
           {affixDots.map(dot => (
             <span key={dot.key} title={dot.label} style={{ fontSize: "0.62rem", fontWeight: "900", color: dot.color }}>
@@ -614,10 +614,7 @@ function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode
           ))}
         </div>
       )}
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap", fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
-        <span>{(item.affixes || []).length} affixes</span>
-        {implicitEntries.length > 0 && <span>Implicito: {formatImplicitSummary(item)}</span>}
-      </div>
+      {implicitEntries.length > 0 && <div style={{ fontSize: "0.62rem", color: "var(--color-text-info, #4338ca)", fontWeight: "800" }}>Implicito: {formatImplicitSummary(item)}</div>}
       <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", textTransform: "uppercase" }}>Toca para ver detalle</div>
     </div>
   );
@@ -665,7 +662,7 @@ function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, 
       {affixDots.length > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
           <span style={{ fontSize: "0.52rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", marginRight: "2px" }}>
-            Affix
+            Afijos
           </span>
           {affixDots.map(dot => (
             <span key={dot.key} title={dot.label} style={{ fontSize: "0.62rem", fontWeight: "900", color: dot.color }}>
@@ -706,16 +703,12 @@ function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, 
 
 function ItemDetailModal({ item, equippedCompare, activeBuildTag, wishlistAffixes, isDarkMode = false, onClose, onEquip, onSell, canSell = true }) {
   const [showAllAffixes, setShowAllAffixes] = useState(false);
-  const [showFullStats, setShowFullStats] = useState(false);
   const compareItem = equippedCompare || { bonus: {}, rating: 0 };
   const stats = getItemStats(item);
   const affixes = getAffixEntries(item);
-  const highlights = getLootHighlights({ item, equippedItem: equippedCompare, activeBuildTag, wishlistAffixes });
   const legendaryPower = getLegendaryPowerSummary(item);
-  const quickStats = getPrioritizedStatEntries(stats, 4);
-  const compareEntries = getTopCompareEntries(item, compareItem, 6);
   const visibleAffixes = showAllAffixes ? affixes : affixes.slice(0, 4);
-  const economyAffixes = affixes.filter(affix => ITEM_ECONOMY_STATS.has(affix.stat));
+  const forgeUsage = getCraftUsageSummary(item);
 
   return (
     <div style={modalWrapStyle} onClick={onClose}>
@@ -733,8 +726,6 @@ function ItemDetailModal({ item, equippedCompare, activeBuildTag, wishlistAffixe
           <button onClick={onClose} style={{ border: "none", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", width: "32px", height: "32px", borderRadius: "999px", cursor: "pointer", fontWeight: "900" }}>×</button>
         </div>
 
-        {highlights.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>{highlights.map(highlight => <span key={highlight.id} style={highlightBadgeStyle(highlight.tone, isDarkMode)}>{highlight.label}</span>)}</div>}
-
         {legendaryPower && (
           <section style={{ ...detailBlockStyle, background: isDarkMode ? "rgba(124,58,237,0.14)" : "#faf5ff", borderColor: isDarkMode ? "rgba(196,181,253,0.28)" : "#ddd6fe" }}>
             <div style={{ ...detailTitleStyle, color: isDarkMode ? "#c4b5fd" : "#6d28d9" }}>Poder Legendario</div>
@@ -745,93 +736,8 @@ function ItemDetailModal({ item, equippedCompare, activeBuildTag, wishlistAffixe
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px", maxHeight: "48vh", overflowY: "auto" }}>
           <section style={detailBlockStyle}>
-            <div style={detailTitleStyle}>Lectura Rapida</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
-              <div style={{ ...detailBlockStyle, padding: "8px", background: "var(--color-background-tertiary, #f8fafc)" }}>
-                <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" }}>Comparativa</div>
-                <div style={{ fontSize: "0.8rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", marginTop: "4px" }}>{getCompareSummary(item, compareItem)}</div>
-              </div>
-              <div style={{ ...detailBlockStyle, padding: "8px", background: "var(--color-background-tertiary, #f8fafc)" }}>
-                <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" }}>Resumen</div>
-                <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #475569)", fontWeight: "800", marginTop: "4px", lineHeight: 1.35 }}>
-                  {(item.affixes || []).length} affixes · {formatImplicitSummary(item) || "Sin implicit"}
-                </div>
-              </div>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
-              {(compareEntries.length > 0 ? compareEntries : quickStats.map(([key, currentVal]) => ({ key, currentVal, diff: currentVal }))).map(entry => (
-                <span
-                  key={`detail-quick-${entry.key}`}
-                  style={{
-                    ...miniStatPillStyle,
-                    fontWeight: "900",
-                    color: entry.diff > 0 ? "var(--tone-success-strong, #166534)" : entry.diff < 0 ? "var(--tone-danger, #D85A30)" : "var(--color-text-secondary, #64748b)",
-                    background: entry.diff > 0 ? "var(--tone-success-soft, #ecfdf5)" : entry.diff < 0 ? "var(--tone-danger-soft, #fff1f2)" : "var(--color-background-tertiary, #f1f5f9)",
-                  }}
-                >
-                  {STAT_LABELS[entry.key]} <strong>{entry.diff !== 0 ? formatDiffValue(entry.key, entry.diff) : `+${formatStatValue(entry.key, entry.currentVal)}`}</strong>
-                </span>
-              ))}
-            </div>
-            {economyAffixes.length > 0 && (
-              <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "8px", lineHeight: 1.35 }}>
-                Economia: {economyAffixes.map(affix => `${STAT_LABELS[affix.stat] || affix.stat} +${formatStatValue(affix.stat, affix.rolledValue ?? affix.value ?? 0)}`).join(" · ")}
-              </div>
-            )}
-          </section>
-
-          {affixes.length > 0 && (
-            <section style={{ ...detailBlockStyle, background: isDarkMode ? "rgba(30,64,175,0.1)" : "#f8fbff", borderColor: isDarkMode ? "rgba(96,165,250,0.28)" : "#dbeafe" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                <div style={{ ...detailTitleStyle, color: isDarkMode ? "#93c5fd" : "#1d4ed8", marginBottom: 0 }}>Affixes</div>
-                {affixes.length > 4 && (
-                  <button
-                    onClick={() => setShowAllAffixes(current => !current)}
-                    style={{ border: "1px solid var(--color-border-primary, #dbeafe)", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-info, #1d4ed8)", borderRadius: "999px", padding: "4px 8px", fontSize: "0.58rem", fontWeight: "900", cursor: "pointer" }}
-                  >
-                    {showAllAffixes ? "Ver menos" : `Ver ${affixes.length - 4} mas`}
-                  </button>
-                )}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
-                {visibleAffixes.map((affix, index) => (
-                  <div
-                    key={`${affix.id}-${index}`}
-                    style={{
-                      border: affix.perfectRoll ? (isDarkMode ? "1px solid rgba(245,158,11,0.52)" : "1px solid #f59e0b") : (isDarkMode ? "1px solid rgba(147,197,253,0.32)" : "1px solid #dbeafe"),
-                      borderRadius: "10px",
-                      padding: "8px",
-                      background: affix.perfectRoll ? (isDarkMode ? "rgba(217,119,6,0.18)" : "#fffbeb") : affix.tier === 1 ? (isDarkMode ? "rgba(37,99,235,0.16)" : "#eff6ff") : "var(--color-background-secondary, #ffffff)",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
-                      <div style={{ fontSize: "0.74rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>{STAT_LABELS[affix.stat] || affix.stat}</div>
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                        <span style={{ fontSize: "0.58rem", fontWeight: "900", color: affix.tier === 1 ? (isDarkMode ? "#fcd34d" : "#b45309") : (isDarkMode ? "#93c5fd" : "#1d4ed8"), background: affix.tier === 1 ? (isDarkMode ? "rgba(217,119,6,0.24)" : "#fef3c7") : (isDarkMode ? "rgba(30,64,175,0.24)" : "#dbeafe"), padding: "2px 6px", borderRadius: "999px" }}>T{affix.tier}</span>
-                        {affix.perfectRoll && <span style={{ fontSize: "0.58rem", fontWeight: "900", color: isDarkMode ? "#fde68a" : "#a16207", background: isDarkMode ? "rgba(161,98,7,0.28)" : "#fefce8", padding: "2px 6px", borderRadius: "999px" }}>PERFECT</span>}
-                        {wishlistAffixes.includes(affix.stat) && <span style={{ fontSize: "0.58rem", fontWeight: "900", color: isDarkMode ? "#5eead4" : "#0f766e", background: isDarkMode ? "rgba(13,148,136,0.24)" : "#ccfbf1", padding: "2px 6px", borderRadius: "999px" }}>WISHLIST</span>}
-                      </div>
-                    </div>
-                    <div style={{ fontSize: "0.78rem", color: affix.perfectRoll ? "#b45309" : "var(--color-text-primary, #0f172a)", fontWeight: "900", marginTop: "4px" }}>+{formatStatValue(affix.stat, affix.rolledValue ?? affix.value ?? 0)}</div>
-                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>Rango del tier: {formatStatValue(affix.stat, affix.range?.min ?? 0)} - {formatStatValue(affix.stat, affix.range?.max ?? 0)}</div>
-                    <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "3px" }}>{affix.kind === "prefix" ? "Prefijo" : "Sufijo"} · {affix.label || affix.tierLabel || `T${affix.tier}`}</div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <section style={detailBlockStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-              <div style={{ ...detailTitleStyle, marginBottom: 0 }}>Tabla Completa</div>
-              <button
-                onClick={() => setShowFullStats(current => !current)}
-                style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #475569)", borderRadius: "999px", padding: "4px 8px", fontSize: "0.58rem", fontWeight: "900", cursor: "pointer" }}
-              >
-                {showFullStats ? "Ocultar" : "Mostrar"}
-              </button>
-            </div>
-            {showFullStats ? (() => {
+            <div style={{ ...detailTitleStyle, marginBottom: "8px" }}>Tabla Completa</div>
+            {(() => {
               const statKeys = Object.keys(STAT_LABELS).filter(key => (stats[key] || 0) > 0 || (compareItem.bonus?.[key] || 0) > 0);
               return (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "7px" }}>
@@ -855,18 +761,58 @@ function ItemDetailModal({ item, equippedCompare, activeBuildTag, wishlistAffixe
                   ))}
                 </div>
               );
-            })() : (
-              <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
-                La lectura rapida ya muestra lo importante. Abri esta tabla solo si queres revisar todas las lineas y diferencias exactas.
-              </div>
-            )}
+            })()}
           </section>
 
+          {affixes.length > 0 && (
+            <section style={detailBlockStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                <div style={{ ...detailTitleStyle, marginBottom: 0 }}>Afijos</div>
+                {affixes.length > 4 && (
+                  <button
+                    onClick={() => setShowAllAffixes(current => !current)}
+                    style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #475569)", borderRadius: "999px", padding: "4px 8px", fontSize: "0.58rem", fontWeight: "900", cursor: "pointer" }}
+                  >
+                    {showAllAffixes ? "Ver menos" : `Ver ${affixes.length - 4} mas`}
+                  </button>
+                )}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+                {visibleAffixes.map((affix, index) => (
+                  <div
+                    key={`${affix.id}-${index}`}
+                    style={{
+                      border: affix.perfectRoll ? (isDarkMode ? "1px solid rgba(245,158,11,0.52)" : "1px solid #f59e0b") : "1px solid var(--color-border-primary, #e2e8f0)",
+                      borderRadius: "10px",
+                      padding: "8px",
+                      background: affix.perfectRoll ? (isDarkMode ? "rgba(217,119,6,0.18)" : "#fffbeb") : affix.tier === 1 ? (isDarkMode ? "rgba(148,163,184,0.12)" : "#f8fafc") : "var(--color-background-secondary, #ffffff)",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
+                      <div style={{ fontSize: "0.74rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>{STAT_LABELS[affix.stat] || affix.stat}</div>
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        <span style={{ fontSize: "0.58rem", fontWeight: "900", color: affix.tier === 1 ? (isDarkMode ? "#fcd34d" : "#b45309") : "var(--color-text-secondary, #475569)", background: affix.tier === 1 ? (isDarkMode ? "rgba(217,119,6,0.24)" : "#fef3c7") : "var(--color-background-tertiary, #f1f5f9)", padding: "2px 6px", borderRadius: "999px" }}>T{affix.tier}</span>
+                        {affix.perfectRoll && <span style={{ fontSize: "0.58rem", fontWeight: "900", color: isDarkMode ? "#fde68a" : "#a16207", background: isDarkMode ? "rgba(161,98,7,0.28)" : "#fefce8", padding: "2px 6px", borderRadius: "999px" }}>PERFECT</span>}
+                        {wishlistAffixes.includes(affix.stat) && <span style={{ fontSize: "0.58rem", fontWeight: "900", color: isDarkMode ? "#5eead4" : "#0f766e", background: isDarkMode ? "rgba(13,148,136,0.24)" : "#ccfbf1", padding: "2px 6px", borderRadius: "999px" }}>WISHLIST</span>}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: "0.78rem", color: affix.perfectRoll ? "#b45309" : "var(--color-text-primary, #0f172a)", fontWeight: "900", marginTop: "4px" }}>+{formatStatValue(affix.stat, affix.rolledValue ?? affix.value ?? 0)}</div>
+                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>Rango del tier: {formatStatValue(affix.stat, affix.range?.min ?? 0)} - {formatStatValue(affix.stat, affix.range?.max ?? 0)}</div>
+                    <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "3px" }}>{affix.kind === "prefix" ? "Prefijo" : "Sufijo"} · {affix.label || affix.tierLabel || `T${affix.tier}`}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           <section style={detailBlockStyle}>
-            <div style={detailTitleStyle}>Historial de Crafting</div>
-            <div style={detailRowStyle}><span>Rerolls</span><span style={{ fontWeight: "900" }}>{item.crafting?.rerollCount || 0}</span></div>
-            <div style={detailRowStyle}><span>Pulidos</span><span style={{ fontWeight: "900" }}>{item.crafting?.polishCount || 0}</span></div>
-            <div style={detailRowStyle}><span>Reforjas</span><span style={{ fontWeight: "900" }}>{item.crafting?.reforgeCount || 0}</span></div>
+            <div style={detailTitleStyle}>Limites de la Forja</div>
+            <div style={detailRowStyle}><span>Rerolls</span><span style={{ fontWeight: "900" }}>{forgeUsage.reroll.used}/{forgeUsage.reroll.max}</span></div>
+            <div style={detailRowStyle}><span>Reforjas</span><span style={{ fontWeight: "900" }}>{forgeUsage.reforge.used}/{forgeUsage.reforge.max}</span></div>
+            <div style={detailRowStyle}><span>Pulido por linea</span><span style={{ fontWeight: "900" }}>{forgeUsage.polish.used}/{forgeUsage.polish.max}</span></div>
+            <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "8px", lineHeight: 1.4 }}>
+              El pulido consume el limite de la linea que estes mirando. Reroll y reforja comparten sus propios topes por item.
+            </div>
           </section>
         </div>
 

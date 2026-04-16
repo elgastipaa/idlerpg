@@ -1,6 +1,7 @@
 import { PRESTIGE_BRANCHES, PRESTIGE_RANKS, PRESTIGE_TREE_NODES } from "../../data/prestige";
 import { getRunSigilPrestigeModifiers } from "../../data/runSigils";
 import { refreshStats } from "../combat/statEngine";
+import { hasAbyssUnlock } from "./abyssProgression";
 
 const BONUS_KEYS = [
   "damagePct",
@@ -9,6 +10,7 @@ const BONUS_KEYS = [
   "flatDamage",
   "flatDefense",
   "healthRegen",
+  "regenPctMaxHp",
   "flatCrit",
   "goldPct",
   "xpPct",
@@ -20,6 +22,7 @@ const BONUS_KEYS = [
   "critOnLowHp",
   "damageOnKill",
   "thorns",
+  "thornsDefenseRatio",
   "essenceBonus",
   "lootBonus",
   "luck",
@@ -43,10 +46,20 @@ const BONUS_KEYS = [
   "ascendImprintCostReduction",
   "reforgeOptionCount",
   "discoveredPowerBias",
+  "abyssDamagePct",
+  "abyssEnemyAffixPenaltyReduction",
+  "abyssNormalEnemyPenaltyReduction",
+  "abyssLootQuality",
+  "abyssEssenceMult",
+  "abyssBossMechanicMitigation",
+  "abyssMutatorOffensePct",
 ];
 
 const BRANCH_SCOPE = Object.fromEntries(
   PRESTIGE_BRANCHES.map(branch => [branch.id, branch.scope || "universal"])
+);
+const BRANCH_BY_ID = Object.fromEntries(
+  PRESTIGE_BRANCHES.map(branch => [branch.id, branch])
 );
 
 const UNIVERSAL_PRESTIGE_KEYS = new Set([
@@ -56,6 +69,7 @@ const UNIVERSAL_PRESTIGE_KEYS = new Set([
   "flatDamage",
   "flatDefense",
   "healthRegen",
+  "regenPctMaxHp",
   "flatCrit",
   "goldPct",
   "xpPct",
@@ -67,6 +81,7 @@ const UNIVERSAL_PRESTIGE_KEYS = new Set([
   "critOnLowHp",
   "damageOnKill",
   "thorns",
+  "thornsDefenseRatio",
   "essenceBonus",
   "lootBonus",
   "luck",
@@ -80,6 +95,13 @@ const UNIVERSAL_PRESTIGE_KEYS = new Set([
   "ascendImprintCostReduction",
   "reforgeOptionCount",
   "discoveredPowerBias",
+  "abyssDamagePct",
+  "abyssEnemyAffixPenaltyReduction",
+  "abyssNormalEnemyPenaltyReduction",
+  "abyssLootQuality",
+  "abyssEssenceMult",
+  "abyssBossMechanicMitigation",
+  "abyssMutatorOffensePct",
 ]);
 
 function emptyBonuses() {
@@ -211,7 +233,9 @@ function getPrestigeProgressSnapshot(state = {}) {
 
 export function getPrestigePreview(state = {}) {
   const progress = getPrestigeProgressSnapshot(state);
-  const runSigil = getRunSigilPrestigeModifiers(state?.combat?.activeRunSigilId || "free");
+  const runSigil = getRunSigilPrestigeModifiers(
+    state?.combat?.activeRunSigilIds || state?.combat?.activeRunSigilId || "free"
+  );
 
   const tierEchoes =
     progress.maxTier >= 2
@@ -272,17 +296,26 @@ export function isPrestigeNodeActiveForPlayer(node, player) {
   return true;
 }
 
+export function isPrestigeBranchUnlocked(state = {}, branch = {}) {
+  const unlockKey = branch?.unlockKey || null;
+  return !unlockKey || hasAbyssUnlock(state?.abyss || {}, unlockKey);
+}
+
 export function canPurchasePrestigeNode(state, node) {
   const prestige = state.prestige || {};
   const currentLevel = getPrestigeNodeLevel(prestige, node.id);
   const availableEchoes = prestige.echoes || 0;
   const cost = getPrestigeNodeCost(prestige, node);
+  const branch = BRANCH_BY_ID[node?.branch] || null;
 
   if (currentLevel >= (node.maxLevel || 1)) return { ok: false, reason: "maxed", cost };
+  if (!isPrestigeBranchUnlocked(state, branch)) return { ok: false, reason: "unlock", cost, unlockKey: branch?.unlockKey || node?.unlockKey || null };
   if (!isPrestigeNodeActiveForPlayer(node, state.player)) return { ok: false, reason: "class", cost };
 
   const missing = (node.requires || []).filter(reqId => getPrestigeNodeLevel(prestige, reqId) <= 0);
   if (missing.length > 0) return { ok: false, reason: "requires", cost, missing };
+  const excluded = (node.excludes || []).filter(reqId => getPrestigeNodeLevel(prestige, reqId) > 0);
+  if (excluded.length > 0) return { ok: false, reason: "exclusive", cost, excluded };
 
   if (cost == null || availableEchoes < cost) return { ok: false, reason: "echoes", cost };
 

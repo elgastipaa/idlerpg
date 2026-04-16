@@ -2,7 +2,7 @@
 // Futuro: recetas, materiales, estaciones de crafteo hookean acá.
 
 import { rerollAffixes, polishAffix, generateReforgeOptions, rollAffixes } from "../affixesEngine";
-import { buildBaseBonusForItem, buildItemFromAffixes, computeUpgradeBonus, mergeBonusMaps } from "../../utils/loot";
+import { buildBaseBonusForItem, buildItemFromAffixes, computeImplicitUpgradeBonus, computeUpgradeBonus, mergeBonusMaps } from "../../utils/loot";
 import { calcItemRating, syncEquipment } from "../inventory/inventoryEngine";
 import { ITEM_FAMILIES } from "../../data/itemFamilies";
 import { ITEM_RARITY_BLUEPRINT, ITEM_ROLL_RULES_V2 } from "../../data/items";
@@ -11,7 +11,7 @@ import { getLegendaryPowerById } from "../../utils/legendaryPowers";
 
 const RARITY_TIERS = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
 const RARITY_NEXT  = { common: "magic", magic: "rare", rare: "epic", epic: "legendary" };
-export const UPGRADE_FAIL_CHANCE = { 0: 0, 1: 0, 2: 0.02, 3: 0.06, 4: 0.12, 5: 0.18, 6: 0.24, 7: 0.31, 8: 0.38, 9: 0.45, 10: 0.52 };
+export const UPGRADE_FAIL_CHANCE = { 0: 0, 1: 0, 2: 0.03, 3: 0.08, 4: 0.15, 5: 0.22, 6: 0.3, 7: 0.39, 8: 0.48, 9: 0.57, 10: 0.66 };
 export const CRAFT_ACTION_LIMITS = {
   reroll: 5,
   reforge: 3,
@@ -399,15 +399,18 @@ function rebuildItem(item, newAffixes, extraProps = {}) {
   const nextBaseBonus = extraProps.baseBonus || item.baseBonus || {};
   const implicitBonus = extraProps.implicitBonus || getImplicitBonus(item, nextRarity);
   const upgradeBonus = extraProps.upgradeBonus || computeUpgradeBonus(nextBaseBonus, item.type, nextLevel);
+  const implicitUpgradeBonus =
+    extraProps.implicitUpgradeBonus || computeImplicitUpgradeBonus(implicitBonus, item.type, nextLevel);
   const { bonus } = buildItemFromAffixes({
     ...item,
-    bonus: mergeBonusMaps(nextBaseBonus, upgradeBonus, implicitBonus),
+    bonus: mergeBonusMaps(nextBaseBonus, upgradeBonus, implicitBonus, implicitUpgradeBonus),
   }, newAffixes);
   return {
     ...item,
     ...extraProps,
     implicitBonus,
     upgradeBonus,
+    implicitUpgradeBonus,
     crafting: {
       ...getCraftingState(item),
       ...(extraProps.crafting || {}),
@@ -667,7 +670,7 @@ export function craftReforge({ player, itemId, affixIndex, replacementAffix, ref
   };
 }
 
-export function craftReforgePreview({ player, itemId, affixIndex, favoredStats = [] }) {
+export function craftReforgePreview({ player, itemId, affixIndex, favoredStats = [], extraAffixPool = [] }) {
   const locatedItem = findPlayerItem(player, itemId);
   if (!locatedItem) return null;
 
@@ -691,8 +694,8 @@ export function craftReforgePreview({ player, itemId, affixIndex, favoredStats =
 
   if (player.gold < goldCost || (player.essence || 0) < essenceCost) return null;
 
-  const optionCount = 2 + Math.max(0, Math.floor(player?.prestigeBonuses?.reforgeOptionCount || 0));
-  const generated = generateReforgeOptions(item, affixIndex, optionCount, favoredStats);
+  const optionCount = 3 + Math.max(0, Math.floor(player?.prestigeBonuses?.reforgeOptionCount || 0));
+  const generated = generateReforgeOptions(item, affixIndex, optionCount, favoredStats, extraAffixPool);
   if (!generated.length) return null;
 
   return {
@@ -706,8 +709,8 @@ export function craftReforgePreview({ player, itemId, affixIndex, favoredStats =
   };
 }
 
-export function buildReforgePreview(item, affixIndex, optionCount = 2, favoredStats = []) {
-  return generateReforgeOptions(item, affixIndex, optionCount, favoredStats);
+export function buildReforgePreview(item, affixIndex, optionCount = 3, favoredStats = [], extraAffixPool = []) {
+  return generateReforgeOptions(item, affixIndex, optionCount, favoredStats, extraAffixPool);
 }
 
 // ============================================================

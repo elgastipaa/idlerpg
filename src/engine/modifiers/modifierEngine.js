@@ -13,6 +13,7 @@ export function getModifierTotals(effects = []) {
     attackSpeedFlat: 0,
     critChance: 0,
     regenFlat: 0,
+    regenPercentMaxHp: 0,
     healFlat: 0,
     healPercentMaxHp: 0,
     enemyDamageTakenMult: 1,
@@ -20,6 +21,7 @@ export function getModifierTotals(effects = []) {
     lifestealFlat: 0,
     lifestealPercentDamage: 0,
     thornsFlat: 0,
+    thornsDefenseRatio: 0,
   };
 
   for (const effect of effects) {
@@ -48,6 +50,9 @@ export function getModifierTotals(effects = []) {
         case MOD_TYPES.REGEN_FLAT:
           totals.regenFlat += modifier.value;
           break;
+        case MOD_TYPES.REGEN_PERCENT_MAX_HP:
+          totals.regenPercentMaxHp += modifier.value;
+          break;
         case MOD_TYPES.HEAL_FLAT:
           totals.healFlat += modifier.value;
           break;
@@ -68,6 +73,9 @@ export function getModifierTotals(effects = []) {
           break;
         case MOD_TYPES.THORNS_FLAT:
           totals.thornsFlat += modifier.value;
+          break;
+        case MOD_TYPES.THORNS_DEFENSE_RATIO:
+          totals.thornsDefenseRatio += modifier.value;
           break;
       }
     }

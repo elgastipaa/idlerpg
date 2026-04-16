@@ -73,6 +73,7 @@ export function computeEffectModifiers(effects = [], context = {}) {
     attackSpeedFlat: totals.attackSpeedFlat,
     critBonus: totals.critChance,
     regen: totals.regenFlat,
+    regenPctMaxHp: totals.regenPercentMaxHp,
     healFlat: totals.healFlat,
     healPercentMaxHp: totals.healPercentMaxHp,
     enemyDamageTakenMult: totals.enemyDamageTakenMult,
@@ -80,6 +81,7 @@ export function computeEffectModifiers(effects = [], context = {}) {
     lifestealFlat: totals.lifestealFlat,
     lifestealPercentDamage: totals.lifestealPercentDamage,
     thornsFlat: totals.thornsFlat,
+    thornsDefenseRatio: totals.thornsDefenseRatio,
   };
 }
 
@@ -110,7 +112,8 @@ export function effectFromTalent(talent) {
       modifiers.push({ type: MOD_TYPES.CRIT_CHANCE, value: e.flat || e.multiplier || 0 });
       break;
     case "regen":
-      modifiers.push({ type: MOD_TYPES.REGEN_FLAT, value: e.flat || 0 });
+      if (e.flat !== undefined) modifiers.push({ type: MOD_TYPES.REGEN_FLAT, value: e.flat });
+      if (e.ratio !== undefined) modifiers.push({ type: MOD_TYPES.REGEN_PERCENT_MAX_HP, value: e.ratio });
       break;
     case "heal":
       if (e.flat !== undefined) modifiers.push({ type: MOD_TYPES.HEAL_FLAT, value: e.flat });
@@ -126,6 +129,10 @@ export function effectFromTalent(talent) {
     case "lifesteal":
       if (e.flat !== undefined) modifiers.push({ type: MOD_TYPES.LIFESTEAL_FLAT, value: e.flat });
       if (e.multiplier !== undefined) modifiers.push({ type: MOD_TYPES.LIFESTEAL_PERCENT_DAMAGE, value: e.multiplier });
+      break;
+    case "thorns":
+      if (e.flat !== undefined) modifiers.push({ type: MOD_TYPES.THORNS_FLAT, value: e.flat });
+      if (e.ratio !== undefined) modifiers.push({ type: MOD_TYPES.THORNS_DEFENSE_RATIO, value: e.ratio });
       break;
   }
 

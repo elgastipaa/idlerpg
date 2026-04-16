@@ -27,6 +27,21 @@ export const ITEM_STAT_LABELS = {
   essenceBonus: "Esencia",
   lootBonus: "Botin",
   luck: "Suerte",
+  abyssLootQuality: "Calidad Abismo",
+  abyssDamagePct: "Dano Abismo",
+  abyssEnemyAffixPenaltyReduction: "Presion de anomalias",
+  abyssNormalEnemyPenaltyReduction: "Presion de trash",
+  abyssEssenceMult: "Esencia Abismo",
+  abyssBossMechanicMitigation: "Mitigacion Abismo",
+  abyssMutatorOffensePct: "Ofensiva por anomalia",
+  voidStrikeChance: "Void Strike",
+  abyssalCritFractureChance: "Crit Abisal",
+  echoHitChance: "Echo Hit",
+  enemyAffixDamagePct: "Dano vs affixes",
+  enemyAffixLifesteal: "Void Leech",
+  phaseSkin: "Phase Skin",
+  abyssRegenFlat: "Regen Abismo",
+  bossMechanicMitigation: "Fracture Ward",
   cooldownReduction: "Multi-hit",
   skillPower: "Dano critico",
 };
@@ -63,6 +78,19 @@ const PERCENT_ITEM_STATS = new Set([
   "markChance",
   "markEffectPerStack",
   "lootBonus",
+  "abyssLootQuality",
+  "abyssDamagePct",
+  "abyssEnemyAffixPenaltyReduction",
+  "abyssNormalEnemyPenaltyReduction",
+  "abyssEssenceMult",
+  "abyssBossMechanicMitigation",
+  "abyssMutatorOffensePct",
+  "voidStrikeChance",
+  "abyssalCritFractureChance",
+  "echoHitChance",
+  "enemyAffixDamagePct",
+  "enemyAffixLifesteal",
+  "bossMechanicMitigation",
 ]);
 
 export function formatItemNumber(value) {
@@ -107,7 +135,13 @@ export function getItemStats(item) {
 }
 
 export function getImplicitEntries(item) {
-  return Object.entries(item?.implicitBonus || {}).filter(([, value]) => value > 0);
+  const baseImplicit = item?.implicitBonus || {};
+  const upgradeImplicit = item?.implicitUpgradeBonus || {};
+  const statKeys = Array.from(new Set([...Object.keys(baseImplicit), ...Object.keys(upgradeImplicit)]));
+
+  return statKeys
+    .map(stat => [stat, (baseImplicit?.[stat] || 0) + (upgradeImplicit?.[stat] || 0)])
+    .filter(([, value]) => value > 0);
 }
 
 export function formatImplicitSummary(item) {

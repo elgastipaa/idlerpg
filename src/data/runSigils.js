@@ -147,24 +147,122 @@ function cloneObject(value = {}) {
   return { ...(value || {}) };
 }
 
+function mergeNumericEntries(target = {}, source = {}, { multiplicativeKeys = new Set() } = {}) {
+  for (const [key, rawValue] of Object.entries(source || {})) {
+    const value = Number(rawValue || 0);
+    if (!Number.isFinite(value)) continue;
+    if (multiplicativeKeys.has(key)) {
+      target[key] = (target[key] || 1) * value;
+    } else {
+      target[key] = (target[key] || 0) + value;
+    }
+  }
+  return target;
+}
+
 export function getRunSigil(runSigilId = "free") {
   return RUN_SIGIL_BY_ID[runSigilId] || RUN_SIGIL_BY_ID.free;
 }
 
-export function getRunSigilRewardModifiers(runSigilId = "free") {
-  return cloneObject(getRunSigil(runSigilId).rewardModifiers);
+export function normalizeRunSigilIds(runSigilIds = "free", { slots = 1, fillFree = true } = {}) {
+  const source = Array.isArray(runSigilIds) ? runSigilIds : [runSigilIds];
+  const normalized = [];
+
+  for (const rawId of source) {
+    const sigilId = getRunSigil(rawId).id;
+    if (sigilId !== "free" && normalized.includes(sigilId)) continue;
+    normalized.push(sigilId);
+    if (normalized.length >= slots) break;
+  }
+
+  if (!normalized.length) normalized.push("free");
+  if (fillFree) {
+    while (normalized.length < slots) normalized.push("free");
+  }
+
+  return normalized.slice(0, slots);
 }
 
-export function getRunSigilPrestigeModifiers(runSigilId = "free") {
-  return cloneObject(getRunSigil(runSigilId).prestigeModifiers);
+export function getRunSigils(runSigilIds = "free", { slots = 1 } = {}) {
+  return normalizeRunSigilIds(runSigilIds, { slots })
+    .map(sigilId => getRunSigil(sigilId));
 }
 
-export function getRunSigilCodexModifiers(runSigilId = "free") {
-  return cloneObject(getRunSigil(runSigilId).codexModifiers);
+export function getRunSigilRewardModifiers(runSigilIds = "free") {
+  const sigils = getRunSigils(runSigilIds, { slots: Array.isArray(runSigilIds) ? runSigilIds.length || 1 : 1 });
+  const merged = {
+    xpMult: 1,
+    essenceMult: 1,
+    powerHuntMultiplier: 1,
+    rarityBonus: {},
+  };
+
+  for (const sigil of sigils) {
+    const rewardModifiers = sigil.rewardModifiers || {};
+    merged.xpMult *= Number(rewardModifiers.xpMult || 1);
+    merged.essenceMult *= Number(rewardModifiers.essenceMult || 1);
+    merged.powerHuntMultiplier *= Number(rewardModifiers.powerHuntMultiplier || 1);
+    mergeNumericEntries(merged.rarityBonus, rewardModifiers.rarityBonus || {});
+  }
+
+  return merged;
 }
 
-export function getRunSigilPlayerBonuses(runSigilId = "free") {
-  return cloneObject(getRunSigil(runSigilId).playerBonuses);
+export function getRunSigilPrestigeModifiers(runSigilIds = "free") {
+  const sigils = getRunSigils(runSigilIds, { slots: Array.isArray(runSigilIds) ? runSigilIds.length || 1 : 1 });
+  const merged = {
+    tierEchoMult: 1,
+    levelEchoMult: 1,
+  };
+
+  for (const sigil of sigils) {
+    const prestigeModifiers = sigil.prestigeModifiers || {};
+    merged.tierEchoMult *= Number(prestigeModifiers.tierEchoMult || 1);
+    merged.levelEchoMult *= Number(prestigeModifiers.levelEchoMult || 1);
+  }
+
+  return merged;
+}
+
+export function getRunSigilCodexModifiers(runSigilIds = "free") {
+  const sigils = getRunSigils(runSigilIds, { slots: Array.isArray(runSigilIds) ? runSigilIds.length || 1 : 1 });
+  const merged = {
+    familyKillMult: 1,
+    bossKillMult: 1,
+    duplicatePowerGainMult: 1,
+  };
+
+  for (const sigil of sigils) {
+    const codexModifiers = sigil.codexModifiers || {};
+    merged.familyKillMult *= Number(codexModifiers.familyKillMult || 1);
+    merged.bossKillMult *= Number(codexModifiers.bossKillMult || 1);
+    merged.duplicatePowerGainMult *= Number(codexModifiers.duplicatePowerGainMult || 1);
+  }
+
+  return merged;
+}
+
+export function getRunSigilPlayerBonuses(runSigilIds = "free") {
+  const sigils = getRunSigils(runSigilIds, { slots: Array.isArray(runSigilIds) ? runSigilIds.length || 1 : 1 });
+  const merged = {};
+  for (const sigil of sigils) {
+    mergeNumericEntries(merged, sigil.playerBonuses || {});
+  }
+  return cloneObject(merged);
+}
+
+export function formatRunSigilLoadout(runSigilIds = "free", { short = false } = {}) {
+  const sigils = getRunSigils(runSigilIds, { slots: Array.isArray(runSigilIds) ? runSigilIds.length || 1 : 1 });
+  const nonFree = sigils.filter(sigil => sigil.id !== "free");
+  const source = nonFree.length > 0 ? nonFree : [getRunSigil("free")];
+  return source.map(sigil => (short ? (sigil.shortName || sigil.name) : sigil.name)).join(" + ");
+}
+
+export function summarizeRunSigilLoadout(runSigilIds = "free") {
+  const sigils = getRunSigils(runSigilIds, { slots: Array.isArray(runSigilIds) ? runSigilIds.length || 1 : 1 });
+  const nonFree = sigils.filter(sigil => sigil.id !== "free");
+  const source = nonFree.length > 0 ? nonFree : [getRunSigil("free")];
+  return source.map(sigil => sigil.summary).join(" | ");
 }
 
 export function isRunSigilsUnlocked(state = {}) {

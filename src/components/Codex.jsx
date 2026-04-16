@@ -8,12 +8,13 @@ import {
   getBestUnlockedTierForPower,
   getCodexBossEntries,
   getCodexFamilyEntries,
-  getCodexHuntOverview,
   getCodexLegendaryPowerEntries,
+  getEarliestTierForFamily,
   getHighestUnlockedTierForFamily,
   getCodexUnlockedMilestones,
 } from "../engine/progression/codexEngine";
-import { getRunSigil } from "../data/runSigils";
+import { formatRunSigilLoadout, normalizeRunSigilIds, summarizeRunSigilLoadout } from "../data/runSigils";
+import { getMaxRunSigilSlots } from "../engine/progression/abyssProgression";
 
 const STAT_DESCRIPTIONS = [
   ["damage", "Dano base de tus golpes normales y de varias habilidades."],
@@ -116,44 +117,92 @@ export default function Codex({ state, dispatch }) {
   const [activeTab, setActiveTab] = useState("mastery");
   const codex = state?.codex || {};
   const maxUnlockedTier = Number(state?.combat?.maxTier || 1);
-  const activeRunSigil = getRunSigil(state?.combat?.activeRunSigilId || "free");
-  const familyEntries = useMemo(() => getCodexFamilyEntries(codex), [codex]);
-  const bossEntries = useMemo(() => getCodexBossEntries(codex), [codex]);
-  const powerEntries = useMemo(() => getCodexLegendaryPowerEntries(codex), [codex]);
-  const huntOverview = useMemo(
-    () =>
-      getCodexHuntOverview(codex, {
-        maxTier: maxUnlockedTier,
-        specialization: state?.player?.specialization,
-        className: state?.player?.class,
-      }),
-    [codex, maxUnlockedTier, state?.player?.specialization, state?.player?.class]
+  const runContext = state?.combat?.runContext || null;
+  const runSigilSlotCount = getMaxRunSigilSlots(state?.abyss || {});
+  const activeRunSigilIds = normalizeRunSigilIds(
+    state?.combat?.activeRunSigilIds || state?.combat?.activeRunSigilId || "free",
+    { slots: runSigilSlotCount }
   );
+  const activeRunSigilLoadout = formatRunSigilLoadout(activeRunSigilIds);
+  const activeRunSigilSummary = summarizeRunSigilLoadout(activeRunSigilIds);
+  const hasActiveRunSigilBias = activeRunSigilIds.some(sigilId => sigilId !== "free");
+  const familyEntries = useMemo(() => getCodexFamilyEntries(codex), [codex]);
+  const bossEntries = useMemo(
+    () => getCodexBossEntries(codex, { maxTier: maxUnlockedTier, runContext, abyss: state?.abyss || {} }),
+    [codex, maxUnlockedTier, runContext, state?.abyss]
+  );
+  const powerEntries = useMemo(() => getCodexLegendaryPowerEntries(codex, { abyss: state?.abyss || {} }), [codex, state?.abyss]);
   const codexBonuses = useMemo(() => computeCodexBonuses(codex), [codex]);
-  const unlockedMilestones = useMemo(() => getCodexUnlockedMilestones(codex), [codex]);
+  const unlockedMilestones = useMemo(() => getCodexUnlockedMilestones(codex, { abyss: state?.abyss || {} }), [codex, state?.abyss]);
   const visibleBonuses = Object.entries(codexBonuses)
     .filter(([, value]) => Math.abs(value || 0) > 0)
     .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
     .slice(0, 8);
-  const huntReadyPowers = huntOverview.discoverNow.slice(0, 4);
-  const masteryReadyPowers = huntOverview.masteryNow.slice(0, 4);
-  const hottestBossHunts = huntOverview.hotBosses.slice(0, 3);
-  const hottestFamilyHunts = huntOverview.hotFamilies.slice(0, 3);
-  const topHuntTarget = huntReadyPowers[0] || masteryReadyPowers[0] || null;
-  const nextUndiscoveredBosses = useMemo(
-    () =>
-      bossEntries
-        .filter(entry => !entry.seen)
-        .sort((left, right) => left.tier - right.tier)
-        .slice(0, 3),
-    [bossEntries]
-  );
-  const nextUndiscoveredFamilies = useMemo(
-    () =>
-      familyEntries
-        .filter(entry => !entry.seen)
-        .slice(0, 3),
-    [familyEntries]
+  const undiscoveredPowerTargets = useMemo(() => {
+    const bossEntriesById = Object.fromEntries(bossEntries.map(entry => [entry.id, entry]));
+    const familyEntriesById = Object.fromEntries(familyEntries.map(entry => [entry.id, entry]));
+    const targets = new Map();
+
+    const registerTarget = (key, payload, powerId) => {
+      const existing = targets.get(key);
+      if (existing) {
+        existing.powerIds.add(powerId);
+        return;
+      }
+      targets.set(key, {
+        ...payload,
+        powerIds: new Set([powerId]),
+      });
+    };
+
+    for (const power of powerEntries) {
+      if (power.unlocked) continue;
+
+      for (const bossId of power.sources?.bossIds || []) {
+        const bossEntry = bossEntriesById[bossId];
+        if (!bossEntry?.seen || !bossEntry?.inCurrentRoute || !bossEntry?.earliestCurrentRunTier) continue;
+        registerTarget(
+          `boss:${bossId}`,
+          {
+            id: `boss:${bossId}`,
+            type: "boss",
+            name: bossEntry.name,
+            subtitle: `Boss · Slot ${bossEntry.currentRunSlot}`,
+            tier: bossEntry.earliestCurrentRunTier,
+          },
+          power.id
+        );
+      }
+
+      for (const familyId of power.sources?.familyIds || []) {
+        const familyEntry = familyEntriesById[familyId];
+        if (!familyEntry?.seen) continue;
+        const currentRunTier = getEarliestTierForFamily(familyId, runContext);
+        if (!currentRunTier) continue;
+        registerTarget(
+          `family:${familyId}`,
+          {
+            id: `family:${familyId}`,
+            type: "family",
+            name: familyEntry.name,
+            subtitle: "Familia",
+            tier: currentRunTier,
+          },
+          power.id
+        );
+      }
+    }
+
+    return [...targets.values()]
+      .map(entry => ({
+        ...entry,
+        undiscoveredCount: entry.powerIds.size,
+      }))
+      .sort((left, right) => left.tier - right.tier || left.name.localeCompare(right.name, "es"));
+  }, [bossEntries, familyEntries, powerEntries, runContext]);
+  const availablePowerTargets = useMemo(
+    () => undiscoveredPowerTargets.filter(entry => entry.tier <= maxUnlockedTier).slice(0, 6),
+    [undiscoveredPowerTargets, maxUnlockedTier]
   );
   const orderedFamilyEntries = useMemo(
     () =>
@@ -167,7 +216,10 @@ export default function Codex({ state, dispatch }) {
     () =>
       [...bossEntries].sort((left, right) => {
         if (left.seen !== right.seen) return left.seen ? -1 : 1;
-        return left.tier - right.tier || (right.kills || 0) - (left.kills || 0);
+        if (left.inCurrentRoute !== right.inCurrentRoute) return left.inCurrentRoute ? -1 : 1;
+        return (left.earliestCurrentRunTier || left.baseTier || Number.MAX_SAFE_INTEGER)
+          - (right.earliestCurrentRunTier || right.baseTier || Number.MAX_SAFE_INTEGER)
+          || (right.kills || 0) - (left.kills || 0);
       }),
     [bossEntries]
   );
@@ -192,9 +244,9 @@ export default function Codex({ state, dispatch }) {
         <div style={{ fontSize: "0.78rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>
           Compendio de maestria: matar familias y bosses desbloquea bonos permanentes chicos. Descubrir un poder legendario lo guarda para futuras ascensiones.
         </div>
-        {activeRunSigil.id !== "free" && (
+        {hasActiveRunSigilBias && (
           <div style={{ marginTop: "10px", padding: "8px 10px", borderRadius: "10px", background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4, fontWeight: "800" }}>
-            <strong style={{ color: "var(--tone-accent, #4338ca)" }}>{activeRunSigil.name}</strong> activo · {activeRunSigil.summary}
+            <strong style={{ color: "var(--tone-accent, #4338ca)" }}>{activeRunSigilLoadout}</strong> activo · {activeRunSigilSummary}
           </div>
         )}
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" }}>
@@ -235,144 +287,21 @@ export default function Codex({ state, dispatch }) {
             <div style={sectionStyle}>Caza</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "10px" }}>
               <div style={cardStyle}>
-                <div style={huntPanelTitleStyle}>Mejor caza ahora</div>
-                {topHuntTarget ? (
-                  <div style={{ display: "grid", gap: "8px" }}>
-                    <div>
-                      <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{topHuntTarget.name}</div>
-                      <div style={{ fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "3px", fontWeight: "900", textTransform: "uppercase" }}>
-                        {topHuntTarget.unlocked ? `${topHuntTarget.mastery?.label} · faltan ${topHuntTarget.remainingCopies} copia${topHuntTarget.remainingCopies === 1 ? "" : "s"}` : `Poder nuevo · Tier ${topHuntTarget.sourceTier}`}
-                      </div>
-                    </div>
-                    <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35 }}>
-                      {topHuntTarget.description}
-                    </div>
-                    {topHuntTarget.sources?.bossIds?.length > 0 && (
-                      <div style={huntMetaStyle}>
-                        <strong>Boss:</strong> {topHuntTarget.sources.bossIds.map(bossId => BOSS_NAME_BY_ID[bossId] || bossId).join(" · ")}
-                      </div>
-                    )}
-                    {topHuntTarget.sources?.familyIds?.length > 0 && (
-                      <div style={huntMetaStyle}>
-                        <strong>Familias:</strong> {topHuntTarget.sources.familyIds.map(familyId => ENEMY_FAMILIES[familyId]?.name || familyId).join(" · ")}
-                      </div>
-                    )}
-                    <button onClick={() => goToTier(topHuntTarget.sourceTier)} style={huntButtonStyle}>
-                      Ir al tier {topHuntTarget.sourceTier}
-                    </button>
-                  </div>
-                ) : (
-                  <div style={huntEmptyStyle}>Segui empujando tiers o descubriendo fuentes. Todavia no hay una caza clara disponible en esta run.</div>
-                )}
-              </div>
-
-              <div style={cardStyle}>
-                <div style={huntPanelTitleStyle}>Descubrir ahora</div>
-                {huntReadyPowers.length > 0 ? huntReadyPowers.map(entry => (
-                  <div key={`hunt-ready-${entry.id}`} style={huntRowStyle}>
+                <div style={huntPanelTitleStyle}>Objetivos revelados con powers ahora</div>
+                {availablePowerTargets.length > 0 ? availablePowerTargets.map(entry => (
+                  <div key={`power-now-${entry.id}`} style={huntRowStyle}>
                     <div>
                       <div style={{ fontSize: "0.7rem", fontWeight: "900" }}>{entry.name}</div>
                       <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>
-                        Disponible en Tier {entry.sourceTier}
+                        {entry.subtitle} · Tier {entry.tier} · {entry.undiscoveredCount} power{entry.undiscoveredCount === 1 ? "" : "s"} por descubrir
                       </div>
                     </div>
-                    <button onClick={() => goToTier(entry.sourceTier)} style={miniHuntButtonStyle}>
+                    <button onClick={() => goToTier(entry.tier)} style={miniHuntButtonStyle}>
                       Ir
                     </button>
                   </div>
                 )) : (
-                  <div style={huntEmptyStyle}>Todavia no hay poderes ocultos accesibles en tus tiers actuales.</div>
-                )}
-              </div>
-
-              <div style={cardStyle}>
-                <div style={huntPanelTitleStyle}>Duplicados utiles</div>
-                {masteryReadyPowers.length > 0 ? masteryReadyPowers.map(entry => (
-                  <div key={`hunt-mastery-${entry.id}`} style={huntRowStyle}>
-                    <div>
-                      <div style={{ fontSize: "0.7rem", fontWeight: "900" }}>{entry.name}</div>
-                      <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>
-                        {entry.mastery?.label} · faltan {entry.remainingCopies} copia{entry.remainingCopies === 1 ? "" : "s"}
-                      </div>
-                    </div>
-                    {entry.sourceTier ? (
-                      <button onClick={() => goToTier(entry.sourceTier)} style={miniHuntButtonStyle}>
-                        Ir
-                      </button>
-                    ) : (
-                      <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>Sin tier</span>
-                    )}
-                  </div>
-                )) : (
-                  <div style={huntEmptyStyle}>Aun no hay poderes descubiertos con una mejora de maestria cercana.</div>
-                )}
-              </div>
-
-              <div style={cardStyle}>
-                <div style={huntPanelTitleStyle}>Fuentes rentables ahora</div>
-                {hottestBossHunts.length > 0 ? (
-                  <div style={{ display: "grid", gap: "6px" }}>
-                    {hottestBossHunts.map(entry => (
-                      <div key={`hot-boss-${entry.id}`} style={huntRowStyle}>
-                        <div>
-                          <div style={{ fontSize: "0.7rem", fontWeight: "900" }}>{entry.name}</div>
-                          <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>
-                            Tier {entry.tier} · {entry.missingCount > 0 ? `${entry.missingCount} poder${entry.missingCount === 1 ? "" : "es"} faltante${entry.missingCount === 1 ? "" : "s"}` : `${entry.masteryCount} poder${entry.masteryCount === 1 ? "" : "es"} para maestria`}
-                          </div>
-                        </div>
-                        <button onClick={() => goToTier(entry.tier)} style={miniHuntButtonStyle}>
-                          Ir
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={huntEmptyStyle}>Todavia no hay bosses con poderes rentables dentro de tus tiers desbloqueados.</div>
-                )}
-                {hottestFamilyHunts.length > 0 ? (
-                  <div style={{ display: "grid", gap: "6px" }}>
-                    {hottestFamilyHunts.map(entry => (
-                      <div key={`hot-family-${entry.id}`} style={huntRowStyle}>
-                        <div>
-                          <div style={{ fontSize: "0.7rem", fontWeight: "900" }}>{entry.name}</div>
-                          <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>
-                            Tier {entry.sourceTier} · {entry.missingCount > 0 ? `${entry.missingCount} poder pendiente` : `${entry.masteryCount} maestria cercana`}
-                          </div>
-                        </div>
-                        <button onClick={() => goToTier(entry.sourceTier)} style={miniHuntButtonStyle}>
-                          Ir
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ ...huntEmptyStyle, marginTop: hottestBossHunts.length > 0 ? "10px" : "0" }}>
-                    Todavia no hay familias visibles con poderes rentables dentro de tus tiers desbloqueados.
-                  </div>
-                )}
-              </div>
-
-              <div style={cardStyle}>
-                <div style={huntPanelTitleStyle}>Proximos descubrimientos</div>
-                {nextUndiscoveredBosses.length > 0 ? (
-                  <div style={{ display: "grid", gap: "6px" }}>
-                    {nextUndiscoveredBosses.map(entry => (
-                      <div key={`next-boss-${entry.id}`} style={huntMetaStyle}>
-                        <strong>Boss ???</strong> · Tier {entry.tier}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={huntEmptyStyle}>Ya viste todos los bosses actuales del juego.</div>
-                )}
-                {nextUndiscoveredFamilies.length > 0 && (
-                  <div style={{ display: "grid", gap: "6px", marginTop: "10px" }}>
-                    {nextUndiscoveredFamilies.map(entry => (
-                      <div key={`next-family-${entry.id}`} style={huntMetaStyle}>
-                        <strong>Familia ???</strong> · pendiente de encontrar
-                      </div>
-                    ))}
-                  </div>
+                  <div style={huntEmptyStyle}>Todavia no hay objetivos ya revelados con powers ocultos dentro de tus tiers actuales.</div>
                 )}
               </div>
             </div>
@@ -431,7 +360,7 @@ export default function Codex({ state, dispatch }) {
                     </div>
                   )}
                   {entry.unlocked && dispatch && (() => {
-                    const sourceTier = getBestUnlockedTierForPower(entry, maxUnlockedTier);
+                    const sourceTier = getBestUnlockedTierForPower(entry, maxUnlockedTier, runContext);
                     if (!sourceTier) return null;
                     return (
                       <button onClick={() => goToTier(sourceTier)} style={huntButtonStyle}>
@@ -476,7 +405,7 @@ export default function Codex({ state, dispatch }) {
                         <div style={{ ...progressBarFillStyle, width: `${Math.min(100, ((entry.kills || 0) / Math.max(1, entry.nextMilestone?.kills || entry.kills || 1)) * 100)}%` }} />
                       </div>
                       {dispatch && (() => {
-                        const familyTier = getHighestUnlockedTierForFamily(entry.id, maxUnlockedTier);
+                        const familyTier = getHighestUnlockedTierForFamily(entry.id, maxUnlockedTier, runContext);
                         if (!familyTier) return null;
                         return (
                           <button onClick={() => goToTier(familyTier)} style={{ ...huntButtonStyle, marginTop: "8px" }}>
@@ -518,7 +447,13 @@ export default function Codex({ state, dispatch }) {
                   {entry.seen ? (
                     <>
                       <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{entry.name}</div>
-                      <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>Tier {entry.tier} · {entry.family}</div>
+                      <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>
+                        {entry.inCurrentRoute
+                          ? entry.bestUnlockedTier != null
+                            ? `Ruta actual · Slot ${entry.currentRunSlot} · Tier ${entry.bestUnlockedTier}`
+                            : `Ruta actual · Slot ${entry.currentRunSlot} · desbloquea en Tier ${entry.earliestCurrentRunTier}`
+                          : "Fuera de la seed actual"} · {entry.family}
+                      </div>
                       <div style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.35 }}>{entry.intro}</div>
                       {(entry.huntLabel || entry.huntDescription || entry.favoredFamilies?.length || entry.favoredStats?.length) && (
                         <div style={{ marginTop: "8px", padding: "8px", borderRadius: "10px", background: "var(--tone-accent-soft, #eef2ff)", border: "1px solid rgba(99,102,241,0.16)" }}>
@@ -551,16 +486,20 @@ export default function Codex({ state, dispatch }) {
                       )}
                       {dispatch && (
                         <button
-                          onClick={() => goToTier(entry.tier)}
-                          disabled={entry.tier > maxUnlockedTier}
+                          onClick={() => goToTier(entry.bestUnlockedTier)}
+                          disabled={!entry.inCurrentRoute || entry.bestUnlockedTier == null}
                           style={{
                             ...huntButtonStyle,
                             marginTop: "8px",
-                            opacity: entry.tier > maxUnlockedTier ? 0.5 : 1,
-                            cursor: entry.tier > maxUnlockedTier ? "not-allowed" : "pointer",
+                            opacity: !entry.inCurrentRoute || entry.bestUnlockedTier == null ? 0.5 : 1,
+                            cursor: !entry.inCurrentRoute || entry.bestUnlockedTier == null ? "not-allowed" : "pointer",
                           }}
                         >
-                          {entry.tier > maxUnlockedTier ? `Llega a Tier ${entry.tier} esta run` : `Ir al tier ${entry.tier}`}
+                          {!entry.inCurrentRoute
+                            ? "No aparece en esta run"
+                            : entry.bestUnlockedTier == null
+                              ? `Llega a Tier ${entry.earliestCurrentRunTier}`
+                              : `Ir al tier ${entry.bestUnlockedTier}`}
                         </button>
                       )}
                       <div style={{ fontSize: "0.76rem", fontWeight: "900", marginTop: "8px" }}>{entry.kills} bajas</div>

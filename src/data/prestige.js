@@ -46,7 +46,7 @@ export const PRESTIGE_RANKS = [
     name: "Emisario de la Guerra Eterna",
     focus: "El loop de prestigio ya sostiene identidad de build entre sesiones.",
     description: "Cada ascension alimenta a la siguiente como si fueran la misma batalla.",
-    passiveEffects: { hpPct: 0.06, thorns: 10, healthRegen: 4 },
+    passiveEffects: { hpPct: 0.06, thornsDefenseRatio: 0.12, regenPctMaxHp: 0.012 },
   },
   {
     level: 8,
@@ -100,6 +100,14 @@ export const PRESTIGE_BRANCHES = [
     color: "#0ea5e9",
     description: "Rama de crafting: upgrade, reroll, pulido, reforja y ascenso ganan precision y eficiencia.",
   },
+  {
+    id: "abismo",
+    name: "Abismo",
+    scope: "universal",
+    color: "#64748b",
+    unlockKey: "prestigeBranch",
+    description: "Rama endgame: empuja tiers 26+, suaviza castigos del Abismo y convierte profundidad en valor real.",
+  },
 ];
 
 export const PRESTIGE_TREE_NODES = [
@@ -114,12 +122,12 @@ export const PRESTIGE_TREE_NODES = [
 
   { id: "bulwark_iron_marrows", branch: "bulwark", tier: 1, maxLevel: 5, costs: [1, 1, 2, 3, 4], requiresClass: "warrior", name: "Medula de Hierro", description: "+6% defense por nivel.", effectsPerLevel: { defensePct: 0.06 } },
   { id: "bulwark_heartwall", branch: "bulwark", tier: 1, maxLevel: 5, costs: [1, 1, 2, 3, 4], requiresClass: "warrior", name: "Muro de Corazon", description: "+8% vida maxima por nivel.", effectsPerLevel: { hpPct: 0.08 } },
-  { id: "bulwark_second_skin", branch: "bulwark", tier: 2, maxLevel: 4, costs: [2, 2, 3, 4], requires: ["bulwark_iron_marrows"], requiresClass: "warrior", name: "Segunda Piel", description: "+2 regen por nivel.", effectsPerLevel: { healthRegen: 2 } },
+  { id: "bulwark_second_skin", branch: "bulwark", tier: 2, maxLevel: 4, costs: [2, 2, 3, 4], requires: ["bulwark_iron_marrows"], requiresClass: "warrior", name: "Segunda Piel", description: "+0.8% regen por nivel.", effectsPerLevel: { regenPctMaxHp: 0.008 } },
   { id: "bulwark_shield_law", branch: "bulwark", tier: 2, maxLevel: 4, costs: [2, 2, 3, 4], requires: ["bulwark_heartwall"], requiresClass: "warrior", name: "Ley del Escudo", description: "+1.5% block chance por nivel.", effectsPerLevel: { blockChance: 0.015 } },
-  { id: "bulwark_bramble_crown", branch: "bulwark", tier: 3, maxLevel: 4, costs: [4, 5, 6, 8], requires: ["bulwark_second_skin"], requiresClass: "warrior", name: "Corona de Zarzas", description: "+5 thorns por nivel.", effectsPerLevel: { thorns: 5 } },
+  { id: "bulwark_bramble_crown", branch: "bulwark", tier: 3, maxLevel: 4, costs: [4, 5, 6, 8], requires: ["bulwark_second_skin"], requiresClass: "warrior", name: "Corona de Zarzas", description: "+6% espinas desde defensa por nivel.", effectsPerLevel: { thornsDefenseRatio: 0.06 } },
   { id: "bulwark_stone_step", branch: "bulwark", tier: 3, maxLevel: 3, costs: [5, 6, 8], requires: ["bulwark_shield_law"], requiresClass: "warrior", name: "Paso de Piedra", description: "+1.5% dodge chance por nivel.", effectsPerLevel: { dodgeChance: 0.015 } },
   { id: "bulwark_echo_plating", branch: "bulwark", tier: 4, maxLevel: 3, costs: [6, 8, 10], requires: ["bulwark_bramble_crown", "bulwark_stone_step"], requiresClass: "warrior", name: "Blindaje de Eco", description: "+5% defense y +5% vida maxima por nivel.", effectsPerLevel: { defensePct: 0.05, hpPct: 0.05 } },
-  { id: "bulwark_green_apex", branch: "bulwark", tier: 5, maxLevel: 1, capstone: true, costs: [12], requires: ["bulwark_bramble_crown", "bulwark_stone_step", "bulwark_echo_plating"], requiresClass: "warrior", name: "Apex de Bastion", description: "+14% vida, +8% defense, +4 regen y +4% block chance.", effectsPerLevel: { hpPct: 0.14, defensePct: 0.08, healthRegen: 4, blockChance: 0.04 } },
+  { id: "bulwark_green_apex", branch: "bulwark", tier: 5, maxLevel: 1, capstone: true, costs: [12], requires: ["bulwark_bramble_crown", "bulwark_stone_step", "bulwark_echo_plating"], requiresClass: "warrior", name: "Apex de Bastion", description: "+14% vida, +8% defense, +2.2% regen y +4% block chance.", effectsPerLevel: { hpPct: 0.14, defensePct: 0.08, regenPctMaxHp: 0.022, blockChance: 0.04 } },
 
   { id: "fortune_gilded_hands", branch: "fortune", tier: 1, maxLevel: 5, costs: [1, 1, 2, 3, 4], name: "Manos Doradas", description: "+8% oro por nivel.", effectsPerLevel: { goldPct: 0.08 } },
   { id: "fortune_chronicler", branch: "fortune", tier: 1, maxLevel: 4, costs: [1, 1, 2, 3], name: "Cronista de Guerra", description: "+7% XP por nivel.", effectsPerLevel: { xpPct: 0.07 } },
@@ -130,15 +138,6 @@ export const PRESTIGE_TREE_NODES = [
   { id: "fortune_relic_scent", branch: "fortune", tier: 4, maxLevel: 3, costs: [6, 8, 10], requires: ["fortune_scavenger_map", "fortune_market_memory"], name: "Olfato de Reliquia", description: "+1.5% botin y +3 luck por nivel.", effectsPerLevel: { lootBonus: 0.015, luck: 3 } },
   { id: "fortune_golden_apex", branch: "fortune", tier: 5, maxLevel: 1, capstone: true, costs: [12], requires: ["fortune_scavenger_map", "fortune_market_memory", "fortune_relic_scent"], name: "Apex de Fortuna", description: "+20% oro, +12% XP, +25% esencia, +5% botin y +10 luck.", effectsPerLevel: { goldPct: 0.2, xpPct: 0.12, essenceBonus: 0.25, lootBonus: 0.05, luck: 10 } },
 
-  { id: "lineage_warrior_lineage", branch: "war", tier: 3, maxLevel: 4, costs: [1, 2, 3, 4], requires: ["war_battleflow"], requiresClass: "warrior", name: "Linaje Marcial", description: "+3 dano plano y +2 defense plana por nivel.", effectsPerLevel: { flatDamage: 3, flatDefense: 2 } },
-  { id: "lineage_martial_memory", branch: "war", tier: 4, maxLevel: 3, costs: [2, 3, 5], requires: ["lineage_warrior_lineage"], requiresClass: "warrior", name: "Memoria Marcial", description: "+4% dano critico y +2% multi-hit por nivel.", effectsPerLevel: { critDamage: 0.04, multiHitChance: 0.02 } },
-  { id: "lineage_berserker_fever", branch: "war", tier: 4, maxLevel: 3, costs: [2, 3, 5], requires: ["war_blood_current"], requiresSpecialization: "berserker", name: "Fiebre Berserker", description: "+3% velocidad y +1.2% robo de vida por nivel.", effectsPerLevel: { attackSpeed: 0.03, lifesteal: 0.012 } },
-  { id: "lineage_berserker_mania", branch: "war", tier: 5, maxLevel: 3, costs: [5, 7, 9], requires: ["lineage_berserker_fever"], requiresSpecialization: "berserker", name: "Mania del Carnicero", description: "+4% crit baja vida y +3 dano al matar por nivel.", effectsPerLevel: { critOnLowHp: 0.04, damageOnKill: 3 } },
-  { id: "lineage_juggernaut_core", branch: "bulwark", tier: 4, maxLevel: 3, costs: [2, 3, 5], requires: ["bulwark_echo_plating"], requiresSpecialization: "juggernaut", name: "Nucleo Juggernaut", description: "+6% defense y +2 regen por nivel.", effectsPerLevel: { defensePct: 0.06, healthRegen: 2 } },
-  { id: "lineage_juggernaut_throne", branch: "bulwark", tier: 5, maxLevel: 3, costs: [5, 7, 9], requires: ["lineage_juggernaut_core"], requiresSpecialization: "juggernaut", name: "Trono del Titan", description: "+2% bloqueo y +6 espinas por nivel.", effectsPerLevel: { blockChance: 0.02, thorns: 6 } },
-  { id: "lineage_eternal_avatar", branch: "war", tier: 5, maxLevel: 2, costs: [6, 9], requires: ["lineage_martial_memory"], requiresClass: "warrior", name: "Estandarte del Legado", description: "+4% dano, +4% defense, +4% vida y +2 suerte por nivel.", effectsPerLevel: { damagePct: 0.04, defensePct: 0.04, hpPct: 0.04, luck: 2 } },
-  { id: "lineage_berserker_apex", branch: "war", tier: 5, maxLevel: 1, capstone: true, costs: [14], requires: ["lineage_berserker_mania", "lineage_eternal_avatar"], requiresSpecialization: "berserker", name: "Avatar de la Carniceria", description: "+10% velocidad, +12% dano critico, +6% crit en baja vida y +4 dano al matar.", effectsPerLevel: { attackSpeed: 0.10, critDamage: 0.12, critOnLowHp: 0.06, damageOnKill: 4 } },
-  { id: "lineage_juggernaut_apex", branch: "bulwark", tier: 5, maxLevel: 1, capstone: true, costs: [14], requires: ["lineage_juggernaut_throne", "bulwark_echo_plating"], requiresSpecialization: "juggernaut", name: "Avatar del Bastion", description: "+12% vida, +10% defense, +4% bloqueo, +8 espinas y +3 regen.", effectsPerLevel: { hpPct: 0.12, defensePct: 0.10, blockChance: 0.04, thorns: 8, healthRegen: 3 } },
 
   { id: "sorcery_arcane_fury", branch: "sorcery", tier: 1, maxLevel: 4, costs: [1, 1, 2, 3], requiresClass: "mage", name: "Furia Arcana", description: "+4% dano por nivel.", effectsPerLevel: { damagePct: 0.04 } },
   { id: "sorcery_glass_formula", branch: "sorcery", tier: 1, maxLevel: 4, costs: [1, 1, 2, 3], requiresClass: "mage", name: "Formula de Cristal", description: "+5% dano critico por nivel.", effectsPerLevel: { critDamage: 0.05 } },
@@ -160,12 +159,19 @@ export const PRESTIGE_TREE_NODES = [
 
   { id: "forge_tempered_hands", branch: "forge", tier: 1, maxLevel: 4, costs: [1, 1, 2, 3], name: "Manos Templadas", description: "-6% costo de upgrade por nivel.", effectsPerLevel: { upgradeCostReduction: 0.06 } },
   { id: "forge_chaos_script", branch: "forge", tier: 1, maxLevel: 4, costs: [1, 1, 2, 3], name: "Escritura del Caos", description: "-6% costo de reroll por nivel.", effectsPerLevel: { rerollCostReduction: 0.06 } },
-  { id: "forge_codex_memory", branch: "forge", tier: 1, maxLevel: 3, costs: [1, 1, 2], requires: ["forge_tempered_hands"], name: "Memoria de Forja", description: "-10% costo de ascend con poder injertado por nivel.", effectsPerLevel: { ascendImprintCostReduction: 0.10 } },
   { id: "forge_precision_file", branch: "forge", tier: 2, maxLevel: 4, costs: [2, 2, 3, 4], requires: ["forge_tempered_hands"], name: "Lima de Precision", description: "-7% costo de pulido por nivel.", effectsPerLevel: { polishCostReduction: 0.07 } },
   { id: "forge_surgeon_mark", branch: "forge", tier: 2, maxLevel: 4, costs: [2, 2, 3, 4], requires: ["forge_chaos_script"], name: "Marca del Cirujano", description: "-7% costo de reforja por nivel.", effectsPerLevel: { reforgeCostReduction: 0.07 } },
-  { id: "forge_echo_hunt", branch: "forge", tier: 2, maxLevel: 3, costs: [2, 3, 4], requires: ["forge_codex_memory"], name: "Eco de Caza", description: "+18% sesgo hacia powers ya descubiertos cuando farmeas su objetivo por nivel.", effectsPerLevel: { discoveredPowerBias: 0.18 } },
-  { id: "forge_star_quench", branch: "forge", tier: 3, maxLevel: 3, costs: [5, 6, 8], requires: ["forge_precision_file", "forge_codex_memory"], name: "Temple Estelar", description: "-8% costo de ascend por nivel.", effectsPerLevel: { ascendCostReduction: 0.08 } },
-  { id: "forge_anvil_prophecy", branch: "forge", tier: 3, maxLevel: 2, costs: [5, 8], requires: ["forge_surgeon_mark"], name: "Profecia del Yunque", description: "+1 opcion de reforja por nivel.", effectsPerLevel: { reforgeOptionCount: 1 } },
+  { id: "forge_star_quench", branch: "forge", tier: 3, maxLevel: 3, costs: [5, 6, 8], requires: ["forge_precision_file"], name: "Temple Estelar", description: "-8% costo de ascend por nivel.", effectsPerLevel: { ascendCostReduction: 0.08 } },
+  { id: "forge_anvil_prophecy", branch: "forge", tier: 3, maxLevel: 2, costs: [5, 8], requires: ["forge_surgeon_mark"], name: "Profecia del Yunque", description: "-10% costo de injertar poder legendario por nivel.", effectsPerLevel: { ascendImprintCostReduction: 0.10 } },
   { id: "forge_living_furnace", branch: "forge", tier: 4, maxLevel: 3, costs: [6, 8, 10], requires: ["forge_star_quench", "forge_anvil_prophecy"], name: "Horno Vivo", description: "-4% costo de reroll, pulido y reforja por nivel.", effectsPerLevel: { rerollCostReduction: 0.04, polishCostReduction: 0.04, reforgeCostReduction: 0.04 } },
-  { id: "forge_blue_apex", branch: "forge", tier: 5, maxLevel: 1, capstone: true, costs: [12], requires: ["forge_star_quench", "forge_anvil_prophecy", "forge_living_furnace"], name: "Apex de Forja", description: "-12% upgrade, reroll, pulido, reforja y ascend. +1 opcion de reforja.", effectsPerLevel: { upgradeCostReduction: 0.12, rerollCostReduction: 0.12, polishCostReduction: 0.12, reforgeCostReduction: 0.12, ascendCostReduction: 0.12, reforgeOptionCount: 1 } },
+  { id: "forge_blue_apex", branch: "forge", tier: 5, maxLevel: 1, capstone: true, costs: [12], requires: ["forge_star_quench", "forge_anvil_prophecy", "forge_living_furnace"], name: "Apex de Forja", description: "-12% upgrade, reroll, pulido, reforja y ascend. -18% costo de injertar poder legendario.", effectsPerLevel: { upgradeCostReduction: 0.12, rerollCostReduction: 0.12, polishCostReduction: 0.12, reforgeCostReduction: 0.12, ascendCostReduction: 0.12, ascendImprintCostReduction: 0.18 } },
+
+  { id: "abyss_edge", branch: "abismo", tier: 1, maxLevel: 4, costs: [1, 1, 2, 3], name: "Borde del Abismo", description: "+4% dano contra enemigos del Abismo por nivel.", effectsPerLevel: { abyssDamagePct: 0.04 } },
+  { id: "abyss_pressure_mesh", branch: "abismo", tier: 1, maxLevel: 4, costs: [1, 1, 2, 3], name: "Malla de Presion", description: "-8% castigo de anomalias y affixes enemigos en Abismo por nivel.", effectsPerLevel: { abyssEnemyAffixPenaltyReduction: 0.08 } },
+  { id: "abyss_black_lens", branch: "abismo", tier: 2, maxLevel: 4, costs: [2, 2, 3, 4], requires: ["abyss_edge"], name: "Lente Negra", description: "+0.35% calidad de loot en Abismo por nivel.", effectsPerLevel: { abyssLootQuality: 0.0035 } },
+  { id: "abyss_clean_route", branch: "abismo", tier: 2, maxLevel: 3, costs: [2, 3, 4], requires: ["abyss_pressure_mesh"], name: "Ruta Limpia", description: "-12% presion extra de enemigos normales del Abismo por nivel.", effectsPerLevel: { abyssNormalEnemyPenaltyReduction: 0.12 } },
+  { id: "abyss_essence_vein", branch: "abismo", tier: 3, maxLevel: 4, costs: [4, 5, 6, 8], requires: ["abyss_black_lens"], name: "Veta de Esencia", description: "+12% esencia en Abismo por nivel.", effectsPerLevel: { abyssEssenceMult: 0.12 } },
+  { id: "abyss_fracture_ward", branch: "abismo", tier: 3, maxLevel: 3, costs: [4, 5, 7], requires: ["abyss_clean_route"], name: "Guardia de Fractura", description: "-6% dano de bosses y mecanicas en Abismo por nivel.", effectsPerLevel: { abyssBossMechanicMitigation: 0.06 } },
+  { id: "abyss_pact", branch: "abismo", tier: 5, maxLevel: 1, capstone: true, costs: [14], requires: ["abyss_essence_vein", "abyss_fracture_ward"], excludes: ["abyss_void_eye"], name: "Pacto del Abismo", description: "-15% dano, defensa y vida globales. +40% dano y +18% mitigacion solo contra Abismo.", effectsPerLevel: { damagePct: -0.15, defensePct: -0.15, hpPct: -0.15, abyssDamagePct: 0.40, abyssBossMechanicMitigation: 0.18 } },
+  { id: "abyss_void_eye", branch: "abismo", tier: 5, maxLevel: 1, capstone: true, costs: [14], requires: ["abyss_essence_vein", "abyss_fracture_ward"], excludes: ["abyss_pact"], name: "Ojo del Vacio", description: "Las anomalias del Abismo alimentan tu ofensiva. +16% dano por severidad del mutador y +0.6% calidad de loot.", effectsPerLevel: { abyssMutatorOffensePct: 0.16, abyssLootQuality: 0.006 } },
 ];

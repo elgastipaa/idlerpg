@@ -1,5 +1,6 @@
 import { processTick }              from "../engine/combat/processTickRuntime";
 import { spawnEnemy }               from "../engine/combat/enemyEngine";
+import { createRunContext } from "../engine/combat/encounterRouting";
 import { refreshStats }             from "../engine/combat/statEngine";
 import { calcStats }                from "../engine/combat/statEngine";
 import { addToInventory, syncEquipment } from "../engine/inventory/inventoryEngine";
@@ -23,8 +24,17 @@ import {
   getNextPrestigeRank,
   syncPrestigeBonuses,
 } from "../engine/progression/prestigeEngine";
+import { getMaxRunSigilSlots, syncAbyssState } from "../engine/progression/abyssProgression";
 import { PRESTIGE_TREE_NODES } from "../data/prestige";
-import { getRunSigil, getRunSigilPlayerBonuses, isRunSigilsUnlocked } from "../data/runSigils";
+import { ABYSS_PREFIXES, ABYSS_SUFFIXES } from "../data/affixes";
+import {
+  formatRunSigilLoadout,
+  getRunSigil,
+  getRunSigilPlayerBonuses,
+  isRunSigilsUnlocked,
+  normalizeRunSigilIds,
+  summarizeRunSigilLoadout,
+} from "../data/runSigils";
 
 import {
   upgradePlayer,
@@ -97,6 +107,34 @@ function buildBlockedOperationState(state, { analyticsKey, message }) {
       ].slice(-20),
     },
   };
+}
+
+function resolveRunSigilLoadout(state, sourceIds = null) {
+  const slots = getMaxRunSigilSlots(state?.abyss || {});
+  return normalizeRunSigilIds(
+    sourceIds ?? state?.combat?.pendingRunSigilIds ?? state?.combat?.pendingRunSigilId ?? "free",
+    { slots }
+  );
+}
+
+function selectRunSigilLoadout(state, sigilId, slotIndex = 0) {
+  const slots = getMaxRunSigilSlots(state?.abyss || {});
+  const currentIds = resolveRunSigilLoadout(state);
+  const nextIds = [...currentIds];
+  const nextSlotIndex = Math.max(0, Math.min(slots - 1, Math.floor(Number(slotIndex || 0))));
+  const nextSigilId = getRunSigil(sigilId || "free").id;
+
+  nextIds[nextSlotIndex] = nextSigilId;
+  if (nextSigilId !== "free") {
+    for (let index = 0; index < nextIds.length; index += 1) {
+      if (index === nextSlotIndex) continue;
+      if (nextIds[index] === nextSigilId) {
+        nextIds[index] = "free";
+      }
+    }
+  }
+
+  return normalizeRunSigilIds(nextIds, { slots });
 }
 
 function baseGameReducer(state, action) {
@@ -245,26 +283,31 @@ function baseGameReducer(state, action) {
 
     case "SELECT_RUN_SIGIL": {
       if (!state.combat?.pendingRunSetup || !isRunSigilsUnlocked(state)) return state;
-      const runSigil = getRunSigil(action.sigilId || "free");
+      const nextRunSigilIds = selectRunSigilLoadout(state, action.sigilId || "free", action.slotIndex || 0);
       return {
         ...state,
         combat: {
           ...state.combat,
-          pendingRunSigilId: runSigil.id,
+          pendingRunSigilId: nextRunSigilIds[0] || "free",
+          pendingRunSigilIds: nextRunSigilIds,
         },
       };
     }
 
     case "START_RUN": {
       if (!state.combat?.pendingRunSetup) return state;
-      const runSigil = getRunSigil(state.combat?.pendingRunSigilId || "free");
-      const nextEnemy = spawnEnemy(state.combat?.currentTier || 1);
+      const runSigilIds = resolveRunSigilLoadout(
+        state,
+        state.combat?.pendingRunSigilIds || state.combat?.pendingRunSigilId || "free"
+      );
+      const nextRunContext = state.combat?.runContext || createRunContext();
+      const nextEnemy = spawnEnemy(state.combat?.currentTier || 1, nextRunContext);
       const nextCodex = recordCodexSighting(state.codex || {}, nextEnemy);
       const nextPlayer = syncCodexBonuses(
         syncPrestigeBonuses(
           {
             ...state.player,
-            runSigilBonuses: getRunSigilPlayerBonuses(runSigil.id),
+            runSigilBonuses: getRunSigilPlayerBonuses(runSigilIds),
           },
           state.prestige
         ),
@@ -281,11 +324,13 @@ function baseGameReducer(state, action) {
         combat: {
           ...state.combat,
           pendingRunSetup: false,
-          activeRunSigilId: runSigil.id,
+          activeRunSigilId: runSigilIds[0] || "free",
+          activeRunSigilIds: runSigilIds,
+          runContext: nextRunContext,
           enemy: nextEnemy,
           log: [
             ...(state.combat.log || []),
-            `SIGILO: ${runSigil.name}. ${runSigil.summary}`,
+            `SIGILOS: ${formatRunSigilLoadout(runSigilIds)}. ${summarizeRunSigilLoadout(runSigilIds)}`,
           ].slice(-20),
         },
       };
@@ -450,6 +495,7 @@ function baseGameReducer(state, action) {
     case "SET_TIER": {
       const tier     = Math.max(1, Math.min(action.tier, state.combat.maxTier));
       const prevTier = state.combat.currentTier || 1;
+      const runContext = state.combat?.runContext || createRunContext();
 
       let newState = {
         ...state,
@@ -457,7 +503,8 @@ function baseGameReducer(state, action) {
           ...state.combat,
           currentTier:       tier,
           autoAdvance:       false,
-          enemy:             spawnEnemy(tier),
+          enemy:             spawnEnemy(tier, runContext),
+          runContext,
           ticksInCurrentRun: 0,
           sessionKills:      0,
           effects:           [],
@@ -471,6 +518,7 @@ function baseGameReducer(state, action) {
           floatEvents: [],
           runStats: {
             kills: 0,
+            bossKills: 0,
             damageDealt: 0,
             gold: 0,
             xp: 0,
@@ -774,6 +822,10 @@ function baseGameReducer(state, action) {
       const nextPrestigeLevel = (state.prestige?.level || 0) + 1;
       const nextRank = getNextPrestigeRank(state.prestige?.level || 0);
       const milestoneReached = nextRank?.level === nextPrestigeLevel ? nextRank : null;
+      const nextRunContext = createRunContext();
+      const resetRunSigilIds = normalizeRunSigilIds("free", {
+        slots: getMaxRunSigilSlots(state?.abyss || {}),
+      });
       const basePlayer  = {
         level: 1, xp: 0,
         baseDamage:     10,
@@ -833,7 +885,7 @@ function baseGameReducer(state, action) {
         },
         prestige: nextPrestigeState,
         combat: {
-          enemy:             spawnEnemy(1),
+          enemy:             spawnEnemy(1, nextRunContext),
           log:               [
             milestoneReached
               ? `Prestige ${nextPrestigeLevel}: ${milestoneReached.name}. +${echoesGained} ecos. ${milestoneReached.description} Volves a elegir clase para la proxima corrida.`
@@ -858,6 +910,7 @@ function baseGameReducer(state, action) {
           floatEvents: [],
           runStats: {
             kills: 0,
+            bossKills: 0,
             damageDealt: 0,
             gold: 0,
             xp: 0,
@@ -877,9 +930,12 @@ function baseGameReducer(state, action) {
           },
           latestLootEvent: null,
           reforgeSession: null,
+          runContext: nextRunContext,
           pendingRunSetup: nextPrestigeLevel >= 1,
-          pendingRunSigilId: "free",
-          activeRunSigilId: "free",
+          pendingRunSigilId: resetRunSigilIds[0] || "free",
+          pendingRunSigilIds: resetRunSigilIds,
+          activeRunSigilId: resetRunSigilIds[0] || "free",
+          activeRunSigilIds: resetRunSigilIds,
           lastRunSummary:    null,
           offlineSummary:    null,
           prestigeCycle: createEmptyPrestigeCycleProgress(),
@@ -1009,6 +1065,7 @@ function baseGameReducer(state, action) {
         itemId: action.payload.itemId,
         affixIndex: action.payload.affixIndex,
         favoredStats: action.payload.favoredStats || [],
+        extraAffixPool: action.payload.allowAbyssAffixes ? [...ABYSS_PREFIXES, ...ABYSS_SUFFIXES] : [],
       });
       if (!result) return state;
       if (result.blocked) {
@@ -1254,8 +1311,55 @@ function baseGameReducer(state, action) {
   }
 }
 
+function withAbyssProgression(prevState, nextState) {
+  const highestTierCandidate = Math.max(
+    Number(prevState?.abyss?.highestTierReached || 1),
+    Number(nextState?.combat?.currentTier || 1),
+    Number(nextState?.combat?.maxTier || 1),
+    Number(nextState?.combat?.prestigeCycle?.maxTier || 1),
+    Number(nextState?.combat?.analytics?.maxTierReached || 1)
+  );
+  const { abyss, newlyUnlocked, changed } = syncAbyssState(
+    nextState?.abyss || prevState?.abyss || {},
+    highestTierCandidate
+  );
+  if (!changed) return nextState;
+
+  const slots = getMaxRunSigilSlots(abyss);
+  const pendingRunSigilIds = normalizeRunSigilIds(
+    nextState?.combat?.pendingRunSigilIds || nextState?.combat?.pendingRunSigilId || "free",
+    { slots }
+  );
+  const activeRunSigilIds = normalizeRunSigilIds(
+    nextState?.combat?.activeRunSigilIds || nextState?.combat?.activeRunSigilId || "free",
+    { slots }
+  );
+  const unlockLogs = newlyUnlocked.map(
+    unlock => `HITO DE ABISMO: ${unlock.name}. ${unlock.reward}.`
+  );
+
+  return {
+    ...nextState,
+    abyss,
+    player: {
+      ...nextState.player,
+      runSigilBonuses: nextState?.combat?.pendingRunSetup
+        ? {}
+        : getRunSigilPlayerBonuses(activeRunSigilIds),
+    },
+    combat: {
+      ...nextState.combat,
+      pendingRunSigilId: pendingRunSigilIds[0] || "free",
+      pendingRunSigilIds,
+      activeRunSigilId: activeRunSigilIds[0] || "free",
+      activeRunSigilIds,
+      log: [...(nextState?.combat?.log || []), ...unlockLogs].slice(-20),
+    },
+  };
+}
+
 export function gameReducer(state, action) {
-  const nextState = baseGameReducer(state, action);
+  const nextState = withAbyssProgression(state, baseGameReducer(state, action));
   if (nextState === state) return state;
   return recordReplayState(state, nextState, action);
 }

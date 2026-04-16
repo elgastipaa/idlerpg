@@ -462,7 +462,7 @@ function maybeCraft(state, logs, tick, options = {}) {
       const options = buildReforgePreview(
         item,
         worstAffixIndex,
-        2 + Math.max(0, Math.floor(nextState.player?.prestigeBonuses?.reforgeOptionCount || 0)),
+        3 + Math.max(0, Math.floor(nextState.player?.prestigeBonuses?.reforgeOptionCount || 0)),
         preferredStats
       );
       const chosen = options.find(option => preferredStats.includes(option.stat)) || options[0];

@@ -4,7 +4,8 @@ import Character from "./components/Character";
 import Combat from "./components/Combat";
 import Inventory from "./components/Inventory";
 import { getRarityColor } from "./constants/rarity";
-import { getRunSigil, RUN_SIGILS } from "./data/runSigils";
+import { formatRunSigilLoadout, getRunSigil, normalizeRunSigilIds, RUN_SIGILS, summarizeRunSigilLoadout } from "./data/runSigils";
+import { getMaxRunSigilSlots } from "./engine/progression/abyssProgression";
 
 const Skills = lazy(() => import("./components/Skills"));
 const Achievements = lazy(() => import("./components/Achievements"));
@@ -240,8 +241,16 @@ export default function App() {
   }).length;
   const theme = state.settings?.theme === "dark" ? "dark" : "light";
   const themeVars = THEMES[theme];
-  const activeRunSigil = getRunSigil(state.combat?.activeRunSigilId || "free");
-  const pendingRunSigil = getRunSigil(state.combat?.pendingRunSigilId || "free");
+  const runSigilSlotCount = getMaxRunSigilSlots(state?.abyss || {});
+  const activeRunSigilIds = normalizeRunSigilIds(
+    state.combat?.activeRunSigilIds || state.combat?.activeRunSigilId || "free",
+    { slots: runSigilSlotCount }
+  );
+  const pendingRunSigilIds = normalizeRunSigilIds(
+    state.combat?.pendingRunSigilIds || state.combat?.pendingRunSigilId || "free",
+    { slots: runSigilSlotCount }
+  );
+  const activeRunSigilLabel = formatRunSigilLoadout(activeRunSigilIds, { short: true });
   const showActiveRunSigil = Number(state.prestige?.level || 0) >= 1 && !state.combat?.pendingRunSetup;
 
   useEffect(() => {
@@ -293,7 +302,7 @@ export default function App() {
     <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, overflowX: "auto", scrollbarWidth: "none" }}>
       {showActiveRunSigil && (
         <HeaderCompactChip
-          text={activeRunSigil.shortName || activeRunSigil.name}
+          text={activeRunSigilLabel}
           color="var(--tone-accent, #4338ca)"
           borderColor="rgba(99,102,241,0.22)"
           background="var(--tone-accent-soft, #eef2ff)"
@@ -409,10 +418,11 @@ export default function App() {
       {state.combat?.pendingRunSetup && state.player?.class && (
         <RunSigilOverlay
           isMobile={isMobile}
-          pendingRunSigil={pendingRunSigil}
-          onSelect={(sigilId) => dispatch({ type: "SELECT_RUN_SIGIL", sigilId })}
+          pendingRunSigilIds={pendingRunSigilIds}
+          onSelect={(sigilId, slotIndex) => dispatch({ type: "SELECT_RUN_SIGIL", sigilId, slotIndex })}
           onStart={() => dispatch({ type: "START_RUN" })}
           prestigeLevel={state.prestige?.level || 0}
+          sigilSlotCount={runSigilSlotCount}
         />
       )}
 
@@ -644,7 +654,17 @@ function themeToggleButtonStyle(isMobile = false) {
   };
 }
 
-function RunSigilOverlay({ isMobile, pendingRunSigil, onSelect, onStart, prestigeLevel }) {
+function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, prestigeLevel, sigilSlotCount = 1 }) {
+  const [activeSlotIndex, setActiveSlotIndex] = useState(0);
+  useEffect(() => {
+    if (activeSlotIndex < sigilSlotCount) return;
+    setActiveSlotIndex(0);
+  }, [activeSlotIndex, sigilSlotCount]);
+
+  const currentPendingRunSigil = getRunSigil(pendingRunSigilIds?.[activeSlotIndex] || "free");
+  const currentLoadoutName = formatRunSigilLoadout(pendingRunSigilIds);
+  const currentLoadoutSummary = summarizeRunSigilLoadout(pendingRunSigilIds);
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,0.72)", zIndex: 9000, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", padding: isMobile ? "0" : "24px" }}>
       <div style={{ width: "100%", maxWidth: "920px", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-primary, #1e293b)", borderRadius: isMobile ? "0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", display: "flex", flexDirection: "column", maxHeight: "100vh", overflow: "auto" }}>
@@ -658,15 +678,51 @@ function RunSigilOverlay({ isMobile, pendingRunSigil, onSelect, onStart, prestig
           <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.45 }}>
             El sigilo queda fijo hasta el proximo prestigio. Si no queres sesgar la corrida, elegi <strong>Libre</strong>.
           </div>
+          {sigilSlotCount > 1 && (
+            <div style={{ fontSize: "0.72rem", color: "var(--tone-accent, #4338ca)", marginTop: "8px", fontWeight: "900" }}>
+              Abismo IV activo: podes equipar 2 sigilos. No se repiten.
+            </div>
+          )}
         </div>
+
+        {sigilSlotCount > 1 && (
+          <div style={{ padding: isMobile ? "12px 16px 0" : "14px 22px 0", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {pendingRunSigilIds.map((sigilId, index) => {
+              const sigil = getRunSigil(sigilId);
+              const active = index === activeSlotIndex;
+              return (
+                <button
+                  key={`sigil-slot-${index + 1}`}
+                  onClick={() => setActiveSlotIndex(index)}
+                  style={{
+                    border: "1px solid",
+                    borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
+                    background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #fff)",
+                    color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #475569)",
+                    borderRadius: "999px",
+                    padding: "7px 11px",
+                    fontSize: "0.68rem",
+                    fontWeight: "900",
+                    cursor: "pointer",
+                  }}
+                >
+                  {`Slot ${index + 1}: ${sigil.shortName || sigil.name}`}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         <div style={{ padding: isMobile ? "14px 16px 18px" : "18px 22px 22px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "12px" }}>
           {RUN_SIGILS.map(sigil => {
-            const active = pendingRunSigil.id === sigil.id;
+            const active = currentPendingRunSigil.id === sigil.id;
+            const selectedSlots = (pendingRunSigilIds || [])
+              .map((selectedId, index) => (selectedId === sigil.id ? index + 1 : null))
+              .filter(Boolean);
             return (
               <button
                 key={sigil.id}
-                onClick={() => onSelect(sigil.id)}
+                onClick={() => onSelect(sigil.id, activeSlotIndex)}
                 style={{
                   textAlign: "left",
                   border: "1px solid",
@@ -685,7 +741,14 @@ function RunSigilOverlay({ isMobile, pendingRunSigil, onSelect, onStart, prestig
                       {sigil.focus}
                     </div>
                   </div>
-                  <span style={{ minWidth: "18px", height: "18px", borderRadius: "999px", border: "2px solid", borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-tertiary, #cbd5e1)", background: active ? "var(--tone-accent, #4338ca)" : "transparent" }} />
+                  <div style={{ display: "grid", justifyItems: "end", gap: "4px" }}>
+                    {selectedSlots.length > 0 && (
+                      <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", background: "var(--tone-accent-soft, #eef2ff)", border: "1px solid rgba(99,102,241,0.18)", borderRadius: "999px", padding: "2px 6px" }}>
+                        {selectedSlots.map(slot => `S${slot}`).join(" · ")}
+                      </span>
+                    )}
+                    <span style={{ minWidth: "18px", height: "18px", borderRadius: "999px", border: "2px solid", borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-tertiary, #cbd5e1)", background: active ? "var(--tone-accent, #4338ca)" : "transparent" }} />
+                  </div>
                 </div>
                 <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #475569)", marginTop: "8px", lineHeight: 1.45 }}>
                   {sigil.summary}
@@ -728,10 +791,10 @@ function RunSigilOverlay({ isMobile, pendingRunSigil, onSelect, onStart, prestig
         <div style={{ padding: isMobile ? "0 16px 18px" : "0 22px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
           <div style={{ display: "grid", gap: "3px" }}>
             <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)" }}>
-              Seleccion actual: <strong style={{ color: "var(--color-text-primary, #1e293b)" }}>{pendingRunSigil.name}</strong>
+              Seleccion actual: <strong style={{ color: "var(--color-text-primary, #1e293b)" }}>{currentLoadoutName}</strong>
             </div>
             <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
-              {pendingRunSigil.summary}
+              {currentLoadoutSummary}
             </div>
           </div>
           <button
