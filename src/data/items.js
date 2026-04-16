@@ -972,7 +972,7 @@
 export const ITEM_RARITY_BLUEPRINT = {
   common: { totalLines: 2, baseCount: 1, implicitCount: 1, affixCount: 0 },
   magic: { totalLines: 3, baseCount: 1, implicitCount: 1, affixCount: 1 },
-  rare: { totalLines: 3, baseCount: 1, implicitCount: 1, affixCount: 1 },
+  rare: { totalLines: 4, baseCount: 1, implicitCount: 1, affixCount: 2 },
   epic: { totalLines: 5, baseCount: 2, implicitCount: 1, affixCount: 2 },
   legendary: { totalLines: 7, baseCount: 3, implicitCount: 1, affixCount: 3 },
 };

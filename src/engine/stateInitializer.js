@@ -286,6 +286,7 @@ const freshState = {
     echoes: 0,
     spentEchoes: 0,
     totalEchoesEarned: 0,
+    bestHistoricTier: 0,
     nodes: {},
   },
   abyss: createEmptyAbyssState(),
@@ -381,6 +382,16 @@ function mergeStateWithDefaults(base, incoming) {
     highestTierReached: abyssTierCandidate,
   });
   const maxRunSigilSlots = getMaxRunSigilSlots(normalizedAbyss);
+  const hasHistoricPrestigeProgress =
+    Number(normalizedPrestige.level || 0) > 0 ||
+    Number(migratedIncoming.stats?.prestigeCount || 0) > 0;
+  const fallbackHistoricBestTier = hasHistoricPrestigeProgress
+    ? Math.max(
+      Number(normalizedPrestige.bestHistoricTier || 0),
+      Number(rawCombat.analytics?.maxTierReached || 1),
+      Number(rawCombat.lastRunSummary?.maxTier || 1)
+    )
+    : Number(normalizedPrestige.bestHistoricTier || 0);
   const rawLevel = Number(rawPlayer.level ?? base.player.level);
   const rawBaseDamage = Number(rawPlayer.baseDamage ?? base.player.baseDamage);
   const rawBaseMaxHp = Number(rawPlayer.baseMaxHp ?? base.player.baseMaxHp);
@@ -580,6 +591,7 @@ function mergeStateWithDefaults(base, incoming) {
     prestige: {
       ...base.prestige,
       ...normalizedPrestige,
+      bestHistoricTier: fallbackHistoricBestTier,
     },
     abyss: normalizedAbyss,
     codex: recordCodexSighting(normalizedCodex, normalizeEnemy(rawCombat.enemy, rawCombat.currentTier, normalizedRunContext)),

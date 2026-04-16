@@ -5,8 +5,8 @@ export const PREFIXES = [
     scaling: "flat",
     category: "offense",
     tiers: {
-      3: { label: "Afilada", value: { min: 3, max: 6 }, weight: 55 },
-      2: { label: "del Guerrero", value: { min: 7, max: 14 }, weight: 25 },
+      3: { label: "Afilada", value: { min: 3, max: 6 }, weight: 42 },
+      2: { label: "del Guerrero", value: { min: 7, max: 14 }, weight: 20 },
       1: { label: "Devastadora", value: { min: 18, max: 30 }, weight: 8 },
     },
   },
@@ -16,8 +16,8 @@ export const PREFIXES = [
     scaling: "flat",
     category: "offense",
     tiers: {
-      3: { label: "Sangrienta", value: { min: 4, max: 7 }, weight: 50 },
-      2: { label: "Implacable", value: { min: 8, max: 16 }, weight: 22 },
+      3: { label: "Sangrienta", value: { min: 4, max: 7 }, weight: 38 },
+      2: { label: "Implacable", value: { min: 8, max: 16 }, weight: 18 },
       1: { label: "del Aniquilador", value: { min: 20, max: 34 }, weight: 7 },
     },
   },
@@ -49,8 +49,8 @@ export const PREFIXES = [
     scaling: "percent",
     category: "offense",
     tiers: {
-      3: { label: "Certera", value: { min: 0.01, max: 0.02 }, weight: 50 },
-      2: { label: "del Asesino", value: { min: 0.03, max: 0.06 }, weight: 22 },
+      3: { label: "Certera", value: { min: 0.01, max: 0.02 }, weight: 40 },
+      2: { label: "del Asesino", value: { min: 0.03, max: 0.06 }, weight: 18 },
       1: { label: "del Verdugo", value: { min: 0.08, max: 0.13 }, weight: 7 },
     },
   },
@@ -71,8 +71,8 @@ export const PREFIXES = [
     scaling: "percent",
     category: "offense",
     tiers: {
-      3: { label: "Agil", value: { min: 0.02, max: 0.04 }, weight: 45 },
-      2: { label: "Frenetica", value: { min: 0.05, max: 0.09 }, weight: 20 },
+      3: { label: "Agil", value: { min: 0.02, max: 0.04 }, weight: 38 },
+      2: { label: "Frenetica", value: { min: 0.05, max: 0.09 }, weight: 17 },
       1: { label: "del Relampago", value: { min: 0.12, max: 0.18 }, weight: 6 },
     },
   },
@@ -82,9 +82,9 @@ export const PREFIXES = [
     scaling: "percent",
     category: "offense",
     tiers: {
-      3: { label: "de Combo", value: { min: 0.02, max: 0.04 }, weight: 32 },
-      2: { label: "Encadenada", value: { min: 0.05, max: 0.08 }, weight: 14 },
-      1: { label: "de la Tempestad", value: { min: 0.1, max: 0.14 }, weight: 4 },
+      3: { label: "de Combo", value: { min: 0.02, max: 0.04 }, weight: 40 },
+      2: { label: "Encadenada", value: { min: 0.05, max: 0.08 }, weight: 18 },
+      1: { label: "de la Tempestad", value: { min: 0.1, max: 0.14 }, weight: 5 },
     },
   },
   {
@@ -93,9 +93,9 @@ export const PREFIXES = [
     scaling: "percent",
     category: "offense",
     tiers: {
-      3: { label: "Marcadora", value: { min: 0.02, max: 0.04 }, weight: 26 },
-      2: { label: "de la Runa", value: { min: 0.05, max: 0.08 }, weight: 12 },
-      1: { label: "de la Condena", value: { min: 0.1, max: 0.14 }, weight: 4 },
+      3: { label: "Marcadora", value: { min: 0.02, max: 0.04 }, weight: 38 },
+      2: { label: "de la Runa", value: { min: 0.05, max: 0.08 }, weight: 17 },
+      1: { label: "de la Condena", value: { min: 0.1, max: 0.14 }, weight: 5 },
     },
   },
   {
@@ -104,9 +104,9 @@ export const PREFIXES = [
     scaling: "percent",
     category: "offense",
     tiers: {
-      3: { label: "Serrada", value: { min: 0.03, max: 0.06 }, weight: 34 },
-      2: { label: "Desgarradora", value: { min: 0.07, max: 0.11 }, weight: 15 },
-      1: { label: "de la Hemorragia", value: { min: 0.14, max: 0.2 }, weight: 4 },
+      3: { label: "Serrada", value: { min: 0.03, max: 0.06 }, weight: 38 },
+      2: { label: "Desgarradora", value: { min: 0.07, max: 0.11 }, weight: 17 },
+      1: { label: "de la Hemorragia", value: { min: 0.14, max: 0.2 }, weight: 5 },
     },
   },
   {
@@ -214,9 +214,9 @@ export const PREFIXES = [
     scaling: "percent",
     category: "utility",
     tiers: {
-      3: { label: "Arcana", value: { min: 0.05, max: 0.09 }, weight: 38 },
-      2: { label: "de la Resonancia", value: { min: 0.12, max: 0.22 }, weight: 17 },
-      1: { label: "del Cataclismo", value: { min: 0.28, max: 0.5 }, weight: 5 },
+      3: { label: "Arcana", value: { min: 0.05, max: 0.09 }, weight: 46 },
+      2: { label: "de la Resonancia", value: { min: 0.12, max: 0.22 }, weight: 21 },
+      1: { label: "del Cataclismo", value: { min: 0.28, max: 0.5 }, weight: 6 },
     },
   },
   {
@@ -225,9 +225,9 @@ export const PREFIXES = [
     scaling: "percent",
     category: "utility",
     tiers: {
-      3: { label: "Vibrante", value: { min: 0.03, max: 0.06 }, weight: 38 },
-      2: { label: "de los Ecos", value: { min: 0.08, max: 0.14 }, weight: 17 },
-      1: { label: "del Torbellino", value: { min: 0.18, max: 0.3 }, weight: 5 },
+      3: { label: "Vibrante", value: { min: 0.03, max: 0.06 }, weight: 46 },
+      2: { label: "de los Ecos", value: { min: 0.08, max: 0.14 }, weight: 21 },
+      1: { label: "del Torbellino", value: { min: 0.18, max: 0.3 }, weight: 6 },
     },
   },
   // Deprecated legacy affix: kept for save compatibility, disabled from new rolls.
@@ -251,9 +251,9 @@ export const SUFFIXES = [
     scaling: "flat",
     category: "economy",
     tiers: {
-      3: { label: "del Comerciante", value: { min: 3, max: 7 }, weight: 50 },
-      2: { label: "del Magnate", value: { min: 8, max: 18 }, weight: 22 },
-      1: { label: "del Rey Midas", value: { min: 22, max: 38 }, weight: 7 },
+      3: { label: "del Comerciante", value: { min: 3, max: 7 }, weight: 34 },
+      2: { label: "del Magnate", value: { min: 8, max: 18 }, weight: 15 },
+      1: { label: "del Rey Midas", value: { min: 22, max: 38 }, weight: 5 },
     },
   },
   // Legacy economy duplicates kept for save compatibility, disabled from new rolls
@@ -275,9 +275,9 @@ export const SUFFIXES = [
     scaling: "flat",
     category: "economy",
     tiers: {
-      3: { label: "del Destilado", value: { min: 1, max: 2 }, weight: 45 },
-      2: { label: "del Alquimista", value: { min: 3, max: 6 }, weight: 20 },
-      1: { label: "de la Esencia Pura", value: { min: 7, max: 13 }, weight: 6 },
+      3: { label: "del Destilado", value: { min: 1, max: 2 }, weight: 32 },
+      2: { label: "del Alquimista", value: { min: 3, max: 6 }, weight: 15 },
+      1: { label: "de la Esencia Pura", value: { min: 7, max: 13 }, weight: 5 },
     },
   },
   {
@@ -286,9 +286,9 @@ export const SUFFIXES = [
     scaling: "flat",
     category: "economy",
     tiers: {
-      3: { label: "de la Fortuna", value: { min: 3, max: 8 }, weight: 45 },
-      2: { label: "del Destino", value: { min: 9, max: 20 }, weight: 20 },
-      1: { label: "de los Dioses", value: { min: 24, max: 42 }, weight: 6 },
+      3: { label: "de la Fortuna", value: { min: 3, max: 8 }, weight: 32 },
+      2: { label: "del Destino", value: { min: 9, max: 20 }, weight: 15 },
+      1: { label: "de los Dioses", value: { min: 24, max: 42 }, weight: 5 },
     },
   },
   {
@@ -319,9 +319,9 @@ export const SUFFIXES = [
     scaling: "percent",
     category: "economy",
     tiers: {
-      3: { label: "del Aprendiz", value: { min: 0.04, max: 0.07 }, weight: 48 },
-      2: { label: "del Sabio", value: { min: 0.09, max: 0.16 }, weight: 21 },
-      1: { label: "de la Ascension", value: { min: 0.22, max: 0.38 }, weight: 6 },
+      3: { label: "del Aprendiz", value: { min: 0.04, max: 0.07 }, weight: 34 },
+      2: { label: "del Sabio", value: { min: 0.09, max: 0.16 }, weight: 15 },
+      1: { label: "de la Ascension", value: { min: 0.22, max: 0.38 }, weight: 5 },
     },
   },
   {
@@ -341,9 +341,9 @@ export const SUFFIXES = [
     scaling: "percent",
     category: "economy",
     tiers: {
-      3: { label: "del Saqueador", value: { min: 0.03, max: 0.06 }, weight: 38 },
-      2: { label: "del Pillador", value: { min: 0.08, max: 0.15 }, weight: 17 },
-      1: { label: "del Devastador", value: { min: 0.2, max: 0.35 }, weight: 5 },
+      3: { label: "del Saqueador", value: { min: 0.03, max: 0.06 }, weight: 28 },
+      2: { label: "del Pillador", value: { min: 0.08, max: 0.15 }, weight: 13 },
+      1: { label: "del Devastador", value: { min: 0.2, max: 0.35 }, weight: 4 },
     },
   },
   {
@@ -374,9 +374,9 @@ export const SUFFIXES = [
     scaling: "percent",
     category: "utility",
     tiers: {
-      3: { label: "del Aprendiz Arcano", value: { min: 0.04, max: 0.08 }, weight: 38 },
-      2: { label: "del Resonante", value: { min: 0.1, max: 0.2 }, weight: 17 },
-      1: { label: "del Archimago", value: { min: 0.26, max: 0.48 }, weight: 5 },
+      3: { label: "del Aprendiz Arcano", value: { min: 0.04, max: 0.08 }, weight: 44 },
+      2: { label: "del Resonante", value: { min: 0.1, max: 0.2 }, weight: 20 },
+      1: { label: "del Archimago", value: { min: 0.26, max: 0.48 }, weight: 6 },
     },
   },
   {
@@ -385,9 +385,9 @@ export const SUFFIXES = [
     scaling: "percent",
     category: "utility",
     tiers: {
-      3: { label: "del Agil", value: { min: 0.03, max: 0.05 }, weight: 36 },
-      2: { label: "del Eco", value: { min: 0.07, max: 0.13 }, weight: 16 },
-      1: { label: "de la Cadena Eterna", value: { min: 0.17, max: 0.28 }, weight: 5 },
+      3: { label: "del Agil", value: { min: 0.03, max: 0.05 }, weight: 44 },
+      2: { label: "del Eco", value: { min: 0.07, max: 0.13 }, weight: 20 },
+      1: { label: "de la Cadena Eterna", value: { min: 0.17, max: 0.28 }, weight: 6 },
     },
   },
   {
@@ -396,9 +396,9 @@ export const SUFFIXES = [
     scaling: "percent",
     category: "special",
     tiers: {
-      3: { label: "de la Runa Fina", value: { min: 0.015, max: 0.03 }, weight: 24 },
-      2: { label: "del Sello", value: { min: 0.04, max: 0.07 }, weight: 11 },
-      1: { label: "del Sigilo Absoluto", value: { min: 0.09, max: 0.13 }, weight: 4 },
+      3: { label: "de la Runa Fina", value: { min: 0.015, max: 0.03 }, weight: 38 },
+      2: { label: "del Sello", value: { min: 0.04, max: 0.07 }, weight: 17 },
+      1: { label: "del Sigilo Absoluto", value: { min: 0.09, max: 0.13 }, weight: 5 },
     },
   },
   {
@@ -418,9 +418,9 @@ export const SUFFIXES = [
     scaling: "percent",
     category: "special",
     tiers: {
-      3: { label: "de Sangrado", value: { min: 0.02, max: 0.04 }, weight: 32 },
-      2: { label: "del Desgarro", value: { min: 0.05, max: 0.08 }, weight: 14 },
-      1: { label: "de la Exanguinacion", value: { min: 0.1, max: 0.14 }, weight: 4 },
+      3: { label: "de Sangrado", value: { min: 0.02, max: 0.04 }, weight: 38 },
+      2: { label: "del Desgarro", value: { min: 0.05, max: 0.08 }, weight: 17 },
+      1: { label: "de la Exanguinacion", value: { min: 0.1, max: 0.14 }, weight: 5 },
     },
   },
   {
@@ -429,9 +429,9 @@ export const SUFFIXES = [
     scaling: "percent",
     category: "special",
     tiers: {
-      3: { label: "de la Ruptura", value: { min: 0.02, max: 0.05 }, weight: 28 },
-      2: { label: "del Quebranto", value: { min: 0.06, max: 0.09 }, weight: 13 },
-      1: { label: "del Colapso", value: { min: 0.11, max: 0.16 }, weight: 4 },
+      3: { label: "de la Ruptura", value: { min: 0.02, max: 0.05 }, weight: 38 },
+      2: { label: "del Quebranto", value: { min: 0.06, max: 0.09 }, weight: 17 },
+      1: { label: "del Colapso", value: { min: 0.11, max: 0.16 }, weight: 5 },
     },
   },
   {

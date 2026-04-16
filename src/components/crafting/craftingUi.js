@@ -87,7 +87,7 @@ export function getCraftActionHint(req = {}, mode) {
     case "max_rarity":
       return "La pieza ya esta en rareza maxima.";
     case "max_level":
-      return "La pieza ya llego a +10.";
+      return `La pieza ya llego a +${req.maxLevel || 10}.`;
     default:
       return "";
   }
@@ -113,7 +113,7 @@ export function getCraftActionBadge(req = {}, mode) {
     case "max_rarity":
       return "LEGENDARY";
     case "max_level":
-      return "MAX";
+      return `+${req.maxLevel || 10}`;
     default:
       return "BLOQUEADO";
   }

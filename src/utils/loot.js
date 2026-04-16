@@ -1,6 +1,6 @@
 ﻿import { ITEMS, ITEM_RARITY_BLUEPRINT, ITEM_ROLL_RULES_V2 } from "../data/items";
 import { ITEM_FAMILIES } from "../data/itemFamilies";
-import { rollAffixes } from "../engine/affixesEngine";
+import { ensureAffixCountForRarity, rollAffixes } from "../engine/affixesEngine";
 import { getLegendaryPowerById, isLegendaryContentUnlocked } from "./legendaryPowers";
 
 const DROP_CONFIG = {
@@ -62,6 +62,71 @@ export function normalizeLegacyBonusMap(bonus = {}) {
     normalized[key] = Math.round(((normalized[key] || 0) + value) * 100) / 100;
   }
   return normalized;
+}
+
+const RARE_AFFIX_UPGRADE_STEP_MULTIPLIERS = [1.09, 1.09, 1.18, 1.18];
+
+function roundAffixStoredValue(value) {
+  return Math.round(Number(value || 0) * 1000) / 1000;
+}
+
+function normalizeAffixBaseRange(range = {}) {
+  const rawMin = range?.min ?? range?.value ?? 0;
+  const rawMax = range?.max ?? range?.value ?? rawMin;
+  return {
+    min: roundAffixStoredValue(rawMin),
+    max: roundAffixStoredValue(rawMax),
+  };
+}
+
+function getAffixBaseSnapshot(affix = {}) {
+  const normalizedBaseRange = normalizeAffixBaseRange(affix?.baseRange || affix?.range || {});
+  const baseRolledValue = roundAffixStoredValue(
+    affix?.baseRolledValue ?? affix?.baseValue ?? affix?.rolledValue ?? affix?.value ?? 0
+  );
+  const baseValue = roundAffixStoredValue(
+    affix?.baseValue ?? affix?.baseRolledValue ?? affix?.value ?? affix?.rolledValue ?? baseRolledValue
+  );
+
+  return {
+    baseValue,
+    baseRolledValue,
+    baseRange: normalizedBaseRange,
+  };
+}
+
+export function getRareAffixUpgradeMultiplier(level = 0) {
+  const targetLevel = Math.max(0, Math.min(10, Number(level || 0)));
+  if (targetLevel <= 6) return 1;
+
+  let multiplier = 1;
+  for (let levelIndex = 7; levelIndex <= targetLevel; levelIndex += 1) {
+    multiplier *= RARE_AFFIX_UPGRADE_STEP_MULTIPLIERS[levelIndex - 7] || 1;
+  }
+
+  return Math.round(multiplier * 10000) / 10000;
+}
+
+export function scaleAffixesForItemLevel(affixes = [], rarity = "common", level = 0) {
+  const affixMultiplier = rarity === "rare" ? getRareAffixUpgradeMultiplier(level) : 1;
+
+  return (affixes || []).map(affix => {
+    const { baseValue, baseRolledValue, baseRange } = getAffixBaseSnapshot(affix);
+
+    return {
+      ...affix,
+      baseValue,
+      baseRolledValue,
+      baseRange,
+      value: roundAffixStoredValue(baseValue * affixMultiplier),
+      rolledValue: roundAffixStoredValue(baseRolledValue * affixMultiplier),
+      range: {
+        min: roundAffixStoredValue((baseRange?.min || 0) * affixMultiplier),
+        max: roundAffixStoredValue((baseRange?.max || 0) * affixMultiplier),
+      },
+      upgradeAffixMultiplier: affixMultiplier,
+    };
+  });
 }
 
 export function generateLoot({
@@ -518,11 +583,19 @@ export function materializeItem({
   const upgradeBonus = computeUpgradeBonus(resolvedBaseBonus || {}, baseItem.type, itemLevel);
   const { familyId, familyName, implicitBonus } = getFamilyImplicit(baseItem, rarity);
   const implicitUpgradeBonus = computeImplicitUpgradeBonus(implicitBonus, baseItem.type, itemLevel);
+  const ensuredAffixes = ensureAffixCountForRarity({
+    affixes,
+    rarity,
+    itemTier: resolvedTier,
+    baseBonus: resolvedBaseBonus || {},
+    implicitBonus,
+  });
+  const normalizedAffixes = scaleAffixesForItemLevel(ensuredAffixes, rarity, itemLevel);
   const implicitBaseItem = {
     ...baseItem,
     bonus: mergeBonusMaps(resolvedBaseBonus || {}, upgradeBonus, implicitBonus, implicitUpgradeBonus),
   };
-  const { name, bonus } = buildItemFromAffixes(implicitBaseItem, affixes);
+  const { name, bonus } = buildItemFromAffixes(implicitBaseItem, normalizedAffixes);
 
   return {
     ...baseItem,
@@ -537,7 +610,7 @@ export function materializeItem({
     upgradeBonus,
     implicitBonus,
     implicitUpgradeBonus,
-    affixes,
+    affixes: normalizedAffixes,
     itemTier: resolvedTier,
     level: itemLevel,
     crafting: {
@@ -557,6 +630,9 @@ export function normalizeStoredItem(item) {
   const normalizedAffixes = (item.affixes || []).map(affix => ({
     ...affix,
     stat: normalizeLegacyStatKey(affix?.stat),
+    baseValue: affix?.baseValue,
+    baseRolledValue: affix?.baseRolledValue,
+    baseRange: affix?.baseRange,
   }));
 
   const normalized = materializeItem({

@@ -119,6 +119,17 @@ function formatBonus(key, value) {
   return `${sign}${formatNumber(magnitude)}`;
 }
 
+function formatMultiplier(value = 1) {
+  return `x${Number(value || 1).toFixed(1)}`;
+}
+
+function formatSignedNumber(value = 0) {
+  const numeric = Number(value || 0);
+  if (numeric > 0) return `+${formatNumber(numeric)}`;
+  if (numeric < 0) return `-${formatNumber(Math.abs(numeric))}`;
+  return formatNumber(0);
+}
+
 function summarizeEffectEntries(entries = [], { emptyLabel = "Sin invertir", max = 3 } = {}) {
   const filtered = entries.filter(([, value]) => Math.abs(Number(value || 0)) > 0);
   if (!filtered.length) return emptyLabel;
@@ -177,11 +188,19 @@ export default function Prestige({ state, dispatch }) {
   const activePrestigeNodes = Object.keys(prestige.nodes || {}).filter(key => (prestige.nodes?.[key] || 0) > 0).length;
   const purchasableNodes = PRESTIGE_TREE_NODES.filter(node => canPurchasePrestigeNode(state, node).ok);
   const recommendedNode = purchasableNodes[0] || null;
-  const resetBreakdown = (prestigePreview.breakdown || []).filter(entry => (entry.echoes || 0) > 0);
+  const resetBreakdown = (prestigePreview.breakdown || []).filter(entry => Math.abs(Number(entry.echoes || 0)) > 0);
   const highlightedBonuses = bonusRows.slice(0, 6);
   const abyssUnlocks = useMemo(() => getAbyssUnlockEntries(state?.abyss || {}), [state?.abyss]);
   const highestAbyssDepth = Number(state?.abyss?.highestDepthReached || 0);
   const highestAbyssTier = Number(state?.abyss?.highestTierReached || 1);
+  const prestigeMomentum = prestigePreview.momentum || {
+    historicBestTier: 0,
+    currentTier: prestigePreview.progress?.maxTier || 1,
+    multiplier: 1,
+    label: "Primera medicion",
+    baseEchoes: echoesOnNext,
+    momentumDeltaEchoes: 0,
+  };
   const activeBranch = PRESTIGE_BRANCHES.find(branch => branch.id === (activeBranchId || PRESTIGE_BRANCHES[0]?.id)) || PRESTIGE_BRANCHES[0];
   const activeBranchUnlocked = isPrestigeBranchUnlocked(state, activeBranch);
   const branchSummaries = useMemo(() => Object.fromEntries(
@@ -225,7 +244,9 @@ export default function Prestige({ state, dispatch }) {
               {prestigeCheck.ok ? `+${formatNumber(echoesOnNext)} ecos` : "Todavia no rinde resetear"}
             </div>
             <div style={{ ...smallCopyStyle, marginTop: "6px", color: "#cbd5e1" }}>
-              {prestigeCheck.ok ? "La corrida ya devuelve valor real." : "Segui empujando tier, nivel o un mejor item antes de resetear."}
+              {prestigeCheck.ok
+                ? `${prestigeMomentum.label} · ${formatMultiplier(prestigeMomentum.multiplier)} sobre ${formatNumber(prestigeMomentum.baseEchoes || 0)} ecos base.`
+                : "Segui empujando tier y nivel; el momentum premia acercarte o superar tu mejor run historica."}
             </div>
           </div>
           <button
@@ -247,7 +268,9 @@ export default function Prestige({ state, dispatch }) {
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "12px" }}>
           {resetBreakdown.length > 0 ? resetBreakdown.map(entry => (
             <span key={entry.id} style={compactChipStyle}>
-              {entry.label} +{formatNumber(entry.echoes)}
+              {entry.id === "momentum"
+                ? `${entry.label} ${entry.value}${Number(entry.echoes || 0) !== 0 ? ` · ${formatSignedNumber(entry.echoes)}` : ""}`
+                : `${entry.label} +${formatNumber(entry.echoes)}`}
             </span>
           )) : (
             <span style={{ ...compactChipStyle, color: "#94a3b8" }}>Minimo: Tier 3, Nivel 10 o 50 bajas</span>
@@ -261,6 +284,35 @@ export default function Prestige({ state, dispatch }) {
 
         <div style={{ ...smallCopyStyle, marginTop: "10px", color: "#94a3b8" }}>
           Conservas ecos y tablero. Reinicias oro, equipo, talentos y la corrida, y vuelves a elegir clase, spec y sigilo.
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))", gap: "8px", marginTop: "12px" }}>
+          <div style={resetMetricCardStyle}>
+            <div style={resetMetricLabelStyle}>Tier actual</div>
+            <div style={resetMetricValueStyle}>{formatNumber(prestigeMomentum.currentTier || prestigePreview.progress?.maxTier || 1)}</div>
+          </div>
+          <div style={resetMetricCardStyle}>
+            <div style={resetMetricLabelStyle}>Record historico</div>
+            <div style={resetMetricValueStyle}>
+              {prestigeMomentum.historicBestTier > 0 ? formatNumber(prestigeMomentum.historicBestTier) : "Sin record"}
+            </div>
+          </div>
+          <div style={resetMetricCardStyle}>
+            <div style={resetMetricLabelStyle}>Momentum</div>
+            <div style={resetMetricValueStyle}>{formatMultiplier(prestigeMomentum.multiplier)}</div>
+            <div style={resetMetricHintStyle}>{prestigeMomentum.label}</div>
+          </div>
+          <div style={resetMetricCardStyle}>
+            <div style={resetMetricLabelStyle}>Base sin momentum</div>
+            <div style={resetMetricValueStyle}>{formatNumber(prestigeMomentum.baseEchoes || 0)}</div>
+            {!!prestigeMomentum.momentumDeltaEchoes && (
+              <div style={resetMetricHintStyle}>
+                {Number(prestigeMomentum.momentumDeltaEchoes || 0) >= 0
+                  ? `Bonus ${formatSignedNumber(prestigeMomentum.momentumDeltaEchoes)}`
+                  : `Penalidad ${formatSignedNumber(prestigeMomentum.momentumDeltaEchoes)}`}
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
@@ -608,6 +660,35 @@ const compactChipStyle = {
   fontWeight: 900,
   color: "#cbd5e1",
   background: "rgba(255,255,255,0.05)",
+};
+
+const resetMetricCardStyle = {
+  borderRadius: "12px",
+  border: "1px solid rgba(148,163,184,0.18)",
+  background: "rgba(255,255,255,0.04)",
+  padding: "10px",
+  display: "grid",
+  gap: "4px",
+};
+
+const resetMetricLabelStyle = {
+  fontSize: "0.62rem",
+  color: "#94a3b8",
+  fontWeight: 900,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+};
+
+const resetMetricValueStyle = {
+  fontSize: "0.98rem",
+  color: "#f8fafc",
+  fontWeight: 900,
+};
+
+const resetMetricHintStyle = {
+  fontSize: "0.64rem",
+  color: "#cbd5e1",
+  fontWeight: 800,
 };
 
 const bonusChipStyle = {

@@ -4,9 +4,10 @@ import { getPlayerBuildTag } from "../utils/buildIdentity";
 import { getAffixTierGlyph, getRarityColor } from "../constants/rarity";
 import { ASCEND_COSTS } from "../constants/craftingCosts";
 import {
+  buildCraftedItemPreview,
   getCraftActionState,
-  getCraftingState,
   getCraftUsageSummary,
+  getUpgradeCap,
 } from "../engine/crafting/craftingEngine";
 import { getUnlockedLegendaryPowers } from "../engine/progression/codexEngine";
 import { hasAbyssUnlock } from "../engine/progression/abyssProgression";
@@ -22,7 +23,6 @@ import {
   formatEconomySummary,
   getTopCompareEntries,
 } from "../utils/itemPresentation";
-import { buildItemFromAffixes, computeImplicitUpgradeBonus, computeUpgradeBonus, mergeBonusMaps } from "../utils/loot";
 import { getCompactRarityLabel, getItemGlyph, getUpgradeBadgeTone, ITEM_SLOT_GLYPHS } from "../utils/itemVisuals";
 import {
   FORGE_MODE_META,
@@ -336,28 +336,10 @@ export default function Crafting({ state, dispatch }) {
   const selectedUpgradePreview = useMemo(() => {
     if (!selectedItem || mode !== "upgrade") return null;
     const currentLevel = Math.max(0, Number(selectedItem.level || 0));
-    if (currentLevel >= 10) return null;
+    const maxLevel = getUpgradeCap(selectedItem);
+    if (currentLevel >= maxLevel) return null;
 
-    const nextLevel = currentLevel + 1;
-    const baseBonus = selectedItem.baseBonus || {};
-    const implicitBonus = selectedItem.implicitBonus || {};
-    const upgradeBonus = computeUpgradeBonus(baseBonus, selectedItem.type, nextLevel);
-    const implicitUpgradeBonus = computeImplicitUpgradeBonus(implicitBonus, selectedItem.type, nextLevel);
-    const { bonus } = buildItemFromAffixes(
-      {
-        ...selectedItem,
-        bonus: mergeBonusMaps(baseBonus, upgradeBonus, implicitBonus, implicitUpgradeBonus),
-      },
-      selectedItem.affixes || []
-    );
-
-    return {
-      ...selectedItem,
-      level: nextLevel,
-      upgradeBonus,
-      implicitUpgradeBonus,
-      bonus,
-    };
+    return buildCraftedItemPreview(selectedItem, { level: currentLevel + 1 });
   }, [mode, selectedItem]);
   const selectedUpgradeAffectedStats = useMemo(() => {
     if (!selectedItem || !selectedUpgradePreview) return [];
@@ -895,11 +877,11 @@ export default function Crafting({ state, dispatch }) {
             <div style={selectionSubpanelStyle}>
               <div style={detailTitle}>Ruta de Upgrade</div>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                {Array.from({ length: 11 }, (_, level) => {
+                {Array.from({ length: (selectedActionReq?.maxLevel || 10) + 1 }, (_, level) => {
                   const currentLevel = selectedItem.level ?? 0;
                   const isCurrent = level === currentLevel;
                   const isReached = level < currentLevel;
-                  const isNext = level === Math.min(10, currentLevel + 1);
+                  const isNext = level === Math.min(selectedActionReq?.maxLevel || 10, currentLevel + 1);
                   const flashTone = selectedUpgradeTrackFeedback?.resultLevel === level ? selectedUpgradeTrackFeedback.tone : null;
                   return (
                     <span

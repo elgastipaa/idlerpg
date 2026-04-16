@@ -192,6 +192,7 @@ function getPrestigeTreeMaxSpend() {
 
 const PRESTIGE_TREE_MAX_SPEND = getPrestigeTreeMaxSpend();
 const PRESTIGE_ECHO_STORAGE_CAP = Math.max(1000, PRESTIGE_TREE_MAX_SPEND * 8);
+const PRESTIGE_BASE_SCORE_PER_ECHO = 15;
 
 export function createEmptyPrestigeCycleProgress(seed = {}) {
   return {
@@ -201,6 +202,30 @@ export function createEmptyPrestigeCycleProgress(seed = {}) {
     maxLevel: Math.max(1, sanitizeReasonableWholeNumber(seed.maxLevel ?? 1, { fallback: 1, max: 2_000 })),
     bestItemRating: sanitizeReasonableWholeNumber(seed.bestItemRating, { fallback: 0, max: 100_000 }),
   };
+}
+
+export function getPrestigeMomentumMultiplier(currentTier = 0, historicBestTier = 0) {
+  const current = Math.max(0, Number(currentTier || 0));
+  const best = Math.max(0, Number(historicBestTier || 0));
+  if (best <= 0) return 1;
+
+  const ratio = current / Math.max(1, best);
+  if (current >= best + 5) return 2.5;
+  if (ratio >= 1) return 1.8;
+  if (ratio >= 0.8) return 1.3;
+  if (ratio >= 0.5) return 1;
+  return 0.6;
+}
+
+function getPrestigeMomentumLabel(multiplier = 1, currentTier = 0, historicBestTier = 0) {
+  const current = Math.max(0, Number(currentTier || 0));
+  const best = Math.max(0, Number(historicBestTier || 0));
+  if (best <= 0) return "Primera medicion";
+  if (current >= best + 5) return "Rompe record";
+  if (current >= best) return "Nuevo record";
+  if (multiplier >= 1.3) return "Cerca del record";
+  if (multiplier >= 1) return "Mantiene el ritmo";
+  return "Muy por debajo del record";
 }
 
 export function getPrestigeNodeCost(prestige, node) {
@@ -236,27 +261,14 @@ export function getPrestigePreview(state = {}) {
   const runSigil = getRunSigilPrestigeModifiers(
     state?.combat?.activeRunSigilIds || state?.combat?.activeRunSigilId || "free"
   );
-
-  const tierEchoes =
-    progress.maxTier >= 2
-      ? Math.max(0, Math.floor((1 + Math.floor(Math.max(0, progress.maxTier - 2) / 4)) * (runSigil.tierEchoMult || 1)))
-      : 0;
-  const levelEchoes =
-    progress.maxLevel >= 8
-      ? Math.max(0, Math.floor((1 + Math.floor(Math.max(0, progress.maxLevel - 8) / 18)) * (runSigil.levelEchoMult || 1)))
-      : 0;
-  const lootEchoes =
-    progress.bestItemRating >= 120
-      ? 1 + Math.floor(Math.max(0, progress.bestItemRating - 120) / 320)
-      : 0;
-  const momentumEchoes =
-    progress.maxTier >= 15
-      ? 2
-      : progress.maxTier >= 8
-        ? 1
-        : 0;
-
-  const echoes = Math.max(0, tierEchoes + levelEchoes + lootEchoes + momentumEchoes);
+  const historicBestTier = Math.max(0, Number(state?.prestige?.bestHistoricTier || 0));
+  const tierBaseScore = Math.pow(Math.max(1, progress.maxTier), 1.4) * Math.max(0, Number(runSigil.tierEchoMult || 1));
+  const levelBaseScore = Math.max(0, Number(progress.maxLevel || 1)) * 0.5 * Math.max(0, Number(runSigil.levelEchoMult || 1));
+  const rawBaseScore = tierBaseScore + levelBaseScore;
+  const baseEchoes = Math.max(0, Math.floor(rawBaseScore / PRESTIGE_BASE_SCORE_PER_ECHO));
+  const momentumMultiplier = getPrestigeMomentumMultiplier(progress.maxTier, historicBestTier);
+  const echoes = Math.max(0, Math.floor(baseEchoes * momentumMultiplier));
+  const momentumDeltaEchoes = echoes - baseEchoes;
   const hasMinimumRun =
     progress.maxTier >= 3 ||
     progress.maxLevel >= 10 ||
@@ -266,11 +278,23 @@ export function getPrestigePreview(state = {}) {
     echoes,
     ready: hasMinimumRun && echoes > 0,
     progress,
+    momentum: {
+      historicBestTier,
+      currentTier: progress.maxTier,
+      ratioToBest:
+        historicBestTier > 0
+          ? progress.maxTier / Math.max(1, historicBestTier)
+          : 1,
+      multiplier: momentumMultiplier,
+      label: getPrestigeMomentumLabel(momentumMultiplier, progress.maxTier, historicBestTier),
+      baseEchoes,
+      momentumDeltaEchoes,
+      rawBaseScore,
+      normalizedBaseScorePerEcho: PRESTIGE_BASE_SCORE_PER_ECHO,
+    },
     breakdown: [
-      { id: "tier", label: "Tier maximo", value: progress.maxTier, echoes: tierEchoes },
-      { id: "level", label: "Nivel maximo", value: progress.maxLevel, echoes: levelEchoes },
-      { id: "loot", label: "Mejor item", value: progress.bestItemRating, echoes: lootEchoes },
-      { id: "momentum", label: "Momentum", value: progress.maxTier >= 18 ? "Late" : progress.maxTier >= 10 ? "Mid" : "-", echoes: momentumEchoes },
+      { id: "base", label: "Base", value: progress.maxTier, echoes: baseEchoes },
+      { id: "momentum", label: "Momentum", value: `x${momentumMultiplier.toFixed(1)}`, echoes: momentumDeltaEchoes },
     ],
   };
 }
@@ -365,12 +389,17 @@ export function normalizePrestigeState(prestige = {}) {
       max: PRESTIGE_ECHO_STORAGE_CAP + PRESTIGE_TREE_MAX_SPEND,
     }
   );
+  const safeBestHistoricTier = sanitizeReasonableWholeNumber(prestige.bestHistoricTier || 0, {
+    fallback: 0,
+    max: 10_000,
+  });
 
   return {
     level,
     echoes: safeEchoes,
     spentEchoes: safeSpentEchoes,
     totalEchoesEarned: safeTotalEchoesEarned,
+    bestHistoricTier: safeBestHistoricTier,
     nodes: { ...(prestige.nodes || {}) },
   };
 }

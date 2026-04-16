@@ -1,11 +1,17 @@
 // Sistema de crafting — reroll, upgrade, ascend y extract.
 // Futuro: recetas, materiales, estaciones de crafteo hookean acá.
 
-import { rerollAffixes, polishAffix, generateReforgeOptions, rollAffixes } from "../affixesEngine";
-import { buildBaseBonusForItem, buildItemFromAffixes, computeImplicitUpgradeBonus, computeUpgradeBonus, mergeBonusMaps } from "../../utils/loot";
+import { rerollAffixes, polishAffix, generateReforgeOptions, ensureAffixCountForRarity } from "../affixesEngine";
+import {
+  buildBaseBonusForItem,
+  buildItemFromAffixes,
+  computeImplicitUpgradeBonus,
+  computeUpgradeBonus,
+  mergeBonusMaps,
+  scaleAffixesForItemLevel,
+} from "../../utils/loot";
 import { calcItemRating, syncEquipment } from "../inventory/inventoryEngine";
 import { ITEM_FAMILIES } from "../../data/itemFamilies";
-import { ITEM_RARITY_BLUEPRINT, ITEM_ROLL_RULES_V2 } from "../../data/items";
 import { getAscendCosts, getPolishCosts, getReforgeCosts, getRerollCosts, getUpgradeCosts } from "../../constants/craftingCosts";
 import { getLegendaryPowerById } from "../../utils/legendaryPowers";
 
@@ -13,10 +19,20 @@ const RARITY_TIERS = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
 const RARITY_NEXT  = { common: "magic", magic: "rare", rare: "epic", epic: "legendary" };
 export const UPGRADE_FAIL_CHANCE = { 0: 0, 1: 0, 2: 0.03, 3: 0.08, 4: 0.15, 5: 0.22, 6: 0.3, 7: 0.39, 8: 0.48, 9: 0.57, 10: 0.66 };
 export const CRAFT_ACTION_LIMITS = {
-  reroll: 5,
-  reforge: 3,
-  polishPerLine: 5,
+  common: { reroll: 2, reforge: 1, polishPerLine: 3 },
+  magic: { reroll: 3, reforge: 2, polishPerLine: 4 },
+  rare: { reroll: 10, reforge: 8, polishPerLine: 12 },
+  epic: { reroll: 5, reforge: 4, polishPerLine: 6 },
+  legendary: { reroll: 3, reforge: 3, polishPerLine: 5 },
 };
+export const UPGRADE_CAP_BY_RARITY = {
+  common: 5,
+  magic: 7,
+  rare: 10,
+  epic: 10,
+  legendary: 10,
+};
+
 function getRarityTier(rarity) {
   return RARITY_TIERS[rarity] || 1;
 }
@@ -28,6 +44,14 @@ function getNextRarity(rarity) {
 function getImplicitBonus(item, rarityOverride = item.rarity) {
   const family = ITEM_FAMILIES[item.family];
   return { ...(family?.implicitByRarity?.[rarityOverride] || item.implicitBonus || {}) };
+}
+
+export function getCraftActionLimits(item) {
+  return CRAFT_ACTION_LIMITS[item?.rarity] || CRAFT_ACTION_LIMITS.common;
+}
+
+export function getUpgradeCap(item) {
+  return UPGRADE_CAP_BY_RARITY[item?.rarity] || UPGRADE_CAP_BY_RARITY.common;
 }
 
 export function getCraftingState(item) {
@@ -59,17 +83,18 @@ function getPolishCountForIndex(item, affixIndex) {
 
 function getCraftLimitUsage(item, mode, affixIndex = null) {
   const craftingState = getCraftingState(item);
+  const craftLimits = getCraftActionLimits(item);
 
   if (mode === "reroll") {
-    return { used: craftingState.rerollCount, max: CRAFT_ACTION_LIMITS.reroll };
+    return { used: craftingState.rerollCount, max: craftLimits.reroll };
   }
 
   if (mode === "reforge") {
-    return { used: craftingState.reforgeCount, max: CRAFT_ACTION_LIMITS.reforge };
+    return { used: craftingState.reforgeCount, max: craftLimits.reforge };
   }
 
   if (mode === "polish") {
-    return { used: getPolishCountForIndex(item, affixIndex), max: CRAFT_ACTION_LIMITS.polishPerLine };
+    return { used: getPolishCountForIndex(item, affixIndex), max: craftLimits.polishPerLine };
   }
 
   return { used: 0, max: null };
@@ -176,6 +201,9 @@ export function getCraftRecommendation(item, { mode, preferredStats = [], wishli
 
   switch (mode) {
     case "upgrade":
+      if (item.rarity === "rare" && (item.level || 0) >= 6) {
+        return "Desde +7 el rare tambien escala affixes. Si la base ya cerro, este es su tramo de proyecto real.";
+      }
       return (item.level || 0) < 6
         ? "Subila a +6 antes de gastar recursos finos; el power base sigue siendo la mejor compra."
         : "Ya esta entrando en tramo caro. Upgrade solo si esta pieza realmente sostiene la run.";
@@ -217,7 +245,8 @@ export function getForgeIdentity(item, { player = null, preferredStats = [], wis
   const ascendState = getCraftActionState({ item, player, mode: "ascend" });
   const nearAscend = item.rarity === "epic" && (item.level || 0) >= Math.max(0, (ascendState.minLevel || 0) - 1);
   const craftingState = getCraftingState(item);
-  const hasOpenPolishLine = (item.affixes || []).some((_, index) => getPolishCountForIndex(item, index) < CRAFT_ACTION_LIMITS.polishPerLine);
+  const polishLimit = getCraftActionLimits(item).polishPerLine;
+  const hasOpenPolishLine = (item.affixes || []).some((_, index) => getPolishCountForIndex(item, index) < polishLimit);
 
   const reasons = [];
   if (alignedAffixes.length > 0) reasons.push(`${alignedAffixes.length} linea${alignedAffixes.length === 1 ? "" : "s"} de build`);
@@ -287,17 +316,20 @@ export function getCraftActionState({ item, player, mode, affixIndex = null, leg
 
   if (mode === "upgrade") {
     const currentLevel = item.level ?? 0;
+    const maxLevel = getUpgradeCap(item);
+    const displayMaxLevel = Math.max(maxLevel, currentLevel);
     const costs = getUpgradeCosts(item, player);
-    const can = currentLevel < 10 && (player?.gold || 0) >= costs.gold;
+    const can = currentLevel < maxLevel && (player?.gold || 0) >= costs.gold;
     return {
       mode,
       costs,
       can,
-      reason: currentLevel >= 10 ? "max_level" : can ? "ok" : "gold",
+      reason: currentLevel >= maxLevel ? "max_level" : can ? "ok" : "gold",
       failChance: UPGRADE_FAIL_CHANCE[currentLevel] ?? 0.46,
       usedUses: 0,
       maxUses: null,
       focusedAffixIndex,
+      maxLevel: displayMaxLevel,
     };
   }
 
@@ -401,10 +433,11 @@ function rebuildItem(item, newAffixes, extraProps = {}) {
   const upgradeBonus = extraProps.upgradeBonus || computeUpgradeBonus(nextBaseBonus, item.type, nextLevel);
   const implicitUpgradeBonus =
     extraProps.implicitUpgradeBonus || computeImplicitUpgradeBonus(implicitBonus, item.type, nextLevel);
+  const scaledAffixes = scaleAffixesForItemLevel(newAffixes || [], nextRarity, nextLevel);
   const { bonus } = buildItemFromAffixes({
     ...item,
     bonus: mergeBonusMaps(nextBaseBonus, upgradeBonus, implicitBonus, implicitUpgradeBonus),
-  }, newAffixes);
+  }, scaledAffixes);
   return {
     ...item,
     ...extraProps,
@@ -415,47 +448,15 @@ function rebuildItem(item, newAffixes, extraProps = {}) {
       ...getCraftingState(item),
       ...(extraProps.crafting || {}),
     },
-    affixes: newAffixes,
+    affixes: scaledAffixes,
     bonus,
     rating: calcItemRating({ ...item, ...extraProps, bonus }),
   };
 }
 
-function ensureAffixCountForRarity(item, rarity, itemTier) {
-  const currentAffixes = [...(item?.affixes || [])];
-  const targetCount = Math.max(0, ITEM_RARITY_BLUEPRINT?.[rarity]?.affixCount ?? currentAffixes.length);
-  if (currentAffixes.length >= targetCount) return currentAffixes;
-  const implicitBonus = getImplicitBonus(item, rarity) || {};
-
-  const existingStats = [
-    ...Object.keys(item?.baseBonus || {}).filter(stat => (item?.baseBonus?.[stat] || 0) > 0),
-    ...Object.keys(implicitBonus).filter(stat => (implicitBonus?.[stat] || 0) > 0),
-    ...currentAffixes.map(affix => affix?.stat).filter(Boolean),
-  ];
-
-  const favoredStats = currentAffixes.map(affix => affix?.stat).filter(Boolean);
-  const rolledExtras = rollAffixes({
-    rarity,
-    itemTier,
-    favoredStats,
-    existingStats,
-    allowExistingStatOverlap: (ITEM_ROLL_RULES_V2.allowBaseImplicitAffixOverlapRarities || []).includes(rarity),
-    overlapPenalty: ITEM_ROLL_RULES_V2.overlapAffixWeightPenalty ?? 0.3,
-    maxExistingStatOverlaps: ITEM_ROLL_RULES_V2.maxOverlapsWithBaseOrImplicit ?? 1,
-  });
-
-  const nextAffixes = [...currentAffixes];
-  for (const rolledAffix of rolledExtras) {
-    if (!rolledAffix) continue;
-    const duplicated = nextAffixes.some(
-      affix => affix?.id === rolledAffix.id || affix?.stat === rolledAffix.stat
-    );
-    if (duplicated) continue;
-    nextAffixes.push(rolledAffix);
-    if (nextAffixes.length >= targetCount) break;
-  }
-
-  return nextAffixes;
+export function buildCraftedItemPreview(item, extraProps = {}) {
+  if (!item) return null;
+  return rebuildItem(item, extraProps.affixes || item.affixes || [], extraProps);
 }
 
 function findPlayerItem(player, itemId) {
@@ -553,7 +554,7 @@ export function craftReroll({ player, itemId, currentTier, refreshStats }) {
     essence:   player.essence - essenceCost,
   };
 
-  return { newPlayer, log: `REROLL TOTAL - ${item.name} vuelve a tirar tiers y valores de sus affixes.` };
+  return { newPlayer, log: `REROLL TOTAL - ${item.name} rehace por completo sus affixes.` };
 }
 
 // ============================================================
@@ -695,7 +696,9 @@ export function craftReforgePreview({ player, itemId, affixIndex, favoredStats =
   if (player.gold < goldCost || (player.essence || 0) < essenceCost) return null;
 
   const optionCount = 3 + Math.max(0, Math.floor(player?.prestigeBonuses?.reforgeOptionCount || 0));
-  const generated = generateReforgeOptions(item, affixIndex, optionCount, favoredStats, extraAffixPool);
+  const allowedExtraAffixPool = ["epic", "legendary"].includes(item?.rarity) ? extraAffixPool : [];
+  const generated = generateReforgeOptions(item, affixIndex, optionCount, favoredStats, allowedExtraAffixPool)
+    .map(affix => scaleAffixesForItemLevel([affix], item.rarity, item.level || 0)[0] || affix);
   if (!generated.length) return null;
 
   return {
@@ -710,7 +713,9 @@ export function craftReforgePreview({ player, itemId, affixIndex, favoredStats =
 }
 
 export function buildReforgePreview(item, affixIndex, optionCount = 3, favoredStats = [], extraAffixPool = []) {
-  return generateReforgeOptions(item, affixIndex, optionCount, favoredStats, extraAffixPool);
+  const allowedExtraAffixPool = ["epic", "legendary"].includes(item?.rarity) ? extraAffixPool : [];
+  return generateReforgeOptions(item, affixIndex, optionCount, favoredStats, allowedExtraAffixPool)
+    .map(affix => scaleAffixesForItemLevel([affix], item?.rarity, item?.level || 0)[0] || affix);
 }
 
 // ============================================================
@@ -722,7 +727,8 @@ export function craftUpgrade({ player, itemId, refreshStats }) {
 
   const item         = locatedItem.item;
   const currentLevel = item.level ?? 0;
-  if (currentLevel >= 10) return null;
+  const maxLevel = getUpgradeCap(item);
+  if (currentLevel >= maxLevel) return null;
 
   const goldCost = getUpgradeCosts(item, player).gold;
   if (player.gold < goldCost) return null;
@@ -782,7 +788,13 @@ export function craftAscend({ player, itemId, currentTier, refreshStats, legenda
     existingBaseBonus: item.baseBonus || {},
     ensureMinBaseLines: true,
   });
-  const preservedAffixes = ensureAffixCountForRarity(item, newRarity, craftingTier);
+  const preservedAffixes = ensureAffixCountForRarity({
+    affixes: item?.affixes || [],
+    rarity: newRarity,
+    itemTier: craftingTier,
+    baseBonus: nextBaseBonus,
+    implicitBonus: getImplicitBonus(item, newRarity),
+  });
   const updatedItem  = rebuildItem(item, preservedAffixes, {
     rarity: newRarity,
     itemTier: craftingTier,

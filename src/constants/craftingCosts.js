@@ -36,7 +36,7 @@ export const CRAFTING_BASE_COSTS = {
 const UPGRADE_RARITY_MULTIPLIER = {
   common: 1,
   magic: 2,
-  rare: 3,
+  rare: 1,
   epic: 4,
   legendary: 5,
 };
@@ -44,7 +44,7 @@ const UPGRADE_RARITY_MULTIPLIER = {
 export const REROLL_RARITY_MULTIPLIER = {
   common: 0.75,
   magic: 1,
-  rare: 2.2,
+  rare: 1,
   epic: 4.5,
   legendary: 8,
 };
@@ -52,7 +52,7 @@ export const REROLL_RARITY_MULTIPLIER = {
 export const POLISH_RARITY_MULTIPLIER = {
   common: 0.75,
   magic: 1,
-  rare: 2,
+  rare: 0.8,
   epic: 3.8,
   legendary: 6.5,
 };
@@ -60,10 +60,12 @@ export const POLISH_RARITY_MULTIPLIER = {
 export const REFORGE_RARITY_MULTIPLIER = {
   common: 1,
   magic: 1.35,
-  rare: 2.8,
+  rare: 1.2,
   epic: 5.2,
   legendary: 9,
 };
+
+const RARE_HIGH_UPGRADE_MULTIPLIER = 1.5;
 
 const TARGETED_AFFIX_TIER_MULTIPLIER = {
   1: 1.75,
@@ -116,12 +118,17 @@ export function getRerollCosts(item, player = {}) {
 export function getUpgradeCosts(item, player = {}) {
   const currentLevel = Math.max(0, Number(item?.level || 0));
   const rarityMult = UPGRADE_RARITY_MULTIPLIER[item?.rarity] || 1;
+  const rareHighUpgradeMult =
+    item?.rarity === "rare" && currentLevel >= 6
+      ? RARE_HIGH_UPGRADE_MULTIPLIER
+      : 1;
   const reduction = getReduction(player, "upgradeCostReduction");
   return {
     gold: Math.floor(
       CRAFTING_BASE_COSTS.upgrade.gold *
       Math.pow(currentLevel + 1, 2) *
       rarityMult *
+      rareHighUpgradeMult *
       (1 - reduction)
     ),
     essence: 0,

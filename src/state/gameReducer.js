@@ -869,6 +869,10 @@ function baseGameReducer(state, action) {
         echoes: (state.prestige?.echoes || 0) + echoesGained,
         spentEchoes: state.prestige?.spentEchoes || 0,
         totalEchoesEarned: (state.prestige?.totalEchoesEarned || 0) + echoesGained,
+        bestHistoricTier: Math.max(
+          Number(state.prestige?.bestHistoricTier || 0),
+          Number(prestigeCheck.preview?.progress?.maxTier || state.combat?.maxTier || 1)
+        ),
         nodes: { ...(state.prestige?.nodes || {}) },
       };
 
@@ -889,7 +893,7 @@ function baseGameReducer(state, action) {
           log:               [
             milestoneReached
               ? `Prestige ${nextPrestigeLevel}: ${milestoneReached.name}. +${echoesGained} ecos. ${milestoneReached.description} Volves a elegir clase para la proxima corrida.`
-              : `Prestige ${nextPrestigeLevel}. +${echoesGained} ecos. Reinicias la corrida y volves a elegir clase para la proxima run.`
+              : `Prestige ${nextPrestigeLevel}. +${echoesGained} ecos${prestigeCheck.preview?.momentum?.multiplier ? ` · Momentum x${Number(prestigeCheck.preview.momentum.multiplier).toFixed(1)}` : ""}. Reinicias la corrida y volves a elegir clase para la proxima run.`
           ],
           currentTier:       1,
           maxTier:           1,
