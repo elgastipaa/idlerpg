@@ -58,6 +58,69 @@ function getAffixKind(affix) {
   return "prefix";
 }
 
+function getAffixCategory(affix = {}) {
+  const existingCategory = String(affix?.category || "");
+  if (existingCategory.startsWith("abyss_")) return existingCategory;
+
+  const normalizedStat = normalizeLegacyStatKey(affix?.stat);
+  const affixId = String(affix?.id || "");
+
+  switch (normalizedStat) {
+    case "damage":
+      return "offense_damage_flat";
+    case "damageOnKill":
+      return "offense_execute";
+    case "critChance":
+      return "offense_precision";
+    case "critDamage":
+      return affixId.includes("skill_power") ? "utility_arcana" : "offense_crit_power";
+    case "attackSpeed":
+      return "offense_speed";
+    case "multiHitChance":
+      return affixId.includes("cooldown") ? "utility_combo" : "offense_combo";
+    case "markChance":
+      return "offense_mark";
+    case "markEffectPerStack":
+      return "offense_mark_power";
+    case "bleedChance":
+      return "offense_bleed";
+    case "bleedDamage":
+      return "offense_bleed_power";
+    case "fractureChance":
+      return "offense_fracture";
+    case "lifesteal":
+      return "offense_leech";
+    case "critOnLowHp":
+      return "offense_execute_crit";
+    case "thorns":
+      return "offense_retaliation";
+    case "defense":
+      return "defense_armor";
+    case "healthMax":
+      return "defense_vitality";
+    case "healthRegen":
+      return "defense_regen";
+    case "dodgeChance":
+      return "defense_evasion";
+    case "blockChance":
+      return "defense_guard";
+    case "goldBonus":
+      return "economy_gold";
+    case "goldBonusPct":
+      return "economy_gold_pct";
+    case "xpBonus":
+      return "economy_xp";
+    case "essenceBonus":
+      return "economy_essence";
+    case "lootBonus":
+      return "economy_loot";
+    case "luck":
+      return "economy_luck";
+    default:
+      return existingCategory || `${getAffixKind(affix)}_${normalizedStat || "misc"}`;
+  }
+}
+
 function getTierEntries(affix) {
   return Object.entries(affix.tiers || {})
     .map(([tier, data]) => ({ tier: Number(tier), ...data }))
@@ -95,7 +158,7 @@ function buildRolledAffix(affix, tierEntry) {
     id: affix.id,
     stat: normalizeLegacyStatKey(affix.stat),
     scaling: affix.scaling,
-    category: affix.category,
+    category: getAffixCategory(affix),
     kind: getAffixKind(affix),
     tier: tierEntry.tier,
     tierLabel: tierEntry.label,
@@ -116,7 +179,7 @@ function findAffixDefinition(affixId) {
 }
 
 function filterByCategory(pool, usedCategories) {
-  return pool.filter(affix => !usedCategories.has(affix.category));
+  return pool.filter(affix => !usedCategories.has(getAffixCategory(affix)));
 }
 
 function getAffixPoolWeight({
@@ -173,7 +236,7 @@ function rollSingleAffix(pool, state, options = {}) {
   if (!tierEntry) return null;
 
   const normalizedStat = normalizeLegacyStatKey(pickedAffix.stat);
-  state.usedCategories.add(pickedAffix.category);
+  state.usedCategories.add(getAffixCategory(pickedAffix));
   state.usedAffixIds.add(pickedAffix.id);
   state.usedAffixStats.add(normalizedStat);
   if (state.existingStats.has(normalizedStat)) {
@@ -315,7 +378,7 @@ export function generateReforgeOptions(item, affixIndex, optionCount = 2, favore
   const usedCategories = new Set(
     currentAffixes
       .filter((affix, index) => index !== affixIndex)
-      .map(affix => affix.category)
+      .map(affix => getAffixCategory(affix))
   );
   const usedIds = new Set(
     currentAffixes
@@ -341,7 +404,7 @@ export function generateReforgeOptions(item, affixIndex, optionCount = 2, favore
 
   const eligible = pool.filter(affix => {
     if (usedIds.has(affix.id)) return false;
-    if (usedCategories.has(affix.category)) return false;
+    if (usedCategories.has(getAffixCategory(affix))) return false;
     if (usedStats.has(normalizeLegacyStatKey(affix.stat))) return false;
     if (affix.id === targetAffix.id) return false;
     if (!existingStats.has(normalizeLegacyStatKey(affix.stat))) return true;
@@ -389,7 +452,7 @@ export function upgradeAffixes(affixes, factor = 1.1) {
 }
 
 export function addAffix(item) {
-  const usedCategories = new Set((item.affixes || []).map(affix => affix.category));
+  const usedCategories = new Set((item.affixes || []).map(affix => getAffixCategory(affix)));
   const usedIds = new Set((item.affixes || []).map(affix => affix.id));
   const usedStats = new Set((item.affixes || []).map(affix => normalizeLegacyStatKey(affix.stat)));
   const existingStats = new Set([
@@ -402,7 +465,7 @@ export function addAffix(item) {
   const existingOverlapCount = (item.affixes || []).filter(affix => existingStats.has(normalizeLegacyStatKey(affix.stat))).length;
   const pool = ALL_AFFIXES.filter(affix => {
     if (usedIds.has(affix.id)) return false;
-    if (usedCategories.has(affix.category)) return false;
+    if (usedCategories.has(getAffixCategory(affix))) return false;
     if (usedStats.has(normalizeLegacyStatKey(affix.stat))) return false;
     if (!existingStats.has(normalizeLegacyStatKey(affix.stat))) return true;
     if (!allowExistingStatOverlap) return false;

@@ -391,6 +391,39 @@ export const SUFFIXES = [
     },
   },
   {
+    id: "suffix_health_max_2",
+    stat: "healthMax",
+    scaling: "flat",
+    category: "defense_vitality",
+    tiers: {
+      3: { label: "de la Tenacidad", value: { min: 12, max: 22 }, weight: 36 },
+      2: { label: "del Colchon Vital", value: { min: 26, max: 48 }, weight: 16 },
+      1: { label: "de la Vida Colosal", value: { min: 62, max: 100 }, weight: 5 },
+    },
+  },
+  {
+    id: "suffix_dodge_2",
+    stat: "dodgeChance",
+    scaling: "percent",
+    category: "defense_evasion",
+    tiers: {
+      3: { label: "de la Bruma", value: { min: 0.01, max: 0.025 }, weight: 34 },
+      2: { label: "del Desvio", value: { min: 0.03, max: 0.05 }, weight: 15 },
+      1: { label: "de la Ausencia", value: { min: 0.06, max: 0.1 }, weight: 5 },
+    },
+  },
+  {
+    id: "suffix_damage_3",
+    stat: "damage",
+    scaling: "flat",
+    category: "offense_damage_flat",
+    tiers: {
+      3: { label: "del Impacto", value: { min: 2, max: 5 }, weight: 34 },
+      2: { label: "del Golpe Brutal", value: { min: 6, max: 11 }, weight: 15 },
+      1: { label: "de la Ruina", value: { min: 14, max: 22 }, weight: 5 },
+    },
+  },
+  {
     id: "suffix_attack_speed_2",
     stat: "attackSpeed",
     scaling: "percent",
@@ -421,6 +454,28 @@ export const SUFFIXES = [
       3: { label: "del Drenaje", value: { min: 0.01, max: 0.02 }, weight: 34 },
       2: { label: "del Sanguinario", value: { min: 0.03, max: 0.05 }, weight: 15 },
       1: { label: "del Banquete Carmesi", value: { min: 0.07, max: 0.12 }, weight: 5 },
+    },
+  },
+  {
+    id: "suffix_mark_chance_2",
+    stat: "markChance",
+    scaling: "percent",
+    category: "offense_mark",
+    tiers: {
+      3: { label: "del Rastro", value: { min: 0.02, max: 0.04 }, weight: 34 },
+      2: { label: "de la Persecucion", value: { min: 0.05, max: 0.08 }, weight: 15 },
+      1: { label: "de la Caza Final", value: { min: 0.09, max: 0.13 }, weight: 5 },
+    },
+  },
+  {
+    id: "suffix_bleed_chance_2",
+    stat: "bleedChance",
+    scaling: "percent",
+    category: "offense_bleed",
+    tiers: {
+      3: { label: "del Tajo", value: { min: 0.02, max: 0.04 }, weight: 34 },
+      2: { label: "del Desangrado", value: { min: 0.05, max: 0.08 }, weight: 15 },
+      1: { label: "de la Apertura Carmesi", value: { min: 0.09, max: 0.13 }, weight: 5 },
     },
   },
   {

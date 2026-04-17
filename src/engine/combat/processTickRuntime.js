@@ -277,6 +277,23 @@ function applyMitigatedDamage(value = 0, mitigation = 0) {
   return Math.max(0, Math.floor(numeric * (1 - clampedMitigation)));
 }
 
+function getHeavyHitGuardPercent({ stats = {}, effectiveDefense = 0, rawHit = 0 }) {
+  const baseGuard = Math.max(0, Number(stats?.heavyHitGuard || 0));
+  const normalizedRawHit = Math.max(0, Number(rawHit || 0));
+  if (!baseGuard || !normalizedRawHit) return 0;
+
+  const defenseContribution = Math.min(
+    0.16,
+    Math.max(0, Number(effectiveDefense || 0)) / Math.max(140, normalizedRawHit * 4.4)
+  );
+  const hpContribution = Math.min(
+    0.12,
+    Math.max(0, Number(stats?.maxHp || 0)) / Math.max(1200, normalizedRawHit * 7.5)
+  );
+
+  return Math.min(0.58, baseGuard + defenseContribution + hpContribution);
+}
+
 function hasEnemyAffixPressure(enemy = null) {
   return Math.max(0, Number(enemy?.monsterAffixes?.length || 0)) > 0;
 }
@@ -712,6 +729,10 @@ export function processTick(state) {
         hitIndex === 0 && openingHitPending
           ? Math.max(1, s.openingHitDamageMult || 1)
           : 1;
+      const crushingFracturedMult =
+        (nextEnemyRuntime.fractureStacks || 0) > 0
+          ? Math.max(1, Number(s.crushingFracturedDamageMult || 1))
+          : 1;
       let hitDamage = Math.floor(
         (s.damage +
           (legendaryBonuses.damageFlat || 0) +
@@ -726,6 +747,7 @@ export function processTick(state) {
           combatFlowMult *
           temporalFlowMult *
           markedTargetMult *
+          crushingFracturedMult *
           absoluteControlMult *
           freshTargetMult *
           mageFlowMult *
@@ -745,7 +767,12 @@ export function processTick(state) {
           enemyDefenseMultiplier
       );
       hitDamage = Math.max(0, hitDamage - enemyFlatReduction);
-      if (bossShieldActive && hitIndex === 0) hitDamage = 0;
+      if (bossShieldActive && hitIndex === 0) {
+        hitDamage =
+          openingHitPending && Math.max(0, Number(s.crushingShieldBypassPct || 0)) > 0
+            ? Math.max(1, Math.floor(hitDamage * Math.min(0.9, Number(s.crushingShieldBypassPct || 0))))
+            : 0;
+      }
       if (hitIndex === 0 && hitDamage > 0 && openingHitPending) {
         nextEnemyRuntime.openingHitSpent = true;
       }
@@ -765,6 +792,15 @@ export function processTick(state) {
         );
         nextEnemyRuntime.fractureTicksRemaining = FRACTURE_DURATION_TICKS;
         appliedFractureStacks += 1;
+      }
+      if (hitDamage > 0 && hitIndex === 0 && openingHitPending && Number(s.crushingOpeningFractureStacks || 0) > 0) {
+        const extraStacks = Math.max(0, Number(s.crushingOpeningFractureStacks || 0));
+        nextEnemyRuntime.fractureStacks = Math.min(
+          FRACTURE_STACK_CAP,
+          Number(nextEnemyRuntime.fractureStacks || 0) + extraStacks
+        );
+        nextEnemyRuntime.fractureTicksRemaining = FRACTURE_DURATION_TICKS;
+        appliedFractureStacks += extraStacks;
       }
 
       if (hitDamage > 0 && Math.random() < totalBleedChance) {
@@ -873,11 +909,31 @@ export function processTick(state) {
   const abyssBossDamageMitigation = enemy.isBoss && isAbyssEnemy
     ? Math.min(0.7, Math.max(0, Number(s.abyssBossMechanicMitigation || 0)))
     : 0;
-  let enemyDamageBase = enemyHpBeforeDamage <= 0
+  const enemyRawHit = enemyHpBeforeDamage <= 0
     ? 0
     : evaded
     ? 0
-    : Math.max(1, Math.floor(enemy.damage * enemyDamageMult * bossDamageMult) - (ignoreDefenseThisTick ? 0 : effectiveDefense));
+    : Math.max(1, Math.floor(enemy.damage * enemyDamageMult * bossDamageMult));
+  const defensePreventedPerHit = ignoreDefenseThisTick ? 0 : Math.min(enemyRawHit, effectiveDefense);
+  const postDefenseEnemyHit = Math.max(0, enemyRawHit - defensePreventedPerHit);
+  const heavyHitThreshold = Math.max(
+    18,
+    Math.floor(
+      s.maxHp *
+        Math.max(
+          0.055,
+          0.105 - Math.min(0.025, Number(s.fortress || 0) * 0.004)
+        )
+    )
+  );
+  const heavyHitGuardPct = getHeavyHitGuardPercent({
+    stats: s,
+    effectiveDefense,
+    rawHit: enemyRawHit,
+  });
+  const heavyHitPortionPerHit = Math.max(0, postDefenseEnemyHit - heavyHitThreshold);
+  const heavyHitPreventedPerHit = Math.floor(heavyHitPortionPerHit * heavyHitGuardPct);
+  let enemyDamageBase = Math.max(0, postDefenseEnemyHit - heavyHitPreventedPerHit);
   if (!enemy.isBoss && isAbyssEnemy && abyssPenaltyReduction > 0) {
     enemyDamageBase = Math.max(0, Math.floor(enemyDamageBase * (1 - abyssPenaltyReduction * 0.28)));
   }
@@ -891,7 +947,9 @@ export function processTick(state) {
     !evaded &&
     enemyDamageBase > 0 &&
     Math.random() < Math.min(CRIT_CAP, Math.max(0, (s.blockChance || 0) + (legendaryBonuses.blockChance || 0)));
-  let enemyDmg = blocked ? 0 : enemyDamageBase * enemyStrikeCount;
+  const rawEnemyDmgTotal = enemyRawHit * enemyStrikeCount;
+  const preBlockEnemyDmg = enemyDamageBase * enemyStrikeCount;
+  let enemyDmg = blocked ? 0 : preBlockEnemyDmg;
   let reversedMarkStacks = 0;
   let markReversalDamage = 0;
   if (
@@ -916,6 +974,11 @@ export function processTick(state) {
   if (!blocked && enemyStrikeCount > 1 && bossMechanicMitigation > 0) {
     enemyDmg = Math.max(0, Math.floor(enemyDmg * (1 - bossMechanicMitigation)));
   }
+  const totalPreventedDamage = Math.max(0, rawEnemyDmgTotal - enemyDmg);
+  const preventedDamageRatio =
+    rawEnemyDmgTotal > 0
+      ? Math.max(0, totalPreventedDamage / rawEnemyDmgTotal)
+      : 0;
   const tookDamage = enemyDmg > 0;
   const regenHp = Math.min(s.maxHp, preImmediate.hp + regenAmount);
   const appliedRegen = Math.max(0, regenHp - preImmediate.hp);
@@ -955,13 +1018,18 @@ export function processTick(state) {
       );
     }
   }
-  const thornsDamage = tookDamage
+  const guardRetaliationDamage = Math.max(
+    0,
+    Math.floor(totalPreventedDamage * Math.max(0, Number(s.guardRetaliationRatio || 0)))
+  );
+  const thornsDamage = (tookDamage || blocked || totalPreventedDamage > 0)
     ? Math.max(
         0,
         Math.floor(
           (s.thorns || 0) +
             Math.floor(s.defense * ((s.thornsDefenseRatio || 0) + (effectMods.thornsDefenseRatio || 0))) +
-            (effectMods.thornsFlat || 0)
+            (effectMods.thornsFlat || 0) +
+            guardRetaliationDamage
         )
       )
     : 0;
@@ -1035,10 +1103,18 @@ export function processTick(state) {
     newEnemyHp = Math.min(enemy.maxHp, newEnemyHp + lifestealReflectHeal);
   }
   const enemyKilled = newEnemyHp <= 0;
+  const fortressPreventRatioThreshold = Math.max(
+    0.18,
+    0.34 - Number(s.fortress || 0) * 0.018 - Number(s.unmovingMountain || 0) * 0.02
+  );
   const mitigatedHit =
     !evaded &&
-    enemyDamageBase > 0 &&
-    (blocked || enemyDmg <= Math.max(12, effectiveDefense * 0.22));
+    rawEnemyDmgTotal > 0 &&
+    (
+      blocked ||
+      preventedDamageRatio >= fortressPreventRatioThreshold ||
+      totalPreventedDamage >= Math.max(14, effectiveDefense * 0.18)
+    );
   const heavyDamageTaken = tookDamage && enemyDmg >= Math.max(18, s.maxHp * 0.12);
   const evadeText = evaded ? " [EVADE]" : "";
   const blockText = blocked ? " [BLOCK]" : "";
@@ -1189,22 +1265,23 @@ export function processTick(state) {
       modifiers: [{ type: MOD_TYPES.DAMAGE_MULT, value: 1 + Number(s.fortress || 0) * 0.006 }],
     });
   }
-  if ((s.titanicMomentum || 0) > 0 && !heavyDamageTaken && newPlayerHp / s.maxHp >= 0.85) {
+  if ((s.titanicMomentum || 0) > 0 && !heavyDamageTaken && newPlayerHp / s.maxHp >= 0.72) {
     runtimeEffects.push({
-      duration: 4,
+      duration: 5,
       source: "keystone",
       sourceId: "juggernaut_titanic_momentum",
       tags: ["keystone", "momentum"],
       stackable: true,
-      maxStacks: 3 + Number(s.titanicMomentum || 0) * 2,
+      maxStacks: 4 + Number(s.titanicMomentum || 0) * 2,
       modifiers: [
-        { type: MOD_TYPES.DAMAGE_MULT, value: 1 + Number(s.titanicMomentum || 0) * 0.004 },
-        { type: MOD_TYPES.DEFENSE_MULT, value: 1 + Number(s.titanicMomentum || 0) * 0.004 },
+        { type: MOD_TYPES.DAMAGE_MULT, value: 1 + Number(s.titanicMomentumDamagePerStack || 0) },
+        { type: MOD_TYPES.DEFENSE_MULT, value: 1 + Number(s.titanicMomentumDefensePerStack || 0) },
+        { type: MOD_TYPES.ATTACK_SPEED_FLAT, value: Number(s.titanicMomentumAttackSpeedPerStack || 0) },
       ],
     });
   }
   const persistentEffects =
-    (s.titanicMomentum || 0) > 0 && (heavyDamageTaken || newPlayerHp / s.maxHp < 0.72)
+    (s.titanicMomentum || 0) > 0 && (heavyDamageTaken || newPlayerHp / s.maxHp < 0.58)
       ? activeEffects.filter(effect => effect?.sourceId !== "juggernaut_titanic_momentum")
       : activeEffects;
   const nextEffects = applyEffects(persistentEffects, [

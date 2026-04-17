@@ -185,9 +185,9 @@ function buildSingleTalentEffectSummary(effect = {}) {
     case "ironConversion":
       return `Armadura -> dano ${formatTalentNumber(8 + value * 6)}% · dano critico -${formatTalentNumber(Math.min(15, value * 5))}%`;
     case "crushingWeight":
-      return `Sin multi-hit · primer golpe +${formatTalentNumber(35 + value * 20)}%`;
+      return `Sin multi-hit · primer golpe +${formatTalentNumber(35 + value * 20)}% · parte escudos de boss`;
     case "frenziedChain":
-      return `+${formatTalentNumber(4 + value * 4)}% multi-hit · +${formatTalentNumber(4 + value * 5)}% fractura`;
+      return `+${formatTalentNumber(4 + value * 4)}% multi-hit · +${formatTalentNumber(4 + value * 5)}% fractura · con Crushing Weight abre armadura`;
     case "bloodDebt":
       return `Leech -> Rage: +${formatTalentNumber(value)}% dano/stack · +${formatTalentNumber(0.3 + value * 0.3)}% vel/stack`;
     case "lastBreath":
@@ -201,17 +201,17 @@ function buildSingleTalentEffectSummary(effect = {}) {
     case "unmovingMountain":
       return `+${formatTalentNumber(value * 18)}% defensa · -${formatTalentNumber(value * 6)}% dano · -${formatTalentNumber(value)}% vel`;
     case "titanicMomentum":
-      return `HP alto: +${formatTalentNumber(value * 0.4)}% dano/defensa por stack · max ${3 + value * 2}`;
+      return `HP alto: +${formatTalentNumber((0.007 + value * 0.001) * 100)}% dano · +${formatTalentNumber((0.4 + value * 0.2))}% vel por stack · max ${4 + value * 2}`;
     case "arcaneEcho":
-      return `Ecos +${formatTalentNumber(52 + value * 7)}% dano · aprovechan on-hit`;
+      return `Ecos +${formatTalentNumber(57.5 + value * 7.5)}% dano · aprovechan on-hit`;
     case "arcaneMark":
-      return `Marca ${formatTalentNumber(8 + value * 4)}% · +${formatTalentNumber(2 + value)}% por stack · max ${Math.min(5, 2 + Math.ceil(value / 2))}`;
+      return `Marca ${formatTalentNumber(10 + value * 4.5)}% · +${formatTalentNumber(2.4 + value * 1.2)}% por stack · max ${Math.min(5, 2 + Math.ceil(value / 2))}`;
     case "arcaneFlow":
-      return `Kill -> siguiente enemigo +${formatTalentNumber((0.08 + value * 0.04) * 100)}%`;
+      return `Kill -> siguiente enemigo +${formatTalentNumber((0.1 + value * 0.045) * 100)}%`;
     case "overchannel":
       return `Ecos +${formatTalentNumber((0.45 + value * 0.06) * 100)}% · -${formatTalentNumber((0.04 + value * 0.02) * 100)}% por eco`;
     case "perfectCast":
-      return `Sin multi-hit · rango ${formatTalentNumber((0.97 + value * 0.01) * 100)}-${formatTalentNumber((1.06 + value * 0.02) * 100)}%`;
+      return `Sin multi-hit · rango ${formatTalentNumber((0.98 + value * 0.012) * 100)}-${formatTalentNumber((1.05 + value * 0.018) * 100)}%`;
     case "freshTargetDamage":
       return `+${formatTalentNumber(value * 100)}% al objetivo fresco`;
     case "chainBurst":
@@ -221,7 +221,7 @@ function buildSingleTalentEffectSummary(effect = {}) {
     case "overload":
       return `Hits altos/criticos: +${1 + Math.floor(value / 2)} marca${1 + Math.floor(value / 2) === 1 ? "" : "s"}`;
     case "volatileCasting":
-      return `Hit bueno: sig. +${formatTalentNumber((0.1 + value * 0.08) * 100)}% · malo: ${formatTalentNumber((Math.max(0.55, 1 - value * 0.07)) * 100)}%`;
+      return `Hit bueno: sig. +${formatTalentNumber((0.1 + value * 0.08) * 100)}% · malo: ${formatTalentNumber((Math.max(0.72, 1 - value * 0.04)) * 100)}%`;
     case "controlMastery":
       return `Marca +${formatTalentNumber((value * 0.35) * 100)}%/stack · duracion +${Math.floor(value * 4)} ticks`;
     case "markTransfer":

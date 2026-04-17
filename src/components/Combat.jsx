@@ -86,7 +86,7 @@ const STATUS_METADATA = {
   },
   fortress: {
     label: "Fortaleza",
-    description: "Tu siguiente golpe viene cargado despues de bloquear o mitigar castigo.",
+    description: "Tu siguiente golpe viene cargado despues de bloquear o absorber una parte importante del castigo.",
   },
   momentum: {
     label: "Momentum",
@@ -103,6 +103,18 @@ const STATUS_METADATA = {
   volatile: {
     label: "Volatilidad",
     description: "El proximo golpe esta sesgado: puede salir mucho mejor o peor que lo normal.",
+  },
+  perfectCast: {
+    label: "Perfect Cast",
+    description: "El Mage renuncia al multi-hit para pegar dentro de un rango mucho mas limpio y predecible.",
+  },
+  timeLoop: {
+    label: "Time Loop",
+    description: "Parte del setup sobrevive al cambio de objetivo y el siguiente enemigo no arranca desde cero.",
+  },
+  absoluteControl: {
+    label: "Control Absoluto",
+    description: "El objetivo marcado recibe mucho mas dano; el no marcado paga una penalidad clara.",
   },
   bleed: {
     label: "Sangrado",
@@ -541,8 +553,9 @@ export default function Combat({ state, dispatch }) {
     const rageDamageMult = getStackedMultiplier(1 + Number(baseStats.bloodDebt || 0) * 0.01, rageStacks);
     const rageAttackSpeed = rageStacks * (0.003 + Number(baseStats.bloodDebt || 0) * 0.003);
     const fortressDamageMult = getStackedMultiplier(1 + Number(baseStats.fortress || 0) * 0.006, fortressStacks);
-    const momentumDamageMult = getStackedMultiplier(1 + Number(baseStats.titanicMomentum || 0) * 0.004, momentumStacks);
-    const momentumDefenseMult = getStackedMultiplier(1 + Number(baseStats.titanicMomentum || 0) * 0.004, momentumStacks);
+    const momentumDamageMult = getStackedMultiplier(1 + Number(baseStats.titanicMomentumDamagePerStack || 0), momentumStacks);
+    const momentumDefenseMult = getStackedMultiplier(1 + Number(baseStats.titanicMomentumDefensePerStack || 0), momentumStacks);
+    const momentumAttackSpeed = momentumStacks * Math.max(0, Number(baseStats.titanicMomentumAttackSpeedPerStack || 0));
     const combatFlowMult =
       combatFlowStacks > 0
         ? 1 + combatFlowStacks * Math.max(0, Number(baseStats.combatFlowPerStack || 0))
@@ -586,7 +599,7 @@ export default function Combat({ state, dispatch }) {
       label: STATUS_METADATA.momentum.label,
       value: `x${momentumStacks}`,
       tone: "success",
-      detail: `${formatMultiplierBonus(momentumDamageMult)} dano · ${formatMultiplierBonus(momentumDefenseMult)} defensa`,
+      detail: `${formatMultiplierBonus(momentumDamageMult)} dano · ${formatMultiplierBonus(momentumDefenseMult)} defensa · ${formatSignedPercent(momentumAttackSpeed, 1)} vel`,
       description: STATUS_METADATA.momentum.description,
     });
     if (flowHits > 0) statuses.push({
@@ -607,6 +620,36 @@ export default function Combat({ state, dispatch }) {
         description: STATUS_METADATA.volatile.description,
       });
     }
+    if (player.class === "mage" && Math.max(0, Number(baseStats.perfectCast || 0)) > 0) {
+      statuses.push({
+        id: "perfect-cast",
+        label: STATUS_METADATA.perfectCast.label,
+        value: `${Math.round((Number(baseStats.damageRangeMin || 1)) * 100)}-${Math.round((Number(baseStats.damageRangeMax || 1)) * 100)}%`,
+        tone: "info",
+        detail: "sin multi-hit · dano mas limpio",
+        description: STATUS_METADATA.perfectCast.description,
+      });
+    }
+    if (player.class === "mage" && Math.max(0, Number(baseStats.markTransferPct || 0)) > 0) {
+      statuses.push({
+        id: "time-loop",
+        label: STATUS_METADATA.timeLoop.label,
+        value: formatPercent(baseStats.markTransferPct || 0),
+        tone: "boss",
+        detail: `${Math.max(0, Number(baseStats.flowHits || 0))} flow heredado`,
+        description: STATUS_METADATA.timeLoop.description,
+      });
+    }
+    if (player.class === "mage" && Math.max(1, Number(baseStats.absoluteControlMarkedMult || 1)) > 1.001) {
+      statuses.push({
+        id: "absolute-control",
+        label: STATUS_METADATA.absoluteControl.label,
+        value: `+${Math.round((Number(baseStats.absoluteControlMarkedMult || 1) - 1) * 100)}%`,
+        tone: "warning",
+        detail: `sin marca -${Math.round((1 - Number(baseStats.absoluteControlUnmarkedMult || 1)) * 100)}%`,
+        description: STATUS_METADATA.absoluteControl.description,
+      });
+    }
     if (poisonStacks > 0) {
       statuses.push({
         id: "poison",
@@ -625,7 +668,15 @@ export default function Combat({ state, dispatch }) {
     baseStats.combatFlowPerStack,
     baseStats.abyssBossMechanicMitigation,
     baseStats.fortress,
+    baseStats.flowHits,
+    baseStats.absoluteControlMarkedMult,
+    baseStats.absoluteControlUnmarkedMult,
     baseStats.titanicMomentum,
+    baseStats.titanicMomentumDamagePerStack,
+    baseStats.titanicMomentumAttackSpeedPerStack,
+    baseStats.titanicMomentumDefensePerStack,
+    baseStats.perfectCast,
+    baseStats.markTransferPct,
     combat?.pendingMageVolatileMult,
     effectStacksBySource,
     enemy?.runtime?.flowStacks,

@@ -50,12 +50,17 @@ function buildCharacterQuickRows(classId, stats = {}) {
 
   const mageRows = [
     { label: "Rango de dano", value: formatRange(stats.damageRangeMin, stats.damageRangeMax) },
+    (stats.perfectCast || 0) > 0 ? { label: "Perfect Cast", value: "Sin multi-hit · rango estable" } : null,
     (stats.multiHitChance || 0) > 0 ? { label: "Multi-hit", value: formatPercent(stats.multiHitChance || 0) } : null,
     (stats.markChance || 0) > 0 ? { label: "Marca", value: formatPercent(stats.markChance || 0) } : null,
     (stats.markEffectPerStack || 0) > 0 ? { label: "Potencia Marca", value: formatPercent(stats.markEffectPerStack || 0) } : null,
     (stats.flowBonusMult || 1) > 1 ? { label: "Flow", value: formatPercent((stats.flowBonusMult || 1) - 1) } : null,
+    (stats.markTransferPct || 0) > 0 ? { label: "Time Loop", value: formatPercent(stats.markTransferPct || 0) } : null,
+    (stats.absoluteControlMarkedMult || 1) > 1
+      ? { label: "Control Absoluto", value: `Marcado +${Math.round(((stats.absoluteControlMarkedMult || 1) - 1) * 100)}% / Sin marca -${Math.round((1 - (stats.absoluteControlUnmarkedMult || 1)) * 100)}%` }
+      : null,
     (stats.controlMastery || 0) > 0 ? { label: "Control", value: formatPercent(stats.controlMastery || 0) } : null,
-    (stats.volatileCasting || 0) > 0 ? { label: "Volatilidad", value: `Activa ${formatNumber(stats.volatileCasting || 0)}` } : null,
+    (stats.volatileCasting || 0) > 0 ? { label: "Volatilidad", value: `Activa ${formatNumber(stats.volatileCasting || 0)} · piso mas alto` } : null,
   ].filter(Boolean);
 
   return [...baseRows, ...(classId === "mage" ? mageRows : warriorRows)];

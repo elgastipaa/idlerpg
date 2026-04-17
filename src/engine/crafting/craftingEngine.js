@@ -695,7 +695,8 @@ export function craftReforgePreview({ player, itemId, affixIndex, favoredStats =
 
   if (player.gold < goldCost || (player.essence || 0) < essenceCost) return null;
 
-  const optionCount = 3 + Math.max(0, Math.floor(player?.prestigeBonuses?.reforgeOptionCount || 0));
+  const totalOptionCount = 3 + Math.max(0, Math.floor(player?.prestigeBonuses?.reforgeOptionCount || 0));
+  const optionCount = Math.max(1, totalOptionCount - 1);
   const allowedExtraAffixPool = ["epic", "legendary"].includes(item?.rarity) ? extraAffixPool : [];
   const generated = generateReforgeOptions(item, affixIndex, optionCount, favoredStats, allowedExtraAffixPool)
     .map(affix => scaleAffixesForItemLevel([affix], item.rarity, item.level || 0)[0] || affix);
@@ -708,11 +709,11 @@ export function craftReforgePreview({ player, itemId, affixIndex, favoredStats =
       essence: (player.essence || 0) - essenceCost,
     },
     options: [targetAffix, ...generated],
-    log: `REFORJA PREPARADA - ${item.name}: elige 1 de ${1 + generated.length} opciones para ${targetAffix.stat}.`,
+    log: `REFORJA PREPARADA - ${item.name}: elige 1 de ${Math.min(totalOptionCount, 1 + generated.length)} opciones para ${targetAffix.stat}.`,
   };
 }
 
-export function buildReforgePreview(item, affixIndex, optionCount = 3, favoredStats = [], extraAffixPool = []) {
+export function buildReforgePreview(item, affixIndex, optionCount = 2, favoredStats = [], extraAffixPool = []) {
   const allowedExtraAffixPool = ["epic", "legendary"].includes(item?.rarity) ? extraAffixPool : [];
   return generateReforgeOptions(item, affixIndex, optionCount, favoredStats, allowedExtraAffixPool)
     .map(affix => scaleAffixesForItemLevel([affix], item?.rarity, item?.level || 0)[0] || affix);

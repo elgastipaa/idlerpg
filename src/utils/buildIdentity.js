@@ -144,7 +144,8 @@ function getMageBuildTag({ stats, unlocked, spec }) {
   const loopScore =
     normalizeScore(stats.markTransferPct) * 1.8 +
     normalizeScore(stats.temporalFlowPerStack || 0) * 2.4 +
-    normalizeScore(stats.spellMemoryMarkEffectPerStack || 0) * 2.8;
+    normalizeScore(stats.spellMemoryMarkEffectPerStack || 0) * 2.8 +
+    normalizeScore(stats.flowHits || 0) * 32;
 
   const candidates = [];
 
@@ -352,15 +353,18 @@ export function getPlayerBuildTag(player) {
   ]);
   const defenseScore = scoreByKeys(stats, [
     "defense",
-    "healthMax",
-    "healthRegen",
+    "maxHp",
+    "regen",
     "blockChance",
     "thorns",
     "dodgeChance",
+    "heavyHitGuard",
+    "bossMechanicMitigation",
   ]);
   const economyScore = scoreByKeys(stats, [
-    "goldBonus",
-    "xpBonus",
+    "goldPct",
+    "flatGold",
+    "xpPct",
     "essenceBonus",
     "lootBonus",
     "luck",
@@ -368,8 +372,8 @@ export function getPlayerBuildTag(player) {
   const skillScore = scoreByKeys(stats, ["critDamage", "multiHitChance", "markChance", "markEffectPerStack"]);
   const critScore = scoreByKeys(stats, ["critChance", "critDamage", "critOnLowHp"]);
   const bleedScore = scoreByKeys(stats, ["bleedChance", "bleedDamage", "multiHitChance"]);
-  const sustainScore = scoreByKeys(stats, ["healthRegen", "lifesteal", "healthMax"]);
-  const thornsScore = scoreByKeys(stats, ["thorns", "blockChance", "defense", "fractureChance"]);
+  const sustainScore = scoreByKeys(stats, ["regen", "lifesteal", "maxHp", "heavyHitGuard"]);
+  const thornsScore = scoreByKeys(stats, ["thorns", "blockChance", "defense", "fractureChance", "guardRetaliationRatio"]);
   const speedScore = scoreByKeys(stats, ["attackSpeed", "multiHitChance", "damageOnKill", "dodgeChance"]);
 
   const berserkerTalents = countTalentsWithPrefix(unlocked, "berserker_");
@@ -378,7 +382,7 @@ export function getPlayerBuildTag(player) {
   const candidates = [];
 
   if (!spec) {
-    if (hasTalent(unlocked, "warrior_iron_conversion") || hasTalent(unlocked, "warrior_precision_drill")) {
+    if (hasTalent(unlocked, "warrior_iron_conversion")) {
       candidates.push(
         buildCandidate({
           id: "warrior_iron_conversion",
@@ -391,15 +395,21 @@ export function getPlayerBuildTag(player) {
       );
     }
 
-    if (hasTalent(unlocked, "warrior_crushing_weight") || hasTalent(unlocked, "warrior_veteran_instinct")) {
+    if (hasTalent(unlocked, "warrior_crushing_weight")) {
       candidates.push(
         buildCandidate({
           id: "warrior_crushing_weight",
           name: "Warrior Crushing Weight",
           color: "#7c2d12",
-          description: "Sin cadenas, pero con un primer golpe devastador.",
-          score: normalizeScore(stats.damage) * 1.2 + critScore * 0.6 + 320,
-          reasons: ["golpe inicial", "peso", "critico"],
+          description: "Primer golpe brutal que abre armadura, atraviesa escudos y ahora tambien escala con aguante real.",
+          score:
+            normalizeScore(stats.damage) * 1.05 +
+            normalizeScore(stats.openingHitDamageMult || 1) * 45 +
+            normalizeScore(stats.fractureChance || 0) * 70 +
+            normalizeScore(stats.defense || 0) * 0.45 +
+            critScore * 0.35 +
+            320,
+          reasons: ["golpe inicial", "fractura", "bossing"],
         })
       );
     }
@@ -432,7 +442,7 @@ export function getPlayerBuildTag(player) {
   }
 
   if (spec === "berserker") {
-    if (hasTalent(unlocked, "berserker_blood_debt") || hasTalent(unlocked, "berserker_butcher_stride")) {
+    if (hasTalent(unlocked, "berserker_blood_debt")) {
       candidates.push(
         buildCandidate({
           id: "berserker_blood_debt",
@@ -445,7 +455,7 @@ export function getPlayerBuildTag(player) {
       );
     }
 
-    if (hasTalent(unlocked, "berserker_frenzied_chain") || hasTalent(unlocked, "berserker_carnage")) {
+    if (hasTalent(unlocked, "berserker_frenzied_chain")) {
       candidates.push(
         buildCandidate({
           id: "berserker_frenzied_chain",
@@ -458,7 +468,7 @@ export function getPlayerBuildTag(player) {
       );
     }
 
-    if (hasTalent(unlocked, "berserker_last_breath") || hasTalent(unlocked, "berserker_last_laugh")) {
+    if (hasTalent(unlocked, "berserker_last_breath")) {
       candidates.push(
         buildCandidate({
           id: "berserker_last_breath",
@@ -473,7 +483,7 @@ export function getPlayerBuildTag(player) {
   }
 
   if (spec === "juggernaut") {
-    if (hasTalent(unlocked, "juggernaut_unmoving_mountain") || hasTalent(unlocked, "juggernaut_siege_wall")) {
+    if (hasTalent(unlocked, "juggernaut_unmoving_mountain")) {
       candidates.push(
         buildCandidate({
           id: "juggernaut_unmoving_mountain",
@@ -486,7 +496,7 @@ export function getPlayerBuildTag(player) {
       );
     }
 
-    if (hasTalent(unlocked, "juggernaut_spiked_defense") || hasTalent(unlocked, "juggernaut_titan_skin")) {
+    if (hasTalent(unlocked, "juggernaut_spiked_defense")) {
       candidates.push(
         buildCandidate({
           id: "juggernaut_spiked_bastion",
@@ -499,15 +509,21 @@ export function getPlayerBuildTag(player) {
       );
     }
 
-    if (hasTalent(unlocked, "juggernaut_titanic_momentum") || hasTalent(unlocked, "juggernaut_last_bulwark")) {
+    if (hasTalent(unlocked, "juggernaut_titanic_momentum")) {
       candidates.push(
         buildCandidate({
           id: "juggernaut_titanic_momentum",
           name: "Juggernaut Titanic Momentum",
           color: "#4338ca",
           description: "Cada segundo en combate empuja tu poder un poco mas arriba.",
-          score: sustainScore + defenseScore + normalizeScore(stats.damage) * 0.6 + juggernautTalents * 16 + 360,
-          reasons: ["ramp-up", "aguante", "tempo"],
+          score:
+            sustainScore +
+            defenseScore * 0.85 +
+            normalizeScore(stats.damage) * 0.7 +
+            normalizeScore(stats.attackSpeed) * 120 +
+            juggernautTalents * 16 +
+            360,
+          reasons: ["ramp-up", "tempo", "aguante"],
         })
       );
     }
@@ -598,7 +614,7 @@ export function itemMatchesBuildTag(item, buildTag) {
     return scoreByKeys(stats, ["defense", "healthMax", "blockChance", "damage", "fractureChance"]) > 0;
   }
   if (buildTag.id.includes("crushing_weight")) {
-    return scoreByKeys(stats, ["damage", "critChance", "critDamage", "healthMax", "attackSpeed"]) > 0;
+    return scoreByKeys(stats, ["damage", "defense", "healthMax", "critChance", "critDamage", "fractureChance"]) > 0;
   }
   if (buildTag.id.includes("blood_strikes")) {
     return scoreByKeys(stats, ["bleedChance", "bleedDamage", "multiHitChance", "damage", "lifesteal"]) > 0;

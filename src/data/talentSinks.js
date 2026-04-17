@@ -168,10 +168,11 @@ export const TALENT_SINK_TALENTS = [
     specId: null,
     title: "Maestria Arcana",
     effects: [
-      { stat: "damage", kind: "multiplier", maxBonus: 0.22, label: "poder arcano total" },
+      { stat: "damage", kind: "multiplier", maxBonus: 0.26, label: "poder arcano total" },
+      { stat: "controlMastery", kind: "flat", maxBonus: 0.18, label: "dominio de control", displayAsPercent: true, decimals: 2 },
     ],
     descriptionFormatter: ({ level, levels, effects }) =>
-      `Maestria Arcana: nivel ${level}/${levels}, +${formatPct(effects[0].totalBonus)}% poder arcano total.`,
+      `Maestria Arcana: nivel ${level}/${levels}, +${formatPct(effects[0].totalBonus)}% poder arcano total · +${formatPct(effects[1].totalBonus)}% dominio de control.`,
     baseCost: 3,
     costStep: 0.8,
     baseUnlockLevel: 50,

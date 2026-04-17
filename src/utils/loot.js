@@ -1,4 +1,5 @@
-﻿import { ITEMS, ITEM_RARITY_BLUEPRINT, ITEM_ROLL_RULES_V2 } from "../data/items";
+﻿import { ABYSS_PREFIXES, ABYSS_SUFFIXES, PREFIXES, SUFFIXES } from "../data/affixes";
+import { ITEMS, ITEM_RARITY_BLUEPRINT, ITEM_ROLL_RULES_V2 } from "../data/items";
 import { ITEM_FAMILIES } from "../data/itemFamilies";
 import { ensureAffixCountForRarity, rollAffixes } from "../engine/affixesEngine";
 import { getLegendaryPowerById, isLegendaryContentUnlocked } from "./legendaryPowers";
@@ -47,6 +48,8 @@ const PERCENT_STATS = new Set([
   "goldBonusPct",
 ]);
 
+const ALL_AFFIX_DEFINITIONS = [...PREFIXES, ...SUFFIXES, ...ABYSS_PREFIXES, ...ABYSS_SUFFIXES];
+
 export function normalizeLegacyStatKey(stat) {
   if (stat === "cooldownReduction") return "multiHitChance";
   if (stat === "skillPower") return "critDamage";
@@ -62,6 +65,80 @@ export function normalizeLegacyBonusMap(bonus = {}) {
     normalized[key] = Math.round(((normalized[key] || 0) + value) * 100) / 100;
   }
   return normalized;
+}
+
+function getAffixDefinition(affixId) {
+  return ALL_AFFIX_DEFINITIONS.find(affix => affix.id === affixId) || null;
+}
+
+function getAffixKind(affix = {}) {
+  if (affix.kind) return affix.kind;
+  if (String(affix.id || "").startsWith("suffix_")) return "suffix";
+  if (String(affix.id || "").startsWith("of_")) return "suffix";
+  return "prefix";
+}
+
+function getAffixCategory(affix = {}) {
+  const existingCategory = String(affix?.category || "");
+  if (existingCategory.startsWith("abyss_")) return existingCategory;
+
+  const normalizedStat = normalizeLegacyStatKey(affix?.stat);
+  const affixId = String(affix?.id || "");
+
+  switch (normalizedStat) {
+    case "damage":
+      return "offense_damage_flat";
+    case "damageOnKill":
+      return "offense_execute";
+    case "critChance":
+      return "offense_precision";
+    case "critDamage":
+      return affixId.includes("skill_power") ? "utility_arcana" : "offense_crit_power";
+    case "attackSpeed":
+      return "offense_speed";
+    case "multiHitChance":
+      return affixId.includes("cooldown") ? "utility_combo" : "offense_combo";
+    case "markChance":
+      return "offense_mark";
+    case "markEffectPerStack":
+      return "offense_mark_power";
+    case "bleedChance":
+      return "offense_bleed";
+    case "bleedDamage":
+      return "offense_bleed_power";
+    case "fractureChance":
+      return "offense_fracture";
+    case "lifesteal":
+      return "offense_leech";
+    case "critOnLowHp":
+      return "offense_execute_crit";
+    case "thorns":
+      return "offense_retaliation";
+    case "defense":
+      return "defense_armor";
+    case "healthMax":
+      return "defense_vitality";
+    case "healthRegen":
+      return "defense_regen";
+    case "dodgeChance":
+      return "defense_evasion";
+    case "blockChance":
+      return "defense_guard";
+    case "goldBonus":
+      return "economy_gold";
+    case "goldBonusPct":
+      return "economy_gold_pct";
+    case "xpBonus":
+      return "economy_xp";
+    case "essenceBonus":
+      return "economy_essence";
+    case "lootBonus":
+      return "economy_loot";
+    case "luck":
+      return "economy_luck";
+    default:
+      return existingCategory || `${getAffixKind(affix)}_${normalizedStat || "misc"}`;
+  }
 }
 
 const RARE_AFFIX_UPGRADE_STEP_MULTIPLIERS = [1.09, 1.09, 1.18, 1.18];
@@ -111,10 +188,16 @@ export function scaleAffixesForItemLevel(affixes = [], rarity = "common", level 
   const affixMultiplier = rarity === "rare" ? getRareAffixUpgradeMultiplier(level) : 1;
 
   return (affixes || []).map(affix => {
+    const definition = getAffixDefinition(affix?.id) || affix;
     const { baseValue, baseRolledValue, baseRange } = getAffixBaseSnapshot(affix);
 
     return {
       ...affix,
+      stat: normalizeLegacyStatKey(definition?.stat || affix?.stat),
+      scaling: definition?.scaling || affix?.scaling,
+      source: definition?.source || affix?.source || "base",
+      kind: getAffixKind(definition || affix),
+      category: getAffixCategory(definition || affix),
       baseValue,
       baseRolledValue,
       baseRange,
@@ -428,13 +511,6 @@ export function buildBaseBonusForItem({
   });
 
   return Object.keys(rolled).length ? rolled : fallbackBase;
-}
-
-function getAffixKind(affix) {
-  if (affix.kind) return affix.kind;
-  if (String(affix.id || "").startsWith("suffix_")) return "suffix";
-  if (String(affix.id || "").startsWith("of_")) return "suffix";
-  return "prefix";
 }
 
 function resolveBonusKey(affix) {

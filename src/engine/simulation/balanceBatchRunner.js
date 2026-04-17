@@ -2,8 +2,10 @@ import { createFreshState } from "../stateInitializer";
 import { runBalanceBotSimulation } from "./balanceBot";
 
 const PROFILE_OPTIONS = [
-  { id: "berserker", label: "Warrior / Berserker", preferredSpec: "berserker" },
-  { id: "juggernaut", label: "Warrior / Juggernaut", preferredSpec: "juggernaut" },
+  { id: "berserker", label: "Warrior / Berserker", preferredClass: "warrior", preferredSpec: "berserker" },
+  { id: "juggernaut", label: "Warrior / Juggernaut", preferredClass: "warrior", preferredSpec: "juggernaut" },
+  { id: "sorcerer", label: "Mage / Sorcerer", preferredClass: "mage", preferredSpec: "sorcerer" },
+  { id: "arcanist", label: "Mage / Arcanist", preferredClass: "mage", preferredSpec: "arcanist" },
 ];
 
 function formatNumber(value) {
@@ -155,6 +157,7 @@ export function runBalanceBatch(options = {}) {
       results.push(
         runBalanceBotSimulation(baseState, {
           ticks,
+          preferredClass: profile.preferredClass,
           preferredSpec: profile.preferredSpec,
         })
       );

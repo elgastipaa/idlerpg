@@ -20,6 +20,20 @@ const ENEMY_BY_ID = new Map(ENEMIES.map(enemy => [enemy.id, enemy]));
 const ENEMY_BY_TIER = new Map(ENEMIES.map(enemy => [enemy.tier, enemy]));
 const FIRST_RUN_SEED = 104729;
 const RARITY_RANK = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
+const BOSS_COUNTER_TAG_LIMITS = {
+  antiCrit: 2,
+  antiCombo: 2,
+  antiMark: 1,
+  antiMage: 2,
+  antiTank: 2,
+};
+const DEPTH_COUNTER_TAG_LIMITS = {
+  antiCrit: 1,
+  antiCombo: 1,
+  antiMark: 1,
+  antiMage: 1,
+  antiTank: 1,
+};
 
 function sanitizeTier(tier = 1) {
   const numeric = Math.max(1, Math.floor(Number(tier || 1)));
@@ -171,12 +185,71 @@ function mergeRuntimeConfig(...entries) {
   return merged;
 }
 
-function pickSeededUniqueIds(pool = [], count = 0, seed = 1, excludedIds = []) {
-  if (count <= 0) return [];
+function getCounterTagsForMechanicId(mechanicId = "") {
+  switch (mechanicId) {
+    case "crit_immunity":
+    case "absorb_first_crit":
+      return ["antiCrit"];
+    case "thorns_aura":
+      return ["antiCombo"];
+    case "mark_reversal":
+      return ["antiMark"];
+    case "spell_mirror":
+      return ["antiMage"];
+    case "armor_shred":
+      return ["antiTank"];
+    default:
+      return [];
+  }
+}
+
+function getCounterTagsForAffixId(affixId = "") {
+  switch (affixId) {
+    case "crit_immune":
+      return ["antiCrit"];
+    case "reflective":
+    case "thorns_master":
+      return ["antiCombo"];
+    default:
+      return [];
+  }
+}
+
+function buildCounterCounts({ mechanicIds = [], affixIds = [] } = {}) {
+  const counts = {};
+  (mechanicIds || []).forEach(id => {
+    getCounterTagsForMechanicId(id).forEach(tag => {
+      counts[tag] = (counts[tag] || 0) + 1;
+    });
+  });
+  (affixIds || []).forEach(id => {
+    getCounterTagsForAffixId(id).forEach(tag => {
+      counts[tag] = (counts[tag] || 0) + 1;
+    });
+  });
+  return counts;
+}
+
+function addCounterTags(counterCounts = {}, tags = []) {
+  (tags || []).forEach(tag => {
+    counterCounts[tag] = (counterCounts[tag] || 0) + 1;
+  });
+  return counterCounts;
+}
+
+function wouldExceedCounterLimits(counterCounts = {}, tags = [], limits = {}) {
+  return (tags || []).some(tag => (counterCounts[tag] || 0) + 1 > (limits[tag] || Number.POSITIVE_INFINITY));
+}
+
+function getBossCounterTags(boss = {}) {
+  return [...new Set((boss?.mechanics || []).flatMap(getCounterTagsForMechanicId))];
+}
+
+function getSeededOrderedIds(pool = [], seed = 1, excludedIds = []) {
   const excluded = new Set(excludedIds || []);
   const uniquePool = [...new Set(pool || [])].filter(id => !excluded.has(id));
   if (!uniquePool.length) return [];
-  return shuffleList(uniquePool, mulberry32(seed)).slice(0, count);
+  return shuffleList(uniquePool, mulberry32(seed));
 }
 
 function getAbyssBossUpgradeProfile(cycleIndex = 0) {
@@ -237,18 +310,36 @@ function getBossAbyssUpgradeModifiers({
       Math.imul(slot + 1, 0x51ed270b) ^
       hashString(boss?.id || sourceTier)
   );
-  const affixIds = pickSeededUniqueIds(
+  const counterCounts = buildCounterCounts({
+    affixIds: existingAffixIds,
+    mechanicIds: [...(boss?.mechanics || []), ...(existingMechanicIds || [])],
+  });
+
+  const affixIds = [];
+  for (const affixId of getSeededOrderedIds(
     getBossAbyssAffixPool(boss),
-    profile.affixCount,
     sanitizeSeed(slotSeed ^ 0x1f123bb5),
     existingAffixIds
-  );
-  const mechanicIds = pickSeededUniqueIds(
+  )) {
+    const tags = getCounterTagsForAffixId(affixId);
+    if (wouldExceedCounterLimits(counterCounts, tags, DEPTH_COUNTER_TAG_LIMITS)) continue;
+    affixIds.push(affixId);
+    addCounterTags(counterCounts, tags);
+    if (affixIds.length >= profile.affixCount) break;
+  }
+
+  const mechanicIds = [];
+  for (const mechanicId of getSeededOrderedIds(
     getBossAbyssMechanicPool(boss),
-    profile.mechanicCount,
     sanitizeSeed(slotSeed ^ 0x7f4a7c15),
     [...(boss?.mechanics || []), ...(existingMechanicIds || [])]
-  );
+  )) {
+    const tags = getCounterTagsForMechanicId(mechanicId);
+    if (wouldExceedCounterLimits(counterCounts, tags, DEPTH_COUNTER_TAG_LIMITS)) continue;
+    mechanicIds.push(mechanicId);
+    addCounterTags(counterCounts, tags);
+    if (mechanicIds.length >= profile.mechanicCount) break;
+  }
 
   return {
     depthAffixIds: affixIds,
@@ -333,11 +424,17 @@ export function getAbyssMutatorForCycle(cycleIndex = 0, runContext = null) {
   return selected ? { ...selected, cycleIndex } : null;
 }
 
-function pickBossFromPool({ pool = [], usedBossIds = new Set(), rng, fallbackId = null }) {
+function pickBossFromPool({ pool = [], usedBossIds = new Set(), rng, fallbackId = null, counterCounts = {} }) {
   const available = pool.filter(bossId => BOSS_BY_ID.has(bossId) && !usedBossIds.has(bossId));
   const source = available.length > 0 ? available : pool.filter(bossId => BOSS_BY_ID.has(bossId));
   if (!source.length) return fallbackId;
-  return source[Math.floor(rng() * source.length)] || fallbackId;
+
+  const limited = source.filter(bossId => {
+    const boss = BOSS_BY_ID.get(bossId);
+    return !wouldExceedCounterLimits(counterCounts, getBossCounterTags(boss), BOSS_COUNTER_TAG_LIMITS);
+  });
+  const candidates = limited.length > 0 ? limited : source;
+  return candidates[Math.floor(rng() * candidates.length)] || fallbackId;
 }
 
 function buildCommonRuntimeFromTier(sourceTier = 1, cycleTier = 1) {
@@ -363,16 +460,21 @@ export function buildBossSlotLayout(seed = 1, { firstRun = false } = {}) {
   const defaultLayout = getDefaultBossSlotLayout();
   const layout = {};
   const usedBossIds = new Set();
+  const counterCounts = {};
 
   for (let slot = 1; slot <= BOSS_SLOT_COUNT; slot += 1) {
     const bossId = pickBossFromPool({
       pool: RANDOM_BOSS_SLOT_POOLS[slot] || [],
       usedBossIds,
       rng,
+      counterCounts,
       fallbackId: defaultLayout[slot] || null,
     });
     layout[slot] = bossId;
-    if (bossId) usedBossIds.add(bossId);
+    if (bossId) {
+      usedBossIds.add(bossId);
+      addCounterTags(counterCounts, getBossCounterTags(BOSS_BY_ID.get(bossId)));
+    }
   }
 
   return layout;

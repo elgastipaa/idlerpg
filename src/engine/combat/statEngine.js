@@ -12,6 +12,7 @@ export function calcStats(player) {
   const armor  = eq.armor;
   const prestige = player.prestigeBonuses || {};
   const codex = player.codexBonuses || {};
+  const playerSpec = player.specialization || null;
 
   const eqFlatDmg  = (weapon?.bonus?.damage     || 0) + (armor?.bonus?.damage     || 0);
   const eqFlatDef  = (weapon?.bonus?.defense    || 0) + (armor?.bonus?.defense    || 0);
@@ -97,6 +98,7 @@ export function calcStats(player) {
     baseCataclysm + (hasVolatilityCore ? (prestige.cataclysm || 0) + (codex.cataclysm || 0) : 0)
   );
   const isMage = player.class === "mage";
+  const isJuggernaut = playerSpec === "juggernaut";
   const effectiveControlMastery = controlMastery + (prestige.controlMastery || 0) + (codex.controlMastery || 0);
   const effectiveFreshTargetDamage = freshTargetDamage + (prestige.freshTargetDamage || 0) + (codex.freshTargetDamage || 0);
 
@@ -108,14 +110,40 @@ export function calcStats(player) {
       battleHardenedDefenseMult *
       (1 + unmovingMountain * 0.18)
   ));
-  const armorAsDamage =
-    (ironConversion > 0 ? Math.floor(defense * (0.08 + ironConversion * 0.06)) : 0) +
-    (ironCore > 0 ? Math.floor(defense * (0.02 + ironCore * 0.02)) : 0);
   let maxHp = Math.max(1, Math.floor(
     (player.baseMaxHp + (player.flatHp || 0) + eqFlatHp) *
       (1 + (player.hpPct || 0) + (prestige.hpPct || 0) + (codex.hpPct || 0)) *
       battleHardenedHpMult
   ));
+  const armorAsDamage =
+    Math.floor(
+      (
+        (ironConversion > 0 ? defense * (0.08 + ironConversion * 0.06) : 0) +
+        (ironCore > 0 ? defense * (0.03 + ironCore * 0.03) : 0) +
+        (fortress > 0 ? defense * (0.01 + fortress * 0.005) : 0)
+      ) *
+      (1 + unmovingMountain * 0.08)
+    );
+  const crushingWeightJuggernautRamBonus =
+    crushingWeight > 0 && isJuggernaut
+      ? 0.08 + Math.min(0.24, defense / 300)
+      : 0;
+  const crushingWeightChainOpeningBonus =
+    crushingWeight > 0 && frenziedChain > 0
+      ? 0.08 + frenziedChain * 0.06
+      : 0;
+  const heavyHitGuard =
+    (fortress > 0 ? 0.03 + fortress * 0.018 : 0) +
+    (unmovingMountain > 0 ? 0.04 + unmovingMountain * 0.03 : 0) +
+    (titanicMomentum > 0 ? 0.004 + titanicMomentum * 0.007 : 0);
+  const guardRetaliationRatio =
+    (fortress > 0 ? 0.04 + fortress * 0.018 : 0) +
+    (unmovingMountain > 0 ? 0.02 + unmovingMountain * 0.01 : 0) +
+    (titanicMomentum > 0 ? titanicMomentum * 0.004 : 0);
+  const juggernautBossMechanicMitigation =
+    (unmovingMountain > 0 ? 0.02 + unmovingMountain * 0.015 : 0) +
+    (fortress > 0 ? 0.006 + fortress * 0.006 : 0) +
+    (titanicMomentum > 0 ? titanicMomentum * 0.0015 : 0);
   const currentHpPct = Math.max(0, Math.min(1, (player.hp || maxHp) / Math.max(1, maxHp)));
   const lowHpDamageMult = lastBreath > 0 && currentHpPct <= 0.35 ? 1.15 + lastBreath * 0.12 : 1;
   if (lastBreath > 0 && currentHpPct <= 0.35) {
@@ -133,23 +161,23 @@ export function calcStats(player) {
   let damageRangeMin = 1;
   let damageRangeMax = 1;
   if (isMage) {
-    damageRangeMin = 0.9;
+    damageRangeMin = 0.92;
     damageRangeMax = 1.1;
     if (unstablePower > 0) {
       damageRangeMin = Math.max(0.55, damageRangeMin - unstablePower * 0.04);
       damageRangeMax = damageRangeMax + unstablePower * 0.07;
     }
     if (perfectCast > 0) {
-      damageRangeMin = Math.max(damageRangeMin, 0.97 + perfectCast * 0.01);
-      damageRangeMax = Math.max(damageRangeMin + 0.04, 1.06 + perfectCast * 0.02);
+      damageRangeMin = Math.max(damageRangeMin, 0.98 + perfectCast * 0.012);
+      damageRangeMax = Math.max(damageRangeMin + 0.03, 1.05 + perfectCast * 0.018);
     }
   }
   const markChance =
     arcaneMark > 0
       ? Math.min(
           STATUS_CHANCE_CAP,
-          0.08 +
-            arcaneMark * 0.04 +
+          0.1 +
+            arcaneMark * 0.045 +
             effectiveControlMastery * 0.15 +
             (prestige.markChance || 0) +
             (codex.markChance || 0) +
@@ -158,8 +186,8 @@ export function calcStats(player) {
       : 0;
   const markEffectPerStack =
     arcaneMark > 0
-      ? 0.02 +
-        arcaneMark * 0.01 +
+      ? 0.024 +
+        arcaneMark * 0.012 +
         effectiveControlMastery * 0.35 +
         (prestige.markEffectPerStack || 0) +
         (codex.markEffectPerStack || 0) +
@@ -169,7 +197,7 @@ export function calcStats(player) {
   const markDuration = arcaneMark > 0 ? 4 + Math.floor(arcaneMark / 2) + Math.floor(effectiveControlMastery * 4) : 0;
   const flowBonusMult =
     arcaneFlow > 0
-      ? 1 + (0.08 + arcaneFlow * 0.04 + chainBurst * 0.05 + cataclysm * 0.12 + (prestige.flowBonusMult || 0) + (codex.flowBonusMult || 0))
+      ? 1 + (0.1 + arcaneFlow * 0.045 + chainBurst * 0.05 + cataclysm * 0.12 + (prestige.flowBonusMult || 0) + (codex.flowBonusMult || 0))
       : 1;
   const flowHits = arcaneFlow > 0 ? 1 + (timeLoop > 0 ? 1 : 0) + (prestige.flowHits || 0) + (codex.flowHits || 0) : 0;
   const freshTargetDamageMult = 1 + effectiveFreshTargetDamage + (cataclysm > 0 ? cataclysm * 0.08 : 0);
@@ -181,7 +209,7 @@ export function calcStats(player) {
       (codex.markTransferPct || 0)
   );
   const echoDamageMult = isMage
-    ? Math.max(0.35, 0.45 + arcaneEcho * 0.07 + overchannel * 0.06)
+    ? Math.max(0.38, 0.5 + arcaneEcho * 0.075 + overchannel * 0.07)
     : heavyImpact > 0
       ? Math.max(0.65, 1 - heavyImpact * 0.05)
       : 1;
@@ -195,7 +223,7 @@ export function calcStats(player) {
   const absoluteControlUnmarkedMult = absoluteControl > 0 ? Math.max(0.6, 1 - absoluteControl * 0.05) : 1;
   const cataclysmSustainMult = cataclysm > 0 ? Math.max(0.7, 1 - cataclysm * 0.08) : 1;
   const volatileCritNextHitMult = volatileCasting > 0 ? 1.1 + volatileCasting * 0.08 : 1;
-  const volatileFailNextHitMult = volatileCasting > 0 ? Math.max(0.55, 1 - volatileCasting * 0.07) : 1;
+  const volatileFailNextHitMult = volatileCasting > 0 ? Math.max(0.72, 1 - volatileCasting * 0.04) : 1;
 
   return {
     damage,
@@ -271,13 +299,17 @@ export function calcStats(player) {
       (bloodStrikes > 0 ? bloodStrikes * 0.03 : 0),
     fractureChance: Math.min(
       STATUS_CHANCE_CAP,
-      (player.fractureChance || 0) + (prestige.fractureChance || 0) + (codex.fractureChance || 0) + eqFractureChance + (frenziedChain > 0 ? 0.04 + frenziedChain * 0.05 : 0)
+      (player.fractureChance || 0) +
+        (prestige.fractureChance || 0) +
+        (codex.fractureChance || 0) +
+        eqFractureChance +
+        (frenziedChain > 0 ? 0.04 + frenziedChain * 0.05 : 0) +
+        (crushingWeight > 0 && frenziedChain > 0 ? 0.04 + frenziedChain * 0.04 : 0)
     ),
     sellValueBonus: (player.sellValueBonus || 0) + (prestige.sellValueBonus || 0),
     armorAsDamage,
-    openingHitDamageMult:
-      (crushingWeight > 0 ? 1.35 + crushingWeight * 0.2 : 1) *
-      (heavyImpact > 0 ? 1 + heavyImpact * 0.04 : 1),
+    heavyHitGuard: Math.max(0, heavyHitGuard),
+    guardRetaliationRatio: Math.max(0, guardRetaliationRatio),
     multiHitDamageMult: echoDamageMult,
     lowHpDamageMult,
     executeDamageMult: execution > 0 ? 1 + execution * 0.08 : 1,
@@ -287,8 +319,16 @@ export function calcStats(player) {
     combatFlowPerStack: combatFlow > 0 ? 0.005 + combatFlow * 0.003 : 0,
     combatFlowMaxStacks: combatFlow > 0 ? 2 + combatFlow : 0,
     fortress,
+    crushingWeight,
+    crushingShieldBypassPct: crushingWeight > 0 ? Math.min(0.62, 0.22 + crushingWeight * 0.05 + (isJuggernaut ? 0.12 : 0)) : 0,
+    crushingOpeningFractureStacks: crushingWeight > 0 && frenziedChain > 0 ? 1 + Math.floor(frenziedChain / 2) : 0,
+    crushingFracturedDamageMult: crushingWeight > 0 && frenziedChain > 0 ? 1.08 + frenziedChain * 0.04 : 1,
+    perfectCast,
     disableComboHits: crushingWeight > 0 || perfectCast > 0,
     titanicMomentum,
+    titanicMomentumDamagePerStack: titanicMomentum > 0 ? 0.007 + titanicMomentum * 0.001 : 0,
+    titanicMomentumDefensePerStack: titanicMomentum > 0 ? 0.002 + titanicMomentum * 0.0005 : 0,
+    titanicMomentumAttackSpeedPerStack: titanicMomentum > 0 ? 0.004 + titanicMomentum * 0.002 : 0,
     isMage,
     damageRangeMin,
     damageRangeMax,
@@ -329,7 +369,19 @@ export function calcStats(player) {
     enemyAffixLifesteal: Math.max(0, (player.enemyAffixLifesteal || 0) + eqEnemyAffixLifesteal),
     phaseSkin: Math.max(0, (player.phaseSkin || 0) + eqPhaseSkin),
     abyssRegenFlat: Math.max(0, (player.abyssRegenFlat || 0) + eqAbyssRegenFlat),
-    bossMechanicMitigation: Math.max(0, (player.bossMechanicMitigation || 0) + eqBossMechanicMitigation),
+    bossMechanicMitigation: Math.max(0, (player.bossMechanicMitigation || 0) + eqBossMechanicMitigation + juggernautBossMechanicMitigation),
+    buildTempoDescriptor:
+      perfectCast > 0
+        ? "precision"
+        : overchannel > 0
+          ? "echo"
+          : crushingWeight > 0
+            ? "opener"
+            : "standard",
+    openingHitDamageMult:
+      ((crushingWeight > 0 ? 1.35 + crushingWeight * 0.2 : 1) *
+      (heavyImpact > 0 ? 1 + heavyImpact * 0.04 : 1) *
+      (1 + crushingWeightJuggernautRamBonus + crushingWeightChainOpeningBonus)),
   };
 }
 

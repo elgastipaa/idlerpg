@@ -43,43 +43,102 @@ const JUGGERNAUT_TALENT_PRIORITY = [
   "juggernaut_titanic_momentum",
 ];
 
-const PRESTIGE_PRIORITY = [
+const MAGE_OVERCHANNEL_TALENT_PRIORITY = [
+  "mage_arcane_power",
+  "mage_focus",
+  "mage_channeling",
+  "mage_arcane_mark",
+  "mage_arcane_echo",
+  "mage_arcane_flow",
+  "mage_overchannel",
+];
+
+const MAGE_PERFECT_CAST_TALENT_PRIORITY = [
+  "mage_arcane_power",
+  "mage_focus",
+  "mage_arcane_mark",
+  "mage_arcane_flow",
+  "mage_channeling",
+  "mage_perfect_cast",
+  "mage_arcane_echo",
+];
+
+const SORCERER_TALENT_PRIORITY = [
+  "sorcerer_spell_power",
+  "sorcerer_volatility",
+  "sorcerer_surge",
+  "sorcerer_chain_burst",
+  "sorcerer_unstable_power",
+  "sorcerer_overload",
+  "sorcerer_volatile_casting",
+];
+
+const ARCANIST_TALENT_PRIORITY = [
+  "arcanist_precision",
+  "arcanist_efficiency",
+  "arcanist_control",
+  "arcanist_mark_transfer",
+  "arcanist_temporal_flow",
+  "arcanist_spell_memory",
+  "arcanist_absolute_control",
+];
+
+const COMMON_PRESTIGE_PRIORITY = [
   "forge_tempered_hands",
   "forge_chaos_script",
   "forge_precision_file",
   "forge_surgeon_mark",
   "fortune_gilded_hands",
   "fortune_chronicler",
+  "fortune_essence_mill",
+  "fortune_lucky_smoke",
+  "fortune_scavenger_map",
+  "fortune_market_memory",
+  "fortune_relic_scent",
+  "forge_star_quench",
+  "forge_anvil_prophecy",
+  "forge_living_furnace",
+];
+
+const WARRIOR_PRESTIGE_PRIORITY = [
   "war_blade_doctrine",
   "bulwark_heartwall",
-  "fortune_essence_mill",
   "war_killer_instinct",
   "bulwark_iron_marrows",
-  "fortune_lucky_smoke",
   "war_battleflow",
   "war_execution_litany",
   "bulwark_second_skin",
   "bulwark_shield_law",
-  "fortune_scavenger_map",
-  "fortune_market_memory",
   "lineage_warrior_lineage",
   "lineage_martial_memory",
   "war_reaper_stride",
   "war_blood_current",
   "war_time_cleave",
-  "fortune_relic_scent",
   "bulwark_bramble_crown",
   "bulwark_echo_plating",
-  "forge_star_quench",
-  "forge_anvil_prophecy",
-  "forge_living_furnace",
   "war_red_apex",
-  "fortune_golden_apex",
   "bulwark_green_apex",
-  "forge_blue_apex",
   "lineage_eternal_avatar",
   "lineage_berserker_apex",
   "lineage_juggernaut_apex",
+];
+
+const MAGE_PRESTIGE_PRIORITY = [
+  "sorcery_arcane_fury",
+  "dominion_marking_law",
+  "sorcery_glass_formula",
+  "dominion_fine_inscription",
+  "sorcery_echo_discipline",
+  "dominion_flow_map",
+  "sorcery_opening_sigil",
+  "dominion_control_mesh",
+  "fortune_essence_mill",
+  "fortune_lucky_smoke",
+  "forge_surgeon_mark",
+  "forge_precision_file",
+  "forge_star_quench",
+  "fortune_golden_apex",
+  "forge_blue_apex",
 ];
 
 function cloneState(state) {
@@ -112,10 +171,24 @@ function getReplaySource(state, options = {}) {
   return options.replaySource || state.replay;
 }
 
-function ensureClass(state, logs, tick) {
+function getPreferredSpec(options = {}) {
+  return options.preferredSpec || getHumanProfile(options).preferredSpec || null;
+}
+
+function getPreferredClass(options = {}) {
+  const explicit = options.preferredClass || getHumanProfile(options).preferredClass || null;
+  if (explicit) return explicit;
+  const preferredSpec = getPreferredSpec(options);
+  if (preferredSpec === "sorcerer" || preferredSpec === "arcanist") return "mage";
+  if (preferredSpec === "berserker" || preferredSpec === "juggernaut") return "warrior";
+  return "warrior";
+}
+
+function ensureClass(state, logs, tick, options = {}) {
   if (!state.player.class) {
-    state = reduceState(state, { type: "SELECT_CLASS", classId: "warrior" });
-    logDecision(logs, tick, "Selecciona Warrior");
+    const classId = getPreferredClass(options);
+    state = reduceState(state, { type: "SELECT_CLASS", classId });
+    logDecision(logs, tick, `Selecciona ${classId === "mage" ? "Mage" : "Warrior"}`);
   }
   return state;
 }
@@ -124,39 +197,49 @@ function maybeSelectSpec(state, logs, tick, options = {}) {
   if (state.player.specialization) return state;
   const stats = state.stats || {};
   const level = state.player.level || 1;
-  const preferredSpec = options.preferredSpec || getHumanProfile(options).preferredSpec || null;
+  const preferredSpec = getPreferredSpec(options);
+  const classId = state.player.class || getPreferredClass(options);
 
-  if (preferredSpec === "berserker" && (stats.kills || 0) >= 200) {
-    const nextState = reduceState(state, { type: "SELECT_SPECIALIZATION", specId: "berserker" });
+  const attemptSelectSpec = (specId, label, condition) => {
+    if (!condition) return null;
+    const nextState = reduceState(state, { type: "SELECT_SPECIALIZATION", specId });
     if (nextState !== state) {
-      logDecision(logs, tick, "Elige Berserker");
+      logDecision(logs, tick, `Elige ${label}`);
       return nextState;
     }
+    return null;
+  };
+
+  if (classId === "mage") {
+    if (preferredSpec === "sorcerer") {
+      const selected = attemptSelectSpec("sorcerer", "Sorcerer", level >= 18);
+      if (selected) return selected;
+    }
+    if (preferredSpec === "arcanist") {
+      const selected = attemptSelectSpec("arcanist", "Arcanist", (stats.kills || 0) >= 200);
+      if (selected) return selected;
+    }
+    const sorcerer = attemptSelectSpec("sorcerer", "Sorcerer", level >= 18);
+    if (sorcerer) return sorcerer;
+    const arcanist = attemptSelectSpec("arcanist", "Arcanist", (stats.kills || 0) >= 200);
+    if (arcanist) return arcanist;
+    return state;
   }
 
-  if (preferredSpec === "juggernaut" && level >= 18) {
-    const nextState = reduceState(state, { type: "SELECT_SPECIALIZATION", specId: "juggernaut" });
-    if (nextState !== state) {
-      logDecision(logs, tick, "Elige Juggernaut");
-      return nextState;
-    }
+  if (preferredSpec === "berserker") {
+    const selected = attemptSelectSpec("berserker", "Berserker", (stats.kills || 0) >= 200);
+    if (selected) return selected;
   }
 
-  if ((stats.kills || 0) >= 200) {
-    const nextState = reduceState(state, { type: "SELECT_SPECIALIZATION", specId: "berserker" });
-    if (nextState !== state) {
-      logDecision(logs, tick, "Elige Berserker");
-      return nextState;
-    }
+  if (preferredSpec === "juggernaut") {
+    const selected = attemptSelectSpec("juggernaut", "Juggernaut", level >= 18);
+    if (selected) return selected;
   }
 
-  if (level >= 18) {
-    const nextState = reduceState(state, { type: "SELECT_SPECIALIZATION", specId: "juggernaut" });
-    if (nextState !== state) {
-      logDecision(logs, tick, "Elige Juggernaut");
-      return nextState;
-    }
-  }
+  const berserker = attemptSelectSpec("berserker", "Berserker", (stats.kills || 0) >= 200);
+  if (berserker) return berserker;
+  const juggernaut = attemptSelectSpec("juggernaut", "Juggernaut", level >= 18);
+  if (juggernaut) return juggernaut;
 
   return state;
 }
@@ -212,11 +295,27 @@ function buyEfficientUpgrade(state, logs, tick) {
   return nextState;
 }
 
-function unlockBestTalent(state, logs, tick) {
-  const priority =
-    state.player.specialization === "juggernaut"
-      ? JUGGERNAUT_TALENT_PRIORITY
-      : BERSERKER_TALENT_PRIORITY;
+function unlockBestTalent(state, logs, tick, options = {}) {
+  const classId = state.player.class || getPreferredClass(options);
+  const preferredSpec = getPreferredSpec(options);
+  let priority = BERSERKER_TALENT_PRIORITY;
+
+  if (classId === "mage") {
+    if (state.player.specialization === "arcanist") {
+      priority = [...MAGE_PERFECT_CAST_TALENT_PRIORITY, ...ARCANIST_TALENT_PRIORITY];
+    } else if (state.player.specialization === "sorcerer") {
+      priority = [...MAGE_OVERCHANNEL_TALENT_PRIORITY, ...SORCERER_TALENT_PRIORITY];
+    } else if (preferredSpec === "arcanist") {
+      priority = MAGE_PERFECT_CAST_TALENT_PRIORITY;
+    } else {
+      priority = MAGE_OVERCHANNEL_TALENT_PRIORITY;
+    }
+  } else {
+    priority =
+      state.player.specialization === "juggernaut"
+        ? JUGGERNAUT_TALENT_PRIORITY
+        : BERSERKER_TALENT_PRIORITY;
+  }
 
   for (const talentId of priority) {
     const before = state.player.unlockedTalents || [];
@@ -290,14 +389,16 @@ function getAffixRollRatio(affix) {
   return (value - min) / (max - min);
 }
 
-function getPreferredAffixIndex(item) {
+function getPreferredAffixIndex(item, preferredStats = []) {
   if (Number.isInteger(item?.crafting?.focusedAffixIndex)) {
     return Number(item.crafting.focusedAffixIndex);
   }
 
-  const priorities = item.type === "weapon"
-    ? ["damage", "attackSpeed", "critChance", "critDamage", "lifesteal"]
-    : ["defense", "healthMax", "healthRegen", "blockChance", "dodgeChance", "thorns"];
+  const priorities = preferredStats.length > 0
+    ? preferredStats
+    : item.type === "weapon"
+      ? ["damage", "attackSpeed", "critChance", "critDamage", "lifesteal"]
+      : ["defense", "healthMax", "healthRegen", "blockChance", "dodgeChance", "thorns"];
 
   let bestIndex = null;
   let bestScore = -Infinity;
@@ -321,16 +422,25 @@ function getPreferredStats(state, itemType, humanProfile = {}) {
   const buildTag = getPlayerBuildTag(state.player);
   const buildPrefs = buildTag?.reasons || [];
   const spec = state.player.specialization;
+  const classId = state.player.class;
 
   const weaponDefaults =
-    spec === "juggernaut"
-      ? ["damage", "attackSpeed", "defense", "blockChance", "healthMax"]
-      : ["damage", "attackSpeed", "critChance", "critDamage", "lifesteal"];
+    classId === "mage"
+      ? spec === "arcanist"
+        ? ["damage", "markChance", "markEffectPerStack", "critChance", "multiHitChance", "healthMax"]
+        : ["damage", "critChance", "critDamage", "multiHitChance", "markChance", "attackSpeed"]
+      : spec === "juggernaut"
+        ? ["damage", "attackSpeed", "defense", "blockChance", "healthMax"]
+        : ["damage", "attackSpeed", "critChance", "critDamage", "lifesteal"];
 
   const armorDefaults =
-    spec === "berserker"
-      ? ["healthMax", "lifesteal", "attackSpeed", "critChance", "damage"]
-      : ["defense", "healthMax", "healthRegen", "blockChance", "thorns"];
+    classId === "mage"
+      ? spec === "arcanist"
+        ? ["healthMax", "markChance", "markEffectPerStack", "healthRegen", "defense", "damage"]
+        : ["healthMax", "damage", "critChance", "markChance", "dodgeChance", "healthRegen"]
+      : spec === "berserker"
+        ? ["healthMax", "lifesteal", "attackSpeed", "critChance", "damage"]
+        : ["defense", "healthMax", "healthRegen", "blockChance", "thorns"];
 
   const base = itemType === "weapon" ? weaponDefaults : armorDefaults;
   const resolved = buildPrefs
@@ -339,13 +449,27 @@ function getPreferredStats(state, itemType, humanProfile = {}) {
       if (normalized.includes("crit")) return ["critChance", "critDamage"];
       if (normalized.includes("lifesteal")) return ["lifesteal"];
       if (normalized.includes("attack speed")) return ["attackSpeed"];
+      if (normalized.includes("ritmo") || normalized.includes("tempo")) return ["attackSpeed", "multiHitChance", "damage"];
       if (normalized.includes("damage on kill")) return ["damageOnKill"];
       if (normalized.includes("defensa")) return ["defense"];
       if (normalized.includes("bloqueo") || normalized.includes("block")) return ["blockChance"];
       if (normalized.includes("vida")) return ["healthMax", "healthRegen"];
       if (normalized.includes("thorns")) return ["thorns"];
+      if (normalized.includes("fractura")) return ["fractureChance", "damage", "defense"];
+      if (normalized.includes("mark") || normalized.includes("marca")) return ["markChance", "markEffectPerStack"];
+      if (normalized.includes("control")) return ["markChance", "markEffectPerStack", "healthMax"];
+      if (normalized.includes("setup")) return ["markChance", "markEffectPerStack", "damage"];
+      if (normalized.includes("flow")) return ["markChance", "markEffectPerStack", "damage", "attackSpeed"];
+      if (normalized.includes("loop") || normalized.includes("transfer")) return ["markChance", "markEffectPerStack", "healthMax"];
+      if (normalized.includes("echo") || normalized.includes("multi-hit")) return ["multiHitChance", "attackSpeed", "damage"];
+      if (normalized.includes("precision") || normalized.includes("consistencia")) return ["damage", "critChance", "markChance"];
+      if (normalized.includes("burst") || normalized.includes("picos") || normalized.includes("volatil") || normalized.includes("highlight")) {
+        return ["damage", "critChance", "critDamage", "multiHitChance"];
+      }
+      if (normalized.includes("bossing") || normalized.includes("apertura")) return ["damage", "markChance", "critChance", "healthMax"];
       if (normalized.includes("cooldown")) return ["multiHitChance", "critDamage"];
       if (normalized.includes("oro") || normalized.includes("esencia") || normalized.includes("luck")) return ["goldBonus", "essenceBonus", "lootBonus", "luck"];
+      if (normalized.includes("aguante")) return ["healthMax", "healthRegen", "defense"];
       return [];
     })
     .filter(Boolean);
@@ -433,7 +557,7 @@ function maybeCraft(state, logs, tick, options = {}) {
       preferredStats.length > 0 &&
       (item.affixes || []).every(affix => !preferredStats.includes(affix.stat));
 
-    const polishIndex = getPreferredAffixIndex(item);
+    const polishIndex = getPreferredAffixIndex(item, preferredStats);
     const targetAffix = polishIndex == null ? null : item.affixes?.[polishIndex];
     if (
       targetAffix &&
@@ -459,10 +583,11 @@ function maybeCraft(state, logs, tick, options = {}) {
       (item.rating || 0) >= 105 &&
       (!preferredStats.includes(worstAffix.stat) || hasWishlistGap)
     ) {
+      const totalOptionCount = 3 + Math.max(0, Math.floor(nextState.player?.prestigeBonuses?.reforgeOptionCount || 0));
       const options = buildReforgePreview(
         item,
         worstAffixIndex,
-        3 + Math.max(0, Math.floor(nextState.player?.prestigeBonuses?.reforgeOptionCount || 0)),
+        Math.max(1, totalOptionCount - 1),
         preferredStats
       );
       const chosen = options.find(option => preferredStats.includes(option.stat)) || options[0];
@@ -547,13 +672,22 @@ function maybeAdjustTier(state, logs, tick, options = {}) {
 
 function buyPrestigeNodes(state, logs, tick) {
   let nextState = state;
-  const preferred = [...PRESTIGE_PRIORITY];
+  const preferred = [
+    ...(state.player.class === "mage" ? MAGE_PRESTIGE_PRIORITY : WARRIOR_PRESTIGE_PRIORITY),
+    ...COMMON_PRESTIGE_PRIORITY,
+  ];
 
   if (state.player.specialization === "berserker") {
     preferred.unshift("lineage_berserker_fever", "lineage_berserker_mania", "lineage_berserker_apex");
   }
   if (state.player.specialization === "juggernaut") {
     preferred.unshift("lineage_juggernaut_core", "lineage_juggernaut_throne", "lineage_juggernaut_apex");
+  }
+  if (state.player.specialization === "sorcerer") {
+    preferred.unshift("sorcery_volatile_prism", "sorcery_cataclysm_rhythm", "sorcery_star_channel", "sorcery_apex");
+  }
+  if (state.player.specialization === "arcanist") {
+    preferred.unshift("dominion_loop_trace", "dominion_temporal_frame", "dominion_blue_script", "dominion_apex");
   }
 
   for (const nodeId of preferred) {
@@ -620,13 +754,13 @@ function runDecisionCycle(state, logs, tick, ticksRemaining, options = {}) {
   const humanProfile = getHumanProfile(options);
   let nextState = state;
   nextState = maybeStartRun(nextState, logs, tick, options);
-  nextState = ensureClass(nextState, logs, tick);
+  nextState = ensureClass(nextState, logs, tick, options);
   nextState = maybeSelectSpec(nextState, logs, tick, options);
   nextState = claimGoals(nextState, logs, tick);
   nextState = equipBestItems(nextState, logs, tick, humanProfile);
   nextState = maybeCraft(nextState, logs, tick, options);
   nextState = buyEfficientUpgrade(nextState, logs, tick);
-  nextState = unlockBestTalent(nextState, logs, tick);
+  nextState = unlockBestTalent(nextState, logs, tick, options);
   nextState = cleanupInventory(nextState, logs, tick);
   nextState = maybeAdjustTier(nextState, logs, tick, options);
   nextState = buyPrestigeNodes(nextState, logs, tick);
@@ -669,7 +803,7 @@ export function runBalanceBotSimulation(inputState, options = {}) {
   let state = cloneState(inputState);
   const logs = [];
 
-  state = ensureClass(state, logs, 0);
+  state = ensureClass(state, logs, 0, options);
 
   for (let tick = 1; tick <= ticks; tick += 1) {
     if (tick === 1 || tick % 10 === 0) {

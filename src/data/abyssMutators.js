@@ -46,13 +46,13 @@ export const ABYSS_MUTATORS = [
     id: "fractured_front",
     name: "Frente Quebrado",
     description: "El ciclo premia menos errores defensivos y paga un poco mejor.",
-    bossClause: "El boss gana Hendedura y una capa de Fortaleza Temporal.",
+    bossClause: "El boss gana Hendedura y una capa Letal.",
     commonModifiers: {
       stats: { damageMult: 1.12, defenseMult: 1.05, xpMult: 1.1, goldMult: 1.12, essenceMult: 1.15 },
     },
     bossModifiers: {
       stats: { damageMult: 1.08 },
-      affixIds: ["crit_immune"],
+      affixIds: ["lethal"],
       mechanicIds: ["armor_shred"],
     },
   },
