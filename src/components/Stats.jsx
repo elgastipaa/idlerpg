@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
-import { calculatePrestigeEchoGain, canPrestige, getPrestigeRank } from "../engine/progression/prestigeEngine";
+import { calculatePrestigeEchoGain, canPrestige, getPrestigeResonanceSummary } from "../engine/progression/prestigeEngine";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
 import { buildSessionTelemetryEntries, buildSessionTelemetryReport, buildSessionTelemetrySections } from "../utils/runTelemetry";
 import { buildReplayDatasetSummary, buildReplayJsonExport, buildReplayLibraryExport, buildReplaySummary, buildReplayTextReport, deriveHumanReplayProfile, parseReplayImportPayload } from "../utils/replayLog";
@@ -94,10 +94,9 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
     return () => window.removeEventListener("resize", handler);
   }, []);
 
-  const currentPrestige = getPrestigeRank(prestige.level);
   const prestigeStatus = canPrestige(state);
-  const nextPrestige = prestigeStatus.nextRank;
   const projectedPoints = calculatePrestigeEchoGain(state);
+  const prestigeResonance = useMemo(() => getPrestigeResonanceSummary(prestige), [prestige]);
   const currentRun = combat.runStats || {};
   const snapshot = combat.performanceSnapshot || {};
   const analytics = combat.analytics || {};
@@ -489,7 +488,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
               <div>
                 <div style={sectionTitleStyle}>Prestigio</div>
                 <div style={{ fontSize: "0.8rem", color: "#102a43", fontWeight: "900", marginTop: "3px" }}>
-                  {currentPrestige ? currentPrestige.name : "Sin prestigio"} · P{formatNumber(prestige.level || 0)}
+                  P{formatNumber(prestige.level || 0)} · Resonancia {formatNumber(prestigeResonance.totalEchoesEarned || 0)} ecos
                 </div>
                 <div style={{ fontSize: "0.7rem", color: "#64748b", marginTop: "4px", lineHeight: 1.4 }}>
                   {prestigeStatus.ok
@@ -512,11 +511,9 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
               <div style={pillStyle("rgba(148,163,184,0.12)", "#475569", "rgba(148,163,184,0.24)")}>
                 Nivel max {formatNumber(analytics.maxLevelReached || player.level)}
               </div>
-              {nextPrestige && (
-                <div style={pillStyle("rgba(99,102,241,0.10)", "#4338ca", "rgba(99,102,241,0.22)")}>
-                  Proximo rango: P{nextPrestige.level} · {nextPrestige.name}
-                </div>
-              )}
+              <div style={pillStyle("rgba(99,102,241,0.10)", "#4338ca", "rgba(99,102,241,0.22)")}>
+                Total ganado {formatNumber(prestige.totalEchoesEarned || 0)} ecos
+              </div>
             </div>
           </div>
         )}

@@ -1,4 +1,4 @@
-import { PRESTIGE_BRANCHES, PRESTIGE_RANKS, PRESTIGE_TREE_NODES } from "../../data/prestige";
+import { PRESTIGE_BRANCHES, PRESTIGE_TREE_NODES } from "../../data/prestige";
 import { getRunSigilPrestigeModifiers } from "../../data/runSigils";
 import { refreshStats } from "../combat/statEngine";
 import { hasAbyssUnlock } from "./abyssProgression";
@@ -104,6 +104,16 @@ const UNIVERSAL_PRESTIGE_KEYS = new Set([
   "abyssMutatorOffensePct",
 ]);
 
+const FIRST_PRESTIGE_MIN_ECHOES = 2;
+const PRESTIGE_BASE_SCORE_PER_ECHO = 15;
+const PRESTIGE_RESONANCE_BRACKETS = [
+  { upto: 2, effectsPerEcho: { damagePct: 0.025, goldPct: 0.04, xpPct: 0.02 } },
+  { upto: 8, effectsPerEcho: { damagePct: 0.01, goldPct: 0.02, xpPct: 0.012, hpPct: 0.008 } },
+  { upto: 20, effectsPerEcho: { damagePct: 0.005, goldPct: 0.012, xpPct: 0.008, hpPct: 0.004, essenceBonus: 0.015 } },
+  { upto: 50, effectsPerEcho: { damagePct: 0.0025, goldPct: 0.006, xpPct: 0.004, hpPct: 0.002, essenceBonus: 0.008, lootBonus: 0.0015 } },
+  { upto: Number.POSITIVE_INFINITY, effectsPerEcho: { damagePct: 0.001, goldPct: 0.003, xpPct: 0.002, hpPct: 0.001, essenceBonus: 0.004, lootBonus: 0.0008 } },
+];
+
 function emptyBonuses() {
   return BONUS_KEYS.reduce((acc, key) => {
     acc[key] = 0;
@@ -112,8 +122,8 @@ function emptyBonuses() {
 }
 
 function addEffects(target, effects = {}, multiplier = 1) {
-  for (const [key, value] of Object.entries(effects)) {
-    target[key] = (target[key] || 0) + value * multiplier;
+  for (const [key, value] of Object.entries(effects || {})) {
+    target[key] = (target[key] || 0) + Number(value || 0) * multiplier;
   }
   return target;
 }
@@ -137,15 +147,11 @@ function filterNodeEffectsForPlayer(node, player, effects = {}) {
   return filtered;
 }
 
-export function getPrestigeRank(level = 0) {
-  const numericLevel = Math.max(0, Number(level || 0));
-  const unlocked = PRESTIGE_RANKS.filter(rank => rank.level <= numericLevel);
-  return unlocked[unlocked.length - 1] || null;
-}
-
-export function getNextPrestigeRank(level = 0) {
-  const numericLevel = Math.max(0, Number(level || 0));
-  return PRESTIGE_RANKS.find(rank => rank.level > numericLevel) || null;
+function sanitizeReasonableWholeNumber(value, { fallback = 0, min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  if (numeric < min || numeric > max) return fallback;
+  return Math.floor(numeric);
 }
 
 export function getPrestigeNodeLevel(prestige, nodeId) {
@@ -154,19 +160,6 @@ export function getPrestigeNodeLevel(prestige, nodeId) {
 
 function getPrestigeTreeInvestedLevels(prestige = {}) {
   return Object.values(prestige?.nodes || {}).reduce((total, level) => total + Math.max(0, level || 0), 0);
-}
-
-function sanitizeWholeNumber(value, { fallback = 0, min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return fallback;
-  return Math.max(min, Math.min(max, Math.floor(numeric)));
-}
-
-function sanitizeReasonableWholeNumber(value, { fallback = 0, min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return fallback;
-  if (numeric < min || numeric > max) return fallback;
-  return Math.floor(numeric);
 }
 
 function getNodeBaseCostAtLevel(node, level = 0) {
@@ -192,7 +185,47 @@ function getPrestigeTreeMaxSpend() {
 
 const PRESTIGE_TREE_MAX_SPEND = getPrestigeTreeMaxSpend();
 const PRESTIGE_ECHO_STORAGE_CAP = Math.max(1000, PRESTIGE_TREE_MAX_SPEND * 8);
-const PRESTIGE_BASE_SCORE_PER_ECHO = 15;
+
+export function getPrestigeResonanceBonuses(totalEchoesEarned = 0) {
+  const safeEchoes = Math.max(0, Math.floor(Number(totalEchoesEarned || 0)));
+  const bonuses = emptyBonuses();
+  let consumed = 0;
+
+  for (const bracket of PRESTIGE_RESONANCE_BRACKETS) {
+    const limit = Number(bracket?.upto || 0);
+    if (safeEchoes <= consumed) break;
+    const echoesInBracket = Math.max(0, Math.min(safeEchoes, limit) - consumed);
+    if (echoesInBracket <= 0) continue;
+    addEffects(bonuses, bracket.effectsPerEcho || {}, echoesInBracket);
+    consumed += echoesInBracket;
+  }
+
+  return bonuses;
+}
+
+export function getPrestigeResonanceDeltaForNextEcho(totalEchoesEarned = 0) {
+  const current = getPrestigeResonanceBonuses(totalEchoesEarned);
+  const next = getPrestigeResonanceBonuses(Math.max(0, Number(totalEchoesEarned || 0)) + 1);
+  const delta = emptyBonuses();
+
+  for (const key of BONUS_KEYS) {
+    delta[key] = Number(next[key] || 0) - Number(current[key] || 0);
+  }
+
+  return delta;
+}
+
+export function getPrestigeResonanceSummary(prestige = {}) {
+  const totalEchoesEarned = Math.max(0, Math.floor(Number(prestige?.totalEchoesEarned || 0)));
+  const bonuses = getPrestigeResonanceBonuses(totalEchoesEarned);
+  const nextEchoDelta = getPrestigeResonanceDeltaForNextEcho(totalEchoesEarned);
+  return {
+    totalEchoesEarned,
+    bonuses,
+    bonusRows: Object.entries(bonuses).filter(([, value]) => Math.abs(Number(value || 0)) > 0),
+    nextEchoRows: Object.entries(nextEchoDelta).filter(([, value]) => Math.abs(Number(value || 0)) > 0),
+  };
+}
 
 export function createEmptyPrestigeCycleProgress(seed = {}) {
   return {
@@ -262,22 +295,41 @@ export function getPrestigePreview(state = {}) {
     state?.combat?.activeRunSigilIds || state?.combat?.activeRunSigilId || "free"
   );
   const historicBestTier = Math.max(0, Number(state?.prestige?.bestHistoricTier || 0));
+  const totalEchoesEarned = Math.max(0, Number(state?.prestige?.totalEchoesEarned || 0));
   const tierBaseScore = Math.pow(Math.max(1, progress.maxTier), 1.4) * Math.max(0, Number(runSigil.tierEchoMult || 1));
   const levelBaseScore = Math.max(0, Number(progress.maxLevel || 1)) * 0.5 * Math.max(0, Number(runSigil.levelEchoMult || 1));
   const rawBaseScore = tierBaseScore + levelBaseScore;
   const baseEchoes = Math.max(0, Math.floor(rawBaseScore / PRESTIGE_BASE_SCORE_PER_ECHO));
   const momentumMultiplier = getPrestigeMomentumMultiplier(progress.maxTier, historicBestTier);
-  const echoes = Math.max(0, Math.floor(baseEchoes * momentumMultiplier));
-  const momentumDeltaEchoes = echoes - baseEchoes;
-  const hasMinimumRun =
-    progress.maxTier >= 3 ||
-    progress.maxLevel >= 10 ||
-    progress.kills >= 50;
+  const echoedWithMomentum = Math.max(0, Math.floor(baseEchoes * momentumMultiplier));
+  const momentumDeltaEchoes = echoedWithMomentum - baseEchoes;
+  const firstPrestigeFloorDelta =
+    totalEchoesEarned <= 0
+      ? Math.max(0, FIRST_PRESTIGE_MIN_ECHOES - echoedWithMomentum)
+      : 0;
+  const echoes = echoedWithMomentum + firstPrestigeFloorDelta;
+  const isFirstPrestige = totalEchoesEarned <= 0;
+  const hasMinimumRun = isFirstPrestige
+    ? (
+        progress.maxTier >= 5 ||
+        progress.bossKills >= 1 ||
+        progress.maxLevel >= 12
+      )
+    : (
+        progress.maxTier >= 3 ||
+        progress.maxLevel >= 10 ||
+        progress.kills >= 50
+      );
+  const minimumRunLabel = isFirstPrestige
+    ? "Primer prestige: Tier 5, 1 boss o Nivel 12"
+    : "Minimo: Tier 3, Nivel 10 o 50 bajas";
 
   return {
     echoes,
     ready: hasMinimumRun && echoes > 0,
     progress,
+    isFirstPrestige,
+    minimumRunLabel,
     momentum: {
       historicBestTier,
       currentTier: progress.maxTier,
@@ -295,6 +347,7 @@ export function getPrestigePreview(state = {}) {
     breakdown: [
       { id: "base", label: "Base", value: progress.maxTier, echoes: baseEchoes },
       { id: "momentum", label: "Momentum", value: `x${momentumMultiplier.toFixed(1)}`, echoes: momentumDeltaEchoes },
+      ...(firstPrestigeFloorDelta > 0 ? [{ id: "first_floor", label: "Primer spike", value: `${FIRST_PRESTIGE_MIN_ECHOES} ecos min`, echoes: firstPrestigeFloorDelta }] : []),
     ],
   };
 }
@@ -307,7 +360,6 @@ export function canPrestige(state) {
   const preview = getPrestigePreview(state);
   return {
     ok: preview.ready,
-    nextRank: getNextPrestigeRank(state.prestige?.level || 0),
     reason: preview.ready ? null : "progress",
     echoes: preview.echoes,
     preview,
@@ -347,14 +399,8 @@ export function canPurchasePrestigeNode(state, node) {
 }
 
 export function computePrestigeBonuses(prestige = {}, player = {}) {
-  const bonuses = emptyBonuses();
+  const bonuses = getPrestigeResonanceBonuses(prestige.totalEchoesEarned || 0);
   const nodes = prestige.nodes || {};
-  const level = prestige.level || 0;
-
-  for (const rank of PRESTIGE_RANKS) {
-    if (rank.level > level) break;
-    addEffects(bonuses, rank.passiveEffects || {});
-  }
 
   for (const node of PRESTIGE_TREE_NODES) {
     const nodeLevel = nodes[node.id] || 0;
@@ -367,7 +413,7 @@ export function computePrestigeBonuses(prestige = {}, player = {}) {
 
 export function getPrestigeBonusRows(prestige = {}, player = {}) {
   const bonuses = computePrestigeBonuses(prestige, player);
-  return Object.entries(bonuses).filter(([, value]) => Math.abs(value) > 0);
+  return Object.entries(bonuses).filter(([, value]) => Math.abs(Number(value || 0)) > 0);
 }
 
 export function normalizePrestigeState(prestige = {}) {

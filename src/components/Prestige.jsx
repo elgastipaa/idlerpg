@@ -7,6 +7,7 @@ import {
   getPrestigePreview,
   getPrestigeNodeLevel,
   getPrestigeBonusRows,
+  getPrestigeResonanceSummary,
   isPrestigeBranchUnlocked,
 } from "../engine/progression/prestigeEngine";
 import { getAbyssUnlockEntries } from "../engine/progression/abyssProgression";
@@ -185,6 +186,7 @@ export default function Prestige({ state, dispatch }) {
   const bonusRows = getPrestigeBonusRows(prestige, player)
     .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
     .slice(0, 8);
+  const resonanceSummary = useMemo(() => getPrestigeResonanceSummary(prestige), [prestige]);
   const activePrestigeNodes = Object.keys(prestige.nodes || {}).filter(key => (prestige.nodes?.[key] || 0) > 0).length;
   const purchasableNodes = PRESTIGE_TREE_NODES.filter(node => canPurchasePrestigeNode(state, node).ok);
   const recommendedNode = purchasableNodes[0] || null;
@@ -273,7 +275,7 @@ export default function Prestige({ state, dispatch }) {
                 : `${entry.label} +${formatNumber(entry.echoes)}`}
             </span>
           )) : (
-            <span style={{ ...compactChipStyle, color: "#94a3b8" }}>Minimo: Tier 3, Nivel 10 o 50 bajas</span>
+            <span style={{ ...compactChipStyle, color: "#94a3b8" }}>{prestigePreview.minimumRunLabel || "Minimo: Tier 3, Nivel 10 o 50 bajas"}</span>
           )}
           {recommendedNode && (
             <span style={{ ...compactChipStyle, borderColor: "rgba(99,102,241,0.25)", color: "#c7d2fe" }}>
@@ -283,7 +285,7 @@ export default function Prestige({ state, dispatch }) {
         </div>
 
         <div style={{ ...smallCopyStyle, marginTop: "10px", color: "#94a3b8" }}>
-          Conservas ecos y tablero. Reinicias oro, equipo, talentos y la corrida, y vuelves a elegir clase, spec y sigilo.
+          Conservas ecos y tablero. La resonancia escala con todos los ecos ganados aunque los gastes. Reinicias oro, equipo, talentos y la corrida, y vuelves a elegir clase, spec y sigilo.
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))", gap: "8px", marginTop: "12px" }}>
@@ -329,6 +331,18 @@ export default function Prestige({ state, dispatch }) {
             <span style={smallCopyStyle}>Totales</span>
             <strong style={{ color: "#e2e8f0" }}>{formatNumber(prestige.totalEchoesEarned || 0)}</strong>
           </div>
+          <div style={{ ...smallCopyStyle, marginTop: "10px", color: "#94a3b8", lineHeight: 1.45 }}>
+            Resonancia continua: cada eco total ganado suma stats meta aunque ya lo hayas invertido.
+          </div>
+          {resonanceSummary.nextEchoRows.length > 0 && (
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" }}>
+              {resonanceSummary.nextEchoRows.slice(0, 3).map(([key, value]) => (
+                <span key={key} style={compactChipStyle}>
+                  Prox eco: {BONUS_LABELS[key] || key} {formatBonus(key, value)}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={summaryPanelStyle}>

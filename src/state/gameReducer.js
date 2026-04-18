@@ -21,7 +21,6 @@ import {
   canPrestige,
   createEmptyPrestigeCycleProgress,
   canPurchasePrestigeNode,
-  getNextPrestigeRank,
   syncPrestigeBonuses,
 } from "../engine/progression/prestigeEngine";
 import { getMaxRunSigilSlots, syncAbyssState } from "../engine/progression/abyssProgression";
@@ -820,8 +819,6 @@ function baseGameReducer(state, action) {
       const resetClass  = true;
       const echoesGained = calculatePrestigeEchoGain(state);
       const nextPrestigeLevel = (state.prestige?.level || 0) + 1;
-      const nextRank = getNextPrestigeRank(state.prestige?.level || 0);
-      const milestoneReached = nextRank?.level === nextPrestigeLevel ? nextRank : null;
       const nextRunContext = createRunContext();
       const resetRunSigilIds = normalizeRunSigilIds("free", {
         slots: getMaxRunSigilSlots(state?.abyss || {}),
@@ -891,9 +888,7 @@ function baseGameReducer(state, action) {
         combat: {
           enemy:             spawnEnemy(1, nextRunContext),
           log:               [
-            milestoneReached
-              ? `Prestige ${nextPrestigeLevel}: ${milestoneReached.name}. +${echoesGained} ecos. ${milestoneReached.description} Volves a elegir clase para la proxima corrida.`
-              : `Prestige ${nextPrestigeLevel}. +${echoesGained} ecos${prestigeCheck.preview?.momentum?.multiplier ? ` · Momentum x${Number(prestigeCheck.preview.momentum.multiplier).toFixed(1)}` : ""}. Reinicias la corrida y volves a elegir clase para la proxima run.`
+            `Prestige ${nextPrestigeLevel}. +${echoesGained} ecos${prestigeCheck.preview?.momentum?.multiplier ? ` · Momentum x${Number(prestigeCheck.preview.momentum.multiplier).toFixed(1)}` : ""}. Resonancia total: ${(state.prestige?.totalEchoesEarned || 0) + echoesGained} ecos. Reinicias la corrida y volves a elegir clase para la proxima run.`
           ],
           currentTier:       1,
           maxTier:           1,
