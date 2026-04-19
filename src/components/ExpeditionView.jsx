@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Combat from "./Combat";
 import Inventory from "./Inventory";
 import Crafting from "./Crafting";
@@ -35,6 +35,7 @@ function subnavButtonStyle({ active = false, disabled = false } = {}) {
     fontWeight: "900",
     cursor: disabled ? "not-allowed" : "pointer",
     minWidth: "110px",
+    flex: "0 0 auto",
   };
 }
 
@@ -51,6 +52,7 @@ function isHuntUnlocked(state) {
 }
 
 export default function ExpeditionView({ state, dispatch }) {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const reforgeLocked = !!state?.combat?.reforgeSession;
   const huntUnlocked = isHuntUnlocked(state);
   const activeSubview = getExpeditionSubview(state?.currentTab || "combat");
@@ -59,10 +61,36 @@ export default function ExpeditionView({ state, dispatch }) {
     [huntUnlocked]
   );
   const resolvedSubview = availableSubviews.includes(activeSubview) ? activeSubview : "combat";
+  const isCombatSubview = resolvedSubview === "combat";
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
 
   return (
-    <div style={{ display: "grid", gap: "10px", padding: "10px" }}>
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+    <div
+      style={{
+        display: "grid",
+        gap: isMobile ? "8px" : "10px",
+        padding: isMobile ? (isCombatSubview ? "6px 0 0" : "8px 8px 10px") : "10px",
+        width: "100%",
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          gap: "8px",
+          flexWrap: isMobile ? "nowrap" : "wrap",
+          overflowX: isMobile ? "auto" : "visible",
+          overflowY: "hidden",
+          padding: isMobile ? "0 8px 2px" : 0,
+          scrollbarWidth: "none",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
         {availableSubviews.map(viewId => {
           const active = resolvedSubview === viewId;
           const disabled = reforgeLocked && !active;
@@ -71,7 +99,11 @@ export default function ExpeditionView({ state, dispatch }) {
               key={viewId}
               onClick={() => dispatch({ type: "SET_TAB", tab: viewId })}
               disabled={disabled}
-              style={subnavButtonStyle({ active, disabled })}
+              style={{
+                ...subnavButtonStyle({ active, disabled }),
+                minWidth: isMobile ? "92px" : "110px",
+                padding: isMobile ? "9px 11px" : "10px 12px",
+              }}
             >
               {SUBVIEW_META[viewId].label}
             </button>
@@ -79,7 +111,7 @@ export default function ExpeditionView({ state, dispatch }) {
         })}
       </div>
 
-      <div>
+      <div style={{ width: "100%", minWidth: 0 }}>
         {resolvedSubview === "combat" && <Combat state={state} dispatch={dispatch} />}
         {resolvedSubview === "inventory" && <Inventory state={state} player={state.player} dispatch={dispatch} />}
         {resolvedSubview === "crafting" && <Crafting state={state} dispatch={dispatch} />}

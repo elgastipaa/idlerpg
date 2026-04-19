@@ -170,6 +170,15 @@ export default function Sanctuary({ state, dispatch }) {
   const [showLaboratory, setShowLaboratory] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(window.innerWidth < 768);
 
+  function closeAllOverlays() {
+    setShowDistillery(false);
+    setShowErrands(false);
+    setShowDeepForge(false);
+    setShowSigilAltar(false);
+    setShowLibrary(false);
+    setShowLaboratory(false);
+  }
+
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
@@ -179,6 +188,16 @@ export default function Sanctuary({ state, dispatch }) {
     const handler = () => setIsMobileViewport(window.innerWidth < 768);
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = event => {
+      if (event?.detail?.tab === "sanctuary") {
+        closeAllOverlays();
+      }
+    };
+    window.addEventListener("primary-tab-reselected", handler);
+    return () => window.removeEventListener("primary-tab-reselected", handler);
   }, []);
 
   const expeditionPhase = state.expedition?.phase || "sanctuary";

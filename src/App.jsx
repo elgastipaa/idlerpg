@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState, useEffect } from "react";
+import React, { Suspense, lazy, useState, useEffect, useRef } from "react";
 import { useGame } from "./hooks/useGame";
 import Sanctuary from "./components/Sanctuary";
 import ExtractionOverlay from "./components/ExtractionOverlay";
@@ -242,6 +242,8 @@ const PRIMARY_TAB_CONFIG = {
 export default function App() {
   const { state, dispatch } = useGame();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const contentRef = useRef(null);
+  const prevPrimaryTabRef = useRef(null);
   const offlineSummary = state.combat?.offlineSummary;
   const hasTalentPoints = (state.player?.talentPoints || 0) > 0;
   const reforgeLocked = !!state.combat?.reforgeSession;
@@ -303,6 +305,29 @@ export default function App() {
   const currentPrimaryTab = getVisiblePrimaryTab(state.currentTab, state);
   const prestigeTabUnlocked = isPrestigeTabUnlocked(state);
   const visiblePrimaryTabs = ["sanctuary", "combat", "character", ...(prestigeTabUnlocked ? ["prestige"] : []), "registry"];
+
+  useEffect(() => {
+    if (prevPrimaryTabRef.current !== currentPrimaryTab) {
+      window.scrollTo({ top: 0, behavior: "auto" });
+      if (contentRef.current) {
+        contentRef.current.scrollTo({ top: 0, behavior: "auto" });
+      }
+      prevPrimaryTabRef.current = currentPrimaryTab;
+    }
+  }, [currentPrimaryTab]);
+
+  function handlePrimaryTabPress(tab) {
+    const isActive = currentPrimaryTab === tab;
+    if (isActive) {
+      window.dispatchEvent(new CustomEvent("primary-tab-reselected", { detail: { tab } }));
+      window.scrollTo({ top: 0, behavior: "auto" });
+      if (contentRef.current) {
+        contentRef.current.scrollTo({ top: 0, behavior: "auto" });
+      }
+      return;
+    }
+    dispatch({ type: "SET_TAB", tab: getDefaultTabForPrimaryTab(tab) });
+  }
   const resourceSummary = (
     <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, overflowX: "auto", scrollbarWidth: "none" }}>
       {showActiveRunSigil && (
@@ -364,7 +389,7 @@ export default function App() {
         </div>
       </header>
 
-      <div style={{ paddingTop: isMobile ? `${HEADER_HEIGHT_MOBILE}px` : `${HEADER_HEIGHT_DESKTOP}px`, paddingBottom: isMobile ? "180px" : "40px", paddingLeft: isMobile ? "0px" : "24px", paddingRight: isMobile ? "0px" : "24px", maxWidth: isMobile ? "100%" : `${DESKTOP_MAX_WIDTH}px`, width: "100%", margin: "0 auto", flex: 1 }}>
+      <div ref={contentRef} style={{ paddingTop: isMobile ? `${HEADER_HEIGHT_MOBILE}px` : `${HEADER_HEIGHT_DESKTOP}px`, paddingBottom: isMobile ? "180px" : "40px", paddingLeft: isMobile ? "0px" : "24px", paddingRight: isMobile ? "0px" : "24px", maxWidth: isMobile ? "100%" : `${DESKTOP_MAX_WIDTH}px`, width: "100%", margin: "0 auto", flex: 1 }}>
         {!isMobile && (
           <div style={{ marginBottom: "12px", background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-tertiary, #cbd5e1)", borderRadius: "12px", boxShadow: "0 4px 20px var(--color-shadow, rgba(0,0,0,0.05))", padding: "10px 12px" }}>
             <nav style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -372,10 +397,7 @@ export default function App() {
                 <button
                   key={t}
                   disabled={reforgeLocked && currentPrimaryTab !== t}
-                  onClick={() => {
-                    if (currentPrimaryTab === t) return;
-                    dispatch({ type: "SET_TAB", tab: getDefaultTabForPrimaryTab(t) });
-                  }}
+                  onClick={() => handlePrimaryTabPress(t)}
                   style={{
                     padding: "7px 13px",
                     cursor: reforgeLocked && currentPrimaryTab !== t ? "not-allowed" : "pointer",
@@ -453,7 +475,7 @@ export default function App() {
             {visiblePrimaryTabs.map((t) => {
               const isActive = currentPrimaryTab === t;
               return (
-                <button key={t} disabled={reforgeLocked && !isActive} onClick={() => { if (isActive) return; dispatch({ type: "SET_TAB", tab: getDefaultTabForPrimaryTab(t) }); }} style={{ flex: 1, minWidth: "56px", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "2px", background: isActive ? "var(--color-background-info, #f1f5f9)" : "transparent", border: "none", outline: "none", position: "relative", paddingTop: "5px", opacity: reforgeLocked && !isActive ? 0.45 : 1 }}>
+                <button key={t} disabled={reforgeLocked && !isActive} onClick={() => handlePrimaryTabPress(t)} style={{ flex: 1, minWidth: "56px", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "2px", background: isActive ? "var(--color-background-info, #f1f5f9)" : "transparent", border: "none", outline: "none", position: "relative", paddingTop: "5px", opacity: reforgeLocked && !isActive ? 0.45 : 1 }}>
                   <span style={{ filter: isActive ? "none" : "grayscale(1) opacity(0.5)", position: "relative", fontSize: "21px", lineHeight: 1 }}>
                     {PRIMARY_TAB_CONFIG[t].icon}
                   </span>

@@ -785,23 +785,26 @@ export default function Combat({ state, dispatch }) {
   return (
     <div
       style={{
-        padding: isMobile ? "0.7rem" : "1rem",
+        padding: isMobile ? "0.45rem 0.5rem 0.8rem" : "1rem",
         maxWidth: "100%",
         margin: "0 auto",
         display: "flex",
         flexDirection: "column",
-        gap: "0.95rem",
+        gap: isMobile ? "0.72rem" : "0.95rem",
         background: "var(--color-background-primary, #f8fafc)",
         color: "var(--color-text-primary, #1e293b)",
+        width: "100%",
+        minWidth: 0,
+        overflowX: "hidden",
       }}
     >
       <style>{COMBAT_ANIMATION_STYLES}</style>
       <section
         style={{
           display: "grid",
-          gap: "10px",
+          gap: isMobile ? "8px" : "10px",
           background: "var(--color-background-secondary, #fff)",
-          padding: "10px",
+          padding: isMobile ? "8px" : "10px",
           borderRadius: "16px",
           border: `2px solid ${enemy.isBoss ? COLORS.warning : "var(--color-border-primary, #e2e8f0)"}`,
         }}
@@ -809,8 +812,8 @@ export default function Combat({ state, dispatch }) {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "34px minmax(0, 1fr) 34px 34px",
-            gap: "8px",
+            gridTemplateColumns: isMobile ? "30px minmax(0, 1fr) 30px" : "34px minmax(0, 1fr) 34px 34px",
+            gap: isMobile ? "6px" : "8px",
             alignItems: "center",
           }}
         >
@@ -824,10 +827,10 @@ export default function Combat({ state, dispatch }) {
           <div style={{ display: "flex", justifyContent: "center", minWidth: 0 }}>
             <div
               style={{
-                minWidth: isMobile ? "132px" : "156px",
+                minWidth: isMobile ? 0 : "156px",
                 maxWidth: "100%",
                 borderRadius: "12px",
-                padding: isMobile ? "7px 10px" : "8px 12px",
+                padding: isMobile ? "6px 8px" : "8px 12px",
                 border: "1px solid var(--color-border-primary, #e2e8f0)",
                 background: "var(--color-background-tertiary, #f8fafc)",
                 textAlign: "center",
@@ -873,17 +876,29 @@ export default function Combat({ state, dispatch }) {
           >
             {">"}
           </button>
-          <button
-            onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
-            title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
-            aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
-            style={autoAdvanceBtnStyle(autoAdvance)}
-          >
-            🥾
-          </button>
+          {!isMobile && (
+            <button
+              onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
+              title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+              aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+              style={autoAdvanceBtnStyle(autoAdvance)}
+            >
+              🥾
+            </button>
+          )}
         </div>
 
-        <div style={{ display: "flex", justifyContent: "center", gap: "8px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          {isMobile && (
+            <button
+              onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
+              title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+              aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+              style={autoAdvanceBtnStyle(autoAdvance)}
+            >
+              🥾
+            </button>
+          )}
           <button
             onClick={() => dispatch({ type: "OPEN_EXTRACTION", exitReason: "retire" })}
             style={{
@@ -1282,7 +1297,7 @@ export default function Combat({ state, dispatch }) {
         </div>
       </section>
 
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+      <section style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: 8, minWidth: 0 }}>
         <StatCard
           label="Dano"
           value={effectiveDamageInCombat}

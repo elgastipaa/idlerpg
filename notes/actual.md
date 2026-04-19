@@ -1,167 +1,903 @@
 # Estado Actual Del Juego
 
-Fecha de corte: 2026-04-15 UTC
-Repo: `idlerpg`
-Branch actual del workspace: `main`
-Estado del workspace: dirty worktree con cambios activos en crafting, prestigio, talentos, itemizacion, stat/combat, progression y UI.
-Build: `npm run build` compila OK en el estado actual.
+Fecha de corte: 2026-04-19 UTC  
+Repo: `idlerpg`  
+Workspace: `main` con worktree activo  
+Propósito de este documento: handoff conceptual para otra IA o diseñador.  
 
-## Resumen Ejecutivo
+## Qué Es El Juego Hoy
 
-El juego actual ya no es un idle lineal simple. Hoy funciona como un loop de:
+La tesis actual del proyecto ya no es:
 
-1. combate por tiers,
-2. loot y comparacion vs equipado,
-3. crafting orientado a run,
-4. decisiones de build por clase/especializacion/talentos,
-5. capas meta de goals, achievements, Codex, prestige y run sigils,
-6. lectura de telemetria y replay desde Lab.
+`combate -> loot -> prestige`
 
-El proyecto ya tiene suficiente masa para que un Lead GD piense en:
+Sino:
 
-- pacing de early/mid/late,
-- chase de loot,
-- sinks de recursos,
-- direccion de runs,
-- salud del prestige loop,
-- claridad de build identity,
-- economia de oro/esencia,
-- telemetria para validar balance.
+`Santuario -> Expedición -> Extracción -> Santuario`
 
-## Stack Y Runtime
+El juego se está moviendo desde un idle ARPG clásico hacia un **idle RPG extraction-lite**:
 
-- Frontend: React 18 + Vite 5.
-- Estado central: `useReducer` con `gameReducer`.
-- Guardado: `localStorage`.
-- Modo recovery/debug por URL:
-  - `?fresh=1`
-  - `?wipe=1`
-  - `?nosave=1`
-- Auto-save:
-  - `600ms` en dev
-  - `1800ms` en prod
-- Offline progress:
-  - se activa a partir de `60s` offline
-  - procesa chunks de `120` ticks
-  - cap de `3600` ticks simulados por vuelta
+- la expedición genera valor,
+- no todo ese valor vuelve automáticamente,
+- el Santuario procesa ese valor,
+- `Ecos` sigue siendo la capa meta,
+- y los blueprints reemplazan a la idea de “me llevo el item final intacto”.
 
-## Pantallas / Tabs Jugables
+La fantasía correcta hoy no es Tarkov hardcore.  
+Es:
 
-Tabs validos actuales: `11`
+- riesgo sin castigo tóxico,
+- retorno frecuente al Santuario,
+- proyectos persistentes a largo plazo,
+- monetización futura por conveniencia / slots / tiempo, no por poder bruto.
 
-- `character`
-- `combat`
-- `inventory`
-- `skills`
-- `talents`
-- `crafting`
-- `prestige`
-- `achievements`
-- `stats`
-- `lab`
-- `codex`
+---
 
-`lab` no es una pantalla separada de runtime; usa el componente de Stats en modo laboratorio.
+## Decisiones De Diseño Ya Tomadas
 
-## Contenido Jugable Principal
+Estas cosas ya no deberían reabrirse desde cero al proponer ideas:
 
-### Clases y especializaciones
+- `Santuario` sí es parte del core loop.
+- `Extracción` y `Prestige` ya no son dos salidas separadas para el jugador.
+- `Ecos` sigue existiendo, pero como consecuencia de una buena extracción.
+- La muerte no debe borrar una run al primer error.
+- La expedición no debería fabricar sola el mejor item final del juego.
+- Los items rescatados **no vuelven como gear usable directo** para runs futuras.
+- Lo persistente ahora es:
+  - `cargo`,
+  - `blueprints`,
+  - `family charges`,
+  - progreso de estaciones,
+  - `Ecos`,
+  - `Biblioteca`,
+  - `Abismo`.
+- `Caza` es contextual a una run, no una capa meta general.
+- `Biblioteca` es parte del Santuario, no una tab principal.
+- `Laboratorio` es infraestructura del Santuario, no una tab top-level permanente.
 
-Clases: `2`
-Especializaciones: `4`
+---
 
-Clases:
+## Foto Rápida Del Contenido Actual
 
-- `warrior`
-- `mage`
+### Build / progreso de personaje
 
-Especializaciones:
-
-- Warrior:
+- `2` clases:
+  - `Warrior`
+  - `Mage`
+- `4` specs:
+  - `Berserker`
+  - `Juggernaut`
+  - `Sorcerer`
+  - `Arcanist`
+- `6` árboles de talentos:
+  - `warrior_general`
   - `berserker`
   - `juggernaut`
-- Mage:
+  - `mage_general`
   - `sorcerer`
   - `arcanist`
+- `7` ramas de `Ecos`:
+  - `war`
+  - `bulwark`
+  - `fortune`
+  - `sorcery`
+  - `dominion`
+  - `forge`
+  - `abismo`
+- `5` sigilos de run:
+  - `free`
+  - `ascend`
+  - `hunt`
+  - `forge`
+  - `dominion`
 
-Identidades actuales:
+### Mundo / encounter / hunt
 
-- Warrior:
-  - frontal, fisico, dano + defensa
-  - Berserker: crit, leech, low life, cadenas agresivas
-  - Juggernaut: vida, defensa, block, thorns, conversion defensa -> dano
-- Mage:
-  - caster single-target, setup, flow, precision
-  - Sorcerer: burst, volatilidad, opener, chain burst, cataclysm
-  - Arcanist: control, marca, transferencias, memory, flow limpio
+- `25` tiers base
+- `Abismo` en `26+`
+- enemigos comunes seeded por run
+- bosses seeded por run
+- `12` bosses authored
+- mutador por ciclo de Abismo
 
-### Skills / Player upgrades
+### Itemización
 
-Player upgrades permanentes comprables con oro: `6`
+- rarezas relevantes:
+  - `common`
+  - `magic`
+  - `rare`
+  - `epic`
+  - `legendary`
+- pool de affixes base ampliado y recategorizado
+- `Reroll` de expedición rehace identidades completas
+- los extracted items ya no son piezas finales persistentes
+- los blueprints son la forma persistente del item
 
-- damage
-- maxHp
-- critChance
-- goldBonus
-- xpBonus
-- attackSpeed
+---
 
-La pantalla `Skills` hoy cumple dos roles:
+## Arquitectura De Navegación Actual
 
-- sink de oro permanente,
-- lectura resumida del estado de build actual.
+## Bottom nav actual
 
-### Talentos
+El juego ya está migrado a una navegación más limpia:
 
-Sistema de talentos actual: version `6`
+- `Santuario`
+- `Expedición`
+- `Heroe`
+- `Ecos`
+- `Registro`
 
-Arboles principales: `6`
+Importante:
 
-- `warrior_general`
-- `berserker`
-- `juggernaut`
-- `mage_general`
-- `sorcerer`
-- `arcanist`
+- `Ecos` no aparece desde el inicio.
+- `Caza` ya no es una tab principal.
+- `Laboratorio` ya no es una tab principal.
 
-Slots base visibles en layout: `48`
+## Desbloqueo de navegación
 
-- 6 arboles
-- 8 slots authored por arbol
+### Desde el inicio
 
-Estructura base por arbol:
+Tabs visibles:
 
-- 3 basics
-- 3 gameplay
-- 2 keystones
+- `Santuario`
+- `Expedición`
+- `Heroe`
+- `Registro`
 
-Tracks sink de late game: `3`
+### Después del primer prestige / primera conversión a ecos
 
-- `warrior_iron_mastery`
-- `berserker_blood_mastery`
-- `juggernaut_eternal_bastion`
+Se habilita:
 
-Cada sink tiene `20` niveles.
+- `Ecos`
 
-Entradas de talentos generadas por datos:
+### Dentro de `Expedición`
 
-- plantillas base: `504`
-- sinks: `60`
-- total generado: `564`
+Subvistas actuales:
 
-Observacion importante:
+- `Combate`
+- `Mochila`
+- `Forja`
+- `Caza` solo cuando ya tiene sentido
 
-- Warrior tiene sinks de late.
-- Mage hoy no tiene sink equivalente en `talentSinks.js`.
-- Eso deja asimetria de escalado largo entre familias de build.
+`Caza` se habilita cuando:
 
-## Prestige
+- llegaste a `Tier 5`, o
+- tuviste `maxTier >= 5`, o
+- ya viste al menos una familia en esa expedición
 
-Ranks de prestige: `8`
-Ramas de prestige: `6`
-Nodos de prestige: `48`
+### Dentro de `Heroe`
 
-Ramas:
+Subvistas:
+
+- `Ficha`
+- `Atributos`
+- `Talentos`
+
+### Dentro de `Registro`
+
+Subvistas:
+
+- `Logros`
+- `Metricas`
+- `Sistema`
+
+`Registro` contiene ahora la parte secundaria y de tester:
+
+- logros de cuenta,
+- telemetría,
+- replay,
+- save/debug avanzado.
+
+---
+
+## Storyline Del Jugador Hoy
+
+Esta es la versión conceptual del journey actual.
+
+## Etapa 0: primera sesión
+
+El jugador entra y ve:
+
+- `Santuario`
+- `Expedición`
+- `Heroe`
+- `Registro`
+
+Todavía no ve:
+
+- `Ecos`
+
+En `Santuario`, desde el primer momento ya existen:
+
+- `Destilería`
+- `Laboratorio`
+
+Pero todavía están bloqueadas:
+
+- `Biblioteca`
+- `Altar de Sigilos`
+- `Encargos`
+- `Forja Profunda`
+
+En `Heroe`, el jugador:
+
+- elige clase,
+- luego especialización,
+- empieza a leer build desde `Ficha / Atributos / Talentos`.
+
+## Etapa 1: primera expedición
+
+En `Expedición`, el jugador vive una run bastante directa:
+
+- combate por tiers,
+- consigue drops,
+- usa `Mochila`,
+- puede usar una `Forja` de campo muy acotada.
+
+La forja de campo hoy está deliberadamente reducida a:
+
+- `Reroll`
+- `Extract`
+
+No hace ya en la run:
+
+- `Upgrade +N`
+- `Polish`
+- `Reforge`
+- `Ascend`
+
+La idea es que la run rescate bases prometedoras, no que cierre el item perfecto.
+
+## Etapa 2: primera caza
+
+`Caza` no aparece de entrada.
+
+Se vuelve relevante recién cuando:
+
+- aparece el primer boss / `Tier 5`,
+- o ya viste familias reales en la expedición.
+
+Su rol actual es táctico:
+
+- qué objetivos revelados existen,
+- qué familias ya viste en esta expedición,
+- qué bosses de la seed actual están en juego.
+
+No debe spoilear de más.
+
+## Etapa 3: primera extracción
+
+El jugador ya no “prestigia” como botón separado.  
+El CTA fuerte es:
+
+- `Extraer al Santuario`
+
+La extracción actual:
+
+- puede convertir la expedición a `Ecos` si ya cumpliste gate,
+- siempre puede devolver valor persistente al Santuario,
+- y es el cierre unificado de run.
+
+En la extracción actual pueden volver:
+
+- `cargo` abstracto
+- `1` item rescatado temporal
+
+Ese item rescatado **no se equipa en futuras runs**.  
+Después, en el Santuario, el jugador decide:
+
+- `Convertirlo en blueprint`
+- o `Desguazarlo`
+
+## Etapa 4: primer regreso al Santuario
+
+Ahí empieza el loop nuevo de verdad.
+
+El jugador ve:
+
+- claims,
+- recursos persistentes,
+- estaciones,
+- stash temporal,
+- jobs,
+- `Laboratorio`,
+- eventualmente `Forja Profunda`.
+
+El loop conceptual es:
+
+1. extraer algo valioso
+2. procesarlo
+3. convertirlo en recurso o blueprint
+4. preparar la siguiente expedición
+
+## Etapa 5: primer prestige / primer `Ecos`
+
+La primera conversión a `Ecos` se habilita cuando la run cumple:
+
+- `Tier 5`, o
+- `1 boss`, o
+- `Nivel 12`
+
+Además, el primer prestige tiene piso:
+
+- mínimo `2` ecos
+
+Cuando esto ocurre:
+
+- aparece la tab `Ecos`
+- el jugador entiende por primera vez la meta-progression fuerte
+
+Después del primer prestige, el gate baja a:
+
+- `Tier 3`, o
+- `Nivel 10`, o
+- `50` bajas
+
+## Etapa 6: midgame del Santuario
+
+Ya con `Ecos` y primeras extracciones, el jugador empieza a desbloquear estaciones desde `Laboratorio`.
+
+El orden actual es:
+
+1. `Biblioteca`
+2. `Altar de Sigilos`
+3. `Encargos`
+4. `Forja Profunda`
+
+Desde ahí el juego pasa a ser realmente:
+
+- expediciones,
+- extracción,
+- jobs persistentes,
+- preparación de runs,
+- progreso de blueprints,
+- investigación.
+
+## Etapa 7: late / Abismo
+
+Después de `Tier 25`, entra `Abismo`.
+
+Los hitos actuales son:
+
+- `Abismo I` (`Tier 26+`): desbloquea capa meta de Abismo
+- `Abismo II` (`Tier 51+`): desbloquea acceso a Forja/Affixes de Abismo
+- `Abismo III` (`Tier 76+`): desbloquea rewards / powers legendarios de Abismo
+- `Abismo IV` (`Tier 101+`): segundo slot de sigil de run
+
+Eso hace que el late ya no sea sólo “más números”:
+
+- cambia buildcraft,
+- cambia sigils,
+- cambia el reward ceiling,
+- cambia el contenido meta.
+
+---
+
+## Estructura Actual De Sistemas
+
+## Expedición
+
+### Qué es
+
+La run activa.
+
+### Qué produce
+
+- progreso de tiers
+- bosses
+- drops
+- progreso de `Biblioteca`
+- progreso de `Ecos`
+- `cargo`
+- `items rescatables`
+
+### Qué no debería producir ya
+
+- el item final perfecto persistente
+
+### Muerte actual
+
+La muerte ya no es full reset brutal.
+
+Hoy:
+
+- tenés `3` muertes seguras por expedición
+- la `4ta` abre `Extracción de emergencia`
+
+Soft death actual:
+
+- corta auto-avance
+- revive al héroe
+- retrocede `5` tiers
+- si eso cae en múltiplo de `5`, retrocede `1` más para evitar boss tier
+
+O sea:
+
+- hay castigo,
+- pero no se pierde todo por un click tonto.
+
+## Extracción
+
+### Qué es
+
+El cierre de expedición.
+
+### Qué unifica
+
+- retiro
+- prestige
+- cierre por muerte extrema
+
+### Qué devuelve
+
+- `cargo`
+- `item rescatado`
+- `Ecos` si corresponde
+
+### Estado conceptual actual
+
+La extracción ya es el verbo correcto del juego.  
+`Prestige` ya no es la acción principal del jugador.
+
+## Santuario
+
+### Qué es
+
+La home persistente.
+
+### Qué concentra
+
+- claims
+- jobs
+- recursos
+- estaciones
+- stash temporal
+- blueprints
+- infraestructura
+
+### Qué debería transmitir
+
+“Acá proceso lo que traje y preparo la próxima salida.”
+
+---
+
+## Estaciones Del Santuario
+
+## Estaciones abiertas de base
+
+### `Destilería`
+
+- desbloqueada desde el inicio
+- procesa `cargo`
+
+### `Laboratorio`
+
+- desbloqueado desde el inicio
+- ordena el unlock progresivo del Santuario
+
+## Estaciones desbloqueables vía `Laboratorio`
+
+### 1. `Biblioteca`
+
+- research id: `unlock_library`
+- costo: `15 codexInk + 60 essence`
+- duración: `10m`
+
+### 2. `Altar de Sigilos`
+
+- research id: `unlock_sigil_altar`
+- costo: `12 codexInk + 70 essence`
+- duración: `12m`
+
+### 3. `Encargos`
+
+- research id: `unlock_errands`
+- costo: `18 codexInk + 90 essence`
+- duración: `15m`
+
+### 4. `Forja Profunda`
+
+- research id: `unlock_deep_forge`
+- costo: `24 codexInk + 120 essence`
+- duración: `20m`
+
+## Upgrades actuales de estaciones
+
+Cada estación hoy tiene una primera ola de mejoras de:
+
+- `+1 slot`
+- `-15% tiempo`
+
+Ejemplos actuales:
+
+- `Destilería Expandida`: `14 ink + 80 essence`, `20m`
+- `Mesas de Archivo`: `30 ink + 100 essence`, `25m`
+- `Segundo Brasero`: `18 ink + 95 essence`, `22m`
+- `Cuadrilla Extra`: `20 ink + 110 essence`, `25m`
+- `Banco de Forja Extra`: `26 ink + 2 dust + 130 essence`, `30m`
+
+Y upgrades de velocidad:
+
+- `Destilería`: `18 ink + 90 essence`, `20m`
+- `Biblioteca`: `28 ink + 110 essence`, `24m`
+- `Altar`: `22 ink + 100 essence`, `22m`
+- `Encargos`: `24 ink + 110 essence`, `26m`
+- `Forja`: `30 ink + 2 dust + 130 essence`, `30m`
+
+---
+
+## Recursos Persistentes Y Qué Hacen
+
+## Oro
+
+Rol:
+
+- upgrades permanentes simples del héroe
+- economía base de run
+
+## Esencia
+
+Rol:
+
+- crafting
+- parte del progreso estructural del Santuario
+- ascensión de blueprints
+- costos del Laboratorio
+
+## Ecos
+
+Rol:
+
+- currency meta persistente
+- árbol de `Ecos`
+- resonancia por `totalEchoesEarned`
+
+## Tinta de Biblioteca (`codexInk`)
+
+Rol:
+
+- unlocks del Laboratorio
+- investigaciones de `Biblioteca`
+
+## Flux de Sigilo (`sigilFlux`)
+
+Rol:
+
+- infusiones del `Altar de Sigilos`
+
+## Polvo de Reliquia (`relicDust`)
+
+Rol:
+
+- progreso de blueprints
+- sintonía de poder
+- ascensión de blueprints
+- parte de upgrades de `Laboratorio`
+- algunas investigaciones de `Biblioteca`
+
+## Family Charges
+
+Rol:
+
+- sesgar el roll de afijos cuando un blueprint se materializa
+
+Familias actuales:
+
+- `bleed_dot`
+- `crit_burst`
+- `tempo_combo`
+- `mark_control`
+- `guard_vitality`
+- `fortune_utility`
+
+## Cargo bundles
+
+Tipos actuales:
+
+- `essence_cache`
+- `codex_trace`
+- `sigil_residue`
+- `relic_shard`
+
+Conceptualmente, el cargo es “botín procesable” del Santuario, no gear.
+
+---
+
+## Jobs Time-Gated Actuales
+
+## Destilería
+
+Duraciones base:
+
+- `essence_cache`: `20m`
+- `codex_trace`: `30m`
+- `sigil_residue`: `45m`
+- `relic_shard`: `60m`
+
+Outputs conceptuales:
+
+- `essence_cache` -> esencia refinada
+- `codex_trace` -> tinta
+- `sigil_residue` -> flux
+- `relic_shard` -> polvo
+
+## Altar de Sigilos
+
+Recetas actuales:
+
+- `free`: `2h`
+- `ascend`: `2h`
+- `hunt`: `6h`
+- `forge`: `6h`
+- `dominion`: `12h`
+
+Todas consumen `sigilFlux`.
+
+Rol conceptual:
+
+- preparar una run futura,
+- no buffear permanentemente la cuenta.
+
+## Encargos
+
+Duraciones actuales:
+
+- `15m`
+- `1h`
+- `4h`
+
+Tipos de encargo:
+
+- afinidad para familias de blueprints
+- `Biblioteca`
+- materiales
+
+Rol conceptual:
+
+- progresión paralela del Santuario
+- retorno frecuente
+- otra fuente de recursos persistentes
+
+## Biblioteca
+
+Tipos de investigación:
+
+- maestrías de familias
+- maestrías de bosses
+- maestrías de powers legendarios
+
+Importante:
+
+- los bonuses ya no se activan sólo por matar mucho
+- primero llenás progreso
+- después gastás tinta
+- y corrés una investigación
+
+Esto evita el problema de:
+
+“jugué casualmente mil kills y ahora destrabé todo gratis”
+
+## Laboratorio
+
+Tipos de investigación:
+
+- unlock de estaciones
+- slots
+- reducción de tiempos
+
+## Forja Profunda
+
+Hoy ya opera sobre blueprints, no sobre items exactos persistidos.
+
+Tres progresiones actuales:
+
+### `Estructura`
+
+- cap: `12`
+- costo: `relicDust`
+- sube el rating estructural del plano
+- mejora base e implícito futuros
+
+### `Sintonía de poder`
+
+- solo si el blueprint tiene `legendaryPower`
+- cap: `5`
+- costo: `relicDust`
+- potencia el efecto numérico del poder
+
+### `Ascensión`
+
+- cap: `3`
+- requiere blueprint en cap de estructura
+- cuesta `relicDust + essence`
+- resetea `blueprintLevel` a `0`
+- sube `ascensionTier`
+- aumenta tier efectivo, rating, base e implícito del plano
+
+---
+
+## Blueprints: Cómo Funcionan Hoy
+
+Este es uno de los núcleos conceptuales más importantes del juego actual.
+
+## Qué NO son
+
+No son:
+
+- el item exacto guardado
+- una pieza equipable entre runs
+- una copia intacta del mejor loot que ya salió
+
+## Qué SÍ son
+
+Son una plantilla persistente que guarda:
+
+- rareza
+- slot (`weapon` o `armor`)
+- familia/base/implicit del item original
+- `baseRating` del item cuando se convirtió
+- `itemTier` del drop original
+- poder legendario si lo tenía
+- afinidades de familias de afijos
+- progreso persistente del plano:
+  - `blueprintLevel`
+  - `powerTuneLevel`
+  - `ascensionTier`
+
+## Materialización
+
+Cuando empieza una nueva expedición:
+
+- el blueprint activo se materializa en un item nuevo de campo
+
+Ese item:
+
+- conserva la identidad base del plano
+- conserva su implicit
+- conserva su rareza
+- usa cantidad de affixes según rareza
+- pero los affixes se vuelven a generar
+- con sesgo según afinidades
+
+O sea:
+
+- el blueprint no garantiza el roll exacto
+- sí empuja la dirección del roll
+
+## Cargas / afinidades
+
+El jugador puede:
+
+- desguazar items rescatados
+- recibir `familyCharges`
+- invertir esas cargas en el blueprint
+
+Eso aumenta la chance de que en la próxima materialización aparezcan afijos de esa familia.
+
+Hoy todavía no existe garantía dura de línea.  
+El sistema actual es de sesgo fuerte, no de resultado exacto.
+
+## Slots activos
+
+Conceptualmente hoy hay loadout de blueprint para:
+
+- arma
+- armadura
+
+---
+
+## Biblioteca: Cómo Funciona Hoy
+
+## Filosofía
+
+`Codex` ya no es una tab general de meta.  
+Se partió en:
+
+- `Caza`: referencia táctica durante expedición
+- `Biblioteca`: archivo e investigación desde Santuario
+
+## Qué queda en `Caza`
+
+- objetivos revelados
+- bosses de la seed actual
+- familias vistas en la expedición actual
+- powers relevantes sin spoilear de más
+
+## Qué vive en `Biblioteca`
+
+- familias descubiertas
+- bosses descubiertos
+- powers descubiertos
+- maestrías
+- progreso de investigación
+- bonuses activos
+- glosario/archivo
+
+## Progresión actual de Biblioteca
+
+### Familias
+
+Cada familia tiene `3` hitos:
+
+- `50 kills`
+- `250 kills`
+- `1000 kills`
+
+Pero eso ya no da el bonus automáticamente:
+
+- esos kills llenan `researchProgress`
+- el progreso se capea al siguiente hito
+- para activar el bonus hay que investigar
+- al iniciar la investigación, ese progreso se consume para ese rango
+
+### Bosses
+
+Cada boss tiene `2` hitos:
+
+- normalmente `1 kill`
+- luego `5 kills`
+
+Excepción visible:
+
+- `Void Sovereign`: `1` y `3`
+
+### Legendary powers
+
+Ranks actuales:
+
+- `1`: `Descubierto`
+- `2`: `Sintonizado`
+- `3`: `Dominado`
+- `4`: `Mitico`
+
+Thresholds:
+
+- `1` descubrimiento
+- `3`
+- `6`
+- `10`
+
+Regla importante:
+
+- `rank 1` es automático al primer drop
+- `rank 2+` requiere investigación en Biblioteca
+
+---
+
+## Ecos: Cómo Funcionan Hoy
+
+## Filosofía
+
+`Ecos` ya no son sólo “rank de prestige”.
+
+Hoy:
+
+- el prestige viejo como acción separada desapareció
+- la capa meta se llama `Ecos`
+- la progresión permanente viene de:
+  - `totalEchoesEarned`
+  - árbol de ramas
+  - resonancia
+
+## Primer spike
+
+El primer prestige tiene piso:
+
+- mínimo `2 ecos`
+
+Eso existe para que el primer reset se sienta real.
+
+## Resonancia
+
+La resonancia:
+
+- escala por cada eco ganado
+- usa tramos decrecientes
+- mira `totalEchoesEarned`, no los ecos guardados
+
+Eso evita castigar gastar.
+
+## Branches actuales
 
 - `war`
 - `bulwark`
@@ -169,426 +905,138 @@ Ramas:
 - `sorcery`
 - `dominion`
 - `forge`
+- `abismo`
 
-Lectura de diseño actual:
+Rol conceptual:
 
-- `war`: dano, crit, ritmo Warrior, push ofensivo
-- `bulwark`: vida, block, regen, thorns, identidad Juggernaut
-- `fortune`: oro, xp, esencia, loot, suerte
-- `sorcery`: burst/opening/cataclysm/volatile
-- `dominion`: marca, flow, transfer, control
-- `forge`: economia y precision de crafting
+- `war` / `bulwark`: Warrior
+- `sorcery` / `dominion`: Mage
+- `fortune`: economía
+- `forge`: crafting y precisión
+- `abismo`: late game y profundidad
 
-Run sigils se desbloquean al llegar a prestige level `1`.
+---
 
-## Run Sigils
+## Abismo: Estado Actual
 
-Run sigils actuales: `5`
+`Abismo` ya existe y ya no es sólo “tiers infinitos”.
 
-- `free`
-- `ascend`
-- `hunt`
-- `forge`
-- `dominion`
+Hoy aporta:
 
-Rol de cada uno:
+- tiers `26+`
+- mutador por ciclo
+- bosses y comunes seeded por run
+- unlocks account-wide
+- rama de `Ecos` propia
+- rewards / affixes / powers gated por profundidad
 
-- `free`: baseline de medicion
-- `ascend`: push de nivel/tier/ecos
-- `hunt`: caza de powers legendarios y duplicados
-- `forge`: corrida de esencia + crafting barato
-- `dominion`: progreso horizontal de Codex
+Unlocks actuales:
 
-Los sigils ya son una capa direccional real de corrida, no cosmetica.
+- `Abismo I`: capa meta de Abismo
+- `Abismo II`: affixes/crafting de Abismo
+- `Abismo III`: legendary rewards/powers de Abismo
+- `Abismo IV`: segundo slot de sigil de run
 
-## Combate
+---
 
-### Enemigos y bosses
+## Lo Que Está Fuerte Hoy
 
-Enemigos normales authored por tier: `25`
-Bosses: `5`
+- El juego ya tiene una tesis clara:
+  - `Santuario -> Expedición -> Extracción -> Santuario`
+- La navegación ya está bastante alineada con esa tesis.
+- `Caza` y `Biblioteca` ya están bien separadas mentalmente.
+- `Laboratorio` ya ordena bien el unlock progresivo del hub.
+- La muerte ya no arruina la experiencia por accidente.
+- `Ecos` ya no compiten con la extracción como CTA.
+- Los blueprints ya impiden que una sola run te entregue el item final exacto.
 
-Bosses authored:
+---
 
-- Orc Warlord, tier 5
-- Void Titan, tier 10
-- Blood Matriarch, tier 15
-- Iron Sentinel, tier 20
-- Void Sovereign, tier 25
+## Problemas / Tensiones Abiertas
 
-Spawn actual:
+Esta es la parte más útil para otra IA.
 
-- `spawnEnemy(tier)` busca boss exacto por tier
-- si no hay boss, usa el enemigo normal de ese tier
+## 1. Pacing del Santuario
 
-Esto deja una progresion muy clara de techo actual en tier `25`.
+Ya existe mucha infraestructura:
 
-### Familias, affixes y mecanicas de encuentro
+- `Destilería`
+- `Biblioteca`
+- `Altar`
+- `Encargos`
+- `Forja Profunda`
+- `Laboratorio`
 
-Familias de enemigos: `12`
-Monster affixes: `11`
-Boss mechanics: `6`
+La pregunta no es “sumar más estaciones”, sino:
 
-Boss mechanics actuales:
+- si el pacing entre ellas está bien,
+- si sus costos están bien escalados,
+- y si el jugador entiende en qué orden debería usarlas.
 
-- absorb_first_crit
-- enrage_low_hp
-- shield_every_n
-- armor_shred
-- crit_immunity
-- double_strike
+## 2. Valor real de los blueprints
 
-Combat states / identidades visibles en UI y runtime:
+La dirección es buena, pero todavía hay preguntas abiertas:
 
-- bleed
-- fracture
-- mark
-- flow
-- memory
-- volatile casting
-- chain burst
-- cataclysm
-- lifesteal
-- block
-- thorns
+- cuánto debería empujar cada ascensión,
+- cuánto debería envejecer un blueprint viejo frente a drops de tiers más altos,
+- cuánto control de affixes debería tener el jugador,
+- y cuándo conviene descartar un blueprint y empezar otro.
 
-Hay suficiente complejidad para hablar ya de "micro-rotacion pasiva" aunque siga siendo idle.
+## 3. Frontera entre run y persistencia
 
-## Itemizacion
+Hoy la expedición todavía tiene:
 
-### Volumen y tipos
+- `Reroll`
+- `Extract`
 
-Items authored en `items.js`: `70`
+La gran pregunta abierta de diseño sigue siendo:
 
-Por rareza:
+- si `Reroll` debe quedarse en la run,
+- o si incluso eso debería terminar migrando a la capa persistente.
 
-- common: `17`
-- magic: `13`
-- rare: `11`
-- epic: `9`
-- legendary: `20`
+## 4. Adicción / retorno
 
-Por tipo:
+El juego ya tiene loops time-gated, pero todavía falta pulir:
 
-- weapon: `39`
-- armor: `31`
+- cuánto premio dan por sesión corta,
+- cuánto scroll / fricción tiene el Santuario,
+- y qué tan fuerte se siente el deseo de volver a revisar claims, blueprints y estaciones.
 
-### Familias de item
-
-Familias de item: `15`
+## 5. Economía
 
-Weapons: `7`
+Los recursos ya existen, pero todavía hay que seguir afinando:
 
-- sword
-- axe
-- mace
-- dagger
-- spear
-- wand
-- focus
+- `codexInk`
+- `relicDust`
+- `sigilFlux`
+- `familyCharges`
+- `essence`
 
-Armors: `8`
+La otra IA debería mirar:
 
-- plate
-- mail
-- vest
-- leather
-- spiked
-- wrap
-- shroud
-- buckler
+- si cada uno tiene enough sinks,
+- si alguno está inflado o muerto,
+- y si la progresión de costos cuenta una historia sana.
 
-Cada familia define:
+---
 
-- primary base,
-- extra base pools,
-- afinidades,
-- preferred/discouraged stats,
-- implicits por rareza.
+## Qué Le Pediría A Otra IA
 
-### Blueprint de rareza
+Sobre esta base, otra IA debería concentrarse en:
 
-Rareza -> composicion estructural:
+1. evaluar el journey del jugador desde la primera sesión hasta Abismo
+2. revisar si el orden de unlocks del Santuario es el correcto
+3. revisar si el costo/tiempo de `Laboratorio` y `Biblioteca` está bien escalado
+4. revisar si el blueprint loop ya logra evitar BIS inmediato sin sentirse demasiado aleatorio
+5. revisar si `Reroll` debería seguir en expedición o no
+6. proponer mejoras de claridad, adicción sana y monetización de conveniencia
 
-- common: 1 base, 1 implicit, 0 affixes
-- magic: 1 base, 1 implicit, 1 affix
-- rare: 1 base, 1 implicit, 1 affix
-- epic: 2 bases, 1 implicit, 2 affixes
-- legendary: 3 bases, 1 implicit, 3 affixes
+No hace falta que la otra IA “reinvente”:
 
-Conclusiones GD:
+- la tesis de Santuario,
+- la extracción unificada,
+- la existencia de blueprints,
+- la separación entre `Caza` y `Biblioteca`.
 
-- epic ya empieza a sentirse como pieza construida
-- legendary tiene masa suficiente para chase real
-- rare hoy sigue siendo una transicion, no una capa final
-
-## Crafting
-
-Modos de crafting activos: `6`
-
-- upgrade
-- reroll
-- polish
-- reforge
-- ascend
-- extract
-
-### Limites duros
-
-- reroll por item: `5`
-- reforge por item: `3`
-- polish por linea: `5`
-
-### Upgrade
-
-- cap: `+10`
-- fail chance:
-  - `+0`: 0
-  - `+1`: 0
-  - `+2`: 3%
-  - `+3`: 8%
-  - `+4`: 15%
-  - `+5`: 22%
-  - `+6`: 30%
-  - `+7`: 39%
-  - `+8`: 48%
-  - `+9`: 57%
-  - `+10`: 66%
-- costo: oro, escala con `(currentLevel + 1)^2` y multiplicador de rareza
-- hoy upgrade escala:
-  - base del item
-  - implicit del item
-  - no toca affixes
-
-### Reforge
-
-- costo en esencia
-- sensible al tier del affix target
-- hoy la base ofrece `3` opciones totales de reforja
-- la herramienta fija una linea trabajada si aceptas reemplazo
-
-### Ascend
-
-Ascend por rareza:
-
-- common -> magic, min level 3
-- magic -> rare, min level 5
-- rare -> epic, min level 7
-- epic -> legendary, min level 9
-
-Ascend puede injertar poder legendario si ya fue descubierto en Codex.
-
-### Cambios validados hoy
-
-Cambios concretos confirmados en el estado actual del workspace:
-
-- Forja:
-  - la reforja quedo en `3` opciones base totales
-  - `Profecia del Yunque` ya no da opcion extra de reforja
-  - ahora baja costo de injertar poder legendario
-  - `Apex de Forja` tambien dejo de sumar opcion de reforja y ahora empuja ese costo de imprint
-- Upgrade:
-  - se agrego preview del siguiente `+1` en `Crafting`
-  - ahora muestra stats afectados y `vs equipado`
-  - el scaling base del upgrade paso a curva compuesta mas agresiva
-- Implicits:
-  - el caption del implicito ahora muestra el valor efectivo real actual, no solo el base
-
-## Codex Y Chase Legendario
-
-Poderes legendarios authored: `19`
-
-El Codex hoy tiene tres capas:
-
-1. Family mastery
-2. Boss mastery
-3. Legendary power mastery
-
-### Family mastery
-
-- 12 familias de enemigos
-- milestones en `50 / 250 / 1000` kills
-- da bonuses permanentes chicos pero acumulables
-
-### Boss mastery
-
-- 5 bosses
-- milestones cortos por boss
-- 1 kill y 5 kills en casi todos
-- el boss final tiene 1 y 3 kills
-
-### Power mastery
-
-4 rangos:
-
-- 1 discovery: Descubierto
-- 3 discoveries: Sintonizado
-- 6 discoveries: Dominado
-- 10 discoveries: Mitico
-
-Beneficios de mastery:
-
-- `imprintCostReduction`
-- `huntBias`
-
-Esto ya crea:
-
-- target farming,
-- chase de duplicados,
-- progresion horizontal fuera del item puntual.
-
-## Goals, Achievements, Metagame
-
-Achievements: `52`
-Goals activos/authored: `38`
-
-Achievements por categoria:
-
-- combat: 9
-- run: 2
-- progress: 8
-- economy: 7
-- loot: 8
-- affix: 7
-- craft: 6
-- build: 3
-- meta: 2
-
-Los goals ya estan integrados al runtime:
-
-- se muestran en Combat
-- se pueden claimear
-- dan oro / esencia / talent points
-
-Esto funciona como onboarding y pacing rail sin tutorial tradicional.
-
-## Dungeons
-
-Dungeons authored: `5`
-
-Importante:
-
-- `dungeons.js` esta marcado explicitamente como design stub
-- hoy no esta cableado al runtime principal
-- sirve como direccion de diseño futura, no como feature live
-
-Conclusion:
-
-- existe contenido conceptual
-- no debe contarse como sistema shipped
-
-## Telemetria, Replay Y Herramientas De Balance
-
-La capa de observabilidad ya es seria.
-
-### Session analytics
-
-`runTelemetry` trackea:
-
-- progreso de run
-- economia
-- gasto por fuente
-- rarezas
-- crafting success/fail
-- tiempos clave
-- best drop
-- drops por tier
-- muertes por tier
-
-### Replay
-
-`replayLog` guarda:
-
-- acciones de usuario/sistema
-- milestones
-- snapshots compactos
-- libreria de replays
-- export/import bundle
-
-### Lab / Stats
-
-La pantalla `lab` ya ofrece:
-
-- export/import de save
-- export/import de replay
-- dataset bundle de replays
-- telemetry report
-- balance bot simulation
-
-Para un Lead GD esto significa que el proyecto ya tiene bases para:
-
-- playtest cualitativo,
-- lectura cuantitativa,
-- perfiles de run,
-- comparacion entre ramas/builds.
-
-## Estado De Guardado E Inicializacion
-
-Estado fresco:
-
-- nivel 1
-- sin clase elegida
-- sin especializacion
-- tab inicial `character`
-- run sigil activo `free`
-- run setup pendiente desactivado
-- inventario vacio
-- equipo vacio
-
-Hay sanitizacion fuerte de save:
-
-- caps de recuperacion para oro, esencia, nivel y stats
-- normalizacion de Codex, replay, analytics y prestige
-
-## Estado De Diseño Que Ya Se Percibe En Juego
-
-Lo que ya esta bastante claro:
-
-- identidad de clase y spec
-- direccion de run via sigils
-- loop meta con prestige
-- loot chase por familias/stats/powers
-- crafting como decision de run, no solo sink
-- Codex como progresion horizontal
-
-Lo que aun huele a sistema en construccion:
-
-- dungeons reales
-- sinks tardios equivalentes para todas las familias de build
-- mayor paridad de profundidad entre Warrior y Mage en late
-- consolidacion del endgame por encima de tier 25
-
-## Observaciones De Producto / GD
-
-- El techo actual esta muy explicitamente definido en tier 25 y boss tier 25.
-- La estructura de contenido es suficiente para hablar de early, mid y late, pero el late aun depende mucho de loops meta y chase, no de nuevas actividades.
-- Hay una asimetria interesante: Warrior tiene sinks de talento de late, Mage hoy no.
-- Forge y Codex ya compiten por ser la capa "mas inteligente" del meta. Eso es bueno si se separan por intencion de run; es peligroso si se pisan.
-- Run sigils son una de las mejores piezas del estado actual porque convierten el prestige loop en direccion jugable concreta.
-- El crafting actual ya permite decisiones de precision real:
-  - reroll total,
-  - polish de numero,
-  - reforge de linea,
-  - ascend con o sin power.
-- El proyecto ya tiene suficiente tooling para balance iterativo rapido sin depender solo de sensacion subjetiva.
-
-## Fuentes De Verdad Relevantes
-
-- App y tabs: `src/App.jsx`
-- clases: `src/data/classes.js`
-- talentos authored layout: `src/data/talentTree.js`
-- talentos generados: `src/data/talents.js`
-- sinks: `src/data/talentSinks.js`
-- prestige: `src/data/prestige.js`
-- run sigils: `src/data/runSigils.js`
-- items: `src/data/items.js`
-- familias de item: `src/data/itemFamilies.js`
-- powers legendarios: `src/data/legendaryPowers.js`
-- crafting: `src/engine/crafting/craftingEngine.js`
-- costos de crafting: `src/constants/craftingCosts.js`
-- codex: `src/engine/progression/codexEngine.js`
-- enemigos y bosses: `src/data/enemies.js`, `src/data/bosses.js`, `src/data/encounters.js`
-- telemetry: `src/utils/runTelemetry.js`
-- replay: `src/utils/replayLog.js`
-- estado inicial: `src/engine/stateInitializer.js`
+Eso ya está bastante decidido.
 
