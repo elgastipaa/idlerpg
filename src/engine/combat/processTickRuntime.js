@@ -17,6 +17,7 @@ import { createEmptySessionAnalytics } from "../../utils/runTelemetry";
 import { recordCodexKill, recordCodexSighting, recordLegendaryPowerDiscovery, syncCodexBonuses } from "../progression/codexEngine";
 import { createEmptyPrestigeCycleProgress } from "../progression/prestigeEngine";
 import { getRunSigilCodexModifiers } from "../../data/runSigils";
+import { buildExtractionPreview } from "../sanctuary/extractionEngine";
 import {
   tickEffects,
   applyEffects,
@@ -42,7 +43,17 @@ const VOID_FRACTURE_STACK_CAP = 3;
 const VOID_FRACTURE_DURATION_TICKS = 4;
 const FRACTURE_DEFENSE_REDUCTION_PER_STACK = 0.1;
 const ENEMY_DEFENSE_SCALING = 260;
+const EXPEDITION_DEATH_LIMIT = 3;
+const EXPEDITION_DEATH_REVIVE_HP_PCT = 0.5;
+const EXPEDITION_DEATH_TIER_RETREAT = 5;
 let floatEventSequence = 0;
+
+function appendSeenFamilyIds(expedition = {}, enemy = null) {
+  const familyId = enemy?.familyTraitId || enemy?.family || null;
+  const current = Array.isArray(expedition?.seenFamilyIds) ? expedition.seenFamilyIds : [];
+  if (!familyId || current.includes(familyId)) return current;
+  return [...current, familyId];
+}
 
 function toModifierTotals(mods = {}) {
   return {
@@ -1293,6 +1304,10 @@ export function processTick(state) {
   const flowStacks = Math.max(0, Number(nextEnemyRuntime.flowStacks || 0));
 
   if (newPlayerHp <= 0) {
+    const expeditionDeathCount = Math.max(0, Number(state.expedition?.deathCount || 0));
+    const expeditionDeathLimit = Math.max(1, Number(state.expedition?.deathLimit || EXPEDITION_DEATH_LIMIT));
+    const nextExpeditionDeathCount = expeditionDeathCount + 1;
+    const shouldEmergencyExtract = nextExpeditionDeathCount > expeditionDeathLimit;
     const lastRunSummary = buildLastRunSummary(state, enemy, "death");
     const nextAnalytics = {
       ...sessionAnalytics,
@@ -1307,16 +1322,13 @@ export function processTick(state) {
       maxTierReached: Math.max(sessionAnalytics.maxTierReached || 1, state.combat.maxTier || state.combat.currentTier || 1),
       maxLevelReached: Math.max(sessionAnalytics.maxLevelReached || 1, state.player.level || 1),
     };
-    const nextRunContext =
-      state.combat?.runContext ||
-      (Number(state.prestige?.level || 0) >= 1 ? createRunContext() : createRunContext({ firstRun: true }));
-    return {
+    const previewState = {
       ...state,
+      currentTab: "sanctuary",
       codex: sightedCodex,
       player: {
         ...state.player,
-        hp: s.maxHp,
-        gold: sanitizeCurrencyValue(Math.floor((state.player.gold || 0) * 0.75), SAFE_RUNTIME_GOLD_CAP),
+        hp: 0,
       },
       stats: {
         ...state.stats,
@@ -1324,37 +1336,101 @@ export function processTick(state) {
       },
       combat: {
         ...state.combat,
-        enemy: hydrateSpawnedEnemy(spawnEnemy(1, nextRunContext)),
-        runContext: nextRunContext,
-        currentTier: 1,
-        effects: [],
-        autoAdvance: false,
-        ticksInCurrentRun: 0,
-        sessionKills: 0,
-        triggerCounters: {
-          kills: 0,
-          onHit: 0,
-          crit: 0,
-          onDamageTaken: 0,
-        },
-        pendingOnKillDamage: 0,
-        pendingMageVolatileMult: 1,
-        floatEvents: [],
-        lastRunTier: state.combat.maxTier || state.combat.currentTier || 1,
-        runStats: getEmptyRunStats(),
-        prestigeCycle,
-        performanceSnapshot: getEmptyPerformanceSnapshot(),
         analytics: nextAnalytics,
         lastRunSummary,
-        latestLootEvent: null,
+      },
+    };
+
+    if (!shouldEmergencyExtract) {
+      let retreatTier = Math.max(1, Number(currentCombatTier || 1) - EXPEDITION_DEATH_TIER_RETREAT);
+      if (retreatTier > 1 && retreatTier % 5 === 0) {
+        retreatTier = Math.max(1, retreatTier - 1);
+      }
+      const retreatEnemy = spawnEnemy(retreatTier, state.combat?.runContext || createRunContext());
+      const revivedHp = Math.max(1, Math.floor(s.maxHp * EXPEDITION_DEATH_REVIVE_HP_PCT));
+      const remainingSafeDeaths = Math.max(0, expeditionDeathLimit - nextExpeditionDeathCount);
+
+      return {
+        ...previewState,
+        codex: sightedCodex,
+        currentTab: "combat",
+        player: {
+          ...previewState.player,
+          hp: revivedHp,
+        },
+        combat: {
+          ...state.combat,
+          analytics: nextAnalytics,
+          lastRunSummary,
+          enemy: retreatEnemy,
+          currentTier: retreatTier,
+          autoAdvance: false,
+          ticksInCurrentRun: 0,
+          sessionKills: 0,
+          effects: [],
+          talentBuffs: [],
+          triggerCounters: {
+            kills: 0,
+            onHit: 0,
+            crit: 0,
+            onDamageTaken: 0,
+          },
+          pendingOnKillDamage: 0,
+          pendingMageVolatileMult: 1,
+          floatEvents: [],
+          latestLootEvent: null,
+          log: [
+            ...state.combat.log,
+            ...preTriggerLogs,
+            ...preLegendaryLogs,
+            ...postTriggerLogs,
+            ...postLegendaryLogs,
+            `Tu heroe cayo frente a ${enemy.name}, pero la expedicion sigue. Auto-avance apagado, retrocedes a T${retreatTier} y vuelves con ${revivedHp} HP. Quedan ${remainingSafeDeaths} margen(es) antes de una extraccion de emergencia.`,
+          ].slice(-20),
+        },
+        expedition: {
+          ...(state.expedition || {}),
+          phase: "active",
+          exitReason: null,
+          deathCount: nextExpeditionDeathCount,
+          deathLimit: expeditionDeathLimit,
+          seenFamilyIds: appendSeenFamilyIds(state.expedition || {}, retreatEnemy),
+          selectedCargoIds: [],
+          selectedProjectItemId: null,
+          extractionPreview: null,
+        },
+      };
+    }
+
+    const extractionPreview = buildExtractionPreview(previewState, { exitReason: "death" });
+    const defaultCargoIds = (extractionPreview.cargoOptions || [])
+      .slice(0, Math.max(0, Number(extractionPreview.availableSlots?.cargo || 0)))
+      .map(option => option.id);
+    return {
+      ...previewState,
+      codex: sightedCodex,
+      combat: {
+        ...state.combat,
+        analytics: nextAnalytics,
+        lastRunSummary,
         log: [
           ...state.combat.log,
           ...preTriggerLogs,
           ...preLegendaryLogs,
           ...postTriggerLogs,
           ...postLegendaryLogs,
-          `Tu heroe cayo frente a ${enemy.name}. La run termino y perdiste un cuarto del oro.`,
+          `Tu heroe cayo frente a ${enemy.name} por cuarta vez en esta expedicion. Se abre la extraccion de emergencia; al confirmar se arriesga un cuarto del oro.`,
         ].slice(-20),
+      },
+      expedition: {
+        ...(state.expedition || {}),
+        phase: "extraction",
+        exitReason: "death",
+        deathCount: nextExpeditionDeathCount,
+        deathLimit: expeditionDeathLimit,
+        extractionPreview,
+        selectedCargoIds: defaultCargoIds,
+        selectedProjectItemId: null,
       },
     };
   }
@@ -1794,6 +1870,10 @@ export function processTick(state) {
         ...postTriggerLogs,
         ...postLegendaryLogs,
       ].slice(-20),
+    },
+    expedition: {
+      ...(state.expedition || {}),
+      seenFamilyIds: appendSeenFamilyIds(state.expedition || {}, nextEnemy),
     },
   };
 }

@@ -8,6 +8,7 @@ import {
   computeImplicitUpgradeBonus,
   computeUpgradeBonus,
   mergeBonusMaps,
+  scaleBonusMapByTier,
   scaleAffixesForItemLevel,
 } from "../../utils/loot";
 import { calcItemRating, syncEquipment } from "../inventory/inventoryEngine";
@@ -43,7 +44,10 @@ function getNextRarity(rarity) {
 
 function getImplicitBonus(item, rarityOverride = item.rarity) {
   const family = ITEM_FAMILIES[item.family];
-  return { ...(family?.implicitByRarity?.[rarityOverride] || item.implicitBonus || {}) };
+  return scaleBonusMapByTier(
+    family?.implicitByRarity?.[rarityOverride] || item.implicitBonus || {},
+    item?.itemTier || item?.level || 1
+  );
 }
 
 export function getCraftActionLimits(item) {
@@ -768,7 +772,7 @@ export function craftAscend({ player, itemId, currentTier, refreshStats, legenda
     return {
       newPlayer: player,
       blocked: true,
-      log: "ASCEND BLOQUEADO - el poder legendario elegido no esta desbloqueado en el Codex.",
+      log: "ASCEND BLOQUEADO - el poder legendario elegido no esta desbloqueado en Biblioteca.",
     };
   }
   const ascendCost  = getAscendCosts(item, player, {

@@ -1,8 +1,13 @@
 import { BOSSES } from "../../data/bosses";
-import { ENEMIES } from "../../data/enemies";
 import { ENEMY_FAMILIES } from "../../data/encounters";
 import { LEGENDARY_POWERS } from "../../data/legendaryPowers";
-import { BASE_TIER_COUNT, BOSS_SLOT_COUNT, BOSS_SLOT_INTERVAL, normalizeRunContext, resolveEncounterForTier } from "../combat/encounterRouting";
+import {
+  BASE_TIER_COUNT,
+  BOSS_SLOT_COUNT,
+  BOSS_SLOT_INTERVAL,
+  normalizeRunContext,
+  resolveEncounterForTier,
+} from "../combat/encounterRouting";
 import { refreshStats } from "../combat/statEngine";
 import { getLegendaryPowerSources, getTargetedLegendaryDropsForEnemy } from "../../utils/legendaryPowers";
 import { hasAbyssUnlock } from "./abyssProgression";
@@ -154,7 +159,11 @@ const BONUS_KEYS = [
   "markEffectPerStack",
   "goldPct",
 ];
+
 const BOSS_BY_ID = new Map(BOSSES.map(boss => [boss.id, boss]));
+const FAMILY_IDS = Object.keys(ENEMY_FAMILIES);
+const BOSS_IDS = BOSSES.map(boss => boss.id);
+const POWER_IDS = LEGENDARY_POWERS.map(power => power.id);
 
 function emptyBonuses() {
   return BONUS_KEYS.reduce((acc, key) => {
@@ -169,46 +178,80 @@ function sanitizeWholeNumber(value, fallback = 0, max = 1_000_000) {
   return Math.min(max, Math.floor(numeric));
 }
 
-export function createEmptyCodexState() {
+function clampProgress(value, needed = 0) {
+  if (!needed) return 0;
+  return Math.max(0, Math.min(needed, sanitizeWholeNumber(value || 0, 0, needed)));
+}
+
+function getVisibleLegendaryPowers(abyss = {}) {
+  return LEGENDARY_POWERS.filter(power => !power.unlockKey || hasAbyssUnlock(abyss, power.unlockKey));
+}
+
+function getFamilyMilestones(familyId) {
+  return FAMILY_MASTERY[familyId]?.milestones || [];
+}
+
+function getBossMilestones(bossId) {
+  return BOSS_MASTERY[bossId]?.milestones || [];
+}
+
+function getMaxPowerResearchRank() {
+  return LEGENDARY_POWER_MASTERY.at(-1)?.rank || 0;
+}
+
+function getNextFamilyMilestone(familyId, researchedRank = 0) {
+  return getFamilyMilestones(familyId)[researchedRank] || null;
+}
+
+function getNextBossMilestone(bossId, researchedRank = 0) {
+  return getBossMilestones(bossId)[researchedRank] || null;
+}
+
+function getNextPowerRankEntry(researchedRank = 0) {
+  return LEGENDARY_POWER_MASTERY.find(entry => entry.rank === researchedRank + 1) || null;
+}
+
+function deriveFamilyRankFromHistoricalKills(familyId, kills = 0) {
+  return getFamilyMilestones(familyId).filter(milestone => Number(kills || 0) >= milestone.kills).length;
+}
+
+function deriveBossRankFromHistoricalKills(bossId, kills = 0) {
+  return getBossMilestones(bossId).filter(milestone => Number(kills || 0) >= milestone.kills).length;
+}
+
+function derivePowerRankFromHistoricalDiscoveries(discoveries = 0) {
+  if (Number(discoveries || 0) <= 0) return 0;
+  const entry =
+    [...LEGENDARY_POWER_MASTERY].reverse().find(rankEntry => Number(discoveries || 0) >= rankEntry.discoveries) ||
+    LEGENDARY_POWER_MASTERY[0];
+  return Number(entry?.rank || 0);
+}
+
+function createEmptyResearchState() {
   return {
-    familySeen: {},
-    bossSeen: {},
-    familyKills: {},
-    bossKills: {},
-    powerDiscoveries: {},
+    familyRanks: Object.fromEntries(FAMILY_IDS.map(familyId => [familyId, 0])),
+    bossRanks: Object.fromEntries(BOSS_IDS.map(bossId => [bossId, 0])),
+    powerRanks: Object.fromEntries(POWER_IDS.map(powerId => [powerId, 0])),
+    familyProgress: Object.fromEntries(FAMILY_IDS.map(familyId => [familyId, 0])),
+    bossProgress: Object.fromEntries(BOSS_IDS.map(bossId => [bossId, 0])),
+    powerProgress: Object.fromEntries(POWER_IDS.map(powerId => [powerId, 0])),
   };
 }
 
-export function normalizeCodexState(codex = {}, discoveredPowerIds = []) {
-  const familySeen = Object.fromEntries(
-    Object.keys(ENEMY_FAMILIES).map(familyId => [familyId, !!(codex?.familySeen?.[familyId] || Number(codex?.familyKills?.[familyId] || 0) > 0)])
-  );
-  const bossSeen = Object.fromEntries(
-    BOSSES.map(boss => [boss.id, !!(codex?.bossSeen?.[boss.id] || Number(codex?.bossKills?.[boss.id] || 0) > 0)])
-  );
-  const familyKills = Object.fromEntries(
-    Object.keys(ENEMY_FAMILIES).map(familyId => [familyId, sanitizeWholeNumber(codex?.familyKills?.[familyId] || 0, 0, 10_000_000)])
-  );
-  const bossKills = Object.fromEntries(
-    BOSSES.map(boss => [boss.id, sanitizeWholeNumber(codex?.bossKills?.[boss.id] || 0, 0, 100_000)])
-  );
-  const powerDiscoveries = Object.fromEntries(
-    LEGENDARY_POWERS.map(power => [
-      power.id,
-      sanitizeWholeNumber(codex?.powerDiscoveries?.[power.id] || 0, 0, 100_000),
-    ])
-  );
-  for (const powerId of discoveredPowerIds || []) {
-    if (!powerId || !(powerId in powerDiscoveries)) continue;
-    powerDiscoveries[powerId] = Math.max(1, powerDiscoveries[powerId] || 0);
+function ensureNormalizedCodex(codex = {}) {
+  const research = codex?.research;
+  if (
+    research &&
+    research.familyRanks &&
+    research.bossRanks &&
+    research.powerRanks &&
+    research.familyProgress &&
+    research.bossProgress &&
+    research.powerProgress
+  ) {
+    return codex;
   }
-  return {
-    familySeen,
-    bossSeen,
-    familyKills,
-    bossKills,
-    powerDiscoveries,
-  };
+  return normalizeCodexState(codex);
 }
 
 function addBonus(target, bonus = {}) {
@@ -218,24 +261,191 @@ function addBonus(target, bonus = {}) {
   return target;
 }
 
-function getVisibleLegendaryPowers(abyss = {}) {
-  return LEGENDARY_POWERS.filter(power => !power.unlockKey || hasAbyssUnlock(abyss, power.unlockKey));
+export function createEmptyCodexState() {
+  return {
+    familySeen: {},
+    bossSeen: {},
+    familyKills: {},
+    bossKills: {},
+    powerDiscoveries: {},
+    research: createEmptyResearchState(),
+  };
+}
+
+export function normalizeCodexState(codex = {}, discoveredPowerIds = []) {
+  const familySeen = Object.fromEntries(
+    FAMILY_IDS.map(familyId => [familyId, !!(codex?.familySeen?.[familyId] || Number(codex?.familyKills?.[familyId] || 0) > 0)])
+  );
+  const bossSeen = Object.fromEntries(
+    BOSSES.map(boss => [boss.id, !!(codex?.bossSeen?.[boss.id] || Number(codex?.bossKills?.[boss.id] || 0) > 0)])
+  );
+  const familyKills = Object.fromEntries(
+    FAMILY_IDS.map(familyId => [familyId, sanitizeWholeNumber(codex?.familyKills?.[familyId] || 0, 0, 10_000_000)])
+  );
+  const bossKills = Object.fromEntries(
+    BOSS_IDS.map(bossId => [bossId, sanitizeWholeNumber(codex?.bossKills?.[bossId] || 0, 0, 100_000)])
+  );
+  const powerDiscoveries = Object.fromEntries(
+    POWER_IDS.map(powerId => [powerId, sanitizeWholeNumber(codex?.powerDiscoveries?.[powerId] || 0, 0, 100_000)])
+  );
+
+  for (const powerId of discoveredPowerIds || []) {
+    if (!powerId || !(powerId in powerDiscoveries)) continue;
+    powerDiscoveries[powerId] = Math.max(1, powerDiscoveries[powerId] || 0);
+  }
+
+  const research = createEmptyResearchState();
+  const rawResearch = codex?.research || {};
+  const hasStoredResearch =
+    rawResearch &&
+    (
+      rawResearch.familyRanks ||
+      rawResearch.bossRanks ||
+      rawResearch.powerRanks ||
+      rawResearch.familyProgress ||
+      rawResearch.bossProgress ||
+      rawResearch.powerProgress
+    );
+
+  if (hasStoredResearch) {
+    for (const familyId of FAMILY_IDS) {
+      const maxRank = getFamilyMilestones(familyId).length;
+      const researchedRank = sanitizeWholeNumber(rawResearch?.familyRanks?.[familyId] || 0, 0, maxRank);
+      const needed = getNextFamilyMilestone(familyId, researchedRank)?.kills || 0;
+      research.familyRanks[familyId] = researchedRank;
+      research.familyProgress[familyId] = clampProgress(rawResearch?.familyProgress?.[familyId] || 0, needed);
+    }
+
+    for (const bossId of BOSS_IDS) {
+      const maxRank = getBossMilestones(bossId).length;
+      const researchedRank = sanitizeWholeNumber(rawResearch?.bossRanks?.[bossId] || 0, 0, maxRank);
+      const needed = getNextBossMilestone(bossId, researchedRank)?.kills || 0;
+      research.bossRanks[bossId] = researchedRank;
+      research.bossProgress[bossId] = clampProgress(rawResearch?.bossProgress?.[bossId] || 0, needed);
+    }
+
+    for (const powerId of POWER_IDS) {
+      const discoveries = Number(powerDiscoveries[powerId] || 0);
+      if (discoveries <= 0) {
+        research.powerRanks[powerId] = 0;
+        research.powerProgress[powerId] = 0;
+        continue;
+      }
+
+      const maxRank = getMaxPowerResearchRank();
+      const storedRank = sanitizeWholeNumber(rawResearch?.powerRanks?.[powerId] || 0, 0, maxRank);
+      const researchedRank = Math.max(1, storedRank);
+      const needed = getNextPowerRankEntry(researchedRank)?.discoveries || 0;
+      research.powerRanks[powerId] = researchedRank;
+      research.powerProgress[powerId] = clampProgress(rawResearch?.powerProgress?.[powerId] || 0, needed);
+    }
+  } else {
+    for (const familyId of FAMILY_IDS) {
+      research.familyRanks[familyId] = deriveFamilyRankFromHistoricalKills(familyId, familyKills[familyId]);
+      research.familyProgress[familyId] = 0;
+    }
+
+    for (const bossId of BOSS_IDS) {
+      research.bossRanks[bossId] = deriveBossRankFromHistoricalKills(bossId, bossKills[bossId]);
+      research.bossProgress[bossId] = 0;
+    }
+
+    for (const powerId of POWER_IDS) {
+      research.powerRanks[powerId] = derivePowerRankFromHistoricalDiscoveries(powerDiscoveries[powerId]);
+      research.powerProgress[powerId] = 0;
+    }
+  }
+
+  return {
+    familySeen,
+    bossSeen,
+    familyKills,
+    bossKills,
+    powerDiscoveries,
+    research,
+  };
+}
+
+export function getCodexFamilyResearchState(codex = {}, familyId) {
+  const normalized = ensureNormalizedCodex(codex);
+  const milestones = getFamilyMilestones(familyId);
+  const researchedRank = sanitizeWholeNumber(normalized?.research?.familyRanks?.[familyId] || 0, 0, milestones.length);
+  const nextMilestone = getNextFamilyMilestone(familyId, researchedRank);
+  const researchNeeded = nextMilestone?.kills || 0;
+  const researchProgress = clampProgress(normalized?.research?.familyProgress?.[familyId] || 0, researchNeeded);
+
+  return {
+    familyId,
+    researchedRank,
+    maxResearchRank: milestones.length,
+    researchProgress,
+    researchNeeded,
+    researchReady: !!nextMilestone && researchProgress >= researchNeeded,
+    nextMilestone,
+  };
+}
+
+export function getCodexBossResearchState(codex = {}, bossId) {
+  const normalized = ensureNormalizedCodex(codex);
+  const milestones = getBossMilestones(bossId);
+  const researchedRank = sanitizeWholeNumber(normalized?.research?.bossRanks?.[bossId] || 0, 0, milestones.length);
+  const nextMilestone = getNextBossMilestone(bossId, researchedRank);
+  const researchNeeded = nextMilestone?.kills || 0;
+  const researchProgress = clampProgress(normalized?.research?.bossProgress?.[bossId] || 0, researchNeeded);
+
+  return {
+    bossId,
+    researchedRank,
+    maxResearchRank: milestones.length,
+    researchProgress,
+    researchNeeded,
+    researchReady: !!nextMilestone && researchProgress >= researchNeeded,
+    nextMilestone,
+  };
+}
+
+export function getCodexPowerResearchState(codex = {}, powerId) {
+  const normalized = ensureNormalizedCodex(codex);
+  const discoveries = Number(normalized?.powerDiscoveries?.[powerId] || 0);
+  const maxResearchRank = getMaxPowerResearchRank();
+  const researchedRank =
+    discoveries > 0
+      ? Math.max(1, sanitizeWholeNumber(normalized?.research?.powerRanks?.[powerId] || 0, 0, maxResearchRank))
+      : 0;
+  const nextRank = researchedRank > 0 ? getNextPowerRankEntry(researchedRank) : null;
+  const researchNeeded = nextRank?.discoveries || 0;
+  const researchProgress =
+    researchedRank > 0
+      ? clampProgress(normalized?.research?.powerProgress?.[powerId] || 0, researchNeeded)
+      : 0;
+
+  return {
+    powerId,
+    discoveries,
+    researchedRank,
+    maxResearchRank,
+    researchProgress,
+    researchNeeded,
+    researchReady: !!nextRank && researchProgress >= researchNeeded,
+    nextRank,
+  };
 }
 
 export function computeCodexBonuses(codex = {}) {
   const bonuses = emptyBonuses();
+  const normalized = ensureNormalizedCodex(codex);
 
-  for (const [familyId, config] of Object.entries(FAMILY_MASTERY)) {
-    const kills = Number(codex?.familyKills?.[familyId] || 0);
-    for (const milestone of config.milestones || []) {
-      if (kills >= milestone.kills) addBonus(bonuses, milestone.bonus);
+  for (const familyId of FAMILY_IDS) {
+    const researchedRank = getCodexFamilyResearchState(normalized, familyId).researchedRank;
+    for (const milestone of getFamilyMilestones(familyId).slice(0, researchedRank)) {
+      addBonus(bonuses, milestone.bonus);
     }
   }
 
-  for (const [bossId, config] of Object.entries(BOSS_MASTERY)) {
-    const kills = Number(codex?.bossKills?.[bossId] || 0);
-    for (const milestone of config.milestones || []) {
-      if (kills >= milestone.kills) addBonus(bonuses, milestone.bonus);
+  for (const bossId of BOSS_IDS) {
+    const researchedRank = getCodexBossResearchState(normalized, bossId).researchedRank;
+    for (const milestone of getBossMilestones(bossId).slice(0, researchedRank)) {
+      addBonus(bonuses, milestone.bonus);
     }
   }
 
@@ -271,44 +481,106 @@ export function recordCodexSighting(codex = {}, enemy = {}) {
 export function recordCodexKill(codex = {}, enemy = {}, { familyGain = 1, bossGain = 1 } = {}) {
   const next = normalizeCodexState(recordCodexSighting(codex, enemy));
   const familyId = enemy?.familyTraitId || enemy?.family || null;
+
   if (familyId) {
-    next.familyKills[familyId] = sanitizeWholeNumber(
-      (next.familyKills[familyId] || 0) + Math.max(1, Math.floor(familyGain || 1)),
-      0,
-      10_000_000
-    );
+    const appliedGain = Math.max(1, Math.floor(familyGain || 1));
+    next.familyKills[familyId] = sanitizeWholeNumber((next.familyKills[familyId] || 0) + appliedGain, 0, 10_000_000);
+    const familyResearch = getCodexFamilyResearchState(next, familyId);
+    if (familyResearch.nextMilestone) {
+      next.research.familyProgress[familyId] = clampProgress(
+        Number(next.research?.familyProgress?.[familyId] || 0) + appliedGain,
+        familyResearch.researchNeeded
+      );
+    }
   }
+
   if (enemy?.isBoss && enemy?.id) {
-    next.bossKills[enemy.id] = sanitizeWholeNumber(
-      (next.bossKills[enemy.id] || 0) + Math.max(1, Math.floor(bossGain || 1)),
-      0,
-      100_000
-    );
+    const appliedGain = Math.max(1, Math.floor(bossGain || 1));
+    next.bossKills[enemy.id] = sanitizeWholeNumber((next.bossKills[enemy.id] || 0) + appliedGain, 0, 100_000);
+    const bossResearch = getCodexBossResearchState(next, enemy.id);
+    if (bossResearch.nextMilestone) {
+      next.research.bossProgress[enemy.id] = clampProgress(
+        Number(next.research?.bossProgress?.[enemy.id] || 0) + appliedGain,
+        bossResearch.researchNeeded
+      );
+    }
   }
+
   return next;
 }
 
 export function recordLegendaryPowerDiscovery(codex = {}, item = null, gain = 1) {
   const powerId = item?.legendaryPowerId || null;
   if (!powerId) return { codex: normalizeCodexState(codex), unlockedPower: null };
+
   const next = normalizeCodexState(codex);
   const previousDiscoveries = Number(next.powerDiscoveries?.[powerId] || 0);
-  next.powerDiscoveries[powerId] = sanitizeWholeNumber(
-    previousDiscoveries + Math.max(1, Math.floor(gain || 1)),
-    previousDiscoveries,
-    100_000
-  );
+  const appliedGain = Math.max(1, Math.floor(gain || 1));
+  next.powerDiscoveries[powerId] = sanitizeWholeNumber(previousDiscoveries + appliedGain, previousDiscoveries, 100_000);
+
+  const isFirstDiscovery = previousDiscoveries <= 0;
+  if (isFirstDiscovery) {
+    next.research.powerRanks[powerId] = Math.max(1, Number(next.research?.powerRanks?.[powerId] || 0));
+    next.research.powerProgress[powerId] = 0;
+  }
+
+  const progressGain = isFirstDiscovery ? Math.max(0, appliedGain - 1) : appliedGain;
+  const powerResearch = getCodexPowerResearchState(next, powerId);
+  if (powerResearch.nextRank && progressGain > 0) {
+    next.research.powerProgress[powerId] = clampProgress(
+      Number(next.research?.powerProgress?.[powerId] || 0) + progressGain,
+      powerResearch.researchNeeded
+    );
+  }
+
   return {
     codex: next,
-    unlockedPower: previousDiscoveries <= 0 ? LEGENDARY_POWERS.find(power => power.id === powerId) || null : null,
+    unlockedPower: isFirstDiscovery ? LEGENDARY_POWERS.find(power => power.id === powerId) || null : null,
+  };
+}
+
+export function getLegendaryPowerMastery(powerId, codex = {}) {
+  const normalized = ensureNormalizedCodex(codex);
+  const discoveries = Number(normalized?.powerDiscoveries?.[powerId] || 0);
+
+  if (discoveries <= 0) {
+    return {
+      rank: 0,
+      researchedRank: 0,
+      discoveries: 0,
+      label: "Oculto",
+      imprintCostReduction: 0,
+      huntBias: 0,
+      researchProgress: 0,
+      researchNeeded: 0,
+      canResearchNext: false,
+      nextRank: LEGENDARY_POWER_MASTERY[0] || null,
+    };
+  }
+
+  const powerResearch = getCodexPowerResearchState(normalized, powerId);
+  const currentRank =
+    LEGENDARY_POWER_MASTERY.find(entry => entry.rank === powerResearch.researchedRank) ||
+    LEGENDARY_POWER_MASTERY[0];
+
+  return {
+    ...currentRank,
+    rank: powerResearch.researchedRank,
+    researchedRank: powerResearch.researchedRank,
+    discoveries,
+    researchProgress: powerResearch.researchProgress,
+    researchNeeded: powerResearch.researchNeeded,
+    canResearchNext: powerResearch.researchReady,
+    nextRank: powerResearch.nextRank,
   };
 }
 
 export function getCodexLegendaryPowerEntries(codex = {}, { abyss = {} } = {}) {
+  const normalized = ensureNormalizedCodex(codex);
   return getVisibleLegendaryPowers(abyss).map(power => {
-    const discoveries = Number(codex?.powerDiscoveries?.[power.id] || 0);
+    const discoveries = Number(normalized?.powerDiscoveries?.[power.id] || 0);
     const sources = getLegendaryPowerSources(power.id);
-    const mastery = getLegendaryPowerMastery(power.id, codex);
+    const mastery = getLegendaryPowerMastery(power.id, normalized);
     return {
       ...power,
       discoveries,
@@ -319,33 +591,8 @@ export function getCodexLegendaryPowerEntries(codex = {}, { abyss = {} } = {}) {
   });
 }
 
-export function getLegendaryPowerMastery(powerId, codex = {}) {
-  const discoveries = Number(codex?.powerDiscoveries?.[powerId] || 0);
-  if (discoveries <= 0) {
-    return {
-      rank: 0,
-      discoveries: 0,
-      label: "Oculto",
-      imprintCostReduction: 0,
-      huntBias: 0,
-      nextRank: LEGENDARY_POWER_MASTERY[0] || null,
-    };
-  }
-  const rank = [...LEGENDARY_POWER_MASTERY]
-    .reverse()
-    .find(entry => discoveries >= entry.discoveries) || LEGENDARY_POWER_MASTERY[0];
-  const nextRank = LEGENDARY_POWER_MASTERY.find(entry => entry.discoveries > discoveries) || null;
-  return {
-    ...rank,
-    discoveries,
-    nextRank,
-  };
-}
-
 export function getLegendaryPowerMasteryMap(codex = {}) {
-  return Object.fromEntries(
-    LEGENDARY_POWERS.map(power => [power.id, getLegendaryPowerMastery(power.id, codex)])
-  );
+  return Object.fromEntries(POWER_IDS.map(powerId => [powerId, getLegendaryPowerMastery(powerId, codex)]));
 }
 
 export function getLegendaryPowerImprintReduction(codex = {}, powerId = null) {
@@ -364,8 +611,14 @@ export function getUnlockedLegendaryPowers(codex = {}, { specialization = null, 
   return getCodexLegendaryPowerEntries(codex, { abyss })
     .filter(entry => entry.unlocked)
     .sort((left, right) => {
-      const leftPreferred = left.archetype === "general" || preferredArchetypes.includes(left.archetype) || left.archetype === defaultArchetype;
-      const rightPreferred = right.archetype === "general" || preferredArchetypes.includes(right.archetype) || right.archetype === defaultArchetype;
+      const leftPreferred =
+        left.archetype === "general" ||
+        preferredArchetypes.includes(left.archetype) ||
+        left.archetype === defaultArchetype;
+      const rightPreferred =
+        right.archetype === "general" ||
+        preferredArchetypes.includes(right.archetype) ||
+        right.archetype === defaultArchetype;
       if (leftPreferred !== rightPreferred) return leftPreferred ? -1 : 1;
       if ((right.mastery?.rank || 0) !== (left.mastery?.rank || 0)) return (right.mastery?.rank || 0) - (left.mastery?.rank || 0);
       if ((right.discoveries || 0) !== (left.discoveries || 0)) return (right.discoveries || 0) - (left.discoveries || 0);
@@ -418,7 +671,10 @@ function getCurrentRunBossInfoMap(runContext = null, maxTier = 1) {
     infoByBossId.set(bossId, {
       inCurrentRoute: true,
       currentRunSlot: previous?.currentRunSlot != null ? Math.min(previous.currentRunSlot, slot) : slot,
-      earliestCurrentRunTier: previous?.earliestCurrentRunTier != null ? Math.min(previous.earliestCurrentRunTier, earliestCurrentRunTier) : earliestCurrentRunTier,
+      earliestCurrentRunTier:
+        previous?.earliestCurrentRunTier != null
+          ? Math.min(previous.earliestCurrentRunTier, earliestCurrentRunTier)
+          : earliestCurrentRunTier,
       bestUnlockedTier: Math.max(previous?.bestUnlockedTier || 0, bestUnlockedTier || 0) || null,
     });
   }
@@ -447,16 +703,19 @@ export function getHighestUnlockedTierForBoss(bossId, maxTier = 1, runContext = 
 }
 
 export function getBestUnlockedTierForPower(entry = {}, maxTier = 1, runContext = null) {
-  const bossTier = (entry.sources?.bossIds || [])
-    .map(bossId => getHighestUnlockedTierForBoss(bossId, maxTier, runContext))
-    .filter(tier => tier != null)
-    .sort((left, right) => right - left)[0] || null;
+  const bossTier =
+    (entry.sources?.bossIds || [])
+      .map(bossId => getHighestUnlockedTierForBoss(bossId, maxTier, runContext))
+      .filter(tier => tier != null)
+      .sort((left, right) => right - left)[0] || null;
   if (bossTier) return bossTier;
 
-  return (entry.sources?.familyIds || [])
-    .map(familyId => getHighestUnlockedTierForFamily(familyId, maxTier, runContext))
-    .filter(Boolean)
-    .sort((left, right) => right - left)[0] || null;
+  return (
+    (entry.sources?.familyIds || [])
+      .map(familyId => getHighestUnlockedTierForFamily(familyId, maxTier, runContext))
+      .filter(Boolean)
+      .sort((left, right) => right - left)[0] || null
+  );
 }
 
 function matchesPreferredArchetype(entry = {}, specialization = null, className = null) {
@@ -467,42 +726,49 @@ function matchesPreferredArchetype(entry = {}, specialization = null, className 
 }
 
 export function getCodexFamilyEntries(codex = {}) {
+  const normalized = ensureNormalizedCodex(codex);
   return Object.entries(ENEMY_FAMILIES).map(([familyId, family]) => {
-    const kills = Number(codex?.familyKills?.[familyId] || 0);
+    const kills = Number(normalized?.familyKills?.[familyId] || 0);
     const mastery = FAMILY_MASTERY[familyId] || { milestones: [] };
-    const unlockedCount = mastery.milestones.filter(milestone => kills >= milestone.kills).length;
-    const nextMilestone = mastery.milestones.find(milestone => kills < milestone.kills) || null;
+    const research = getCodexFamilyResearchState(normalized, familyId);
+
     return {
       id: familyId,
-      seen: !!codex?.familySeen?.[familyId],
+      seen: !!normalized?.familySeen?.[familyId],
       name: family.name,
       traitName: family.traitName,
       description: family.description,
       kills,
       milestones: mastery.milestones,
-      unlockedCount,
-      nextMilestone,
+      unlockedCount: research.researchedRank,
+      researchedRank: research.researchedRank,
+      researchProgress: research.researchProgress,
+      researchNeeded: research.researchNeeded,
+      researchReady: research.researchReady,
+      maxResearchRank: research.maxResearchRank,
+      nextMilestone: research.nextMilestone,
     };
   });
 }
 
 export function getCodexBossEntries(codex = {}, { maxTier = 1, runContext = null, abyss = {} } = {}) {
+  const normalized = ensureNormalizedCodex(codex);
   const normalizedMaxTier = Number(maxTier || 1);
   const currentRunInfoById = getCurrentRunBossInfoMap(runContext, normalizedMaxTier);
 
   return BOSSES.map(boss => {
-    const kills = Number(codex?.bossKills?.[boss.id] || 0);
+    const kills = Number(normalized?.bossKills?.[boss.id] || 0);
     const mastery = BOSS_MASTERY[boss.id] || { milestones: [] };
-    const unlockedCount = mastery.milestones.filter(milestone => kills >= milestone.kills).length;
-    const nextMilestone = mastery.milestones.find(milestone => kills < milestone.kills) || null;
+    const research = getCodexBossResearchState(normalized, boss.id);
     const currentRunInfo = getCurrentRunBossInfo(boss.id, {
       maxTier: normalizedMaxTier,
       runContext,
       infoByBossId: currentRunInfoById,
     });
+
     return {
       id: boss.id,
-      seen: !!codex?.bossSeen?.[boss.id],
+      seen: !!normalized?.bossSeen?.[boss.id],
       name: boss.name,
       family: boss.family,
       tier: boss.tier,
@@ -515,8 +781,13 @@ export function getCodexBossEntries(codex = {}, { maxTier = 1, runContext = null
       legendaryDrops: getTargetedLegendaryDropsForEnemy(boss, { abyss }),
       milestones: mastery.milestones,
       kills,
-      unlockedCount,
-      nextMilestone,
+      unlockedCount: research.researchedRank,
+      researchedRank: research.researchedRank,
+      researchProgress: research.researchProgress,
+      researchNeeded: research.researchNeeded,
+      researchReady: research.researchReady,
+      maxResearchRank: research.maxResearchRank,
+      nextMilestone: research.nextMilestone,
       ...currentRunInfo,
     };
   });
@@ -530,7 +801,10 @@ export function getCodexUnlockedMilestones(codex = {}, { abyss = {} } = {}) {
   return masteryMilestones + unlockedPowers;
 }
 
-export function getCodexHuntOverview(codex = {}, { maxTier = 1, specialization = null, className = null, runContext = null, abyss = {} } = {}) {
+export function getCodexHuntOverview(
+  codex = {},
+  { maxTier = 1, specialization = null, className = null, runContext = null, abyss = {} } = {}
+) {
   const powerEntries = getCodexLegendaryPowerEntries(codex, { abyss });
   const bossEntries = getCodexBossEntries(codex, { maxTier, runContext, abyss });
   const familyEntries = getCodexFamilyEntries(codex);
@@ -555,7 +829,7 @@ export function getCodexHuntOverview(codex = {}, { maxTier = 1, specialization =
       ...entry,
       sourceTier: getBestUnlockedTierForPower(entry, maxTier, runContext),
       preferredArchetype: matchesPreferredArchetype(entry, specialization, className),
-      remainingCopies: Math.max(0, Number(entry.mastery?.nextRank?.discoveries || 0) - Number(entry.discoveries || 0)),
+      remainingCopies: Math.max(0, Number(entry.mastery?.researchNeeded || 0) - Number(entry.mastery?.researchProgress || 0)),
     }))
     .filter(entry => entry.sourceTier != null)
     .sort((left, right) => {

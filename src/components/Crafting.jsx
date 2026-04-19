@@ -86,7 +86,7 @@ export default function Crafting({ state, dispatch }) {
   const reforgeSession = state?.combat?.reforgeSession || null;
   const isReforgeLocked = !!reforgeSession;
 
-  const [mode, setMode] = useState("upgrade");
+  const [mode, setMode] = useState("reroll");
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [selectedAffixIndex, setSelectedAffixIndex] = useState(null);
   const [selectedReforgeOption, setSelectedReforgeOption] = useState(null);
@@ -301,8 +301,8 @@ export default function Crafting({ state, dispatch }) {
     }, 0);
   }, [selectedIds, inventory]);
   const modeTooltip = FORGE_MODE_TOOLTIPS[mode] || null;
-  const modeMeta = FORGE_MODE_META[mode] || FORGE_MODE_META.upgrade;
-  const isSingleItemMode = mode === "upgrade" || mode === "reroll" || mode === "polish" || mode === "reforge" || mode === "ascend";
+  const modeMeta = FORGE_MODE_META[mode] || FORGE_MODE_META.reroll;
+  const isSingleItemMode = mode === "reroll" || mode === "polish" || mode === "reforge" || mode === "ascend";
   const selectedCompareItem = selectedItem ? (selectedItem.type === "weapon" ? equipment.weapon : equipment.armor) : null;
   const selectedRelevantStats = selectedItem ? getPrioritizedStatEntries(selectedItem.bonus || {}, Number.MAX_SAFE_INTEGER) : [];
   const selectedImplicitSummary = selectedItem ? formatImplicitSummary(selectedItem) : "";
@@ -398,9 +398,6 @@ export default function Crafting({ state, dispatch }) {
   const showSelectedActionButtonCost = !!selectedActionMetaLabel && selectedActionMetaLabel !== "Costo ya pagado";
   const selectedActionStickySummary = useMemo(() => {
     if (!selectedItem || !isSingleItemMode) return "";
-    if (mode === "upgrade") {
-      return `Riesgo de fallo: ${formatValue((selectedActionReq.failChance || 0) * 100)}% · si falla baja un nivel.`;
-    }
     if (mode === "reroll") {
       return "Reroll rehace todos los afijos del item.";
     }
@@ -546,12 +543,7 @@ export default function Crafting({ state, dispatch }) {
 
     if (!req?.can) return false;
 
-    if (mode === "upgrade") {
-      setPendingCraftFeedback({ type: "upgrade", itemId: selectedItem.id, previousLevel: selectedItem.level ?? 0 });
-    }
-
     const actionType = {
-      upgrade: "CRAFT_UPGRADE_ITEM",
       reroll: "CRAFT_REROLL_ITEM",
       polish: "CRAFT_POLISH_ITEM",
       ascend: "CRAFT_ASCEND_ITEM",
@@ -569,9 +561,7 @@ export default function Crafting({ state, dispatch }) {
       },
     });
     triggerSuccess(selectedItem.id);
-    if (mode !== "upgrade") {
-      pulseSelectedAction("success", "Accion aplicada");
-    }
+    pulseSelectedAction("success", "Accion aplicada");
     return true;
   };
 
@@ -603,7 +593,7 @@ export default function Crafting({ state, dispatch }) {
   return (
     <div style={{ padding: isMobile ? "0 10px 10px" : "0 14px 14px", display: "flex", flexDirection: "column", gap: "12px", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", minHeight: "100%" }}>
       <div ref={stickyHeaderRef} style={{ position: "sticky", top: "var(--app-header-offset, 96px)", zIndex: 80, display: "flex", flexDirection: "column", gap: "8px", paddingTop: "8px", paddingBottom: "6px", background: "var(--color-background-primary, #f8fafc)", boxShadow: "0 10px 18px -16px rgba(15,23,42,0.45)" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: "6px", width: "100%", minWidth: 0 }}>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(1, FORGE_MODE_ORDER.length)}, minmax(0, 1fr))`, gap: "6px", width: "100%", minWidth: 0 }}>
           {FORGE_MODE_ORDER.map((m) => (
             <ToolBtn
               key={m}
@@ -949,7 +939,7 @@ export default function Crafting({ state, dispatch }) {
                 Poder legendario opcional
               </div>
               <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35 }}>
-                Si ya descubriste poderes en Codex, podes injertar uno al ascender esta pieza a legendaria. Si no elegis ninguno, el item asciende sin poder.
+                Si ya descubriste poderes en Biblioteca, podes injertar uno al ascender esta pieza a legendaria. Si no eliges ninguno, el item asciende sin poder.
               </div>
               <div style={{ display: "grid", gap: "6px" }}>
                 <button
@@ -1009,7 +999,7 @@ export default function Crafting({ state, dispatch }) {
                   </button>
                 )) : (
                   <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", textAlign: "center" }}>
-                    Todavia no descubriste poderes. Cazalos primero desde bosses o familias objetivo.
+                    Todavia no descubriste poderes. Cazalos primero desde bosses o familias objetivo y luego gestionálos en Biblioteca.
                   </div>
                 )}
               </div>

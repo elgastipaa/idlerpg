@@ -241,9 +241,9 @@ export default function Prestige({ state, dispatch }) {
       <section style={summaryPanelStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "12px", flexWrap: "wrap" }}>
           <div style={{ minWidth: 0 }}>
-            <div style={sectionTitleStyle}>Reset</div>
+            <div style={sectionTitleStyle}>Ecos</div>
             <div style={{ fontSize: "1.18rem", color: "#f8fafc", fontWeight: 900, marginTop: "6px" }}>
-              {prestigeCheck.ok ? `+${formatNumber(echoesOnNext)} ecos` : "Todavia no rinde resetear"}
+              {prestigeCheck.ok ? `+${formatNumber(echoesOnNext)} ecos al extraer` : "Todavia no rinde extraer por ecos"}
             </div>
             <div style={{ ...smallCopyStyle, marginTop: "6px", color: "#cbd5e1" }}>
               {prestigeCheck.ok
@@ -251,20 +251,23 @@ export default function Prestige({ state, dispatch }) {
                 : "Segui empujando tier y nivel; el momentum premia acercarte o superar tu mejor run historica."}
             </div>
           </div>
-          <button
-            onClick={() => dispatch({ type: "PRESTIGE" })}
-            disabled={!prestigeCheck.ok}
+          <div
             style={{
-              ...actionButtonStyle,
+              border: "1px solid rgba(148,163,184,0.28)",
+              borderRadius: "14px",
+              padding: "10px 12px",
+              background: "rgba(15,23,42,0.22)",
               width: isMobile ? "100%" : "auto",
               minWidth: isMobile ? undefined : "220px",
-              background: prestigeCheck.ok ? "#f59e0b" : "#334155",
-              color: prestigeCheck.ok ? "#111827" : "#94a3b8",
-              cursor: prestigeCheck.ok ? "pointer" : "not-allowed",
             }}
           >
-            {prestigeCheck.ok ? "Prestigiar ahora" : "Segui la corrida"}
-          </button>
+            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "#cbd5e1" }}>
+              Salida de expedicion
+            </div>
+            <div style={{ fontSize: "0.74rem", color: "#e2e8f0", marginTop: "4px", lineHeight: 1.45, maxWidth: "28ch" }}>
+              La conversion a ecos ocurre desde <strong>Extraer al Santuario</strong>. Esta tab queda para resonancia, arbol y pacing meta.
+            </div>
+          </div>
         </div>
 
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "12px" }}>

@@ -7,6 +7,12 @@ import { createEmptyReplayLibrary, createEmptyReplayLog, normalizeReplayLibrary,
 import { calcItemRating } from "./inventory/inventoryEngine";
 import { spawnEnemy } from "./combat/enemyEngine";
 import { createRunContext, normalizeRunContext } from "./combat/encounterRouting";
+import {
+  buildSanctuaryStationsWithLaboratory,
+  createEmptyLaboratoryState,
+  normalizeLaboratoryState,
+  SANCTUARY_STATION_DEFAULTS,
+} from "./sanctuary/laboratoryEngine";
 import { refreshStats } from "./combat/statEngine";
 import { createEmptyCodexState, normalizeCodexState, recordCodexSighting, syncCodexBonuses } from "./progression/codexEngine";
 import { createEmptyAbyssState, getMaxRunSigilSlots, normalizeAbyssState } from "./progression/abyssProgression";
@@ -14,6 +20,14 @@ import { createEmptyPrestigeCycleProgress, normalizePrestigeState, syncPrestigeB
 import { rebuildPlayerProgressionBonuses } from "./progression/progressionEngine";
 import { getRunSigil, getRunSigilPlayerBonuses, normalizeRunSigilIds } from "../data/runSigils";
 import { migrateTalentsToV2, TALENT_SYSTEM_VERSION } from "./migrations/talentsV2Migration";
+import {
+  convertLegacyProjectToBlueprint,
+  createEmptyBlueprintLoadout,
+  createEmptyFamilyChargeState,
+  ensureValidActiveBlueprints,
+  normalizeBlueprintRecord,
+  normalizeExtractedItemRecord,
+} from "./sanctuary/blueprintEngine";
 
 const MAX_REWARD_GOLD = Math.max(
   1,
@@ -26,7 +40,8 @@ const SAFE_LEVEL_RECOVERY_CAP = 2_000;
 const SAFE_BASE_DAMAGE_RECOVERY_CAP = 5_000;
 const SAFE_BASE_MAX_HP_RECOVERY_CAP = 100_000;
 const SAFE_TALENT_POINT_RECOVERY_CAP = 10_000;
-const VALID_TABS = new Set(["character", "combat", "inventory", "skills", "talents", "crafting", "prestige", "achievements", "stats", "lab", "codex"]);
+const VALID_TABS = new Set(["sanctuary", "character", "combat", "inventory", "skills", "talents", "crafting", "prestige", "achievements", "stats", "registry", "system", "lab", "codex"]);
+const EXPEDITION_TABS = new Set(["combat", "inventory", "crafting", "codex"]);
 
 function sanitizeStoredResource(value, { fallback = 0, recoveryCap = Number.MAX_SAFE_INTEGER } = {}) {
   const numeric = Number(value);
@@ -103,6 +118,95 @@ const DEFAULT_LOOT_RULES = {
 };
 
 const DEFAULT_RUN_CONTEXT = createRunContext({ firstRun: true });
+
+function createEmptySanctuaryState() {
+  return {
+    stash: [],
+    extractedItems: [],
+    blueprints: [],
+    cargoInventory: [],
+    jobs: [],
+    deepForgeSession: null,
+    resources: {
+      codexInk: 0,
+      sigilFlux: 0,
+      relicDust: 0,
+    },
+    familyCharges: createEmptyFamilyChargeState(),
+    activeBlueprints: createEmptyBlueprintLoadout(),
+    sigilInfusions: {},
+    laboratory: createEmptyLaboratoryState(),
+    stations: Object.fromEntries(
+      Object.entries(SANCTUARY_STATION_DEFAULTS).map(([stationId, defaults]) => [
+        stationId,
+        { ...defaults },
+      ])
+    ),
+    extractionUpgrades: {
+      cargoSlots: 2,
+      projectSlots: 1,
+      extractedItemSlots: 3,
+      relicSlots: 0,
+      insuredCargoSlots: 0,
+    },
+  };
+}
+
+function createEmptyExpeditionState() {
+  return {
+    phase: "sanctuary",
+    id: null,
+    startedAt: null,
+    exitReason: null,
+    deathCount: 0,
+    deathLimit: 3,
+    seenFamilyIds: [],
+    cargoFound: [],
+    projectCandidates: [],
+    selectedCargoIds: [],
+    selectedProjectItemId: null,
+    extractionPreview: null,
+    activeInfusionIds: [],
+    activeInfusionPlayerBonuses: {},
+    activeExtractionBonuses: {},
+  };
+}
+
+function mergeNumericBonuses(target = {}, source = {}) {
+  const next = { ...(target || {}) };
+  for (const [key, rawValue] of Object.entries(source || {})) {
+    const value = Number(rawValue || 0);
+    if (!Number.isFinite(value) || value === 0) continue;
+    next[key] = Number(next[key] || 0) + value;
+  }
+  return next;
+}
+
+function deriveExpeditionPhase({ player = {}, combat = {} } = {}) {
+  if (combat?.pendingRunSetup) return "setup";
+  if (player?.class && player?.specialization) return "active";
+  return "sanctuary";
+}
+
+function getDefaultTabForPhase(phase = "sanctuary") {
+  return phase === "active" ? "combat" : "sanctuary";
+}
+
+function normalizeStoredTab(tab, { phase = "sanctuary", prestigeUnlocked = false } = {}) {
+  const fallback = getDefaultTabForPhase(phase);
+  const candidate = VALID_TABS.has(tab) ? tab : fallback;
+  if (candidate === "lab") return fallback;
+  if (!prestigeUnlocked && candidate === "prestige") return fallback;
+  if (phase !== "active" && EXPEDITION_TABS.has(candidate)) return fallback;
+  return candidate;
+}
+
+function appendSeenFamilyIds(expedition = {}, enemy = null) {
+  const familyId = enemy?.familyTraitId || enemy?.family || null;
+  const current = Array.isArray(expedition?.seenFamilyIds) ? expedition.seenFamilyIds : [];
+  if (!familyId || current.includes(familyId)) return current;
+  return [...current, familyId];
+}
 
 const freshState = {
   player: {
@@ -190,7 +294,9 @@ const freshState = {
     lootRules: DEFAULT_LOOT_RULES,
   },
 
-  currentTab: "character",
+  currentTab: "sanctuary",
+  sanctuary: createEmptySanctuaryState(),
+  expedition: createEmptyExpeditionState(),
 
   combat: {
     enemy: spawnEnemy(1, DEFAULT_RUN_CONTEXT),
@@ -370,6 +476,8 @@ function mergeStateWithDefaults(base, incoming) {
   const normalizedCodex = normalizeCodexState(migratedIncoming.codex || base.codex, discoveredLegendaryPowerIds);
   const rawPlayer = migratedIncoming.player || {};
   const rawCombat = migratedIncoming.combat || {};
+  const rawSanctuary = migratedIncoming.sanctuary || {};
+  const rawExpedition = migratedIncoming.expedition || {};
   const abyssTierCandidate = Math.max(
     Number(migratedIncoming.abyss?.highestTierReached || 1),
     Number(rawCombat.maxTier || 1),
@@ -416,6 +524,132 @@ function mergeStateWithDefaults(base, incoming) {
       ? createRunContext()
       : base.combat.runContext;
   const normalizedRunContext = normalizeRunContext(fallbackRunContext);
+  const derivedExpeditionPhase = deriveExpeditionPhase({
+    player: {
+      class: rawPlayer.class ?? base.player.class,
+      specialization: rawPlayer.specialization ?? base.player.specialization,
+    },
+    combat: {
+      pendingRunSetup,
+    },
+  });
+  const preLaboratorySanctuary = {
+    ...createEmptySanctuaryState(),
+    ...rawSanctuary,
+    stash: [],
+    extractedItems: Array.isArray(rawSanctuary.extractedItems)
+      ? rawSanctuary.extractedItems.map(item => normalizeExtractedItemRecord(item)).filter(Boolean)
+      : [],
+    blueprints: (
+      Array.isArray(rawSanctuary.blueprints)
+        ? rawSanctuary.blueprints.map(blueprint => normalizeBlueprintRecord(blueprint)).filter(Boolean)
+        : Array.isArray(rawSanctuary.stash)
+          ? rawSanctuary.stash.map(project => convertLegacyProjectToBlueprint(project)).filter(Boolean)
+          : []
+    ),
+    cargoInventory: Array.isArray(rawSanctuary.cargoInventory) ? [...rawSanctuary.cargoInventory] : [],
+    jobs: Array.isArray(rawSanctuary.jobs)
+      ? rawSanctuary.jobs.filter(job => job?.type !== "forge_project")
+      : [],
+    deepForgeSession: null,
+    resources: {
+      ...createEmptySanctuaryState().resources,
+      ...(rawSanctuary.resources || {}),
+    },
+    familyCharges: {
+      ...createEmptySanctuaryState().familyCharges,
+      ...(rawSanctuary.familyCharges || {}),
+    },
+    activeBlueprints: ensureValidActiveBlueprints(
+      Array.isArray(rawSanctuary.blueprints)
+        ? rawSanctuary.blueprints
+        : Array.isArray(rawSanctuary.stash)
+          ? rawSanctuary.stash.map(project => convertLegacyProjectToBlueprint(project)).filter(Boolean)
+          : [],
+      {
+        ...createEmptySanctuaryState().activeBlueprints,
+        ...(rawSanctuary.activeBlueprints || {}),
+      }
+    ),
+    sigilInfusions: {
+      ...createEmptySanctuaryState().sigilInfusions,
+      ...(rawSanctuary.sigilInfusions || {}),
+    },
+    laboratory: createEmptyLaboratoryState(),
+    stations: {
+      ...createEmptySanctuaryState().stations,
+      ...(rawSanctuary.stations || {}),
+      distillery: {
+        ...createEmptySanctuaryState().stations.distillery,
+        ...((rawSanctuary.stations || {}).distillery || {}),
+      },
+      errands: {
+        ...createEmptySanctuaryState().stations.errands,
+        ...((rawSanctuary.stations || {}).errands || {}),
+      },
+      sigilInfusion: {
+        ...createEmptySanctuaryState().stations.sigilInfusion,
+        ...((rawSanctuary.stations || {}).sigilInfusion || {}),
+      },
+      codexResearch: {
+        ...createEmptySanctuaryState().stations.codexResearch,
+        ...((rawSanctuary.stations || {}).codexResearch || {}),
+      },
+      deepForge: {
+        ...createEmptySanctuaryState().stations.deepForge,
+        ...((rawSanctuary.stations || {}).deepForge || {}),
+      },
+    },
+    extractionUpgrades: {
+      ...createEmptySanctuaryState().extractionUpgrades,
+      ...(rawSanctuary.extractionUpgrades || {}),
+    },
+  };
+  const normalizedLaboratory = normalizeLaboratoryState(rawSanctuary.laboratory || {}, preLaboratorySanctuary, {
+    prestige: normalizedPrestige,
+    combat: rawCombat,
+    codex: normalizedCodex,
+    abyss: normalizedAbyss,
+  });
+  const normalizedSanctuary = {
+    ...preLaboratorySanctuary,
+    laboratory: normalizedLaboratory,
+    stations: buildSanctuaryStationsWithLaboratory(
+      preLaboratorySanctuary.stations,
+      normalizedLaboratory,
+      preLaboratorySanctuary,
+      {
+        prestige: normalizedPrestige,
+        combat: rawCombat,
+        codex: normalizedCodex,
+        abyss: normalizedAbyss,
+      }
+    ),
+  };
+  const normalizedExpedition = {
+    ...createEmptyExpeditionState(),
+    ...rawExpedition,
+    phase: rawExpedition.phase || derivedExpeditionPhase,
+    deathCount: Math.max(0, Number(rawExpedition.deathCount || 0)),
+    deathLimit: Math.max(1, Number(rawExpedition.deathLimit || createEmptyExpeditionState().deathLimit || 3)),
+    seenFamilyIds: Array.isArray(rawExpedition.seenFamilyIds)
+      ? [...new Set(rawExpedition.seenFamilyIds.filter(Boolean))]
+      : [],
+    cargoFound: Array.isArray(rawExpedition.cargoFound) ? [...rawExpedition.cargoFound] : [],
+    projectCandidates: Array.isArray(rawExpedition.projectCandidates) ? [...rawExpedition.projectCandidates] : [],
+    selectedCargoIds: Array.isArray(rawExpedition.selectedCargoIds) ? [...rawExpedition.selectedCargoIds] : [],
+    selectedProjectItemId: rawExpedition.selectedProjectItemId || null,
+    extractionPreview: rawExpedition.extractionPreview || null,
+    activeInfusionIds: Array.isArray(rawExpedition.activeInfusionIds) ? [...rawExpedition.activeInfusionIds] : [],
+    activeInfusionPlayerBonuses: {
+      ...createEmptyExpeditionState().activeInfusionPlayerBonuses,
+      ...(rawExpedition.activeInfusionPlayerBonuses || {}),
+    },
+    activeExtractionBonuses: {
+      ...createEmptyExpeditionState().activeExtractionBonuses,
+      ...(rawExpedition.activeExtractionBonuses || {}),
+    },
+  };
 
   const hasPlayerStatCorruption =
     !Number.isFinite(rawBaseDamage) ||
@@ -521,7 +755,12 @@ function mergeStateWithDefaults(base, incoming) {
         Number(rawPlayer.talentSystemVersion || TALENT_SYSTEM_VERSION),
       gold: sanitizedGold,
       essence: sanitizedEssence,
-      runSigilBonuses: pendingRunSetup ? {} : getRunSigilPlayerBonuses(activeRunSigilIds),
+      runSigilBonuses: pendingRunSetup
+        ? {}
+        : mergeNumericBonuses(
+            getRunSigilPlayerBonuses(activeRunSigilIds),
+            normalizedExpedition.activeInfusionPlayerBonuses || {}
+          ),
       inventory: normalizedInventory,
       equipment: {
         ...base.player.equipment,
@@ -593,6 +832,14 @@ function mergeStateWithDefaults(base, incoming) {
       ...normalizedPrestige,
       bestHistoricTier: fallbackHistoricBestTier,
     },
+    sanctuary: normalizedSanctuary,
+    expedition: {
+      ...normalizedExpedition,
+      seenFamilyIds: appendSeenFamilyIds(
+        normalizedExpedition,
+        normalizedExpedition.phase === "active" ? normalizeEnemy(rawCombat.enemy, rawCombat.currentTier, normalizedRunContext) : null
+      ),
+    },
     abyss: normalizedAbyss,
     codex: recordCodexSighting(normalizedCodex, normalizeEnemy(rawCombat.enemy, rawCombat.currentTier, normalizedRunContext)),
     replay: normalizedReplay,
@@ -629,12 +876,15 @@ function mergeStateWithDefaults(base, incoming) {
   return {
     ...mergedState,
     savedAt: detectedCorruption ? Date.now() : migratedIncoming.savedAt,
-    currentTab:
-      detectedCorruption
-        ? "combat"
-        : VALID_TABS.has(migratedIncoming.currentTab)
-          ? migratedIncoming.currentTab
-          : base.currentTab,
+    currentTab: normalizeStoredTab(
+      detectedCorruption ? "combat" : migratedIncoming.currentTab,
+      {
+        phase: normalizedExpedition.phase,
+        prestigeUnlocked:
+          Number(normalizedPrestige.level || 0) > 0 ||
+          Number(normalizedPrestige.totalEchoesEarned || 0) > 0,
+      }
+    ),
     player: normalizedPlayer,
     combat: {
       ...mergedState.combat,

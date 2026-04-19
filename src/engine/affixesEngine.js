@@ -13,11 +13,11 @@ const TIER_WEIGHT_BY_ITEM_TIER = [
   { maxTier: Number.POSITIVE_INFINITY, weights: { 1: 1.0, 2: 0.95, 3: 0.7 } },
 ];
 
-function weightedPick(pool, getWeight = candidate => candidate.weight || 0) {
+function weightedPick(pool, getWeight = candidate => candidate.weight || 0, randomFn = Math.random) {
   const totalWeight = pool.reduce((sum, candidate) => sum + getWeight(candidate), 0);
   if (totalWeight <= 0) return pool[0] || null;
 
-  let roll = Math.random() * totalWeight;
+  let roll = randomFn() * totalWeight;
   for (const candidate of pool) {
     const weight = getWeight(candidate);
     if (roll < weight) return candidate;
@@ -40,10 +40,10 @@ function uniqueWeightedPick(pool, count, getWeight) {
   return result;
 }
 
-function rollWithinRange(range) {
+function rollWithinRange(range, randomFn = Math.random) {
   if (typeof range === "number") return range;
   if (range?.min == null || range?.max == null) return 0;
-  return Math.random() * (range.max - range.min) + range.min;
+  return randomFn() * (range.max - range.min) + range.min;
 }
 
 function roundAffixValue(value) {
@@ -143,13 +143,13 @@ function getTierWeightMultiplier(itemTier = 1, tier) {
   return bracket.weights?.[tier] ?? 1;
 }
 
-function pickTier(affix, itemTier = 1) {
+function pickTier(affix, itemTier = 1, randomFn = Math.random) {
   const tierPool = getTierEntries(affix);
-  return weightedPick(tierPool, entry => entry.weight * getTierWeightMultiplier(itemTier, entry.tier));
+  return weightedPick(tierPool, entry => entry.weight * getTierWeightMultiplier(itemTier, entry.tier), randomFn);
 }
 
-function buildRolledAffix(affix, tierEntry) {
-  const rolledValue = roundAffixValue(rollWithinRange(tierEntry.value));
+function buildRolledAffix(affix, tierEntry, randomFn = Math.random) {
+  const rolledValue = roundAffixValue(rollWithinRange(tierEntry.value, randomFn));
   const min = tierEntry.value?.min ?? tierEntry.value ?? rolledValue;
   const max = tierEntry.value?.max ?? tierEntry.value ?? rolledValue;
   const highThreshold = min + (max - min) * 0.98;
@@ -186,6 +186,7 @@ function getAffixPoolWeight({
   affix,
   itemTier = 1,
   favoredStats = [],
+  favoredStatWeights = {},
   favoredStatWeightMultiplier = 2.4,
   state,
   allowExistingStatOverlap = false,
@@ -195,7 +196,10 @@ function getAffixPoolWeight({
   const normalizedStat = normalizeLegacyStatKey(affix.stat);
   const tiers = getTierEntries(affix);
   const baseWeight = tiers.reduce((sum, entry) => sum + entry.weight * getTierWeightMultiplier(itemTier, entry.tier), 0);
-  const favoredBonus = favoredStats.includes(normalizedStat) ? favoredStatWeightMultiplier : 1;
+  const explicitWeight = Math.max(0, Number(favoredStatWeights?.[normalizedStat] || 0));
+  const favoredBonus = explicitWeight > 0
+    ? explicitWeight
+    : (favoredStats.includes(normalizedStat) ? favoredStatWeightMultiplier : 1);
   if (baseWeight <= 0) return 0;
   if (state.usedAffixIds.has(affix.id)) return 0;
   if (state.usedAffixStats.has(normalizedStat)) return 0;
@@ -212,10 +216,12 @@ function rollSingleAffix(pool, state, options = {}) {
   const {
     itemTier = 1,
     favoredStats = [],
+    favoredStatWeights = {},
     favoredStatWeightMultiplier = 2.4,
     allowExistingStatOverlap = false,
     overlapPenalty = 0.3,
     maxExistingStatOverlaps = 1,
+    randomFn = Math.random,
   } = options;
   const available = filterByCategory(pool, state.usedCategories);
   if (!available.length) return null;
@@ -224,15 +230,16 @@ function rollSingleAffix(pool, state, options = {}) {
     affix,
     itemTier,
     favoredStats,
+    favoredStatWeights,
     favoredStatWeightMultiplier,
     state,
     allowExistingStatOverlap,
     overlapPenalty,
     maxExistingStatOverlaps,
-  }));
+  }), randomFn);
   if (!pickedAffix) return null;
 
-  const tierEntry = pickTier(pickedAffix, itemTier);
+  const tierEntry = pickTier(pickedAffix, itemTier, randomFn);
   if (!tierEntry) return null;
 
   const normalizedStat = normalizeLegacyStatKey(pickedAffix.stat);
@@ -242,20 +249,27 @@ function rollSingleAffix(pool, state, options = {}) {
   if (state.existingStats.has(normalizedStat)) {
     state.overlapCount += 1;
   }
-  return buildRolledAffix(pickedAffix, tierEntry);
+  return buildRolledAffix(pickedAffix, tierEntry, randomFn);
 }
 
 export function rollAffixes({
   rarity,
   itemTier = 1,
   favoredStats = [],
+  favoredStatWeights = {},
   favoredStatWeightMultiplier = 2.4,
   existingStats = [],
   allowExistingStatOverlap = OVERLAP_ELIGIBLE_RARITIES.has(rarity),
   overlapPenalty = ITEM_ROLL_RULES_V2.overlapAffixWeightPenalty ?? 0.3,
   maxExistingStatOverlaps = ITEM_ROLL_RULES_V2.maxOverlapsWithBaseOrImplicit ?? 1,
+  randomFn = Math.random,
 }) {
   const normalizedFavoredStats = (favoredStats || []).map(normalizeLegacyStatKey);
+  const normalizedFavoredStatWeights = Object.fromEntries(
+    Object.entries(favoredStatWeights || {})
+      .map(([stat, weight]) => [normalizeLegacyStatKey(stat), Math.max(0, Number(weight || 0))])
+      .filter(([, weight]) => weight > 0)
+  );
   const config = getAffixCountConfig(rarity);
   const state = {
     usedCategories: new Set(),
@@ -270,10 +284,12 @@ export function rollAffixes({
     const rolled = rollSingleAffix(PREFIXES, state, {
       itemTier,
       favoredStats: normalizedFavoredStats,
+      favoredStatWeights: normalizedFavoredStatWeights,
       favoredStatWeightMultiplier,
       allowExistingStatOverlap,
       overlapPenalty,
       maxExistingStatOverlaps,
+      randomFn,
     });
     if (rolled) result.push(rolled);
   }
@@ -282,10 +298,12 @@ export function rollAffixes({
     const rolled = rollSingleAffix(SUFFIXES, state, {
       itemTier,
       favoredStats: normalizedFavoredStats,
+      favoredStatWeights: normalizedFavoredStatWeights,
       favoredStatWeightMultiplier,
       allowExistingStatOverlap,
       overlapPenalty,
       maxExistingStatOverlaps,
+      randomFn,
     });
     if (rolled) result.push(rolled);
   }
@@ -300,6 +318,7 @@ export function ensureAffixCountForRarity({
   baseBonus = {},
   implicitBonus = {},
   favoredStats = [],
+  favoredStatWeights = {},
 } = {}) {
   const currentAffixes = [...(affixes || [])];
   const targetCount = Math.max(0, ITEM_RARITY_BLUEPRINT?.[rarity]?.affixCount ?? currentAffixes.length);
@@ -315,6 +334,7 @@ export function ensureAffixCountForRarity({
     rarity,
     itemTier,
     favoredStats: favoredStats.length > 0 ? favoredStats : currentAffixes.map(affix => affix?.stat).filter(Boolean),
+    favoredStatWeights,
     existingStats,
     allowExistingStatOverlap: OVERLAP_ELIGIBLE_RARITIES.has(rarity),
     overlapPenalty: ITEM_ROLL_RULES_V2.overlapAffixWeightPenalty ?? 0.3,

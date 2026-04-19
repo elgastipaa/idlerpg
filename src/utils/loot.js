@@ -262,7 +262,7 @@ export function generateLoot({
     ),
   ];
   const baseBonus = buildBaseBonusForItem({ baseItem, rarity, tier });
-  const { implicitBonus } = getFamilyImplicit(baseItem, rarity);
+  const { implicitBonus } = getFamilyImplicit(baseItem, rarity, tier);
   const existingStats = [
     ...Object.entries(baseBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => stat),
     ...Object.entries(implicitBonus || {}).filter(([, value]) => (value || 0) > 0).map(([stat]) => stat),
@@ -432,6 +432,18 @@ function getTierScale(stat, tier = 1) {
   return 1 + delta * 0.1;
 }
 
+export function scaleBonusMapByTier(bonus = {}, tier = 1) {
+  const normalizedBonus = normalizeLegacyBonusMap(bonus || {});
+  return Object.fromEntries(
+    Object.entries(normalizedBonus)
+      .map(([stat, value]) => {
+        const scaledValue = Number(value || 0) * getTierScale(stat, tier);
+        return [stat, roundStatValue(stat, scaledValue)];
+      })
+      .filter(([, value]) => value > 0)
+  );
+}
+
 function rollStatFromRange(stat, range, tier = 1) {
   if (!range) return 0;
   const min = range.min ?? range[0] ?? range.value ?? 0;
@@ -595,13 +607,13 @@ function getItemFamilyId(baseItem) {
   return baseItem?.family || null;
 }
 
-function getFamilyImplicit(baseItem, rarity) {
+function getFamilyImplicit(baseItem, rarity, tier = 1) {
   const familyId = getItemFamilyId(baseItem);
   const family = familyId ? ITEM_FAMILIES[familyId] : null;
   return {
     familyId,
     familyName: family?.name || null,
-    implicitBonus: normalizeLegacyBonusMap(family?.implicitByRarity?.[rarity] || {}),
+    implicitBonus: scaleBonusMapByTier(family?.implicitByRarity?.[rarity] || {}, tier),
   };
 }
 
@@ -657,7 +669,7 @@ export function materializeItem({
     ensureMinBaseLines: false,
   });
   const upgradeBonus = computeUpgradeBonus(resolvedBaseBonus || {}, baseItem.type, itemLevel);
-  const { familyId, familyName, implicitBonus } = getFamilyImplicit(baseItem, rarity);
+  const { familyId, familyName, implicitBonus } = getFamilyImplicit(baseItem, rarity, resolvedTier);
   const implicitUpgradeBonus = computeImplicitUpgradeBonus(implicitBonus, baseItem.type, itemLevel);
   const ensuredAffixes = ensureAffixCountForRarity({
     affixes,

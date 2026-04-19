@@ -7,9 +7,64 @@ import { addToInventory, syncEquipment } from "../engine/inventory/inventoryEngi
 import { sellItem, sellItems }      from "../engine/inventory/economyEngine";
 import { craftReroll, craftPolish, craftReforge, craftReforgePreview, craftUpgrade, craftAscend, craftExtract } from "../engine/crafting/craftingEngine";
 import { checkAchievements } from "../engine/progression/achievementEngine";
-import { getLegendaryPowerImprintReduction, recordCodexSighting, syncCodexBonuses } from "../engine/progression/codexEngine";
+import {
+  getLegendaryPowerImprintReduction,
+  getUnlockedLegendaryPowers,
+  normalizeCodexState,
+  recordCodexSighting,
+  syncCodexBonuses,
+} from "../engine/progression/codexEngine";
 import { createEmptySessionAnalytics } from "../utils/runTelemetry";
 import { buildReplayLibraryEntry, createEmptyReplayLog, normalizeReplayLibrary, recordReplayState } from "../utils/replayLog";
+import { buildExtractionPreview } from "../engine/sanctuary/extractionEngine";
+import {
+  createCodexResearchJob,
+  createDistillJob,
+  createForgeProjectJob,
+  createSanctuaryErrandJob,
+  createScrapExtractedItemJob,
+  createSigilInfusionJob,
+  syncSanctuaryJobs,
+} from "../engine/sanctuary/jobEngine";
+import {
+  buildDeepForgeReforgePreview,
+  canDeepForgeProject,
+  deepForgeAscendProject,
+  deepForgeApplyReforge,
+  deepForgePolishProject,
+  deepForgeUpgradeProject,
+  normalizeProjectRecord,
+} from "../engine/sanctuary/projectForgeEngine";
+import {
+  addBlueprintCharges,
+  ascendBlueprint,
+  buildBlueprintAscensionPreview,
+  buildBlueprintChargeReward,
+  buildBlueprintFromExtractedItem,
+  buildBlueprintPowerTunePreview,
+  buildExtractedItemRecord,
+  buildBlueprintStructurePreview,
+  canAscendBlueprint,
+  canUpgradeBlueprintStructure,
+  canTuneBlueprintPower,
+  consumeBlueprintMaterialization,
+  createEmptyBlueprintLoadout,
+  createEmptyFamilyChargeState,
+  ensureValidActiveBlueprints,
+  investBlueprintAffinity,
+  materializeBlueprintLoadout,
+  normalizeBlueprintRecord,
+  normalizeExtractedItemRecord,
+  tuneBlueprintPower,
+  upgradeBlueprintStructure,
+} from "../engine/sanctuary/blueprintEngine";
+import {
+  applyLaboratoryResearch,
+  createEmptyLaboratoryState,
+  createLaboratoryResearchJob,
+  isSanctuaryStationUnlocked,
+  SANCTUARY_STATION_DEFAULTS,
+} from "../engine/sanctuary/laboratoryEngine";
 
 import { CLASSES }         from "../data/classes";
 import { PLAYER_UPGRADES } from "../data/playerUpgrades";
@@ -136,6 +191,342 @@ function selectRunSigilLoadout(state, sigilId, slotIndex = 0) {
   return normalizeRunSigilIds(nextIds, { slots });
 }
 
+function createEmptySanctuaryState() {
+  return {
+    stash: [],
+    extractedItems: [],
+    blueprints: [],
+    cargoInventory: [],
+    jobs: [],
+    deepForgeSession: null,
+    resources: {
+      codexInk: 0,
+      sigilFlux: 0,
+      relicDust: 0,
+    },
+    familyCharges: createEmptyFamilyChargeState(),
+    activeBlueprints: createEmptyBlueprintLoadout(),
+    sigilInfusions: {},
+    laboratory: createEmptyLaboratoryState(),
+    stations: Object.fromEntries(
+      Object.entries(SANCTUARY_STATION_DEFAULTS).map(([stationId, defaults]) => [
+        stationId,
+        { ...defaults },
+      ])
+    ),
+    extractionUpgrades: {
+      cargoSlots: 2,
+      projectSlots: 1,
+      extractedItemSlots: 3,
+      relicSlots: 0,
+      insuredCargoSlots: 0,
+    },
+  };
+}
+
+function createEmptyExpeditionState() {
+  return {
+    phase: "sanctuary",
+    id: null,
+    startedAt: null,
+    exitReason: null,
+    deathCount: 0,
+    deathLimit: 3,
+    seenFamilyIds: [],
+    cargoFound: [],
+    projectCandidates: [],
+    selectedCargoIds: [],
+    selectedProjectItemId: null,
+    extractionPreview: null,
+    activeInfusionIds: [],
+    activeInfusionPlayerBonuses: {},
+    activeExtractionBonuses: {},
+  };
+}
+
+function deriveExpeditionPhase(state) {
+  const explicitPhase = state?.expedition?.phase;
+  if (state?.combat?.pendingRunSetup) return "setup";
+  if (explicitPhase === "extraction") return "extraction";
+  if (explicitPhase === "sanctuary") return "sanctuary";
+  if (explicitPhase === "active") return "active";
+  if (state?.player?.class && state?.player?.specialization) return "active";
+  return "sanctuary";
+}
+
+function appendSeenFamilyIds(expedition = {}, enemy = null) {
+  const familyId = enemy?.familyTraitId || enemy?.family || null;
+  const current = Array.isArray(expedition?.seenFamilyIds) ? expedition.seenFamilyIds : [];
+  if (!familyId || current.includes(familyId)) return current;
+  return [...current, familyId];
+}
+
+function getEmptyRunStats() {
+  return {
+    kills: 0,
+    bossKills: 0,
+    damageDealt: 0,
+    gold: 0,
+    xp: 0,
+    essence: 0,
+    items: 0,
+    bestDropName: null,
+    bestDropRarity: null,
+    bestDropHighlight: null,
+    bestDropPerfectRolls: 0,
+    bestDropScore: 0,
+  };
+}
+
+function getEmptyPerformanceSnapshot() {
+  return {
+    damagePerTick: 0,
+    goldPerTick: 0,
+    xpPerTick: 0,
+    killsPerMinute: 0,
+  };
+}
+
+function mergeNumericBonuses(target = {}, source = {}) {
+  const next = { ...(target || {}) };
+  for (const [key, rawValue] of Object.entries(source || {})) {
+    const value = Number(rawValue || 0);
+    if (!Number.isFinite(value) || value === 0) continue;
+    next[key] = Number(next[key] || 0) + value;
+  }
+  return next;
+}
+
+function getSanctuaryProgressTier(state) {
+  return Math.max(
+    1,
+    Number(state?.combat?.maxTier || 1),
+    Number(state?.combat?.prestigeCycle?.maxTier || 1),
+    Number(state?.combat?.analytics?.maxTierReached || 1),
+    Number(state?.prestige?.bestHistoricTier || 1)
+  );
+}
+
+function getCombinedRunSigilBonuses(runSigilIds = "free", expedition = {}) {
+  return mergeNumericBonuses(
+    getRunSigilPlayerBonuses(runSigilIds),
+    expedition?.activeInfusionPlayerBonuses || {}
+  );
+}
+
+function consumeSigilInfusions(sanctuary = {}, runSigilIds = []) {
+  const nextInfusions = { ...(sanctuary?.sigilInfusions || {}) };
+  const appliedSigilIds = [];
+  let activeInfusionPlayerBonuses = {};
+  let activeExtractionBonuses = {};
+
+  for (const sigilId of [...new Set(runSigilIds.map(id => getRunSigil(id).id).filter(Boolean))]) {
+    const activeInfusion = nextInfusions[sigilId];
+    const charges = Math.max(0, Number(activeInfusion?.charges || 0));
+    if (charges <= 0) continue;
+
+    appliedSigilIds.push(sigilId);
+    activeInfusionPlayerBonuses = mergeNumericBonuses(
+      activeInfusionPlayerBonuses,
+      activeInfusion.playerBonuses || {}
+    );
+    activeExtractionBonuses = mergeNumericBonuses(
+      activeExtractionBonuses,
+      activeInfusion.extractionBonuses || {}
+    );
+
+    if (charges <= 1) {
+      delete nextInfusions[sigilId];
+    } else {
+      nextInfusions[sigilId] = {
+        ...activeInfusion,
+        charges: charges - 1,
+      };
+    }
+  }
+
+  return {
+    sanctuary: {
+      ...createEmptySanctuaryState(),
+      ...(sanctuary || {}),
+      sigilInfusions: nextInfusions,
+    },
+    appliedSigilIds,
+    activeInfusionPlayerBonuses,
+    activeExtractionBonuses,
+  };
+}
+
+function buildRetainedExtractionItem(state, selectedProjectItemId, sourceMeta = {}) {
+  if (!selectedProjectItemId) return null;
+  const inventoryItems = Array.isArray(state?.player?.inventory) ? state.player.inventory : [];
+  const equipmentItems = [state?.player?.equipment?.weapon, state?.player?.equipment?.armor].filter(Boolean);
+  const candidate = [...equipmentItems, ...inventoryItems].find(item => item?.id === selectedProjectItemId);
+  return candidate ? buildExtractedItemRecord(candidate, sourceMeta) : null;
+}
+
+function buildPostExtractionExpeditionReset(state, { exitReason = "retire", goldMultiplier = 1 } = {}) {
+  const nextRunContext =
+    state.combat?.runContext ||
+    (Number(state.prestige?.level || 0) >= 1 ? createRunContext() : createRunContext({ firstRun: true }));
+  const maxHp = Math.max(1, Number(state.player?.maxHp || 1));
+  return {
+    ...state,
+    currentTab: "sanctuary",
+    player: refreshStats({
+      ...state.player,
+      hp: maxHp,
+      gold: Math.max(0, Math.floor((state.player?.gold || 0) * goldMultiplier)),
+      inventory: [],
+      equipment: { weapon: null, armor: null },
+    }),
+    expedition: {
+      ...createEmptyExpeditionState(),
+      phase: "sanctuary",
+    },
+    combat: {
+      ...state.combat,
+      enemy: spawnEnemy(1, nextRunContext),
+      runContext: nextRunContext,
+      currentTier: 1,
+      maxTier: 1,
+      autoAdvance: false,
+      ticksInCurrentRun: 0,
+      sessionKills: 0,
+      effects: [],
+      lastRunTier: state.combat?.maxTier || state.combat?.currentTier || 1,
+      talentBuffs: [],
+      triggerCounters: {
+        kills: 0,
+        onHit: 0,
+        crit: 0,
+        onDamageTaken: 0,
+      },
+      pendingOnKillDamage: 0,
+      pendingMageVolatileMult: 1,
+      floatEvents: [],
+      runStats: getEmptyRunStats(),
+      performanceSnapshot: getEmptyPerformanceSnapshot(),
+      latestLootEvent: null,
+      lastRunSummary: null,
+      offlineSummary: null,
+      reforgeSession: null,
+    },
+  };
+}
+
+function buildPrestigeResetState(state, { echoesGained, nextPrestigeLevel, nextPrestigeState, resetRunSigilIds, nextRunContext, preserveSanctuary = true, nextExpeditionPhase = null, logLine = null } = {}) {
+  const resetClass = true;
+  const basePlayer = {
+    level: 1, xp: 0,
+    baseDamage:     10,
+    baseDefense:    2,
+    baseCritChance: 0.05,
+    baseMaxHp:      100,
+    damagePct: 0, flatDamage: 0,
+    defensePct: 0, flatDefense: 0,
+    hpPct: 0, flatRegen: 0, flatCrit: 0, critDamage: 0,
+    flatGold: 0, goldPct: 0, xpPct: 0,
+    attackSpeed: 0, lifesteal: 0, blockChance: 0, thorns: 0,
+    multiHitChance: 0, bleedChance: 0, bleedDamage: 0, fractureChance: 0,
+    battleHardened: 0, heavyImpact: 0, bloodStrikes: 0, combatFlow: 0,
+    ironConversion: 0, crushingWeight: 0, frenziedChain: 0, bloodDebt: 0,
+    lastBreath: 0, execution: 0, ironCore: 0, fortress: 0,
+    unmovingMountain: 0, titanicMomentum: 0,
+    arcaneEcho: 0, arcaneMark: 0, arcaneFlow: 0, overchannel: 0,
+    perfectCast: 0, freshTargetDamage: 0, chainBurst: 0, unstablePower: 0,
+    overload: 0, volatileCasting: 0, controlMastery: 0, markTransfer: 0,
+    temporalFlow: 0, spellMemory: 0, timeLoop: 0, absoluteControl: 0,
+    cataclysm: 0,
+    gold: 0,
+    essence: state.player.essence || 0,
+    prestigeBonuses: {},
+    codexBonuses: state.player.codexBonuses || {},
+    runSigilBonuses: {},
+    inventory: [],
+    equipment: { weapon: null, armor: null },
+    upgrades: {},
+    unlockedTalents: [],
+    talentLevels: {},
+    talentSystemVersion: state.player.talentSystemVersion,
+    talentPoints: 0,
+    class: resetClass ? null : state.player.class,
+    specialization: resetClass ? null : state.player.specialization,
+  };
+
+  const freshPlayer = syncPrestigeBonuses(basePlayer, nextPrestigeState);
+  freshPlayer.hp = freshPlayer.maxHp;
+
+  return withAchievementProgress({
+    ...state,
+    currentTab: "sanctuary",
+    player: freshPlayer,
+    stats: {
+      ...state.stats,
+      prestigeCount: (state.stats?.prestigeCount || 0) + 1,
+    },
+    prestige: nextPrestigeState,
+    sanctuary: preserveSanctuary
+      ? {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+        }
+      : createEmptySanctuaryState(),
+    expedition: {
+      ...createEmptyExpeditionState(),
+      phase: nextExpeditionPhase || (nextPrestigeLevel >= 1 ? "setup" : "sanctuary"),
+    },
+    combat: {
+      enemy: spawnEnemy(1, nextRunContext),
+      log: [logLine].filter(Boolean),
+      currentTier: 1,
+      maxTier: 1,
+      autoAdvance: false,
+      ticksInCurrentRun: 0,
+      sessionKills: 0,
+      effects: [],
+      lastRunTier: state.combat.maxTier,
+      talentBuffs: [],
+      triggerCounters: {
+        kills: 0,
+        onHit: 0,
+        crit: 0,
+        onDamageTaken: 0,
+      },
+      pendingOnKillDamage: 0,
+      pendingMageVolatileMult: 1,
+      floatEvents: [],
+      runStats: getEmptyRunStats(),
+      performanceSnapshot: getEmptyPerformanceSnapshot(),
+      latestLootEvent: null,
+      reforgeSession: null,
+      runContext: nextRunContext,
+      pendingRunSetup: nextPrestigeLevel >= 1,
+      pendingRunSigilId: resetRunSigilIds[0] || "free",
+      pendingRunSigilIds: resetRunSigilIds,
+      activeRunSigilId: resetRunSigilIds[0] || "free",
+      activeRunSigilIds: resetRunSigilIds,
+      lastRunSummary: null,
+      offlineSummary: null,
+      prestigeCycle: createEmptyPrestigeCycleProgress(),
+      analytics: {
+        ...(state.combat.analytics || createEmptySessionAnalytics()),
+        prestigeCount: (state.combat.analytics?.prestigeCount || 0) + 1,
+        goldSpentBySource: {
+          ...(state.combat.analytics?.goldSpentBySource || createEmptySessionAnalytics().goldSpentBySource),
+          prestige: state.combat.analytics?.goldSpentBySource?.prestige || 0,
+        },
+        maxLevelReached: Math.max(state.combat.analytics?.maxLevelReached || 1, state.player.level || 1),
+        maxTierReached: Math.max(state.combat.analytics?.maxTierReached || 1, state.combat.maxTier || 1),
+        firstPrestigeTick:
+          state.combat.analytics?.firstPrestigeTick == null
+            ? (state.combat.analytics?.ticks || 0)
+            : state.combat.analytics?.firstPrestigeTick,
+      },
+    },
+  });
+}
+
 function baseGameReducer(state, action) {
   switch (action.type) {
 
@@ -143,7 +534,37 @@ function baseGameReducer(state, action) {
       if (state.combat?.reforgeSession && action.tab !== state.currentTab) {
         return state;
       }
-      return { ...state, currentTab: action.tab };
+      return {
+        ...state,
+        currentTab: action.tab === "lab"
+          ? ((state.expedition?.phase || "sanctuary") === "active" ? "combat" : "sanctuary")
+          : action.tab,
+      };
+
+    case "ENTER_EXPEDITION_SETUP": {
+      if (!state.player?.class || !state.player?.specialization) {
+        return {
+          ...state,
+          currentTab: "character",
+        };
+      }
+
+      if (state.combat?.pendingRunSetup) {
+        return {
+          ...state,
+          currentTab: "sanctuary",
+        };
+      }
+
+      return {
+        ...state,
+        expedition: {
+          ...(state.expedition || createEmptyExpeditionState()),
+          phase: "setup",
+        },
+        currentTab: "combat",
+      };
+    }
 
     case "RESET_SESSION_ANALYTICS":
       return {
@@ -295,30 +716,77 @@ function baseGameReducer(state, action) {
 
     case "START_RUN": {
       if (!state.combat?.pendingRunSetup) return state;
+      if (!state.player?.class || !state.player?.specialization) return state;
       const runSigilIds = resolveRunSigilLoadout(
         state,
         state.combat?.pendingRunSigilIds || state.combat?.pendingRunSigilId || "free"
       );
+      const consumedInfusions = consumeSigilInfusions(state.sanctuary || createEmptySanctuaryState(), runSigilIds);
+      const activeBlueprints = ensureValidActiveBlueprints(
+        consumedInfusions.sanctuary?.blueprints || [],
+        consumedInfusions.sanctuary?.activeBlueprints || {}
+      );
+      const materializedLoadout = materializeBlueprintLoadout(
+        consumedInfusions.sanctuary?.blueprints || [],
+        activeBlueprints,
+        { now: Date.now() }
+      );
+      const nextBlueprints = consumeBlueprintMaterialization(
+        consumedInfusions.sanctuary?.blueprints || [],
+        activeBlueprints,
+        { now: Date.now() }
+      );
       const nextRunContext = state.combat?.runContext || createRunContext();
       const nextEnemy = spawnEnemy(state.combat?.currentTier || 1, nextRunContext);
       const nextCodex = recordCodexSighting(state.codex || {}, nextEnemy);
-      const nextPlayer = syncCodexBonuses(
-        syncPrestigeBonuses(
-          {
-            ...state.player,
-            runSigilBonuses: getRunSigilPlayerBonuses(runSigilIds),
-          },
-          state.prestige
-        ),
-        nextCodex
+      const nextPlayer = refreshStats(
+        syncCodexBonuses(
+          syncPrestigeBonuses(
+            {
+              ...state.player,
+              inventory: [],
+              equipment: {
+                weapon: materializedLoadout.weapon || null,
+                armor: materializedLoadout.armor || null,
+              },
+              runSigilBonuses: getCombinedRunSigilBonuses(runSigilIds, {
+                activeInfusionPlayerBonuses: consumedInfusions.activeInfusionPlayerBonuses,
+              }),
+            },
+            state.prestige
+          ),
+          nextCodex
+        )
       );
 
       return {
         ...state,
+        currentTab: "combat",
         codex: nextCodex,
+        sanctuary: {
+          ...consumedInfusions.sanctuary,
+          blueprints: nextBlueprints,
+          activeBlueprints,
+        },
         player: {
           ...nextPlayer,
           hp: nextPlayer.maxHp,
+        },
+        expedition: {
+          ...(state.expedition || createEmptyExpeditionState()),
+          phase: "active",
+          id: `expedition_${Date.now()}`,
+          startedAt: Date.now(),
+          exitReason: null,
+          seenFamilyIds: appendSeenFamilyIds(createEmptyExpeditionState(), nextEnemy),
+          cargoFound: [],
+          projectCandidates: [],
+          selectedCargoIds: [],
+          selectedProjectItemId: null,
+          extractionPreview: null,
+          activeInfusionIds: consumedInfusions.appliedSigilIds,
+          activeInfusionPlayerBonuses: consumedInfusions.activeInfusionPlayerBonuses,
+          activeExtractionBonuses: consumedInfusions.activeExtractionBonuses,
         },
         combat: {
           ...state.combat,
@@ -330,9 +798,1228 @@ function baseGameReducer(state, action) {
           log: [
             ...(state.combat.log || []),
             `SIGILOS: ${formatRunSigilLoadout(runSigilIds)}. ${summarizeRunSigilLoadout(runSigilIds)}`,
+            ...(consumedInfusions.appliedSigilIds.length > 0
+              ? [`INFUSION: ${consumedInfusions.appliedSigilIds.map(sigilId => getRunSigil(sigilId).name).join(" + ")} activada para esta expedicion.`]
+              : []),
+            ...((materializedLoadout.weapon || materializedLoadout.armor)
+              ? [`BLUEPRINTS: ${[
+                  materializedLoadout.weapon ? materializedLoadout.weapon.name : null,
+                  materializedLoadout.armor ? materializedLoadout.armor.name : null,
+                ].filter(Boolean).join(" / ")} materializados para esta expedicion.`]
+              : []),
           ].slice(-20),
         },
       };
+    }
+
+    case "OPEN_EXTRACTION": {
+      const exitReason = action.exitReason === "death" ? "death" : "retire";
+      if (state.expedition?.phase === "extraction") return state;
+      if (!state.player?.class || !state.player?.specialization) return state;
+
+      const extractionPreview = buildExtractionPreview(state, { exitReason });
+      const defaultCargoIds = (extractionPreview.cargoOptions || [])
+        .slice(0, Math.max(0, Number(extractionPreview.availableSlots?.cargo || 0)))
+        .map(option => option.id);
+      const defaultProjectItemId =
+        Number(extractionPreview.availableSlots?.project || 0) > 0
+          ? extractionPreview.projectOptions?.[0]?.itemId || null
+          : null;
+
+      return {
+        ...state,
+        currentTab: "sanctuary",
+        expedition: {
+          ...(state.expedition || createEmptyExpeditionState()),
+          phase: "extraction",
+          exitReason,
+          extractionPreview,
+          selectedCargoIds: defaultCargoIds,
+          selectedProjectItemId: defaultProjectItemId,
+        },
+      };
+    }
+
+    case "CANCEL_EXTRACTION": {
+      if (state.expedition?.phase !== "extraction") return state;
+      if (state.expedition?.exitReason === "death") return state;
+      return {
+        ...state,
+        currentTab: "combat",
+        expedition: {
+          ...(state.expedition || createEmptyExpeditionState()),
+          phase: "active",
+          exitReason: null,
+          selectedCargoIds: [],
+          selectedProjectItemId: null,
+          extractionPreview: null,
+        },
+      };
+    }
+
+    case "SELECT_EXTRACTION_CARGO": {
+      if (state.expedition?.phase !== "extraction") return state;
+      const cargoId = action.cargoId;
+      if (!cargoId) return state;
+      const selected = new Set(state.expedition?.selectedCargoIds || []);
+      if (selected.has(cargoId)) {
+        selected.delete(cargoId);
+      } else {
+        const limit = Math.max(0, Number(state.expedition?.extractionPreview?.availableSlots?.cargo || 0));
+        if (selected.size >= limit) return state;
+        selected.add(cargoId);
+      }
+      return {
+        ...state,
+        expedition: {
+          ...(state.expedition || createEmptyExpeditionState()),
+          selectedCargoIds: Array.from(selected),
+        },
+      };
+    }
+
+    case "SELECT_EXTRACTION_PROJECT": {
+      if (state.expedition?.phase !== "extraction") return state;
+      if (Number(state.expedition?.extractionPreview?.availableSlots?.project || 0) <= 0) return state;
+      return {
+        ...state,
+        expedition: {
+          ...(state.expedition || createEmptyExpeditionState()),
+          selectedProjectItemId: action.itemId || null,
+        },
+      };
+    }
+
+    case "CONFIRM_EXTRACTION": {
+      if (state.expedition?.phase !== "extraction") return state;
+
+      const exitReason = state.expedition?.exitReason === "death" ? "death" : "retire";
+      const preview = state.expedition?.extractionPreview || buildExtractionPreview(state, {
+        exitReason,
+      });
+      const selectedCargoIds = new Set(state.expedition?.selectedCargoIds || []);
+      const selectedCargo = (preview.cargoOptions || [])
+        .filter(option => selectedCargoIds.has(option.id))
+        .map(option => ({
+          id: `${option.id}_${Date.now()}`,
+          type: option.type,
+          quantity: Math.max(1, Number(option.recoveredQuantity || option.quantity || 1)),
+          label: option.label,
+          description: option.description,
+          source: exitReason,
+          extractedAt: Date.now(),
+        }));
+      const retainedItem = buildRetainedExtractionItem(
+        state,
+        state.expedition?.selectedProjectItemId,
+        {
+          exitReason,
+          maxTier: preview.summary?.maxTier || 1,
+          bossesKilled: preview.summary?.bossesKilled || 0,
+        }
+      );
+      const nextSanctuary = {
+        ...createEmptySanctuaryState(),
+        ...(state.sanctuary || {}),
+        cargoInventory: [...(state.sanctuary?.cargoInventory || []), ...selectedCargo],
+        extractedItems: retainedItem
+          ? [...(state.sanctuary?.extractedItems || []), normalizeExtractedItemRecord(retainedItem)]
+          : [...(state.sanctuary?.extractedItems || [])],
+        blueprints: (state.sanctuary?.blueprints || []).map(blueprint => normalizeBlueprintRecord(blueprint)).filter(Boolean),
+        activeBlueprints: ensureValidActiveBlueprints(
+          state.sanctuary?.blueprints || [],
+          state.sanctuary?.activeBlueprints || {}
+        ),
+        deepForgeSession: null,
+      };
+
+      if (preview?.prestige?.mode === "echoes" || preview?.prestige?.mode === "emergency") {
+        const prestigeCheck = canPrestige(state);
+        if (!prestigeCheck.ok) return state;
+        const echoesGained = preview?.prestige?.echoes || calculatePrestigeEchoGain(state);
+        const nextPrestigeLevel = (state.prestige?.level || 0) + 1;
+        const nextRunContext = createRunContext();
+        const resetRunSigilIds = normalizeRunSigilIds("free", {
+          slots: getMaxRunSigilSlots(state?.abyss || {}),
+        });
+        const nextPrestigeState = {
+          ...state.prestige,
+          level: nextPrestigeLevel,
+          echoes: (state.prestige?.echoes || 0) + echoesGained,
+          spentEchoes: state.prestige?.spentEchoes || 0,
+          totalEchoesEarned: (state.prestige?.totalEchoesEarned || 0) + echoesGained,
+          bestHistoricTier: Math.max(
+            Number(state.prestige?.bestHistoricTier || 0),
+            Number(prestigeCheck.preview?.progress?.maxTier || state.combat?.maxTier || 1)
+          ),
+          nodes: { ...(state.prestige?.nodes || {}) },
+        };
+        return buildPrestigeResetState(
+          {
+            ...state,
+            sanctuary: nextSanctuary,
+          },
+          {
+            echoesGained,
+            nextPrestigeLevel,
+            nextPrestigeState,
+            resetRunSigilIds,
+            nextRunContext,
+            logLine:
+              preview?.prestige?.mode === "emergency"
+                ? `Extraccion de emergencia. +${echoesGained} ecos y vuelta al Santuario con ${selectedCargo.length} bundle(s) recuperados.`
+                : `Extraccion completada. +${echoesGained} ecos y vuelta al Santuario con ${selectedCargo.length} bundle(s)${retainedItem ? " y 1 item rescatado." : "."}`,
+          }
+        );
+      }
+
+      const postResetState = buildPostExtractionExpeditionReset(state, {
+        exitReason,
+        goldMultiplier: exitReason === "death" ? 0.75 : 1,
+      });
+      return withAchievementProgress({
+        ...postResetState,
+        sanctuary: nextSanctuary,
+        combat: {
+          ...postResetState.combat,
+          log: [
+            `Extraccion ${exitReason === "death" ? "de emergencia" : "manual"}. ${selectedCargo.length} bundle(s) al Santuario${retainedItem ? " y 1 item rescatado." : "."}`,
+          ],
+        },
+      });
+    }
+
+    case "SYNC_SANCTUARY_JOBS": {
+      const nextJobs = syncSanctuaryJobs(state.sanctuary?.jobs || [], action.now || Date.now());
+      if (nextJobs === (state.sanctuary?.jobs || [])) return state;
+      return {
+        ...state,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          jobs: nextJobs,
+        },
+      };
+    }
+
+    case "START_DISTILLERY_JOB": {
+      const job = createDistillJob(state.sanctuary || createEmptySanctuaryState(), action.cargoId, action.now || Date.now());
+      if (!job) return state;
+      return {
+        ...state,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          cargoInventory: (state.sanctuary?.cargoInventory || []).filter(entry => entry?.id !== job.input?.cargoId),
+          jobs: [...(state.sanctuary?.jobs || []), job],
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: Destileria inicia ${job.output?.label || "refinado"} (${job.input?.quantity || 0}).`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "START_SANCTUARY_ERRAND": {
+      const progressTier = getSanctuaryProgressTier(state);
+      const job = createSanctuaryErrandJob(
+        state.sanctuary || createEmptySanctuaryState(),
+        action.errandId || action.payload?.errandId,
+        action.durationId || action.payload?.durationId || "short",
+        progressTier,
+        action.now || Date.now()
+      );
+      if (!job) return state;
+      return {
+        ...state,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          jobs: [...(state.sanctuary?.jobs || []), job],
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: ${job.input?.label || "Encargo"} parte en ${job.input?.durationLabel || "misión"}.`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "START_CODEX_RESEARCH": {
+      const researchType = action.researchType || action.payload?.researchType || "";
+      const targetId = action.targetId || action.payload?.targetId || "";
+      const job = createCodexResearchJob(
+        state.sanctuary || createEmptySanctuaryState(),
+        state.codex || {},
+        { researchType, targetId },
+        action.now || Date.now()
+      );
+      if (!job) return state;
+
+      const nextCodex = normalizeCodexState(state.codex || {});
+      if (researchType === "family") {
+        nextCodex.research.familyProgress[targetId] = 0;
+      } else if (researchType === "boss") {
+        nextCodex.research.bossProgress[targetId] = 0;
+      } else if (researchType === "power") {
+        nextCodex.research.powerProgress[targetId] = 0;
+      }
+
+      const spentInk = Math.max(0, Number(job.input?.inkCost || 0));
+      const spentDust = Math.max(0, Number(job.input?.dustCost || 0));
+      return {
+        ...state,
+        codex: nextCodex,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          resources: {
+            ...createEmptySanctuaryState().resources,
+            ...(state.sanctuary?.resources || {}),
+            codexInk: Math.max(0, Number(state.sanctuary?.resources?.codexInk || 0) - spentInk),
+            relicDust: Math.max(0, Number(state.sanctuary?.resources?.relicDust || 0) - spentDust),
+          },
+          jobs: [...(state.sanctuary?.jobs || []), job],
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: Investigacion de Biblioteca iniciada sobre ${job.input?.label || "objetivo"} · ${job.output?.rewardLabel || "siguiente hito"}.`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "START_LAB_RESEARCH": {
+      const researchId = action.researchId || action.payload?.researchId || "";
+      const job = createLaboratoryResearchJob(state, researchId, action.now || Date.now());
+      if (!job) return state;
+
+      const spentInk = Math.max(0, Number(job.input?.costs?.codexInk || 0));
+      const spentDust = Math.max(0, Number(job.input?.costs?.relicDust || 0));
+      const spentEssence = Math.max(0, Number(job.input?.costs?.essence || 0));
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          essence: Math.max(0, Number(state.player?.essence || 0) - spentEssence),
+        },
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          resources: {
+            ...createEmptySanctuaryState().resources,
+            ...(state.sanctuary?.resources || {}),
+            codexInk: Math.max(0, Number(state.sanctuary?.resources?.codexInk || 0) - spentInk),
+            relicDust: Math.max(0, Number(state.sanctuary?.resources?.relicDust || 0) - spentDust),
+          },
+          jobs: [...(state.sanctuary?.jobs || []), job],
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: Laboratorio inicia ${job.input?.label || "investigacion"} para ${SANCTUARY_STATION_DEFAULTS[job.input?.stationId]?.label || "infraestructura"}.`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "CONVERT_EXTRACTED_ITEM_TO_BLUEPRINT": {
+      const extractedItemId = action.extractedItemId || action.itemId || action.payload?.extractedItemId || action.payload?.itemId;
+      const extractedItems = Array.isArray(state.sanctuary?.extractedItems) ? state.sanctuary.extractedItems : [];
+      const targetItem = normalizeExtractedItemRecord(extractedItems.find(item => item?.id === extractedItemId));
+      if (!targetItem?.id) return state;
+
+      const blueprint = buildBlueprintFromExtractedItem(targetItem, { now: action.now || Date.now() });
+      if (!blueprint) return state;
+
+      const nextBlueprints = [
+        ...(state.sanctuary?.blueprints || []).map(existingBlueprint => normalizeBlueprintRecord(existingBlueprint)).filter(Boolean),
+        normalizeBlueprintRecord(blueprint),
+      ];
+      const chargeReward = buildBlueprintChargeReward(targetItem, { multiplier: 1 });
+      const nextActiveBlueprints = ensureValidActiveBlueprints(nextBlueprints, {
+        ...(state.sanctuary?.activeBlueprints || {}),
+        [blueprint.slot || targetItem.type || "weapon"]:
+          (state.sanctuary?.activeBlueprints || {})[blueprint.slot || targetItem.type || "weapon"] || blueprint.id,
+      });
+
+      return {
+        ...state,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          extractedItems: extractedItems.filter(item => item?.id !== targetItem.id),
+          blueprints: nextBlueprints,
+          activeBlueprints: nextActiveBlueprints,
+          familyCharges: addBlueprintCharges(state.sanctuary?.familyCharges || {}, chargeReward),
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: ${targetItem.name} se convierte en blueprint. Conserva direccion, no el item exacto.`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "START_SCRAP_EXTRACTED_ITEM_JOB": {
+      const job = createScrapExtractedItemJob(state.sanctuary || createEmptySanctuaryState(), action.extractedItemId || action.itemId, action.now || Date.now());
+      if (!job) return state;
+      return {
+        ...state,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          extractedItems: (state.sanctuary?.extractedItems || []).filter(item => item?.id !== job.input?.extractedItemId),
+          jobs: [...(state.sanctuary?.jobs || []), job],
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: ${job.input?.itemName || "Item"} entra en desguace para devolver cargas de afinidad.`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "CANCEL_SANCTUARY_ERRAND": {
+      const jobId = action.jobId || action.payload?.jobId;
+      const jobs = Array.isArray(state.sanctuary?.jobs) ? state.sanctuary.jobs : [];
+      const targetJob = jobs.find(job => job?.id === jobId && job?.type === "sanctuary_errand" && job?.status === "running");
+      if (!targetJob) return state;
+      return {
+        ...state,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          jobs: jobs.filter(job => job?.id !== targetJob.id),
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            "SANTUARIO: El equipo ha sido retirado. El progreso de la misión se pierde.",
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "SET_ACTIVE_BLUEPRINT": {
+      const blueprintId = action.blueprintId || action.payload?.blueprintId || null;
+      const slot = action.slot || action.payload?.slot || null;
+      if (!slot || !["weapon", "armor"].includes(slot)) return state;
+      const blueprints = (state.sanctuary?.blueprints || []).map(blueprint => normalizeBlueprintRecord(blueprint)).filter(Boolean);
+      if (blueprintId && !blueprints.some(blueprint => blueprint.id === blueprintId && blueprint.slot === slot)) return state;
+      return {
+        ...state,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          blueprints,
+          activeBlueprints: ensureValidActiveBlueprints(blueprints, {
+            ...(state.sanctuary?.activeBlueprints || {}),
+            [slot]: blueprintId || null,
+          }),
+        },
+      };
+    }
+
+    case "INVEST_BLUEPRINT_AFFINITY": {
+      if (!isSanctuaryStationUnlocked(state.sanctuary, "deepForge")) return state;
+      const blueprintId = action.blueprintId || action.payload?.blueprintId;
+      const familyId = action.familyId || action.payload?.familyId;
+      const charges = Math.max(1, Number(action.charges || action.payload?.charges || 1));
+      const blueprints = Array.isArray(state.sanctuary?.blueprints) ? [...state.sanctuary.blueprints] : [];
+      const blueprintIndex = blueprints.findIndex(blueprint => blueprint?.id === blueprintId);
+      if (blueprintIndex < 0 || !familyId) return state;
+      const currentCharges = Math.max(0, Number(state.sanctuary?.familyCharges?.[familyId] || 0));
+      if (currentCharges < charges) return state;
+
+      const nextBlueprint = investBlueprintAffinity(blueprints[blueprintIndex], familyId, charges);
+      if (!nextBlueprint) return state;
+      blueprints[blueprintIndex] = normalizeBlueprintRecord(nextBlueprint);
+
+      return {
+        ...state,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          blueprints,
+          familyCharges: {
+            ...createEmptyFamilyChargeState(),
+            ...(state.sanctuary?.familyCharges || {}),
+            [familyId]: Math.max(0, currentCharges - charges),
+          },
+          activeBlueprints: ensureValidActiveBlueprints(blueprints, state.sanctuary?.activeBlueprints || {}),
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: ${nextBlueprint.sourceName || nextBlueprint.id} gana afinidad en ${familyId}.`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "UPGRADE_BLUEPRINT_STRUCTURE": {
+      if (!isSanctuaryStationUnlocked(state.sanctuary, "deepForge")) return state;
+      const blueprintId = action.blueprintId || action.payload?.blueprintId;
+      const blueprints = Array.isArray(state.sanctuary?.blueprints) ? [...state.sanctuary.blueprints] : [];
+      const blueprintIndex = blueprints.findIndex(blueprint => blueprint?.id === blueprintId);
+      if (blueprintIndex < 0) return state;
+
+      const currentBlueprint = normalizeBlueprintRecord(blueprints[blueprintIndex]);
+      const check = canUpgradeBlueprintStructure(currentBlueprint, state.sanctuary?.resources || {});
+      if (!check.ok) return state;
+
+      const preview = buildBlueprintStructurePreview(currentBlueprint);
+      const nextBlueprint = upgradeBlueprintStructure(currentBlueprint, { now: action.now || Date.now() });
+      if (!nextBlueprint) return state;
+
+      blueprints[blueprintIndex] = normalizeBlueprintRecord(nextBlueprint);
+      const spentDust = Math.max(0, Number(check.costs?.relicDust || 0));
+
+      return {
+        ...state,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          blueprints,
+          resources: {
+            ...createEmptySanctuaryState().resources,
+            ...(state.sanctuary?.resources || {}),
+            relicDust: Math.max(0, Number(state.sanctuary?.resources?.relicDust || 0) - spentDust),
+          },
+          activeBlueprints: ensureValidActiveBlueprints(blueprints, state.sanctuary?.activeBlueprints || {}),
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: ${nextBlueprint.sourceName || nextBlueprint.id} refuerza su estructura (${preview?.currentLevel || 0} -> ${nextBlueprint.blueprintLevel || 0}) · rating ${preview?.currentEffectiveRating || 0} -> ${preview?.nextEffectiveRating || preview?.currentEffectiveRating || 0}.`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "TUNE_BLUEPRINT_POWER": {
+      if (!isSanctuaryStationUnlocked(state.sanctuary, "deepForge")) return state;
+      const blueprintId = action.blueprintId || action.payload?.blueprintId;
+      const blueprints = Array.isArray(state.sanctuary?.blueprints) ? [...state.sanctuary.blueprints] : [];
+      const blueprintIndex = blueprints.findIndex(blueprint => blueprint?.id === blueprintId);
+      if (blueprintIndex < 0) return state;
+
+      const currentBlueprint = normalizeBlueprintRecord(blueprints[blueprintIndex]);
+      const check = canTuneBlueprintPower(currentBlueprint, state.sanctuary?.resources || {});
+      if (!check.ok) return state;
+
+      const preview = buildBlueprintPowerTunePreview(currentBlueprint);
+      const nextBlueprint = tuneBlueprintPower(currentBlueprint, { now: action.now || Date.now() });
+      if (!nextBlueprint) return state;
+
+      blueprints[blueprintIndex] = normalizeBlueprintRecord(nextBlueprint);
+      const spentDust = Math.max(0, Number(check.costs?.relicDust || 0));
+
+      return {
+        ...state,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          blueprints,
+          resources: {
+            ...createEmptySanctuaryState().resources,
+            ...(state.sanctuary?.resources || {}),
+            relicDust: Math.max(0, Number(state.sanctuary?.resources?.relicDust || 0) - spentDust),
+          },
+          activeBlueprints: ensureValidActiveBlueprints(blueprints, state.sanctuary?.activeBlueprints || {}),
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: ${nextBlueprint.sourceName || nextBlueprint.id} sintoniza su poder legendario (${preview?.currentLevel || 0} -> ${nextBlueprint.powerTuneLevel || 0}).`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "ASCEND_BLUEPRINT": {
+      if (!isSanctuaryStationUnlocked(state.sanctuary, "deepForge")) return state;
+      const blueprintId = action.blueprintId || action.payload?.blueprintId;
+      const blueprints = Array.isArray(state.sanctuary?.blueprints) ? [...state.sanctuary.blueprints] : [];
+      const blueprintIndex = blueprints.findIndex(blueprint => blueprint?.id === blueprintId);
+      if (blueprintIndex < 0) return state;
+
+      const currentBlueprint = normalizeBlueprintRecord(blueprints[blueprintIndex]);
+      const check = canAscendBlueprint(currentBlueprint, {
+        resources: state.sanctuary?.resources || {},
+        essence: state.player?.essence || 0,
+      });
+      if (!check.ok) return state;
+
+      const preview = buildBlueprintAscensionPreview(currentBlueprint);
+      const nextBlueprint = ascendBlueprint(currentBlueprint, { now: action.now || Date.now() });
+      if (!nextBlueprint) return state;
+
+      blueprints[blueprintIndex] = normalizeBlueprintRecord(nextBlueprint);
+      const spentDust = Math.max(0, Number(check.costs?.relicDust || 0));
+      const spentEssence = Math.max(0, Number(check.costs?.essence || 0));
+
+      return {
+        ...state,
+        player: refreshStats({
+          ...state.player,
+          essence: Math.max(0, Number(state.player?.essence || 0) - spentEssence),
+        }),
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          blueprints,
+          resources: {
+            ...createEmptySanctuaryState().resources,
+            ...(state.sanctuary?.resources || {}),
+            relicDust: Math.max(0, Number(state.sanctuary?.resources?.relicDust || 0) - spentDust),
+          },
+          activeBlueprints: ensureValidActiveBlueprints(blueprints, state.sanctuary?.activeBlueprints || {}),
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: ${nextBlueprint.sourceName || nextBlueprint.id} asciende (${preview?.currentAscensionTier || 0} -> ${nextBlueprint.ascensionTier || 0}), reinicia estructura y empuja su materializacion a Tier ${preview?.nextEffectiveTier || preview?.currentEffectiveTier || nextBlueprint.itemTier}.`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "DISCARD_BLUEPRINT": {
+      const blueprintId = action.blueprintId || action.payload?.blueprintId;
+      const blueprints = Array.isArray(state.sanctuary?.blueprints) ? [...state.sanctuary.blueprints] : [];
+      const targetBlueprint = normalizeBlueprintRecord(blueprints.find(blueprint => blueprint?.id === blueprintId));
+      if (!targetBlueprint?.id) return state;
+
+      const nextBlueprints = blueprints
+        .filter(blueprint => blueprint?.id !== targetBlueprint.id)
+        .map(blueprint => normalizeBlueprintRecord(blueprint))
+        .filter(Boolean);
+
+      return {
+        ...state,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          blueprints: nextBlueprints,
+          activeBlueprints: ensureValidActiveBlueprints(nextBlueprints, state.sanctuary?.activeBlueprints || {}),
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: Descartas ${targetBlueprint.sourceName || targetBlueprint.id}. El plano deja de ocupar espacio permanente.`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "START_SIGIL_INFUSION": {
+      const job = createSigilInfusionJob(state.sanctuary || createEmptySanctuaryState(), action.sigilId || "free", action.now || Date.now());
+      if (!job) return state;
+      const fuelCost = Math.max(0, Number(job.input?.fuelCost || 0));
+      return {
+        ...state,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          resources: {
+            ...createEmptySanctuaryState().resources,
+            ...(state.sanctuary?.resources || {}),
+            sigilFlux: Math.max(0, Number(state.sanctuary?.resources?.sigilFlux || 0) - fuelCost),
+          },
+          jobs: [...(state.sanctuary?.jobs || []), job],
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: ${getRunSigil(job.output?.sigilId || "free").name} entra en infusion.`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "START_DEEP_FORGE_JOB": {
+      const job = createForgeProjectJob(state.sanctuary || createEmptySanctuaryState(), action.projectId, action.now || Date.now());
+      if (!job) return state;
+      const dustCost = Math.max(0, Number(job.input?.dustCost || 0));
+      return {
+        ...state,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          stash: (state.sanctuary?.stash || []).filter(project => project?.id !== job.input?.projectId),
+          deepForgeSession:
+            state.sanctuary?.deepForgeSession?.projectId === job.input?.projectId
+              ? null
+              : state.sanctuary?.deepForgeSession || null,
+          resources: {
+            ...createEmptySanctuaryState().resources,
+            ...(state.sanctuary?.resources || {}),
+            relicDust: Math.max(0, Number(state.sanctuary?.resources?.relicDust || 0) - dustCost),
+          },
+          jobs: [...(state.sanctuary?.jobs || []), job],
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: Forja Profunda inicia sobre ${job.input?.project?.name || "proyecto"} (+${job.input?.project?.upgradeLevel || 0} -> +${job.output?.nextUpgradeLevel || 1}).`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "DEEP_FORGE_ASCEND_PROJECT": {
+      const projectId = action.projectId || action.payload?.projectId;
+      const selectedPowerId = action.selectedPowerId ?? action.payload?.selectedPowerId ?? null;
+      const stash = Array.isArray(state.sanctuary?.stash) ? state.sanctuary.stash : [];
+      const projectIndex = stash.findIndex(project => project?.id === projectId);
+      if (projectIndex < 0) return state;
+
+      const project = normalizeProjectRecord(stash[projectIndex]);
+      const unlockedPowerIds = getUnlockedLegendaryPowers(state.codex || {}, {
+        specialization: state.player?.specialization,
+        className: state.player?.class,
+        abyss: state.abyss || {},
+      }).map(power => power.id);
+      const imprintReduction = getLegendaryPowerImprintReduction(state.codex || {}, selectedPowerId);
+      const check = canDeepForgeProject(
+        project,
+        {
+          playerEssence: state.player?.essence || 0,
+          relicDust: state.sanctuary?.resources?.relicDust || 0,
+        },
+        "ascend",
+        null,
+        {
+          selectedPowerId,
+          unlockedPowerIds,
+          imprintReduction,
+        }
+      );
+      if (!check.ok) return state;
+
+      const nextProject = deepForgeAscendProject(project, { selectedPowerId });
+      if (!nextProject) return state;
+
+      const nextStash = [...stash];
+      nextStash[projectIndex] = normalizeProjectRecord(nextProject);
+      const spentEssence = Math.max(0, Number(check.costs?.essence || 0));
+      const spentDust = Math.max(0, Number(check.costs?.relicDust || 0));
+      const selectedPowerLabel =
+        selectedPowerId && selectedPowerId !== project?.legendaryPowerId
+          ? " con poder injertado"
+          : "";
+
+      return withAchievementProgress({
+        ...state,
+        player: {
+          ...state.player,
+          essence: Math.max(0, Number(state.player?.essence || 0) - spentEssence),
+        },
+        stats: {
+          ...state.stats,
+          ascendsCrafted: (state.stats?.ascendsCrafted || 0) + 1,
+        },
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          stash: nextStash,
+          deepForgeSession:
+            state.sanctuary?.deepForgeSession?.projectId === projectId
+              ? null
+              : state.sanctuary?.deepForgeSession || null,
+          resources: {
+            ...createEmptySanctuaryState().resources,
+            ...(state.sanctuary?.resources || {}),
+            relicDust: Math.max(0, Number(state.sanctuary?.resources?.relicDust || 0) - spentDust),
+          },
+        },
+        combat: {
+          ...state.combat,
+          analytics: {
+            ...(state.combat.analytics || createEmptySessionAnalytics()),
+            ascendsCrafted: (state.combat.analytics?.ascendsCrafted || 0) + 1,
+            essenceSpent: (state.combat.analytics?.essenceSpent || 0) + spentEssence,
+            essenceSpentBySource: {
+              ...(state.combat.analytics?.essenceSpentBySource || createEmptySessionAnalytics().essenceSpentBySource),
+              ascends: (state.combat.analytics?.essenceSpentBySource?.ascends || 0) + spentEssence,
+            },
+          },
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: ${project.name} asciende a rango ${Math.max(0, Number(project?.ascensionTier || 0)) + 1}, vuelve a +0${selectedPowerLabel}.`,
+          ].slice(-20),
+        },
+      });
+    }
+
+    case "DEEP_FORGE_POLISH_PROJECT": {
+      const projectId = action.projectId || action.payload?.projectId;
+      const affixIndex = Number(action.affixIndex ?? action.payload?.affixIndex);
+      const stash = Array.isArray(state.sanctuary?.stash) ? state.sanctuary.stash : [];
+      const projectIndex = stash.findIndex(project => project?.id === projectId);
+      if (projectIndex < 0) return state;
+
+      const project = normalizeProjectRecord(stash[projectIndex]);
+      const check = canDeepForgeProject(
+        project,
+        {
+          playerEssence: state.player?.essence || 0,
+          relicDust: state.sanctuary?.resources?.relicDust || 0,
+        },
+        "polish",
+        affixIndex
+      );
+      if (!check.ok) return state;
+
+      const nextProject = deepForgePolishProject(project, affixIndex);
+      if (!nextProject) return state;
+
+      const nextStash = [...stash];
+      nextStash[projectIndex] = normalizeProjectRecord(nextProject);
+      const spentEssence = Math.max(0, Number(check.costs?.essence || 0));
+      const spentDust = Math.max(0, Number(check.costs?.relicDust || 0));
+
+      return withAchievementProgress({
+        ...state,
+        player: {
+          ...state.player,
+          essence: Math.max(0, Number(state.player?.essence || 0) - spentEssence),
+        },
+        stats: {
+          ...state.stats,
+          polishesCrafted: (state.stats?.polishesCrafted || 0) + 1,
+        },
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          stash: nextStash,
+          deepForgeSession:
+            state.sanctuary?.deepForgeSession?.projectId === projectId &&
+            state.sanctuary?.deepForgeSession?.affixIndex === affixIndex
+              ? null
+              : state.sanctuary?.deepForgeSession || null,
+          resources: {
+            ...createEmptySanctuaryState().resources,
+            ...(state.sanctuary?.resources || {}),
+            relicDust: Math.max(0, Number(state.sanctuary?.resources?.relicDust || 0) - spentDust),
+          },
+        },
+        combat: {
+          ...state.combat,
+          analytics: {
+            ...(state.combat.analytics || createEmptySessionAnalytics()),
+            polishesCrafted: (state.combat.analytics?.polishesCrafted || 0) + 1,
+            essenceSpent: (state.combat.analytics?.essenceSpent || 0) + spentEssence,
+            essenceSpentBySource: {
+              ...(state.combat.analytics?.essenceSpentBySource || createEmptySessionAnalytics().essenceSpentBySource),
+              polish: (state.combat.analytics?.essenceSpentBySource?.polish || 0) + spentEssence,
+            },
+          },
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: Pulido profundo sobre ${project.name} · ${project.affixes?.[affixIndex]?.stat || "linea"} ajustada.`,
+          ].slice(-20),
+        },
+      });
+    }
+
+    case "START_DEEP_FORGE_REFORGE_PREVIEW": {
+      const projectId = action.projectId || action.payload?.projectId;
+      const affixIndex = Number(action.affixIndex ?? action.payload?.affixIndex);
+      const stash = Array.isArray(state.sanctuary?.stash) ? state.sanctuary.stash : [];
+      const project = normalizeProjectRecord(stash.find(candidate => candidate?.id === projectId));
+      if (!project?.id) return state;
+
+      const existingSession = state.sanctuary?.deepForgeSession || null;
+      if (
+        existingSession &&
+        (existingSession.projectId !== projectId || Number(existingSession.affixIndex) !== affixIndex)
+      ) {
+        return state;
+      }
+      if (
+        existingSession &&
+        existingSession.projectId === projectId &&
+        Number(existingSession.affixIndex) === affixIndex
+      ) {
+        return state;
+      }
+
+      const check = canDeepForgeProject(
+        project,
+        {
+          playerEssence: state.player?.essence || 0,
+          relicDust: state.sanctuary?.resources?.relicDust || 0,
+        },
+        "reforge",
+        affixIndex
+      );
+      if (!check.ok) return state;
+
+      const options = buildDeepForgeReforgePreview(project, affixIndex, {
+        allowAbyssAffixes: ["epic", "legendary"].includes(project?.rarity),
+      });
+      if (!Array.isArray(options) || options.length === 0) return state;
+
+      const spentEssence = Math.max(0, Number(check.costs?.essence || 0));
+      const spentDust = Math.max(0, Number(check.costs?.relicDust || 0));
+
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          essence: Math.max(0, Number(state.player?.essence || 0) - spentEssence),
+        },
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          deepForgeSession: {
+            mode: "reforge",
+            projectId,
+            affixIndex,
+            currentAffix: project.affixes?.[affixIndex] || null,
+            options,
+            costs: {
+              essence: spentEssence,
+              relicDust: spentDust,
+            },
+            startedAt: action.now || Date.now(),
+          },
+          resources: {
+            ...createEmptySanctuaryState().resources,
+            ...(state.sanctuary?.resources || {}),
+            relicDust: Math.max(0, Number(state.sanctuary?.resources?.relicDust || 0) - spentDust),
+          },
+        },
+        combat: {
+          ...state.combat,
+          analytics: {
+            ...(state.combat.analytics || createEmptySessionAnalytics()),
+            essenceSpent: (state.combat.analytics?.essenceSpent || 0) + spentEssence,
+            essenceSpentBySource: {
+              ...(state.combat.analytics?.essenceSpentBySource || createEmptySessionAnalytics().essenceSpentBySource),
+              reforge: (state.combat.analytics?.essenceSpentBySource?.reforge || 0) + spentEssence,
+            },
+          },
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: Reforge profunda preparada sobre ${project.name}.`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "APPLY_DEEP_FORGE_REFORGE": {
+      const activeSession = state.sanctuary?.deepForgeSession || null;
+      if (!activeSession?.projectId || !Number.isInteger(Number(activeSession?.affixIndex))) return state;
+
+      const stash = Array.isArray(state.sanctuary?.stash) ? state.sanctuary.stash : [];
+      const projectIndex = stash.findIndex(project => project?.id === activeSession.projectId);
+      if (projectIndex < 0) return state;
+
+      const requestedReplacement = action.replacementAffix || action.payload?.replacementAffix;
+      const replacement = (activeSession.options || []).find(option =>
+        option?.id === requestedReplacement?.id &&
+        option?.stat === requestedReplacement?.stat &&
+        option?.tier === requestedReplacement?.tier &&
+        (option?.rolledValue ?? option?.value ?? null) === (requestedReplacement?.rolledValue ?? requestedReplacement?.value ?? null)
+      );
+      if (!replacement) return state;
+
+      const project = normalizeProjectRecord(stash[projectIndex]);
+      const nextProject = deepForgeApplyReforge(project, activeSession.affixIndex, replacement);
+      if (!nextProject) return state;
+
+      const nextStash = [...stash];
+      nextStash[projectIndex] = normalizeProjectRecord(nextProject);
+
+      return withAchievementProgress({
+        ...state,
+        stats: {
+          ...state.stats,
+          reforgesCrafted: (state.stats?.reforgesCrafted || 0) + 1,
+        },
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          stash: nextStash,
+          deepForgeSession: null,
+        },
+        combat: {
+          ...state.combat,
+          analytics: {
+            ...(state.combat.analytics || createEmptySessionAnalytics()),
+            reforgesCrafted: (state.combat.analytics?.reforgesCrafted || 0) + 1,
+          },
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: Reforge profunda aplicada sobre ${project.name}.`,
+          ].slice(-20),
+        },
+      });
+    }
+
+    case "CANCEL_DEEP_FORGE_SESSION": {
+      if (!state.sanctuary?.deepForgeSession) return state;
+      return {
+        ...state,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          deepForgeSession: null,
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            "SANTUARIO: Reforge profunda cerrada; la linea actual se mantiene.",
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "CLAIM_SANCTUARY_JOB": {
+      const jobs = Array.isArray(state.sanctuary?.jobs) ? state.sanctuary.jobs : [];
+      const job = jobs.find(candidate => candidate?.id === action.jobId && candidate?.status === "claimable");
+      if (!job) return state;
+
+      const nextJobs = jobs.filter(candidate => candidate?.id !== job.id);
+      let nextPlayer = state.player;
+      let nextCodex = state.codex;
+      let nextResources = {
+        ...createEmptySanctuaryState().resources,
+        ...(state.sanctuary?.resources || {}),
+      };
+      let nextInfusions = {
+        ...(state.sanctuary?.sigilInfusions || {}),
+      };
+      let nextStash = Array.isArray(state.sanctuary?.stash) ? [...state.sanctuary.stash] : [];
+      let nextExtractedItems = Array.isArray(state.sanctuary?.extractedItems) ? [...state.sanctuary.extractedItems] : [];
+      let nextBlueprints = Array.isArray(state.sanctuary?.blueprints)
+        ? state.sanctuary.blueprints.map(blueprint => normalizeBlueprintRecord(blueprint)).filter(Boolean)
+        : [];
+      let nextLaboratory = {
+        ...createEmptyLaboratoryState(),
+        ...(state.sanctuary?.laboratory || {}),
+      };
+      let nextStations = {
+        ...createEmptySanctuaryState().stations,
+        ...(state.sanctuary?.stations || {}),
+      };
+      let nextFamilyCharges = {
+        ...createEmptyFamilyChargeState(),
+        ...(state.sanctuary?.familyCharges || {}),
+      };
+      let logLine = "SANTUARIO: Job reclamado.";
+
+      if (job.type === "distill_bundle") {
+        const outputType = job.output?.type;
+        const amount = Math.max(0, Number(job.output?.amount || 0));
+        if (outputType === "essence_cache") {
+          nextPlayer = {
+            ...state.player,
+            essence: (state.player?.essence || 0) + amount,
+          };
+          logLine = `SANTUARIO: Destileria reclamada · +${amount} esencia.`;
+        } else if (outputType === "codex_trace") {
+          nextResources.codexInk = (nextResources.codexInk || 0) + amount;
+          logLine = `SANTUARIO: Destileria reclamada · +${amount} tinta de Biblioteca.`;
+        } else if (outputType === "sigil_residue") {
+          nextResources.sigilFlux = (nextResources.sigilFlux || 0) + amount;
+          logLine = `SANTUARIO: Destileria reclamada · +${amount} flux de Sigilo.`;
+        } else if (outputType === "relic_shard") {
+          nextResources.relicDust = (nextResources.relicDust || 0) + amount;
+          logLine = `SANTUARIO: Destileria reclamada · +${amount} polvo de Reliquia.`;
+        }
+      } else if (job.type === "sanctuary_errand") {
+        const rewards = job.output?.rewards || {};
+        const addedInk = Math.max(0, Number(rewards.codexInk || 0));
+        const addedDust = Math.max(0, Number(rewards.relicDust || 0));
+        const addedFlux = Math.max(0, Number(rewards.sigilFlux || 0));
+        nextResources.codexInk = (nextResources.codexInk || 0) + addedInk;
+        nextResources.relicDust = (nextResources.relicDust || 0) + addedDust;
+        nextResources.sigilFlux = (nextResources.sigilFlux || 0) + addedFlux;
+        nextFamilyCharges = addBlueprintCharges(nextFamilyCharges, rewards.familyCharges || {});
+
+        const rewardParts = [];
+        const chargedFamilies = Object.entries(rewards.familyCharges || {})
+          .map(([familyId, amount]) => [familyId, Math.max(0, Number(amount || 0))])
+          .filter(([, amount]) => amount > 0);
+        if (chargedFamilies.length > 0) {
+          rewardParts.push(
+            chargedFamilies
+              .map(([familyId, amount]) => {
+                const familyLabel =
+                  chargedFamilies.length === 1 && familyId === job.input?.familyId && job.input?.familyLabel
+                    ? job.input.familyLabel
+                    : familyId;
+                return `${amount} cargas de ${familyLabel}`;
+              })
+              .join(", ")
+          );
+        }
+        if (addedInk > 0) rewardParts.push(`${addedInk} tinta de Biblioteca`);
+        if (addedDust > 0) rewardParts.push(`${addedDust} polvo de Reliquia`);
+        if (addedFlux > 0) rewardParts.push(`${addedFlux} flux de Sigilo`);
+
+        logLine = rewardParts.length > 0
+          ? `SANTUARIO: ${job.output?.label || "Encargo"} vuelve con ${rewardParts.join(" · ")}.`
+          : `SANTUARIO: ${job.output?.label || "Encargo"} vuelve sin recuperacion util.`;
+      } else if (job.type === "infuse_sigil") {
+        const sigilId = getRunSigil(job.output?.sigilId || "free").id;
+        const existing = nextInfusions[sigilId] || {};
+        nextInfusions[sigilId] = {
+          sigilId,
+          label: getRunSigil(sigilId).name,
+          charges: Math.max(0, Number(existing?.charges || 0)) + 1,
+          playerBonuses: { ...(job.output?.playerBonuses || existing?.playerBonuses || {}) },
+          extractionBonuses: { ...(job.output?.extractionBonuses || existing?.extractionBonuses || {}) },
+          summary: job.output?.summary || existing?.summary || "",
+          updatedAt: action.now || Date.now(),
+        };
+        logLine = `SANTUARIO: ${getRunSigil(sigilId).name} infusionado y listo para una futura expedicion.`;
+      } else if (job.type === "scrap_extracted_item") {
+        nextFamilyCharges = addBlueprintCharges(nextFamilyCharges, job.output?.charges || {});
+        logLine = `SANTUARIO: Desguace completo · ${job.input?.itemName || "item"} convertido en cargas de afinidad.`;
+      } else if (job.type === "codex_research") {
+        const researchType = job.input?.researchType;
+        const targetId = job.input?.targetId;
+        const targetRank = Math.max(0, Number(job.input?.targetRank || 0));
+        nextCodex = normalizeCodexState(state.codex || {});
+
+        if (researchType === "family" && targetId) {
+          nextCodex.research.familyRanks[targetId] = Math.max(
+            Number(nextCodex?.research?.familyRanks?.[targetId] || 0),
+            targetRank
+          );
+        } else if (researchType === "boss" && targetId) {
+          nextCodex.research.bossRanks[targetId] = Math.max(
+            Number(nextCodex?.research?.bossRanks?.[targetId] || 0),
+            targetRank
+          );
+        } else if (researchType === "power" && targetId) {
+          nextCodex.research.powerRanks[targetId] = Math.max(
+            Number(nextCodex?.research?.powerRanks?.[targetId] || 0),
+            targetRank
+          );
+        }
+
+        nextPlayer = syncCodexBonuses(nextPlayer, nextCodex);
+        logLine = `SANTUARIO: Investigacion completa · ${job.input?.label || "objetivo"} alcanza ${job.output?.rewardLabel || "un nuevo rango"} en la Biblioteca.`;
+      } else if (job.type === "laboratory_research") {
+        const nextSanctuaryAfterResearch = applyLaboratoryResearch(
+          {
+            ...createEmptySanctuaryState(),
+            ...(state.sanctuary || {}),
+            resources: nextResources,
+            sigilInfusions: nextInfusions,
+            jobs: nextJobs,
+            extractedItems: nextExtractedItems,
+            blueprints: nextBlueprints,
+            familyCharges: nextFamilyCharges,
+          },
+          job.input?.researchId,
+          action.now || Date.now()
+        );
+        nextResources = {
+          ...createEmptySanctuaryState().resources,
+          ...(nextSanctuaryAfterResearch.resources || {}),
+        };
+        nextInfusions = {
+          ...createEmptySanctuaryState().sigilInfusions,
+          ...(nextSanctuaryAfterResearch.sigilInfusions || {}),
+        };
+        nextExtractedItems = Array.isArray(nextSanctuaryAfterResearch.extractedItems) ? [...nextSanctuaryAfterResearch.extractedItems] : nextExtractedItems;
+        nextBlueprints = Array.isArray(nextSanctuaryAfterResearch.blueprints) ? [...nextSanctuaryAfterResearch.blueprints] : nextBlueprints;
+        nextFamilyCharges = {
+          ...createEmptyFamilyChargeState(),
+          ...(nextSanctuaryAfterResearch.familyCharges || {}),
+        };
+        nextLaboratory = {
+          ...createEmptyLaboratoryState(),
+          ...(nextSanctuaryAfterResearch.laboratory || {}),
+        };
+        nextStations = {
+          ...createEmptySanctuaryState().stations,
+          ...(nextSanctuaryAfterResearch.stations || {}),
+        };
+        logLine = `SANTUARIO: Laboratorio completa ${job.input?.label || "investigacion"} y mejora ${SANCTUARY_STATION_DEFAULTS[job.input?.stationId]?.label || "el Santuario"}.`;
+      } else if (job.type === "forge_project") {
+        const sourceProject = job.input?.project || {};
+        const nextUpgradeLevel = Math.max(0, Number(job.output?.nextUpgradeLevel || (Number(sourceProject?.upgradeLevel || 0) + 1)));
+        const forgedProject = normalizeProjectRecord({
+          ...deepForgeUpgradeProject(sourceProject, nextUpgradeLevel),
+          forgedAt: action.now || Date.now(),
+          forgeHistory: [
+            ...(Array.isArray(sourceProject?.forgeHistory) ? sourceProject.forgeHistory : []),
+            {
+              at: action.now || Date.now(),
+              upgradeLevel: nextUpgradeLevel,
+              dustCost: Math.max(0, Number(job.input?.dustCost || 0)),
+            },
+          ],
+        });
+        nextStash = [...nextStash, forgedProject].sort((left, right) => Number(right?.rating || 0) - Number(left?.rating || 0));
+        logLine = `SANTUARIO: Forja Profunda completa · ${forgedProject.name} sube a +${nextUpgradeLevel}.`;
+      }
+
+      return withAchievementProgress({
+        ...state,
+        player: nextPlayer,
+        codex: nextCodex,
+        stats: {
+          ...state.stats,
+          upgradesCrafted: (state.stats?.upgradesCrafted || 0) + (job.type === "forge_project" ? 1 : 0),
+        },
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          stash: nextStash,
+          extractedItems: nextExtractedItems,
+          blueprints: nextBlueprints,
+          familyCharges: nextFamilyCharges,
+          laboratory: nextLaboratory,
+          stations: nextStations,
+          activeBlueprints: ensureValidActiveBlueprints(nextBlueprints, state.sanctuary?.activeBlueprints || {}),
+          deepForgeSession: null,
+          jobs: nextJobs,
+          resources: nextResources,
+          sigilInfusions: nextInfusions,
+        },
+        combat: {
+          ...state.combat,
+          analytics: {
+            ...(state.combat.analytics || createEmptySessionAnalytics()),
+            upgradesCrafted: (state.combat.analytics?.upgradesCrafted || 0) + (job.type === "forge_project" ? 1 : 0),
+          },
+          log: [
+            ...(state.combat?.log || []),
+            logLine,
+          ].slice(-20),
+        },
+      });
     }
 
     case "TICK":
@@ -495,6 +2182,7 @@ function baseGameReducer(state, action) {
       const tier     = Math.max(1, Math.min(action.tier, state.combat.maxTier));
       const prevTier = state.combat.currentTier || 1;
       const runContext = state.combat?.runContext || createRunContext();
+      const nextEnemy = spawnEnemy(tier, runContext);
 
       let newState = {
         ...state,
@@ -502,7 +2190,7 @@ function baseGameReducer(state, action) {
           ...state.combat,
           currentTier:       tier,
           autoAdvance:       false,
-          enemy:             spawnEnemy(tier, runContext),
+          enemy:             nextEnemy,
           runContext,
           ticksInCurrentRun: 0,
           sessionKills:      0,
@@ -539,6 +2227,10 @@ function baseGameReducer(state, action) {
           reforgeSession: null,
           analytics: state.combat.analytics || createEmptySessionAnalytics(),
           log:               [],
+        },
+        expedition: {
+          ...(state.expedition || createEmptyExpeditionState()),
+          seenFamilyIds: appendSeenFamilyIds(state.expedition || createEmptyExpeditionState(), nextEnemy),
         },
       };
 
@@ -816,50 +2508,12 @@ function baseGameReducer(state, action) {
       const prestigeCheck = canPrestige(state);
       if (!prestigeCheck.ok) return state;
 
-      const resetClass  = true;
       const echoesGained = calculatePrestigeEchoGain(state);
       const nextPrestigeLevel = (state.prestige?.level || 0) + 1;
       const nextRunContext = createRunContext();
       const resetRunSigilIds = normalizeRunSigilIds("free", {
         slots: getMaxRunSigilSlots(state?.abyss || {}),
       });
-      const basePlayer  = {
-        level: 1, xp: 0,
-        baseDamage:     10,
-        baseDefense:    2,
-        baseCritChance: 0.05,
-        baseMaxHp:      100,
-        damagePct: 0, flatDamage: 0,
-        defensePct: 0, flatDefense: 0,
-        hpPct: 0, flatRegen: 0, flatCrit: 0, critDamage: 0,
-        flatGold: 0, goldPct: 0, xpPct: 0,
-        attackSpeed: 0, lifesteal: 0, blockChance: 0, thorns: 0,
-        multiHitChance: 0, bleedChance: 0, bleedDamage: 0, fractureChance: 0,
-        battleHardened: 0, heavyImpact: 0, bloodStrikes: 0, combatFlow: 0,
-        ironConversion: 0, crushingWeight: 0, frenziedChain: 0, bloodDebt: 0,
-        lastBreath: 0, execution: 0, ironCore: 0, fortress: 0,
-        unmovingMountain: 0, titanicMomentum: 0,
-        arcaneEcho: 0, arcaneMark: 0, arcaneFlow: 0, overchannel: 0,
-        perfectCast: 0, freshTargetDamage: 0, chainBurst: 0, unstablePower: 0,
-        overload: 0, volatileCasting: 0, controlMastery: 0, markTransfer: 0,
-        temporalFlow: 0, spellMemory: 0, timeLoop: 0, absoluteControl: 0,
-        cataclysm: 0,
-        gold:    0,
-        essence: state.player.essence || 0,
-        prestigeBonuses: {},
-        codexBonuses: state.player.codexBonuses || {},
-        runSigilBonuses: {},
-        inventory:       [],
-        equipment:       { weapon: null, armor: null },
-        upgrades:        {},
-        unlockedTalents: [],
-        talentLevels:    {},
-        talentSystemVersion: state.player.talentSystemVersion,
-        talentPoints:    0,
-        class:          resetClass ? null : state.player.class,
-        specialization: resetClass ? null : state.player.specialization,
-      };
-
       const nextPrestigeState = {
         ...state.prestige,
         level: nextPrestigeLevel,
@@ -873,86 +2527,13 @@ function baseGameReducer(state, action) {
         nodes: { ...(state.prestige?.nodes || {}) },
       };
 
-      const freshPlayer = syncPrestigeBonuses(basePlayer, nextPrestigeState);
-      freshPlayer.hp    = freshPlayer.maxHp;
-
-      return withAchievementProgress({
-        ...state,
-        currentTab: resetClass ? "character" : state.currentTab,
-        player: freshPlayer,
-        stats: {
-          ...state.stats,
-          prestigeCount: (state.stats?.prestigeCount || 0) + 1,
-        },
-        prestige: nextPrestigeState,
-        combat: {
-          enemy:             spawnEnemy(1, nextRunContext),
-          log:               [
-            `Prestige ${nextPrestigeLevel}. +${echoesGained} ecos${prestigeCheck.preview?.momentum?.multiplier ? ` · Momentum x${Number(prestigeCheck.preview.momentum.multiplier).toFixed(1)}` : ""}. Resonancia total: ${(state.prestige?.totalEchoesEarned || 0) + echoesGained} ecos. Reinicias la corrida y volves a elegir clase para la proxima run.`
-          ],
-          currentTier:       1,
-          maxTier:           1,
-          autoAdvance:       false,
-          ticksInCurrentRun: 0,
-          sessionKills:      0,
-          effects:           [],
-          lastRunTier:       state.combat.maxTier,
-          talentBuffs:       [],
-          triggerCounters: {
-            kills: 0,
-            onHit: 0,
-            crit: 0,
-            onDamageTaken: 0,
-          },
-          pendingOnKillDamage: 0,
-          pendingMageVolatileMult: 1,
-          floatEvents: [],
-          runStats: {
-            kills: 0,
-            bossKills: 0,
-            damageDealt: 0,
-            gold: 0,
-            xp: 0,
-            essence: 0,
-            items: 0,
-            bestDropName: null,
-            bestDropRarity: null,
-            bestDropHighlight: null,
-            bestDropPerfectRolls: 0,
-            bestDropScore: 0,
-          },
-          performanceSnapshot: {
-            damagePerTick: 0,
-            goldPerTick: 0,
-            xpPerTick: 0,
-            killsPerMinute: 0,
-          },
-          latestLootEvent: null,
-          reforgeSession: null,
-          runContext: nextRunContext,
-          pendingRunSetup: nextPrestigeLevel >= 1,
-          pendingRunSigilId: resetRunSigilIds[0] || "free",
-          pendingRunSigilIds: resetRunSigilIds,
-          activeRunSigilId: resetRunSigilIds[0] || "free",
-          activeRunSigilIds: resetRunSigilIds,
-          lastRunSummary:    null,
-          offlineSummary:    null,
-          prestigeCycle: createEmptyPrestigeCycleProgress(),
-          analytics: {
-            ...(state.combat.analytics || createEmptySessionAnalytics()),
-            prestigeCount: (state.combat.analytics?.prestigeCount || 0) + 1,
-            goldSpentBySource: {
-              ...(state.combat.analytics?.goldSpentBySource || createEmptySessionAnalytics().goldSpentBySource),
-              prestige: state.combat.analytics?.goldSpentBySource?.prestige || 0,
-            },
-            maxLevelReached: Math.max(state.combat.analytics?.maxLevelReached || 1, state.player.level || 1),
-            maxTierReached: Math.max(state.combat.analytics?.maxTierReached || 1, state.combat.maxTier || 1),
-            firstPrestigeTick:
-              state.combat.analytics?.firstPrestigeTick == null
-                ? (state.combat.analytics?.ticks || 0)
-                : state.combat.analytics?.firstPrestigeTick,
-          },
-        },
+      return buildPrestigeResetState(state, {
+        echoesGained,
+        nextPrestigeLevel,
+        nextPrestigeState,
+        resetRunSigilIds,
+        nextRunContext,
+        logLine: `Prestige ${nextPrestigeLevel}. +${echoesGained} ecos${prestigeCheck.preview?.momentum?.multiplier ? ` · Momentum x${Number(prestigeCheck.preview.momentum.multiplier).toFixed(1)}` : ""}. Resonancia total: ${(state.prestige?.totalEchoesEarned || 0) + echoesGained} ecos. Reinicias la corrida y volves a elegir clase para la proxima run.`,
       });
     }
 
@@ -1344,7 +2925,7 @@ function withAbyssProgression(prevState, nextState) {
       ...nextState.player,
       runSigilBonuses: nextState?.combat?.pendingRunSetup
         ? {}
-        : getRunSigilPlayerBonuses(activeRunSigilIds),
+        : getCombinedRunSigilBonuses(activeRunSigilIds, nextState?.expedition || {}),
     },
     combat: {
       ...nextState.combat,
@@ -1357,9 +2938,46 @@ function withAbyssProgression(prevState, nextState) {
   };
 }
 
+function withExpeditionState(prevState, nextState) {
+  const nextPhase = deriveExpeditionPhase(nextState);
+  const prevPhase = prevState?.expedition?.phase || deriveExpeditionPhase(prevState);
+  const expedition = {
+    ...createEmptyExpeditionState(),
+    ...(nextState?.expedition || {}),
+    phase: nextPhase,
+  };
+
+  let currentTab = nextState?.currentTab || "sanctuary";
+  if (currentTab === "lab") {
+    currentTab = nextPhase === "active" ? "combat" : "sanctuary";
+  }
+  if (nextPhase !== "active" && (currentTab === "combat" || currentTab === "inventory" || currentTab === "crafting" || currentTab === "codex")) {
+    currentTab = "sanctuary";
+  }
+  if (
+    prevPhase !== "active" &&
+    nextPhase === "active" &&
+    (currentTab === "character" || currentTab === "skills" || currentTab === "talents" || currentTab === "registry" || currentTab === "achievements" || currentTab === "stats" || currentTab === "system" || currentTab === "sanctuary")
+  ) {
+    currentTab = "combat";
+  }
+
+  return {
+    ...nextState,
+    currentTab,
+    sanctuary: {
+      ...createEmptySanctuaryState(),
+      ...(nextState?.sanctuary || {}),
+    },
+    expedition,
+  };
+}
+
 export function gameReducer(state, action) {
-  const nextState = withAbyssProgression(state, baseGameReducer(state, action));
-  if (nextState === state) return state;
+  const baseNextState = withAbyssProgression(state, baseGameReducer(state, action));
+  if (baseNextState === state) return state;
+
+  const nextState = withExpeditionState(state, baseNextState);
   return recordReplayState(state, nextState, action);
 }
 

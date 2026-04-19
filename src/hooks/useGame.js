@@ -79,6 +79,11 @@ export const useGame = () => {
     latestStateRef.current = state;
   }, [state]);
 
+  useEffect(() => {
+    if (recoveryMode) return;
+    dispatch({ type: "SYNC_SANCTUARY_JOBS", now: Date.now() });
+  }, [dispatch, recoveryMode]);
+
   const flushSave = useCallback(() => {
     if (recoveryMode) return;
     if (saveTimerRef.current) {
@@ -108,7 +113,7 @@ export const useGame = () => {
     const step = () => {
       const job = offlineJobRef.current;
       if (!job) return;
-      if (latestStateRef.current?.combat?.pendingRunSetup) {
+      if (latestStateRef.current?.expedition?.phase !== "active") {
         offlineJobRef.current = null;
         return;
       }
@@ -136,17 +141,27 @@ export const useGame = () => {
     const id = setInterval(() => {
       if (document.hidden) return;
       if (offlineJobRef.current) return;
-      if (latestStateRef.current?.combat?.pendingRunSetup) return;
+      if (latestStateRef.current?.expedition?.phase !== "active") return;
       dispatch({ type: "TICK" });
     }, TICK_MS);
     return () => clearInterval(id);
   }, [dispatch]);
 
   useEffect(() => {
+    if (recoveryMode) return undefined;
+    const id = setInterval(() => {
+      const jobs = latestStateRef.current?.sanctuary?.jobs || [];
+      if (!jobs.some(job => job?.status === "running")) return;
+      dispatch({ type: "SYNC_SANCTUARY_JOBS", now: Date.now() });
+    }, 5000);
+    return () => clearInterval(id);
+  }, [dispatch, recoveryMode]);
+
+  useEffect(() => {
     if (hydratedRef.current) return;
     hydratedRef.current = true;
     if (recoveryMode) return;
-    if (state.combat?.pendingRunSetup) return;
+    if (state.expedition?.phase !== "active") return;
 
     const savedAt = state.savedAt;
     if (!savedAt) return;
@@ -168,8 +183,10 @@ export const useGame = () => {
         return;
       }
 
+      dispatch({ type: "SYNC_SANCTUARY_JOBS", now: Date.now() });
+
       if (!hiddenAtRef.current) return;
-      if (latestStateRef.current?.combat?.pendingRunSetup) return;
+      if (latestStateRef.current?.expedition?.phase !== "active") return;
 
       const elapsedMs = Math.max(0, Date.now() - hiddenAtRef.current);
       hiddenAtRef.current = null;

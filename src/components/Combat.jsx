@@ -262,6 +262,7 @@ function getStackedMultiplier(perStackMultiplier = 1, stacks = 0) {
 
 export default function Combat({ state, dispatch }) {
   const { player, combat } = state;
+  const expedition = state.expedition || {};
   const {
     enemy,
     currentTier,
@@ -334,6 +335,9 @@ export default function Combat({ state, dispatch }) {
   );
   const effectiveCritChanceInCombat = Math.min(0.75, (baseStats.critChance || 0) + (combatEffectMods.critBonus || 0));
   const effectiveAttackSpeedInCombat = Math.min(0.7, (baseStats.attackSpeed || 0) + (combatEffectMods.attackSpeedFlat || 0));
+  const expeditionDeathLimit = Math.max(1, Number(expedition.deathLimit || 3));
+  const expeditionDeathCount = Math.max(0, Number(expedition.deathCount || 0));
+  const remainingSafeDeaths = Math.max(0, expeditionDeathLimit - expeditionDeathCount);
   const combatTips = useMemo(() => ([
     {
       title: "Arma primero",
@@ -348,8 +352,8 @@ export default function Combat({ state, dispatch }) {
       body: "La reforja sirve para perseguir una linea clave. El reroll total es para resetear una pieza floja.",
     },
     {
-      title: "Prestige corto tambien vale",
-      body: "Si la run se estanca, un prestige rapido por pocos ecos puede rendir mas que forzar otra hora.",
+      title: "Extraccion corta tambien vale",
+      body: "Si la run se estanca, una extraccion temprana para asegurar ecos y cargo puede rendir mas que forzar otra hora.",
     },
     {
       title: "Auto-avance no siempre",
@@ -879,6 +883,25 @@ export default function Combat({ state, dispatch }) {
           </button>
         </div>
 
+        <div style={{ display: "flex", justifyContent: "center", gap: "8px", flexWrap: "wrap" }}>
+          <button
+            onClick={() => dispatch({ type: "OPEN_EXTRACTION", exitReason: "retire" })}
+            style={{
+              border: "1px solid var(--tone-accent, #534AB7)",
+              background: "var(--tone-accent-soft, #eef2ff)",
+              color: "var(--tone-accent, #534AB7)",
+              borderRadius: "999px",
+              padding: "6px 11px",
+              fontSize: "0.62rem",
+              fontWeight: "900",
+              cursor: "pointer",
+              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.02)",
+            }}
+          >
+            Extraer al Santuario
+          </button>
+        </div>
+
         <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0 }}>
           <button
             title={[
@@ -1147,6 +1170,34 @@ export default function Combat({ state, dispatch }) {
             />
           </div>
           <InlineStatusTray statuses={playerStatusPills} emptyLabel="Sin estados" isMobile={isMobile} />
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "6px" }}>
+            <span style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary, #94a3b8)" }}>
+              Vidas de expedicion
+            </span>
+            <span
+              style={{
+                fontSize: "0.62rem",
+                fontWeight: "900",
+                borderRadius: "999px",
+                padding: "2px 8px",
+                background:
+                  remainingSafeDeaths <= 0
+                    ? "var(--tone-danger-soft, #fff1f2)"
+                    : remainingSafeDeaths === 1
+                      ? "var(--tone-warning-soft, #fff7ed)"
+                      : "var(--tone-success-soft, #ecfdf5)",
+                color:
+                  remainingSafeDeaths <= 0
+                    ? "var(--tone-danger, #D85A30)"
+                    : remainingSafeDeaths === 1
+                      ? "var(--tone-warning, #f59e0b)"
+                      : "var(--tone-success-strong, #047857)",
+                border: "1px solid var(--color-border-primary, #e2e8f0)",
+              }}
+            >
+              {remainingSafeDeaths}/{expeditionDeathLimit} seguras
+            </span>
+          </div>
         </div>
         {combatDamageFloatEvents.length > 0 && (
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible", zIndex: 8 }}>

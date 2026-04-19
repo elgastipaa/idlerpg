@@ -486,14 +486,14 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
           <div style={lightPanelStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", flexWrap: "wrap" }}>
               <div>
-                <div style={sectionTitleStyle}>Prestigio</div>
+                <div style={sectionTitleStyle}>Ecos</div>
                 <div style={{ fontSize: "0.8rem", color: "#102a43", fontWeight: "900", marginTop: "3px" }}>
                   P{formatNumber(prestige.level || 0)} · Resonancia {formatNumber(prestigeResonance.totalEchoesEarned || 0)} ecos
                 </div>
                 <div style={{ fontSize: "0.7rem", color: "#64748b", marginTop: "4px", lineHeight: 1.4 }}>
                   {prestigeStatus.ok
                     ? `Listo para resetear: +${formatNumber(projectedPoints)} ecos.`
-                    : "Segui empujando la corrida; el detalle completo vive en Prestigio."}
+                    : "Segui empujando la corrida; el detalle completo vive en Ecos."}
                 </div>
               </div>
               <div style={{ ...pillStyle(prestigeStatus.ok ? "rgba(245,158,11,0.12)" : "rgba(148,163,184,0.12)", prestigeStatus.ok ? "#f59e0b" : "#64748b", prestigeStatus.ok ? "rgba(245,158,11,0.28)" : "rgba(148,163,184,0.24)") }}>

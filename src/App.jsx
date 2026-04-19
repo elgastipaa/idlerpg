@@ -1,19 +1,15 @@
 import React, { Suspense, lazy, useState, useEffect } from "react";
 import { useGame } from "./hooks/useGame";
-import Character from "./components/Character";
-import Combat from "./components/Combat";
-import Inventory from "./components/Inventory";
+import Sanctuary from "./components/Sanctuary";
+import ExtractionOverlay from "./components/ExtractionOverlay";
 import { getRarityColor } from "./constants/rarity";
 import { formatRunSigilLoadout, getRunSigil, normalizeRunSigilIds, RUN_SIGILS, summarizeRunSigilLoadout } from "./data/runSigils";
 import { getMaxRunSigilSlots } from "./engine/progression/abyssProgression";
 
-const Skills = lazy(() => import("./components/Skills"));
-const Achievements = lazy(() => import("./components/Achievements"));
-const Stats = lazy(() => import("./components/Stats"));
-const Crafting = lazy(() => import("./components/Crafting"));
-const Talents = lazy(() => import("./components/Talents"));
-const Codex = lazy(() => import("./components/Codex"));
 const Prestige = lazy(() => import("./components/Prestige"));
+const HeroView = lazy(() => import("./components/HeroView"));
+const ExpeditionView = lazy(() => import("./components/ExpeditionView"));
+const RegistryView = lazy(() => import("./components/RegistryView"));
 
 class TabErrorBoundary extends React.Component {
   constructor(props) {
@@ -199,39 +195,53 @@ function buildOfflineSummaryKey(summary = {}) {
   ].join("|");
 }
 
+function isPrestigeTabUnlocked(state) {
+  return Number(state?.prestige?.level || 0) > 0 || Number(state?.prestige?.totalEchoesEarned || 0) > 0;
+}
+
+function getPrimaryTab(tab = "sanctuary") {
+  if (tab === "inventory" || tab === "crafting" || tab === "codex" || tab === "combat") return "combat";
+  if (tab === "skills" || tab === "talents" || tab === "character") return "character";
+  if (tab === "achievements" || tab === "stats" || tab === "system" || tab === "registry") return "registry";
+  if (tab === "prestige") return "prestige";
+  return "sanctuary";
+}
+
+function getVisiblePrimaryTab(tab = "sanctuary", state = {}) {
+  const primaryTab = getPrimaryTab(tab);
+  if (primaryTab === "prestige" && !isPrestigeTabUnlocked(state)) return "sanctuary";
+  return primaryTab;
+}
+
+function getDefaultTabForPrimaryTab(primaryTab = "sanctuary") {
+  if (primaryTab === "combat") return "combat";
+  if (primaryTab === "character") return "character";
+  if (primaryTab === "prestige") return "prestige";
+  if (primaryTab === "registry") return "registry";
+  return "sanctuary";
+}
+
 function renderCurrentTab(currentTab, state, dispatch) {
-  if (currentTab === "character") return <Character player={state.player} dispatch={dispatch} state={state} />;
-  if (currentTab === "combat") return <Combat state={state} dispatch={dispatch} />;
-  if (currentTab === "inventory") return <Inventory state={state} player={state.player} dispatch={dispatch} />;
-  if (currentTab === "skills") return <Skills state={state} dispatch={dispatch} />;
-  if (currentTab === "talents") return <Talents state={state} dispatch={dispatch} />;
-  if (currentTab === "crafting") return <Crafting state={state} dispatch={dispatch} />;
-  if (currentTab === "prestige") return <Prestige state={state} dispatch={dispatch} />;
-  if (currentTab === "achievements") return <Achievements state={state} />;
-  if (currentTab === "stats") return <Stats state={state} dispatch={dispatch} mode="stats" />;
-  if (currentTab === "lab") return <Stats state={state} dispatch={dispatch} mode="lab" />;
-  if (currentTab === "codex") return <Codex state={state} dispatch={dispatch} />;
+  const primaryTab = getVisiblePrimaryTab(currentTab, state);
+  if (primaryTab === "sanctuary") return <Sanctuary state={state} dispatch={dispatch} />;
+  if (primaryTab === "character") return <HeroView state={state} dispatch={dispatch} />;
+  if (primaryTab === "combat") return <ExpeditionView state={state} dispatch={dispatch} />;
+  if (primaryTab === "prestige") return <Prestige state={state} dispatch={dispatch} />;
+  if (primaryTab === "registry") return <RegistryView state={state} dispatch={dispatch} />;
   return null;
 }
 
-const TAB_CONFIG = {
+const PRIMARY_TAB_CONFIG = {
+  sanctuary:    { label: "Santuario", icon: "🕯️" },
   character:    { label: "Heroe", icon: "⚔️" },
-  combat:       { label: "Combate", icon: "🗡️" },
-  inventory:    { label: "Mochila", icon: "🎒" },
-  skills:       { label: "Atributos", icon: "⬆️" },
-  talents:      { label: "Talentos", icon: "🎯" },
-  crafting:     { label: "Forja", icon: "🔨" },
-  prestige:     { label: "Prestigio", icon: "🜂" },
-  achievements: { label: "Logros", icon: "🏆" },
-  stats:        { label: "Metricas", icon: "📊" },
-  lab:          { label: "Lab", icon: "🧪" },
-  codex:        { label: "Codex", icon: "📚" },
+  combat:       { label: "Expedicion", icon: "🗡️" },
+  prestige:     { label: "Ecos", icon: "🜂" },
+  registry:     { label: "Registro", icon: "🗂️" },
 };
 
 export default function App() {
   const { state, dispatch } = useGame();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [showMoreTabs, setShowMoreTabs] = useState(false);
   const offlineSummary = state.combat?.offlineSummary;
   const hasTalentPoints = (state.player?.talentPoints || 0) > 0;
   const reforgeLocked = !!state.combat?.reforgeSession;
@@ -274,10 +284,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!isMobile) setShowMoreTabs(false);
-  }, [isMobile, state.currentTab]);
-
-  useEffect(() => {
     Object.entries(themeVars).forEach(([key, value]) => {
       document.documentElement.style.setProperty(key, value);
     });
@@ -290,14 +296,13 @@ export default function App() {
     document.documentElement.style.setProperty("--app-header-offset", `${isMobile ? HEADER_HEIGHT_MOBILE : HEADER_HEIGHT_DESKTOP}px`);
   }, [isMobile]);
 
-  const tabs = Object.keys(TAB_CONFIG);
-  const mobilePrimaryTabs = ["combat", "inventory", "crafting", "character"];
-  const mobileSecondaryTabs = tabs.filter(tab => !mobilePrimaryTabs.includes(tab));
-  const activeTabInMore = !mobilePrimaryTabs.includes(state.currentTab);
   const HEADER_HEIGHT_MOBILE = 62;
   const HEADER_HEIGHT_DESKTOP = 68;
   const NAV_HEIGHT_MOBILE = 72;
   const DESKTOP_MAX_WIDTH = 1180;
+  const currentPrimaryTab = getVisiblePrimaryTab(state.currentTab, state);
+  const prestigeTabUnlocked = isPrestigeTabUnlocked(state);
+  const visiblePrimaryTabs = ["sanctuary", "combat", "character", ...(prestigeTabUnlocked ? ["prestige"] : []), "registry"];
   const resourceSummary = (
     <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, overflowX: "auto", scrollbarWidth: "none" }}>
       {showActiveRunSigil && (
@@ -334,7 +339,7 @@ export default function App() {
           <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ minWidth: 0 }}>
               <h1 style={{ margin: 0, fontSize: isMobile ? "1.15rem" : "1.55rem", fontWeight: "800", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.1 }}>
-                {TAB_CONFIG[state.currentTab].label}
+                {PRIMARY_TAB_CONFIG[currentPrimaryTab].label}
               </h1>
             </div>
             {reforgeLocked && (
@@ -363,16 +368,19 @@ export default function App() {
         {!isMobile && (
           <div style={{ marginBottom: "12px", background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-tertiary, #cbd5e1)", borderRadius: "12px", boxShadow: "0 4px 20px var(--color-shadow, rgba(0,0,0,0.05))", padding: "10px 12px" }}>
             <nav style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              {tabs.map((t) => (
+              {visiblePrimaryTabs.map((t) => (
                 <button
                   key={t}
-                  disabled={reforgeLocked && state.currentTab !== t}
-                  onClick={() => dispatch({ type: "SET_TAB", tab: t })}
+                  disabled={reforgeLocked && currentPrimaryTab !== t}
+                  onClick={() => {
+                    if (currentPrimaryTab === t) return;
+                    dispatch({ type: "SET_TAB", tab: getDefaultTabForPrimaryTab(t) });
+                  }}
                   style={{
                     padding: "7px 13px",
-                    cursor: reforgeLocked && state.currentTab !== t ? "not-allowed" : "pointer",
-                    backgroundColor: state.currentTab === t ? "var(--color-background-info, #e0e7ff)" : "var(--color-background-secondary, #ffffff)",
-                    color: reforgeLocked && state.currentTab !== t ? "var(--color-text-tertiary, #94a3b8)" : state.currentTab === t ? "var(--color-text-info, #4338ca)" : "var(--color-text-primary, #1e293b)",
+                    cursor: reforgeLocked && currentPrimaryTab !== t ? "not-allowed" : "pointer",
+                    backgroundColor: currentPrimaryTab === t ? "var(--color-background-info, #e0e7ff)" : "var(--color-background-secondary, #ffffff)",
+                    color: reforgeLocked && currentPrimaryTab !== t ? "var(--color-text-tertiary, #94a3b8)" : currentPrimaryTab === t ? "var(--color-text-info, #4338ca)" : "var(--color-text-primary, #1e293b)",
                     border: "1px solid var(--color-border-tertiary, #cbd5e1)",
                     borderRadius: "8px",
                     fontWeight: "700",
@@ -380,14 +388,19 @@ export default function App() {
                     alignItems: "center",
                     gap: "6px",
                     transition: "all 0.2s",
-                    opacity: reforgeLocked && state.currentTab !== t ? 0.55 : 1,
+                    opacity: reforgeLocked && currentPrimaryTab !== t ? 0.55 : 1,
                   }}
                 >
-                  <span>{TAB_CONFIG[t].icon}</span>
-                  {TAB_CONFIG[t].label}
-                  {t === "talents" && hasTalentPoints && (
+                  <span>{PRIMARY_TAB_CONFIG[t].icon}</span>
+                  {PRIMARY_TAB_CONFIG[t].label}
+                  {t === "character" && hasTalentPoints && (
                     <span style={{ marginLeft: "4px", minWidth: "18px", height: "18px", padding: "0 6px", borderRadius: "999px", background: "var(--tone-danger, #ef4444)", color: "#fff", fontSize: "0.62rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                       {state.player.talentPoints}
+                    </span>
+                  )}
+                  {t === "combat" && inventoryUpgrades > 0 && (
+                    <span style={{ marginLeft: "4px", minWidth: "18px", height: "18px", padding: "0 6px", borderRadius: "999px", background: "var(--tone-success, #10b981)", color: "#fff", fontSize: "0.62rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                      {inventoryUpgrades > 9 ? "9+" : inventoryUpgrades}
                     </span>
                   )}
                 </button>
@@ -405,17 +418,17 @@ export default function App() {
 
         <main style={{ width: "100%", background: isMobile ? "transparent" : "var(--color-background-secondary, #ffffff)", borderRadius: isMobile ? "0" : "12px", border: isMobile ? "none" : "1px solid var(--color-border-tertiary, #cbd5e1)", boxShadow: isMobile ? "none" : "0 4px 20px var(--color-shadow, rgba(0,0,0,0.05))" }}>
           <TabErrorBoundary
-            label={TAB_CONFIG[state.currentTab].label}
-            onRecover={() => dispatch({ type: "SET_TAB", tab: "combat" })}
+            label={PRIMARY_TAB_CONFIG[currentPrimaryTab].label}
+            onRecover={() => dispatch({ type: "SET_TAB", tab: state.expedition?.phase === "active" ? "combat" : "sanctuary" })}
           >
-            <Suspense fallback={<TabLoadingCard label={TAB_CONFIG[state.currentTab].label} />}>
+            <Suspense fallback={<TabLoadingCard label={PRIMARY_TAB_CONFIG[currentPrimaryTab].label} />}>
               {renderCurrentTab(state.currentTab, state, dispatch)}
             </Suspense>
           </TabErrorBoundary>
         </main>
       </div>
 
-      {state.combat?.pendingRunSetup && state.player?.class && (
+      {state.combat?.pendingRunSetup && state.player?.class && state.player?.specialization && (
         <RunSigilOverlay
           isMobile={isMobile}
           pendingRunSigilIds={pendingRunSigilIds}
@@ -426,59 +439,40 @@ export default function App() {
         />
       )}
 
+      {state.expedition?.phase === "extraction" && (
+        <ExtractionOverlay
+          state={state}
+          dispatch={dispatch}
+          isMobile={isMobile}
+        />
+      )}
+
       {isMobile && (
         <>
-          {showMoreTabs && (
-            <div style={{ position: "fixed", left: "8px", right: "8px", bottom: `${NAV_HEIGHT_MOBILE + 8}px`, zIndex: 5001, background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "8px", boxShadow: "0 14px 30px var(--color-shadow, rgba(15,23,42,0.18))", display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: "6px" }}>
-              {mobileSecondaryTabs.map(t => (
-                <button
-                  key={t}
-                  disabled={reforgeLocked && state.currentTab !== t}
-                  onClick={() => {
-                    dispatch({ type: "SET_TAB", tab: t });
-                    setShowMoreTabs(false);
-                  }}
-                  style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: state.currentTab === t ? "var(--color-background-info, #eef2ff)" : "var(--color-background-secondary, #fff)", color: reforgeLocked && state.currentTab !== t ? "var(--color-text-tertiary, #94a3b8)" : "var(--color-text-primary, #1e293b)", borderRadius: "10px", padding: "8px 6px", fontSize: "0.68rem", fontWeight: "900", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px", cursor: reforgeLocked && state.currentTab !== t ? "not-allowed" : "pointer", position: "relative", opacity: reforgeLocked && state.currentTab !== t ? 0.55 : 1 }}
-                >
-                  <span>{TAB_CONFIG[t].icon}</span>
-                  <span>{TAB_CONFIG[t].label}</span>
-                  {t === "talents" && hasTalentPoints && (
-                    <span style={{ position: "absolute", top: "4px", right: "4px", minWidth: "16px", height: "16px", padding: "0 5px", borderRadius: "999px", background: "var(--tone-danger, #ef4444)", color: "#fff", fontSize: "0.56rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                      {state.player.talentPoints}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
           <nav style={{ position: "fixed", bottom: 0, left: 0, width: "100%", height: `${NAV_HEIGHT_MOBILE}px`, backgroundColor: "var(--color-background-secondary, #ffffff)", borderTop: "1px solid var(--color-border-secondary, #e2e8f0)", display: "flex", zIndex: 5000, paddingBottom: "env(safe-area-inset-bottom)", boxSizing: "content-box" }}>
-            {mobilePrimaryTabs.map((t) => {
-              const isActive = state.currentTab === t;
+            {visiblePrimaryTabs.map((t) => {
+              const isActive = currentPrimaryTab === t;
               return (
-                <button key={t} disabled={reforgeLocked && !isActive} onClick={() => { dispatch({ type: "SET_TAB", tab: t }); setShowMoreTabs(false); }} style={{ flex: 1, minWidth: "56px", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "2px", background: isActive ? "var(--color-background-info, #f1f5f9)" : "transparent", border: "none", outline: "none", position: "relative", paddingTop: "5px", opacity: reforgeLocked && !isActive ? 0.45 : 1 }}>
+                <button key={t} disabled={reforgeLocked && !isActive} onClick={() => { if (isActive) return; dispatch({ type: "SET_TAB", tab: getDefaultTabForPrimaryTab(t) }); }} style={{ flex: 1, minWidth: "56px", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "2px", background: isActive ? "var(--color-background-info, #f1f5f9)" : "transparent", border: "none", outline: "none", position: "relative", paddingTop: "5px", opacity: reforgeLocked && !isActive ? 0.45 : 1 }}>
                   <span style={{ filter: isActive ? "none" : "grayscale(1) opacity(0.5)", position: "relative", fontSize: "21px", lineHeight: 1 }}>
-                    {TAB_CONFIG[t].icon}
+                    {PRIMARY_TAB_CONFIG[t].icon}
                   </span>
                   <span style={{ fontSize: "0.56rem", fontWeight: "900", color: isActive ? "var(--color-text-info, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                    {TAB_CONFIG[t].label}
+                    {PRIMARY_TAB_CONFIG[t].label}
                   </span>
-                  {t === "inventory" && inventoryUpgrades > 0 && (
+                  {t === "combat" && inventoryUpgrades > 0 && (
                     <span style={{ position: "absolute", top: "6px", right: "14px", minWidth: "16px", height: "16px", padding: "0 5px", borderRadius: "999px", background: "var(--tone-success, #10b981)", color: "#fff", fontSize: "0.56rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                       {inventoryUpgrades > 9 ? "9+" : inventoryUpgrades}
+                    </span>
+                  )}
+                  {t === "character" && hasTalentPoints && (
+                    <span style={{ position: "absolute", top: "6px", right: "12px", minWidth: "16px", height: "16px", padding: "0 5px", borderRadius: "999px", background: "var(--tone-danger, #ef4444)", color: "#fff", fontSize: "0.56rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                      {state.player.talentPoints}
                     </span>
                   )}
                 </button>
               );
             })}
-            <button disabled={reforgeLocked} onClick={() => setShowMoreTabs(current => !current)} style={{ flex: 1, minWidth: "56px", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "2px", background: activeTabInMore || showMoreTabs ? "var(--color-background-info, #f1f5f9)" : "transparent", border: "none", outline: "none", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", position: "relative", paddingTop: "5px", opacity: reforgeLocked ? 0.45 : 1 }}>
-              <span style={{ fontSize: "20px", lineHeight: 1 }}>···</span>
-              <span style={{ fontSize: "0.56rem", fontWeight: "900", color: activeTabInMore || showMoreTabs ? "var(--color-text-info, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                Mas
-              </span>
-              {hasTalentPoints && (
-                <span style={{ position: "absolute", top: "12px", right: "15px", width: "9px", height: "9px", borderRadius: "999px", background: "var(--tone-danger, #ef4444)" }} />
-              )}
-            </button>
           </nav>
         </>
       )}

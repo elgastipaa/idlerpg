@@ -884,6 +884,528 @@ Recomiendo engine nuevo:
 - tiempo restante
 - claim / start
 
+## Anexo: Detalle Del Santuario
+
+Este anexo fija con más precisión qué vive en `Santuario`, qué es realmente time-gated y qué queda para después.
+
+## Qué Es El Santuario
+
+El `Santuario` no es sólo una tab nueva.  
+Es la nueva capa persistente de cuenta donde viven:
+
+- los jobs,
+- la preparación de expediciones,
+- el stash limitado,
+- la transformación de valor temporal en valor persistente.
+
+### Regla de diseño
+
+Todo lo que viva en `Santuario` tiene que cumplir al menos una:
+
+1. persistir entre expediciones,
+2. usar tiempo real,
+3. preparar una expedición futura,
+4. procesar valor extraído,
+5. generar retorno frecuente sin reemplazar el combate.
+
+## Estaciones Del Santuario
+
+## Estaciones del MVP
+
+### 1. Destilería
+
+Es la estación más simple y la más importante para el MVP.
+
+#### Rol
+
+- procesar `cargo bundles`
+- devolver recursos persistentes
+
+#### Input
+
+- `essence_cache`
+- `codex_trace`
+- `sigil_residue`
+- `relic_shard`
+
+#### Output
+
+- esencia
+- recurso de Codex futuro
+- carga de sigilo
+- fragmento refinado
+
+#### Fantasía
+
+“Lo que traje de la expedición no vuelve como basura. Lo proceso y lo convierto en progreso de cuenta.”
+
+### 2. Altar De Sigilos
+
+Es la estación de preparación de la próxima expedición.
+
+#### Rol
+
+- infundir un sigilo con un timer
+- dejarlo listo para la próxima expedición
+
+#### Input
+
+- sigilo seleccionado
+- opcionalmente `sigil_residue`
+
+#### Output
+
+- estado `infused` o `charged` del sigilo
+- bonus pequeño y claro para la próxima expedición
+
+#### Fantasía
+
+“No sólo elijo mi sigilo. Lo preparo.”
+
+## Estaciones post-MVP
+
+### 3. Forja Profunda
+
+No entra en el MVP, pero es la evolución natural.
+
+#### Rol
+
+- trabajar sobre `proyectos persistentes`
+- time-gatear upgrades o transformaciones valiosas
+
+#### Input
+
+- proyecto del stash
+- catalizadores
+- fragmentos refinados
+
+#### Output
+
+- mejora de proyecto
+- estabilización
+- imprint
+- reforge abisal futura
+
+### 4. Archivo Del Códice
+
+Tampoco entra completo en el MVP.
+
+#### Rol
+
+- investigación persistente
+- estudio de familias, bosses, powers, seeds
+
+### 5. Mesa De Cartografía
+
+Late game.
+
+#### Rol
+
+- preparar una expedición futura leyendo parcialmente su seed o su tramo de Abismo
+
+### 6. Mesa De Contratos
+
+Mid/late.
+
+#### Rol
+
+- aceptar contratos con dirección clara de expedición
+
+## Jobs Del Santuario
+
+## Qué Es Un Job
+
+Un `job` es un trabajo persistente de cuenta con:
+
+- input,
+- duración,
+- output,
+- estado,
+- claim posterior.
+
+### Regla técnica
+
+Un job:
+
+- no depende del `TICK` de combate,
+- vive por tiempo real absoluto,
+- sigue corriendo aunque no haya expedición activa,
+- queda `claimable` al terminar.
+
+## Lifecycle De Un Job
+
+### Estados
+
+- `idle`
+- `running`
+- `claimable`
+- `claimed`
+- `cancelled`
+
+### Ciclo
+
+1. el jugador inicia job
+2. el job entra en `running`
+3. al llegar `endsAt`, pasa a `claimable`
+4. el jugador hace claim
+5. el output se aplica al Santuario
+
+## Jobs Del MVP
+
+### 1. `distill_bundle`
+
+#### Station
+
+- `distillery`
+
+#### Qué hace
+
+- consume un `cargo bundle`
+- entrega recurso persistente
+
+#### Timers sugeridos
+
+| Cargo | Timer |
+|---|---:|
+| `essence_cache` | `20m` |
+| `codex_trace` | `30m` |
+| `sigil_residue` | `45m` |
+| `relic_shard` | `60m` |
+
+### 2. `infuse_sigil`
+
+#### Station
+
+- `sigilInfusion`
+
+#### Qué hace
+
+- carga un sigilo para una expedición futura
+
+#### Timers sugeridos
+
+| Intensidad | Timer |
+|---|---:|
+| ligera | `2h` |
+| media | `6h` |
+| completa | `12h` |
+
+## Jobs Post-MVP
+
+### 3. `forge_project`
+
+- trabaja un proyecto persistente
+
+### 4. `research_codex`
+
+- investiga powers/familias/bosses
+
+### 5. `map_abyss`
+
+- cartografía de una seed o bloque de Abismo
+
+### 6. `resolve_contract`
+
+- fase final corta de un contrato completado
+
+## Slots De Jobs
+
+### MVP
+
+- `1` slot de Destilería
+- `1` slot de Infusión
+
+### Regla
+
+No arrancar con más.  
+Si el sistema se vuelve demasiado ancho de entrada, el Santuario se siente como una checklist, no como una base.
+
+## Reglas UX De Jobs
+
+1. El jugador nunca debería perder output por no entrar exacto a horario.
+2. Un job terminado espera claim.
+3. Un job debe explicar claramente:
+   - input
+   - duración
+   - output
+4. Debe existir `claim all` más adelante, pero no es obligatorio para MVP.
+
+## Cargo Y Materiales
+
+## Qué Es El Cargo En Este Diseño
+
+El `cargo` es valor persistente rescatable que viene de una expedición.
+
+No es gear equipable.
+No es oro de run.
+No es eco.
+
+Es el puente entre expedición y Santuario.
+
+## Cargo Del MVP
+
+### 1. `essence_cache`
+
+#### Qué representa
+
+- botín refinable
+- materiales crudos para economía de crafting
+
+#### Output esperado en Destilería
+
+- esencia
+
+#### Fuente típica
+
+- bosses
+- milestones de tier
+- drops buenos
+
+### 2. `codex_trace`
+
+#### Qué representa
+
+- conocimiento recuperado de enemigos, familias o bosses
+
+#### Output esperado
+
+- recurso persistente para futuros sistemas de investigación
+- o progreso horizontal simple en MVP
+
+#### Fuente típica
+
+- bosses
+- bosses de Abismo
+- drops `epic+`
+
+### 3. `sigil_residue`
+
+#### Qué representa
+
+- energía residual útil para infusión/preparación
+
+#### Output esperado
+
+- carga o fuel para el Altar de Sigilos
+
+#### Fuente típica
+
+- bosses
+- runs temáticas con sigil fuerte
+- algunos milestones
+
+### 4. `relic_shard`
+
+#### Qué representa
+
+- fragmentos raros de valor persistente
+
+#### Output esperado
+
+- reliquia refinada futura
+- catalizador de Forja Profunda futura
+
+#### Fuente típica
+
+- Abismo
+- bosses altos
+- drops excepcionales
+
+## Qué Materiales No Metería En El MVP
+
+No metería todavía:
+
+- 20 tipos de minerales
+- mats por bioma
+- mats por slot de gear
+- recetas con 8 ingredientes
+
+El MVP necesita una taxonomía corta y clara.
+
+## Proyecto Vs Cargo
+
+La diferencia correcta es:
+
+### Cargo
+
+- bundle abstracto
+- siempre va al Santuario como recurso
+- no tiene identidad de item
+
+### Proyecto
+
+- item específico
+- identidad propia
+- ocupa stash
+- se convierte en base para sistemas de crafting profundos futuros
+
+## Misiones Time-Gated
+
+Sí, pero no en el MVP base.
+
+## Qué Haría Después
+
+La forma correcta de meter “misiones con timer” no es mandar el héroe a pelear solo.  
+Es meter `Contratos`.
+
+### Contrato ideal
+
+1. aceptás contrato en Santuario
+2. jugás la expedición y llenás progreso matando targets
+3. al completarlo, se habilita una fase corta con timer
+4. reclamás recompensa persistente
+
+O sea:
+
+- el timer no reemplaza el juego activo,
+- el timer remata y agenda el retorno.
+
+## Naming Recomendado
+
+## Tab `Prestige`
+
+En MVP **no la renombraría a `Extraer`**.
+
+Razón:
+
+- `Extracción` no es una pantalla de progreso persistente
+- es un flujo de salida
+
+### Recomendación
+
+- la tab sigue como `Prestigio`
+- pero el botón principal deja de ser sólo `Prestigiar`
+- pasa a algo como:
+  - `Abrir extracción`
+  - o `Extraer y prestigiar`
+
+## Más adelante
+
+Si el sistema madura, sí podríamos renombrar:
+
+- `Prestigio` -> `Ecos`
+
+Y dejar `Extracción` como el flujo global de cierre de expedición.
+
+## Naming De Tabs En MVP
+
+### Recomendación
+
+- `Santuario`
+- `Expedición`
+- `Mochila`
+- `Forja`
+- `Talentos`
+- `Códice`
+- `Prestigio`
+
+## Orden De Unlocks Del Santuario
+
+## Early: antes del primer prestige
+
+### Disponible
+
+- Santuario básico visible
+- stash visual mínima
+- expedición como framing nuevo
+- extracción simple
+
+### Bloqueado
+
+- jobs reales
+- infusión
+- project slot pleno
+
+### Intención
+
+No abrumar.  
+El jugador tiene que entender primero:
+
+- qué es una expedición
+- qué es extraer
+
+## Después del primer prestige
+
+### Se desbloquea
+
+- `2` cargo slots
+- `1` project slot
+- `Destilería`
+- `Infusión de Sigilos`
+
+### Intención
+
+Acá nace el Santuario de verdad.
+
+## Mid game
+
+### Se puede sumar
+
+- segundo slot o mejora de calidad de vida en Destilería
+- mejor slot o bonus de Infusión
+- más capacidad de stash
+
+### Intención
+
+Más comodidad, no más complejidad sistémica todavía.
+
+## Abismo I
+
+### Se puede sumar
+
+- `relic_shard` más frecuente
+- primer sistema de reliquias simples
+- primer crecimiento serio de stash o project tier
+
+## Abismo II
+
+### Se puede sumar
+
+- primer prototipo de `Forja Profunda`
+- materiales más raros
+- contratos mejores o investigación inicial
+
+## Abismo III+
+
+### Se puede sumar
+
+- cartografía
+- proyectos más potentes
+- investigación del Códice
+- mejores slots asegurados o slots de Santuario
+
+## Resumen De Diseño Del Santuario
+
+La versión correcta del Santuario es:
+
+### En MVP
+
+- `Destilería`
+- `Altar de Sigilos`
+- `Stash`
+- `Jobs simples`
+- `Cargo abstracto`
+
+### Post-MVP
+
+- `Forja Profunda`
+- `Archivo del Códice`
+- `Contratos`
+- `Cartografía`
+- `Reliquias`
+
+### Regla final
+
+El Santuario no existe para meter chores.
+Existe para convertir:
+
+- tiempo,
+- loot,
+- riesgo,
+- y preparación
+
+en una capa persistente que haga que cada expedición importe más.
+
 ## Telemetría Nueva Necesaria
 
 Sumar en analytics y stats:

@@ -117,9 +117,9 @@ export const RUN_SIGILS = [
     id: "dominion",
     name: "Sigilo de Dominio",
     shortName: "Dominio",
-    summary: "Empuja la maestria horizontal del Codex sin adelantar spoilers ni descubrimientos.",
-    focus: "Codex y maestria",
-    whenToPick: "Cuando priorizas bonos permanentes chicos del Codex sobre poder bruto inmediato.",
+    summary: "Empuja la maestria horizontal de la Biblioteca sin adelantar spoilers ni descubrimientos.",
+    focus: "Biblioteca y maestria",
+    whenToPick: "Cuando priorizas bonos permanentes chicos de Biblioteca sobre poder bruto inmediato.",
     rewardModifiers: {
       xpMult: 0.86,
       essenceMult: 0.84,

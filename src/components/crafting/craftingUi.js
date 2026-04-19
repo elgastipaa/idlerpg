@@ -1,10 +1,6 @@
 import { ITEM_STAT_LABELS as STAT_LABELS } from "../../utils/itemPresentation";
 
 export const FORGE_MODE_TOOLTIPS = {
-  upgrade: {
-    tone: "upgrade",
-    text: "Upgrade sube el +N del item. Puede fallar y bajar un nivel, asi que conviene mirar el riesgo antes de insistir.",
-  },
   reroll: {
     tone: "reroll",
     text: "Reroll rehace todas las lineas del item. Sirve para rescatar bases prometedoras, no para cerrar una pieza final.",
@@ -19,7 +15,7 @@ export const FORGE_MODE_TOOLTIPS = {
   },
   ascend: {
     tone: "ascend",
-    text: "Ascender eleva la rareza sin perder sus lineas ni la linea trabajada. Si salta a legendario, puede injertar un poder ya descubierto en Codex.",
+    text: "Ascender eleva la rareza sin perder sus lineas ni la linea trabajada. Si salta a legendario, puede injertar un poder ya descubierto en Biblioteca.",
   },
   extract: {
     tone: "extract",
@@ -27,10 +23,9 @@ export const FORGE_MODE_TOOLTIPS = {
   },
 };
 
-export const FORGE_MODE_ORDER = ["upgrade", "reroll", "polish", "reforge", "ascend", "extract"];
+export const FORGE_MODE_ORDER = ["reroll", "extract"];
 
 export const FORGE_MODE_META = {
-  upgrade: { label: "Upgrade", short: "UP", color: "var(--tone-success, #1D9E75)", cta: "APLICAR UPGRADE" },
   reroll: { label: "Reroll", short: "RE", color: "var(--tone-success, #1D9E75)", cta: "APLICAR REROLL" },
   polish: { label: "Pulir", short: "PO", color: "var(--tone-info, #0ea5e9)", cta: "PULIR LINEA" },
   reforge: { label: "Reforge", short: "RF", color: "var(--tone-violet, #7c3aed)", cta: "PAGAR REFORJA" },
