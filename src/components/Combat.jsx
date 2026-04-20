@@ -344,6 +344,7 @@ export default function Combat({ state, dispatch }) {
   const expeditionDeathLimit = Math.max(1, Number(expedition.deathLimit || 3));
   const expeditionDeathCount = Math.max(0, Number(expedition.deathCount || 0));
   const remainingSafeDeaths = Math.max(0, expeditionDeathLimit - expeditionDeathCount);
+  const tutorialProtectedExpedition = Boolean(state?.onboarding && !state.onboarding.completed);
   const autoAdvanceUnlocked = isAutoAdvanceUnlocked(state);
   const extractionUnlocked = isExtractionUnlocked(state);
   const onboardingStep = state?.onboarding?.step || null;
@@ -1238,7 +1239,7 @@ export default function Combat({ state, dispatch }) {
             }}
           >
             <span style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Vidas de expedicion
+              {tutorialProtectedExpedition ? "Seguridad del tutorial" : "Vidas de expedicion"}
             </span>
             <span
               style={{
@@ -1247,13 +1248,17 @@ export default function Combat({ state, dispatch }) {
                 borderRadius: "999px",
                 padding: "2px 8px",
                 background:
-                  remainingSafeDeaths <= 0
+                  tutorialProtectedExpedition
+                    ? "var(--tone-info-soft, #f0f9ff)"
+                    : remainingSafeDeaths <= 0
                     ? "var(--tone-danger-soft, #fff1f2)"
                     : remainingSafeDeaths === 1
                       ? "var(--tone-warning-soft, #fff7ed)"
                       : "var(--tone-success-soft, #ecfdf5)",
                 color:
-                  remainingSafeDeaths <= 0
+                  tutorialProtectedExpedition
+                    ? "var(--tone-info, #0369a1)"
+                    : remainingSafeDeaths <= 0
                     ? "var(--tone-danger, #D85A30)"
                     : remainingSafeDeaths === 1
                       ? "var(--tone-warning, #f59e0b)"
@@ -1261,7 +1266,9 @@ export default function Combat({ state, dispatch }) {
                 border: "1px solid var(--color-border-primary, #e2e8f0)",
               }}
             >
-              {remainingSafeDeaths}/{expeditionDeathLimit} seguras
+              {tutorialProtectedExpedition
+                ? "Sin muerte definitiva"
+                : `${remainingSafeDeaths}/${expeditionDeathLimit} seguras`}
             </span>
           </div>
         </div>

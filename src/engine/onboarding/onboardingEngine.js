@@ -51,7 +51,6 @@ const INFO_STEPS = new Set([
   ONBOARDING_STEPS.FIRST_BOSS,
   ONBOARDING_STEPS.HUNT_INTRO,
   ONBOARDING_STEPS.EXTRACTION_READY,
-  ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
   ONBOARDING_STEPS.DISTILLERY_READY,
   ONBOARDING_STEPS.FIRST_ECHOES,
   ONBOARDING_STEPS.BLUEPRINT_INTRO,
@@ -302,8 +301,8 @@ export function getOnboardingStepMeta(step = null, state = {}) {
       };
     case ONBOARDING_STEPS.FIRST_DEATH:
       return {
-        title: "Morir no borra la expedicion",
-        body: "Has perdido una vida de expedicion. Mira el bloque resaltado: ahi ves cuantas te quedan. Retrocedes, el auto-avance se corta y vuelves a intentarlo.",
+        title: "El tutorial protege esta run",
+        body: "Aqui no puedes perder definitivamente la expedicion. Si caes, retrocedes, el auto-avance se corta y vuelves a pelear sin consumir vidas reales.",
         actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.OPEN_HERO:
@@ -411,13 +410,13 @@ export function getOnboardingStepMeta(step = null, state = {}) {
     case ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN:
       return {
         title: "El Santuario ya puede crecer",
-        body: "La primera extraccion abre el Laboratorio. Desde ahi vas a investigar la Destileria para empezar a procesar cargo real entre expediciones.",
-        actionLabel: "Abrir Laboratorio",
+        body: "La primera extraccion abre el Laboratorio. Toca el boton real resaltado para abrirlo: desde ahi vas a investigar la Destileria y empezar a procesar cargo real entre expediciones.",
+        actionLabel: null,
       };
     case ONBOARDING_STEPS.RESEARCH_DISTILLERY:
       return {
         title: "Investiga la Destileria",
-        body: "Este es tu primer research de infraestructura. Inicia Calibrar Destileria para convertir bundles en recursos persistentes utiles.",
+        body: "Este es tu primer research de infraestructura. Toca el boton real resaltado de Calibrar Destileria para convertir bundles en recursos persistentes utiles.",
         actionLabel: null,
       };
     case ONBOARDING_STEPS.DISTILLERY_READY:
@@ -1455,6 +1454,8 @@ export function getOnboardingOverlayAnchor(step = null) {
     return "subnav";
   }
   if (
+    step === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN ||
+    step === ONBOARDING_STEPS.RESEARCH_DISTILLERY ||
     step === ONBOARDING_STEPS.SPEND_ATTRIBUTE ||
     step === ONBOARDING_STEPS.BUY_TALENT ||
     step === ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO ||
@@ -1509,6 +1510,8 @@ export function getOnboardingSpotlightSelectors(step = null) {
       return ['[data-onboarding-target="tutorial-extraction-item"]'];
     case ONBOARDING_STEPS.EXTRACTION_CONFIRM:
       return ['[data-onboarding-target="tutorial-extraction-confirm"]'];
+    case ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN:
+      return ['[data-onboarding-target="open-laboratory"]'];
     case ONBOARDING_STEPS.RESEARCH_DISTILLERY:
       return ['[data-onboarding-target="research-distillery"]'];
     case ONBOARDING_STEPS.BUY_TALENT:

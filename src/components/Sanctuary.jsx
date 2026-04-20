@@ -295,6 +295,20 @@ export default function Sanctuary({ state, dispatch }) {
     }
   }
 
+  function openLaboratoryFromSanctuary(source = "generic") {
+    if (!laboratoryUnlocked) return;
+    if (
+      onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN &&
+      source !== "laboratory-card"
+    ) {
+      return;
+    }
+    setShowLaboratory(true);
+    if (onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN) {
+      dispatch({ type: "ACK_ONBOARDING_STEP" });
+    }
+  }
+
   const claimableJobs = useMemo(
     () => jobs.filter(job => job?.status === "claimable"),
     [jobs]
@@ -321,6 +335,14 @@ export default function Sanctuary({ state, dispatch }) {
         primary: true,
         action: () => dispatch({ type: "ACK_ONBOARDING_STEP" }),
         helper: "Toca este boton para aprender el primer gesto del juego. Luego eliges una clase y ahi si entras al combate.",
+      };
+    }
+    if (onboardingStep === ONBOARDING_STEPS.RESEARCH_DISTILLERY) {
+      return {
+        label: "Abrir Laboratorio",
+        primary: true,
+        action: () => openLaboratoryFromSanctuary("header-cta"),
+        helper: "La expedicion ya cerro. El siguiente paso del tutorial es investigar la Destileria desde el Laboratorio.",
       };
     }
     if (!hasClass) {
@@ -369,7 +391,7 @@ export default function Sanctuary({ state, dispatch }) {
       action: () => dispatch({ type: "SET_TAB", tab: "combat" }),
       helper: "Tu heroe ya esta listo. Vuelve al combate cuando quieras.",
     };
-  }, [dispatch, expeditionPhase, hasClass, shouldRequireSpecSelection, showingSanctuaryIntro, state.combat?.pendingRunSetup]);
+  }, [dispatch, expeditionPhase, hasClass, laboratoryUnlocked, onboardingStep, shouldRequireSpecSelection, showingSanctuaryIntro, state.combat?.pendingRunSetup]);
 
   const expeditionLabel = hasClass
     ? `${state.player.class}${hasSpec ? ` · ${state.player.specialization}` : ""}`
@@ -555,7 +577,7 @@ export default function Sanctuary({ state, dispatch }) {
         title: "La primera extraccion abre el Laboratorio",
         body: "Tu siguiente paso ya no es solo volver a pelear. Activa el Laboratorio y usa su primer research para encender la Destileria.",
         cta: "Abrir Laboratorio",
-        action: () => setShowLaboratory(true),
+        action: () => openLaboratoryFromSanctuary("next-step"),
       };
     }
     if (laboratoryUnlocked && !distilleryUnlocked) {
@@ -565,7 +587,7 @@ export default function Sanctuary({ state, dispatch }) {
         title: "Investiga la Destileria para procesar tu primer cargo",
         body: "Sin esta estacion, los bundles solo se acumulan. La Destileria convierte lo rescatado en tinta, flux, polvo y esencia.",
         cta: "Ir al Laboratorio",
-        action: () => setShowLaboratory(true),
+        action: () => openLaboratoryFromSanctuary("next-step"),
       };
     }
     if (!hasAnyCargo && stashCount === 0 && !hasAnyBlueprint) {
@@ -595,7 +617,7 @@ export default function Sanctuary({ state, dispatch }) {
         title: "Ya puedes investigar la Forja Profunda",
         body: "Desde Prestige 3, el Laboratorio puede abrir la estacion donde se trabajan blueprints a largo plazo.",
         cta: "Ir al Laboratorio",
-        action: () => setShowLaboratory(true),
+        action: () => openLaboratoryFromSanctuary("next-step"),
       };
     }
     if (Number(state?.prestige?.level || 0) >= 4 && !libraryStation.unlocked) {
@@ -605,7 +627,7 @@ export default function Sanctuary({ state, dispatch }) {
         title: "Biblioteca ya puede investigarse",
         body: "Desde Prestige 4, el Laboratorio puede abrir la Biblioteca para transformar tinta y descubrimientos en progreso permanente real.",
         cta: "Ir al Laboratorio",
-        action: () => setShowLaboratory(true),
+        action: () => openLaboratoryFromSanctuary("next-step"),
       };
     }
     if (Number(state?.prestige?.level || 0) >= 5 && !errandStation.unlocked) {
@@ -615,7 +637,7 @@ export default function Sanctuary({ state, dispatch }) {
         title: "Encargos ya pueden organizarse",
         body: "Desde Prestige 5, el Laboratorio habilita equipos paralelos del Santuario para seguir trayendo valor mientras tu heroe corre expediciones.",
         cta: "Ir al Laboratorio",
-        action: () => setShowLaboratory(true),
+        action: () => openLaboratoryFromSanctuary("next-step"),
       };
     }
     if (Number(state?.prestige?.level || 0) >= 6 && !infusionStation.unlocked) {
@@ -625,7 +647,7 @@ export default function Sanctuary({ state, dispatch }) {
         title: "Altar de Sigilos ya puede erigirse",
         body: "Desde Prestige 6, el Laboratorio puede activar el Altar y convertir flux en una preparacion mas dirigida para la siguiente run.",
         cta: "Ir al Laboratorio",
-        action: () => setShowLaboratory(true),
+        action: () => openLaboratoryFromSanctuary("next-step"),
       };
     }
     if (hasAnyBlueprint && !unlockedEchoes) {
@@ -651,7 +673,7 @@ export default function Sanctuary({ state, dispatch }) {
         title: "El Portal al Abismo ya puede investigarse",
         body: "Derrotaste al boss de Tier 25. Sin ese portal, la expedicion no puede avanzar mas alla del mundo base aunque sigas empujando.",
         cta: "Abrir Laboratorio",
-        action: () => setShowLaboratory(true),
+        action: () => openLaboratoryFromSanctuary("next-step"),
       };
     }
     if (libraryStation.unlocked && Number(resources?.codexInk || 0) <= 0) {
@@ -688,6 +710,7 @@ export default function Sanctuary({ state, dispatch }) {
     laboratoryCompleted.unlock_library,
     laboratoryCompleted.unlock_sigil_altar,
     libraryStation.unlocked,
+    onboardingStep,
     resources?.codexInk,
     sanctuary?.jobs,
     stashCount,
@@ -832,7 +855,12 @@ export default function Sanctuary({ state, dispatch }) {
           </div>
           <button
             onClick={nextStep.action}
-            style={stationButtonStyle({ tone: nextStepTone.accent, surface: nextStepTone.surface })}
+            disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN}
+            style={stationButtonStyle({
+              tone: nextStepTone.accent,
+              surface: nextStepTone.surface,
+              disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
+            })}
           >
             {nextStep.cta}
           </button>
@@ -932,10 +960,12 @@ export default function Sanctuary({ state, dispatch }) {
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>Conocimiento persistente del Santuario.</div>
             <button
-              onClick={() => (libraryStation.unlocked ? setShowLibrary(true) : setShowLaboratory(true))}
+              onClick={() => (libraryStation.unlocked ? setShowLibrary(true) : openLaboratoryFromSanctuary("library-card"))}
+              disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !libraryStation.unlocked}
               style={stationButtonStyle({
                 tone: "var(--tone-accent, #4338ca)",
                 surface: "var(--tone-accent-soft, #eef2ff)",
+                disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !libraryStation.unlocked,
               })}
             >
               {libraryStation.unlocked ? "Abrir Biblioteca" : "Investigar en Laboratorio"}
@@ -994,10 +1024,12 @@ export default function Sanctuary({ state, dispatch }) {
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>Convierte bundles en recursos utiles.</div>
             <button
-              onClick={() => (distilleryUnlocked ? setShowDistillery(true) : setShowLaboratory(true))}
+              onClick={() => (distilleryUnlocked ? setShowDistillery(true) : openLaboratoryFromSanctuary("distillery-card"))}
+              disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !distilleryUnlocked}
               style={stationButtonStyle({
                 tone: "var(--tone-violet, #7c3aed)",
                 surface: "var(--tone-violet-soft, #f3e8ff)",
+                disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !distilleryUnlocked,
               })}
             >
               {distilleryUnlocked ? "Abrir Destileria" : "Investigar en Laboratorio"}
@@ -1056,10 +1088,12 @@ export default function Sanctuary({ state, dispatch }) {
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>Envia equipos y reclama recursos.</div>
             <button
-              onClick={() => (errandStation.unlocked ? setShowErrands(true) : setShowLaboratory(true))}
+              onClick={() => (errandStation.unlocked ? setShowErrands(true) : openLaboratoryFromSanctuary("errands-card"))}
+              disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !errandStation.unlocked}
               style={stationButtonStyle({
                 tone: "var(--tone-info, #0369a1)",
                 surface: "var(--tone-info-soft, #f0f9ff)",
+                disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !errandStation.unlocked,
               })}
             >
               {errandStation.unlocked ? "Abrir Encargos" : "Investigar en Laboratorio"}
@@ -1118,10 +1152,12 @@ export default function Sanctuary({ state, dispatch }) {
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>Guarda cargas y prepara la siguiente expedicion.</div>
             <button
-              onClick={() => (infusionStation.unlocked ? setShowSigilAltar(true) : setShowLaboratory(true))}
+              onClick={() => (infusionStation.unlocked ? setShowSigilAltar(true) : openLaboratoryFromSanctuary("sigil-card"))}
+              disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !infusionStation.unlocked}
               style={stationButtonStyle({
                 tone: "var(--tone-success, #10b981)",
                 surface: "var(--tone-success-soft, #ecfdf5)",
+                disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !infusionStation.unlocked,
               })}
             >
               {infusionStation.unlocked ? "Abrir Altar de Sigilos" : "Investigar en Laboratorio"}
@@ -1285,13 +1321,26 @@ export default function Sanctuary({ state, dispatch }) {
               {laboratoryClaimableCount > 0 ? "Hay investigaciones listas." : "Gestiona la infraestructura del hub."}
             </div>
             <button
-              onClick={() => laboratoryUnlocked && setShowLaboratory(true)}
+              onClick={() => openLaboratoryFromSanctuary("laboratory-card")}
               disabled={!laboratoryUnlocked}
-              style={stationButtonStyle({
-                tone: "var(--tone-accent, #4338ca)",
-                surface: "var(--tone-accent-soft, #eef2ff)",
-                disabled: !laboratoryUnlocked,
-              })}
+              data-onboarding-target={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN ? "open-laboratory" : undefined}
+              style={{
+                ...stationButtonStyle({
+                  tone: "var(--tone-accent, #4338ca)",
+                  surface: "var(--tone-accent-soft, #eef2ff)",
+                  disabled: !laboratoryUnlocked,
+                }),
+                position: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN ? "relative" : "static",
+                zIndex: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN ? 2 : 1,
+                boxShadow:
+                  onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN
+                    ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 28px rgba(83,74,183,0.14)"
+                    : "none",
+                animation:
+                  onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN
+                    ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite"
+                    : "none",
+              }}
             >
               {laboratoryUnlocked ? "Abrir Laboratorio" : "Se abre tras la primera extraccion"}
             </button>
@@ -1352,12 +1401,19 @@ export default function Sanctuary({ state, dispatch }) {
               {blueprintCount > 0 ? "Tus planos alimentan la proxima run." : "Primero rescata una pieza y conviertela en blueprint."}
             </div>
             <button
-              onClick={() => (deepForgeStation.unlocked ? setShowDeepForge(true) : setShowLaboratory(true))}
-              disabled={deepForgeStation.unlocked ? blueprintCount <= 0 : false}
+              onClick={() => (deepForgeStation.unlocked ? setShowDeepForge(true) : openLaboratoryFromSanctuary("forge-card"))}
+              disabled={
+                deepForgeStation.unlocked
+                  ? blueprintCount <= 0
+                  : onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN
+              }
               style={stationButtonStyle({
                 tone: "var(--tone-danger, #D85A30)",
                 surface: "var(--tone-danger-soft, #fff1f2)",
-                disabled: deepForgeStation.unlocked ? blueprintCount <= 0 : false,
+                disabled:
+                  deepForgeStation.unlocked
+                    ? blueprintCount <= 0
+                    : onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
               })}
             >
               {deepForgeStation.unlocked ? "Abrir Forja Profunda" : "Investigar en Laboratorio"}

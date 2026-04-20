@@ -1,8 +1,12 @@
+import { ITEMS } from "../../data/items";
+import { materializeItem } from "../../utils/loot";
+import { calcItemRating } from "../inventory/inventoryEngine";
 import { calculatePrestigeEchoGain, canPrestige } from "../progression/prestigeEngine";
 import { isBlueprintDecisionUnlocked } from "../onboarding/onboardingEngine";
 
 const PROJECT_ELIGIBLE_RARITIES = new Set(["rare", "epic", "legendary"]);
 const RARITY_RANK = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
+const TUTORIAL_EXTRACTION_PROJECT_ID = "tutorial_extraction_project";
 
 function makeCargoId(type, seed) {
   return `cargo_${type}_${seed}`;
@@ -23,6 +27,49 @@ function buildCargoDescription(type) {
   if (type === "sigil_residue") return "Energia residual util para preparar una futura expedicion.";
   if (type === "relic_shard") return "Fragmento raro vinculado a bosses altos y al Abismo.";
   return "Bundle de valor persistente.";
+}
+
+function shouldForceTutorialProject(state = {}, exitReason = "retire") {
+  return (
+    exitReason !== "death" &&
+    !state?.onboarding?.completed &&
+    !state?.onboarding?.flags?.firstExtractionCompleted
+  );
+}
+
+function buildTutorialProjectOption(state = {}) {
+  const preferredType = state?.player?.equipment?.weapon ? "armor" : "weapon";
+  const baseItem =
+    ITEMS.find(item => item.type === preferredType && item.rarity === "rare") ||
+    ITEMS.find(item => item.type === preferredType) ||
+    ITEMS.find(item => item.rarity === "rare") ||
+    ITEMS.find(item => item.type === "weapon") ||
+    null;
+  if (!baseItem) return null;
+
+  const tutorialItem = materializeItem({
+    baseItem,
+    rarity: "rare",
+    tier: Math.max(5, Number(state?.combat?.maxTier || state?.combat?.currentTier || 1)),
+    existingId: TUTORIAL_EXTRACTION_PROJECT_ID,
+  });
+  if (!tutorialItem) return null;
+
+  const rating = calcItemRating(tutorialItem);
+  return {
+    itemId: TUTORIAL_EXTRACTION_PROJECT_ID,
+    name: tutorialItem.name,
+    rarity: tutorialItem.rarity,
+    type: tutorialItem.type,
+    rating,
+    affixCount: Array.isArray(tutorialItem.affixes) ? tutorialItem.affixes.length : 0,
+    legendaryPowerId: tutorialItem.legendaryPowerId || null,
+    source: "tutorial",
+    previewItem: {
+      ...tutorialItem,
+      rating,
+    },
+  };
 }
 
 function buildCargoOptions(state, exitReason = "retire") {
@@ -227,19 +274,27 @@ export function buildExtractionPreview(state, { exitReason = "retire" } = {}) {
     buildCargoOptions(state, exitReason),
     extractionBonuses
   );
-  const projectOptions = buildProjectOptions(state, exitReason);
+  const tutorialProjectRequired = shouldForceTutorialProject(state, exitReason);
+  const baseProjectOptions = buildProjectOptions(state, exitReason);
+  const tutorialProjectOption =
+    tutorialProjectRequired && baseProjectOptions.length === 0
+      ? buildTutorialProjectOption(state)
+      : null;
+  const projectOptions = tutorialProjectOption ? [tutorialProjectOption] : baseProjectOptions;
   const blueprintDecisionUnlocked = isBlueprintDecisionUnlocked(state);
   const availableSlots = {
     cargo: Math.max(0, Number(state?.sanctuary?.extractionUpgrades?.cargoSlots || 2)),
-    project: exitReason === "death" || !blueprintDecisionUnlocked
+    project: exitReason === "death"
       ? 0
-      : Math.max(
-          0,
-          Math.min(
-            1,
-            Number(state?.sanctuary?.extractionUpgrades?.extractedItemSlots || 3) - Number(state?.sanctuary?.extractedItems?.length || 0)
+      : tutorialProjectRequired || blueprintDecisionUnlocked
+        ? Math.max(
+            0,
+            Math.min(
+              1,
+              Number(state?.sanctuary?.extractionUpgrades?.extractedItemSlots || 3) - Number(state?.sanctuary?.extractedItems?.length || 0)
+            )
           )
-        ),
+        : 0,
     relic: Math.max(0, Number(state?.sanctuary?.extractionUpgrades?.relicSlots || 0)),
     insuredCargo: Math.max(0, Number(state?.sanctuary?.extractionUpgrades?.insuredCargoSlots || 0)),
   };

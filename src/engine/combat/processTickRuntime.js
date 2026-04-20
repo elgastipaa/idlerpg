@@ -1305,10 +1305,11 @@ export function processTick(state) {
   const flowStacks = Math.max(0, Number(nextEnemyRuntime.flowStacks || 0));
 
   if (newPlayerHp <= 0) {
+    const tutorialProtectedExpedition = Boolean(state?.onboarding && !state.onboarding.completed);
     const expeditionDeathCount = Math.max(0, Number(state.expedition?.deathCount || 0));
     const expeditionDeathLimit = Math.max(1, Number(state.expedition?.deathLimit || EXPEDITION_DEATH_LIMIT));
-    const nextExpeditionDeathCount = expeditionDeathCount + 1;
-    const shouldEmergencyExtract = nextExpeditionDeathCount > expeditionDeathLimit;
+    const nextExpeditionDeathCount = tutorialProtectedExpedition ? 0 : expeditionDeathCount + 1;
+    const shouldEmergencyExtract = !tutorialProtectedExpedition && nextExpeditionDeathCount > expeditionDeathLimit;
     const lastRunSummary = buildLastRunSummary(state, enemy, "death");
     const nextAnalytics = {
       ...sessionAnalytics,
@@ -1350,6 +1351,9 @@ export function processTick(state) {
       const retreatEnemy = spawnEnemy(retreatTier, state.combat?.runContext || createRunContext());
       const revivedHp = Math.max(1, Math.floor(s.maxHp * EXPEDITION_DEATH_REVIVE_HP_PCT));
       const remainingSafeDeaths = Math.max(0, expeditionDeathLimit - nextExpeditionDeathCount);
+      const retreatLog = tutorialProtectedExpedition
+        ? `Tu heroe cayo frente a ${enemy.name}, pero el tutorial protege esta expedicion. No consumes vidas: retrocedes a T${retreatTier}, auto-avance se apaga y vuelves con ${revivedHp} HP.`
+        : `Tu heroe cayo frente a ${enemy.name}, pero la expedicion sigue. Auto-avance apagado, retrocedes a T${retreatTier} y vuelves con ${revivedHp} HP. Quedan ${remainingSafeDeaths} margen(es) antes de una extraccion de emergencia.`;
 
       return {
         ...previewState,
@@ -1386,7 +1390,7 @@ export function processTick(state) {
             ...preLegendaryLogs,
             ...postTriggerLogs,
             ...postLegendaryLogs,
-            `Tu heroe cayo frente a ${enemy.name}, pero la expedicion sigue. Auto-avance apagado, retrocedes a T${retreatTier} y vuelves con ${revivedHp} HP. Quedan ${remainingSafeDeaths} margen(es) antes de una extraccion de emergencia.`,
+            retreatLog,
           ].slice(-20),
         },
         expedition: {

@@ -206,9 +206,14 @@ function mergeNumericBonuses(target = {}, source = {}) {
   return next;
 }
 
-function deriveExpeditionPhase({ player = {}, combat = {}, expedition = {}, onboarding = {} } = {}) {
+function deriveExpeditionPhase({ player = {}, combat = {}, expedition = {}, onboarding = {}, sanctuary = {} } = {}) {
   const explicitPhase = expedition?.phase;
-  const firstExtractionCompleted = Boolean(onboarding?.flags?.firstExtractionCompleted);
+  const firstExtractionCompleted =
+    Boolean(onboarding?.flags?.firstExtractionCompleted) ||
+    Boolean(sanctuary?.stations?.laboratory?.unlocked) ||
+    (Array.isArray(sanctuary?.cargoInventory) && sanctuary.cargoInventory.length > 0) ||
+    Object.keys(sanctuary?.laboratory?.completed || {}).length > 0;
+  const hasTrackedActiveExpedition = Boolean(expedition?.id || expedition?.startedAt);
   if (combat?.pendingRunSetup) return "setup";
   if (explicitPhase === "extraction") return "extraction";
   if (explicitPhase === "sanctuary") {
@@ -221,7 +226,12 @@ function deriveExpeditionPhase({ player = {}, combat = {}, expedition = {}, onbo
     }
     return "sanctuary";
   }
-  if (explicitPhase === "active") return "active";
+  if (explicitPhase === "active") {
+    if (firstExtractionCompleted && !hasTrackedActiveExpedition) {
+      return "sanctuary";
+    }
+    return "active";
+  }
   if (player?.class && (player?.specialization || Number(player?.prestigeLevelHint || 0) <= 0)) return "active";
   return "sanctuary";
 }
@@ -645,6 +655,7 @@ export function mergeStateWithDefaults(base, incoming) {
     combat: {
       pendingRunSetup,
     },
+    sanctuary: rawSanctuary,
     onboarding: migratedIncoming.onboarding || {},
   });
   const preLaboratorySanctuary = {

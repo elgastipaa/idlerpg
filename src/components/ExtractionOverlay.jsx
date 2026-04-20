@@ -83,6 +83,14 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
     ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM,
     ONBOARDING_STEPS.EXTRACTION_CONFIRM,
   ].includes(onboardingStep);
+  const tutorialCargoTargetId =
+    onboardingStep === ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO
+      ? cargoOptions[0]?.id || null
+      : null;
+  const tutorialProjectTargetId =
+    onboardingStep === ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM
+      ? projectOptions[0]?.itemId || null
+      : null;
   const canCancel = expedition.exitReason !== "death" && !extractionTutorialActive;
   const selectedProject = projectOptions.find(option => option.itemId === selectedProjectItemId) || null;
   const projectUnlocked = Number(preview.availableSlots?.project || 0) > 0;
@@ -227,17 +235,21 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                 </div>
               ) : cargoOptions.map(option => {
                 const active = selectedCargoIds.has(option.id);
-                const spotlight = onboardingStep === ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO && cargoOptions[0]?.id === option.id;
+                const spotlight = tutorialCargoTargetId === option.id;
+                const disabled = Boolean(tutorialCargoTargetId) && !spotlight;
                 return (
                   <button
                     key={option.id}
-                    onClick={() => dispatch({ type: "SELECT_EXTRACTION_CARGO", cargoId: option.id })}
+                    onClick={() => !disabled && dispatch({ type: "SELECT_EXTRACTION_CARGO", cargoId: option.id })}
+                    disabled={disabled}
                     data-onboarding-target={spotlight ? "tutorial-extraction-cargo" : undefined}
                     style={{
                       ...chipStyle(active),
                       position: spotlight ? "relative" : "static",
                       zIndex: spotlight ? 2 : 1,
                       animation: spotlight ? "extractionSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                      opacity: disabled ? 0.45 : 1,
+                      cursor: disabled ? "not-allowed" : "pointer",
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
@@ -279,17 +291,23 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                   </div>
               ) : projectOptions.map(option => {
                 const active = selectedProjectItemId === option.itemId;
-                const spotlight = onboardingStep === ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM && projectOptions[0]?.itemId === option.itemId;
+                const spotlight = tutorialProjectTargetId === option.itemId;
+                const disabled =
+                  Number(preview.availableSlots?.project || 0) <= 0 ||
+                  (Boolean(tutorialProjectTargetId) && !spotlight);
                 return (
                     <button
                       key={option.itemId}
-                      onClick={() => dispatch({ type: "SELECT_EXTRACTION_PROJECT", itemId: option.itemId })}
+                      onClick={() => !disabled && dispatch({ type: "SELECT_EXTRACTION_PROJECT", itemId: option.itemId })}
+                      disabled={disabled}
                       data-onboarding-target={spotlight ? "tutorial-extraction-item" : undefined}
                       style={{
-                        ...chipStyle(active, Number(preview.availableSlots?.project || 0) <= 0),
+                        ...chipStyle(active, disabled),
                         position: spotlight ? "relative" : "static",
                         zIndex: spotlight ? 2 : 1,
                         animation: spotlight ? "extractionSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                        opacity: disabled ? 0.45 : 1,
+                        cursor: disabled ? "not-allowed" : "pointer",
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>

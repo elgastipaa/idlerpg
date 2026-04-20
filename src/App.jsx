@@ -9,6 +9,7 @@ import { getMaxRunSigilSlots } from "./engine/progression/abyssProgression";
 import {
   canOpenExpedition,
   getOnboardingRequiredTab,
+  isOnboardingTabAllowed,
   ONBOARDING_STEPS,
   shouldShowHeroPrimaryTab,
 } from "./engine/onboarding/onboardingEngine";
@@ -228,6 +229,17 @@ function getDefaultTabForPrimaryTab(primaryTab = "sanctuary") {
   return "sanctuary";
 }
 
+function isPrimaryTabAllowed(primaryTab = "sanctuary", onboardingStep = null) {
+  if (!onboardingStep) return true;
+  if (primaryTab === "combat") {
+    return ["combat", "inventory", "crafting", "codex"].some(tab => isOnboardingTabAllowed(onboardingStep, tab));
+  }
+  if (primaryTab === "character") {
+    return ["character", "skills", "talents"].some(tab => isOnboardingTabAllowed(onboardingStep, tab));
+  }
+  return isOnboardingTabAllowed(onboardingStep, getDefaultTabForPrimaryTab(primaryTab));
+}
+
 function renderCurrentTab(currentTab, state, dispatch) {
   const primaryTab = getVisiblePrimaryTab(currentTab, state);
   if (primaryTab === "sanctuary") return <Sanctuary state={state} dispatch={dispatch} />;
@@ -349,6 +361,9 @@ export default function App() {
       }
       return;
     }
+    if (!isPrimaryTabAllowed(tab, onboardingStep)) {
+      return;
+    }
     if (tab === "combat" && !expeditionUnlocked) {
       dispatch({ type: "SET_TAB", tab: "sanctuary" });
       return;
@@ -455,7 +470,10 @@ export default function App() {
             <nav style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               {visiblePrimaryTabs.map((t) => (
                 (() => {
-                  const disabled = (reforgeLocked && currentPrimaryTab !== t) || (t === "combat" && !expeditionUnlocked);
+                  const disabled =
+                    (reforgeLocked && currentPrimaryTab !== t) ||
+                    (t === "combat" && !expeditionUnlocked) ||
+                    !isPrimaryTabAllowed(t, onboardingStep);
                   const spotlightHeroPrimary = onboardingStep === ONBOARDING_STEPS.OPEN_HERO && t === "character";
                   return (
                     <button
@@ -620,7 +638,10 @@ export default function App() {
           <nav style={{ position: "fixed", bottom: 0, left: 0, width: "100%", height: `${NAV_HEIGHT_MOBILE}px`, backgroundColor: "var(--color-background-secondary, #ffffff)", borderTop: "1px solid var(--color-border-secondary, #e2e8f0)", display: "flex", zIndex: 5000, paddingBottom: "env(safe-area-inset-bottom)", boxSizing: "content-box" }}>
             {visiblePrimaryTabs.map((t) => {
               const isActive = currentPrimaryTab === t;
-              const disabled = (reforgeLocked && !isActive) || (t === "combat" && !expeditionUnlocked);
+              const disabled =
+                (reforgeLocked && !isActive) ||
+                (t === "combat" && !expeditionUnlocked) ||
+                !isPrimaryTabAllowed(t, onboardingStep);
               const spotlightHeroPrimary = onboardingStep === ONBOARDING_STEPS.OPEN_HERO && t === "character";
               return (
                 <button

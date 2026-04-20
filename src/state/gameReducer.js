@@ -397,7 +397,12 @@ function applyDerivedAccountTelemetry(prevState, nextState) {
 
 function deriveExpeditionPhase(state) {
   const explicitPhase = state?.expedition?.phase;
-  const firstExtractionCompleted = Boolean(state?.onboarding?.flags?.firstExtractionCompleted);
+  const firstExtractionCompleted =
+    Boolean(state?.onboarding?.flags?.firstExtractionCompleted) ||
+    Boolean(state?.sanctuary?.stations?.laboratory?.unlocked) ||
+    (Array.isArray(state?.sanctuary?.cargoInventory) && state.sanctuary.cargoInventory.length > 0) ||
+    Object.keys(state?.sanctuary?.laboratory?.completed || {}).length > 0;
+  const hasTrackedActiveExpedition = Boolean(state?.expedition?.id || state?.expedition?.startedAt);
   if (state?.combat?.pendingRunSetup) return "setup";
   if (explicitPhase === "extraction") return "extraction";
   if (explicitPhase === "sanctuary") {
@@ -406,7 +411,12 @@ function deriveExpeditionPhase(state) {
     }
     return "sanctuary";
   }
-  if (explicitPhase === "active") return "active";
+  if (explicitPhase === "active") {
+    if (firstExtractionCompleted && !hasTrackedActiveExpedition) {
+      return "sanctuary";
+    }
+    return "active";
+  }
   if (state?.player?.class) return "active";
   return "sanctuary";
 }
@@ -516,6 +526,12 @@ function consumeSigilInfusions(sanctuary = {}, runSigilIds = []) {
 
 function buildRetainedExtractionItem(state, selectedProjectItemId, sourceMeta = {}) {
   if (!selectedProjectItemId) return null;
+  const previewOption = (state?.expedition?.extractionPreview?.projectOptions || []).find(
+    option => option?.itemId === selectedProjectItemId
+  );
+  if (previewOption?.source === "tutorial" && previewOption?.previewItem) {
+    return buildExtractedItemRecord(previewOption.previewItem, sourceMeta);
+  }
   const inventoryItems = Array.isArray(state?.player?.inventory) ? state.player.inventory : [];
   const equipmentItems = [state?.player?.equipment?.weapon, state?.player?.equipment?.armor].filter(Boolean);
   const candidate = [...equipmentItems, ...inventoryItems].find(item => item?.id === selectedProjectItemId);
@@ -1128,6 +1144,11 @@ function baseGameReducer(state, action) {
       if (state.expedition?.phase !== "extraction") return state;
       const cargoId = action.cargoId;
       if (!cargoId) return state;
+      const tutorialCargoId =
+        state?.onboarding?.step === ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO
+          ? state.expedition?.extractionPreview?.cargoOptions?.[0]?.id || null
+          : null;
+      if (tutorialCargoId && cargoId !== tutorialCargoId) return state;
       const selected = new Set(state.expedition?.selectedCargoIds || []);
       if (selected.has(cargoId)) {
         selected.delete(cargoId);
@@ -1148,6 +1169,11 @@ function baseGameReducer(state, action) {
     case "SELECT_EXTRACTION_PROJECT": {
       if (state.expedition?.phase !== "extraction") return state;
       if (Number(state.expedition?.extractionPreview?.availableSlots?.project || 0) <= 0) return state;
+      const tutorialProjectId =
+        state?.onboarding?.step === ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM
+          ? state.expedition?.extractionPreview?.projectOptions?.[0]?.itemId || null
+          : null;
+      if (tutorialProjectId && action.itemId !== tutorialProjectId) return state;
       return {
         ...state,
         expedition: {

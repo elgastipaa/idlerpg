@@ -4,6 +4,7 @@ import {
   getSanctuaryStationState,
   SANCTUARY_STATION_DEFAULTS,
 } from "../engine/sanctuary/laboratoryEngine";
+import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 
 function panelStyle(accent = "var(--tone-accent, #4338ca)") {
   return {
@@ -118,6 +119,8 @@ function unlockOrderIndex(researchId = "") {
 
 export default function Laboratory({ state, dispatch }) {
   const [now, setNow] = useState(Date.now());
+  const onboardingStep = state?.onboarding?.step || null;
+  const spotlightDistilleryResearch = onboardingStep === ONBOARDING_STEPS.RESEARCH_DISTILLERY;
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
@@ -161,6 +164,13 @@ export default function Laboratory({ state, dispatch }) {
 
   return (
     <div style={{ padding: "1rem", display: "grid", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+      <style>{`
+        @keyframes laboratorySpotlightPulse {
+          0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
+          70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
+          100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
+        }
+      `}</style>
       <section style={panelStyle("var(--tone-accent, #4338ca)")}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "start" }}>
           <div>
@@ -338,6 +348,12 @@ export default function Laboratory({ state, dispatch }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "10px" }}>
             {entries.map(entry => (
               <div key={entry.id} style={metricCardStyle()}>
+                {(() => {
+                  const spotlightResearch = spotlightDistilleryResearch && entry.id === "unlock_distillery";
+                  const tutorialLocked = spotlightDistilleryResearch && entry.id !== "unlock_distillery";
+                  const buttonEnabled = entry.canStart && !tutorialLocked;
+                  return (
+                    <>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" }}>
                   <div>
                     <div style={{ fontSize: "0.82rem", fontWeight: "900" }}>{entry.label}</div>
@@ -365,12 +381,23 @@ export default function Laboratory({ state, dispatch }) {
 
                 <button
                   onClick={() => dispatch({ type: "START_LAB_RESEARCH", researchId: entry.id, now })}
-                  disabled={!entry.canStart}
-                  data-onboarding-target={entry.id === "unlock_distillery" ? "research-distillery" : undefined}
-                  style={buttonStyle({ primary: entry.canStart, disabled: !entry.canStart })}
+                  disabled={!buttonEnabled}
+                  data-onboarding-target={spotlightResearch ? "research-distillery" : undefined}
+                  style={{
+                    ...buttonStyle({ primary: buttonEnabled, disabled: !buttonEnabled }),
+                    position: spotlightResearch ? "relative" : "static",
+                    zIndex: spotlightResearch ? 2 : 1,
+                    boxShadow: spotlightResearch
+                      ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.14)"
+                      : "none",
+                    animation: spotlightResearch ? "laboratorySpotlightPulse 1600ms ease-in-out infinite" : "none",
+                  }}
                 >
                   {entry.completed ? "Completada" : entry.running ? "En curso" : "Investigar"}
                 </button>
+                    </>
+                  );
+                })()}
               </div>
             ))}
           </div>
