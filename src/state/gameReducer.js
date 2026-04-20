@@ -101,6 +101,7 @@ import {
 import { getLifetimeXp } from "../engine/leveling";
 import {
   advanceOnboarding,
+  getOnboardingFirstEchoNodeId,
   ONBOARDING_STEPS,
   createEmptyOnboardingState,
   getBlockedOnboardingAction,
@@ -1515,7 +1516,34 @@ function baseGameReducer(state, action) {
 
     case "START_SCRAP_EXTRACTED_ITEM_JOB": {
       const job = createScrapExtractedItemJob(state.sanctuary || createEmptySanctuaryState(), action.extractedItemId || action.itemId, action.now || Date.now());
-      if (!job) return state;
+      if (!job) {
+        const tutorialScrapUnlocked = state?.onboarding?.step === ONBOARDING_STEPS.BLUEPRINT_DECISION;
+        if (!tutorialScrapUnlocked) return state;
+        const extractedItems = Array.isArray(state.sanctuary?.extractedItems) ? state.sanctuary.extractedItems : [];
+        const targetItem = normalizeExtractedItemRecord(
+          extractedItems.find(item => item?.id === (action.extractedItemId || action.itemId))
+        );
+        if (!targetItem?.id) return state;
+        return {
+          ...state,
+          sanctuary: {
+            ...createEmptySanctuaryState(),
+            ...(state.sanctuary || {}),
+            extractedItems: extractedItems.filter(item => item?.id !== targetItem.id),
+            familyCharges: addBlueprintCharges(
+              state.sanctuary?.familyCharges || {},
+              buildBlueprintChargeReward(targetItem, { multiplier: 1.25 })
+            ),
+          },
+          combat: {
+            ...state.combat,
+            log: [
+              ...(state.combat?.log || []),
+              `SANTUARIO: ${targetItem.name} se desguaza al instante durante el tutorial para mostrar la salida de cargas.`,
+            ].slice(-20),
+          },
+        };
+      }
       return {
         ...state,
         sanctuary: {
@@ -2885,6 +2913,11 @@ function baseGameReducer(state, action) {
 
     // --------------------------------------------------------
     case "BUY_PRESTIGE_NODE": {
+      if (state?.onboarding?.step === ONBOARDING_STEPS.BUY_FIRST_ECHO_NODE) {
+        const tutorialNodeId = getOnboardingFirstEchoNodeId(state);
+        if (tutorialNodeId && action.nodeId !== tutorialNodeId) return state;
+      }
+
       const node = PRESTIGE_TREE_NODES.find(candidate => candidate.id === action.nodeId);
       if (!node) return state;
 

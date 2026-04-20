@@ -9,6 +9,8 @@ import { getRunSigil } from "../data/runSigils";
 import { CLASSES } from "../data/classes";
 import { getSanctuaryStationState } from "../engine/sanctuary/laboratoryEngine";
 import {
+  getOnboardingTutorialDeepForgeProjectId,
+  getOnboardingTutorialExtractedItemId,
   ONBOARDING_STEPS,
   isBlueprintDecisionUnlocked,
   isDistilleryUnlocked,
@@ -248,6 +250,28 @@ export default function Sanctuary({ state, dispatch }) {
     }
   }, [showLaboratory, state?.onboarding?.step]);
 
+  useEffect(() => {
+    const selectorByStep = {
+      [ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN]: '[data-onboarding-target="open-laboratory"]',
+      [ONBOARDING_STEPS.DISTILLERY_READY]: '[data-onboarding-target="open-distillery"]',
+      [ONBOARDING_STEPS.BLUEPRINT_INTRO]: '[data-onboarding-target="blueprint-stash"]',
+    };
+    const selector = selectorByStep[state?.onboarding?.step];
+    if (!selector) return undefined;
+
+    let frameId = null;
+    const scrollToTarget = () => {
+      const target = document.querySelector(selector);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+
+    frameId = requestAnimationFrame(scrollToTarget);
+    return () => {
+      if (frameId != null) cancelAnimationFrame(frameId);
+    };
+  }, [state?.onboarding?.step, showLaboratory]);
+
   const expeditionPhase = state.expedition?.phase || "sanctuary";
   const onboardingStep = state?.onboarding?.step || null;
   const hasClass = Boolean(state.player?.class);
@@ -281,6 +305,8 @@ export default function Sanctuary({ state, dispatch }) {
   const laboratoryUnlocked = laboratoryStation.unlocked || isLaboratoryUnlocked(state);
   const distilleryUnlocked = distilleryStation.unlocked && isDistilleryUnlocked(state);
   const blueprintDecisionUnlocked = isBlueprintDecisionUnlocked(state);
+  const tutorialBlueprintItemId = getOnboardingTutorialExtractedItemId(state);
+  const tutorialDeepForgeProjectId = getOnboardingTutorialDeepForgeProjectId(state);
   const infrastructureVisible = Boolean(state?.onboarding?.completed || state?.onboarding?.flags?.firstExtractionCompleted);
   const laboratoryCompleted = sanctuary?.laboratory?.completed || {};
   const abyssPortalUnlocked = Boolean(state?.abyss?.portalUnlocked);
@@ -307,6 +333,17 @@ export default function Sanctuary({ state, dispatch }) {
     if (onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN) {
       dispatch({ type: "ACK_ONBOARDING_STEP" });
     }
+  }
+
+  function acknowledgeTutorialStep(stepId) {
+    if (onboardingStep === stepId) {
+      dispatch({ type: "ACK_ONBOARDING_STEP" });
+    }
+  }
+
+  function handleTutorialStationOpen(stepId, action) {
+    action();
+    acknowledgeTutorialStep(stepId);
   }
 
   const claimableJobs = useMemo(
@@ -897,7 +934,16 @@ export default function Sanctuary({ state, dispatch }) {
                 <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
                   {jobSummary(job)}
                 </div>
-                <button onClick={() => dispatch({ type: "CLAIM_SANCTUARY_JOB", jobId: job.id, now })} style={actionButtonStyle({ primary: true })}>
+                <button
+                  onClick={() => dispatch({ type: "CLAIM_SANCTUARY_JOB", jobId: job.id, now })}
+                  data-onboarding-target={
+                    onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY &&
+                    job?.input?.researchId === "unlock_distillery"
+                      ? "claim-distillery-research"
+                      : undefined
+                  }
+                  style={actionButtonStyle({ primary: true })}
+                >
                   Reclamar
                 </button>
               </div>
@@ -1024,13 +1070,41 @@ export default function Sanctuary({ state, dispatch }) {
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>Convierte bundles en recursos utiles.</div>
             <button
-              onClick={() => (distilleryUnlocked ? setShowDistillery(true) : openLaboratoryFromSanctuary("distillery-card"))}
+              onClick={() => handleTutorialStationOpen(
+                onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                  ? ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                  : ONBOARDING_STEPS.DISTILLERY_READY,
+                () => (distilleryUnlocked ? setShowDistillery(true) : openLaboratoryFromSanctuary("distillery-card"))
+              )}
               disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !distilleryUnlocked}
-              style={stationButtonStyle({
-                tone: "var(--tone-violet, #7c3aed)",
-                surface: "var(--tone-violet-soft, #f3e8ff)",
-                disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !distilleryUnlocked,
-              })}
+              data-onboarding-target={
+                onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                  ? "open-distillery"
+                  : undefined
+              }
+              style={{
+                ...stationButtonStyle({
+                  tone: "var(--tone-violet, #7c3aed)",
+                  surface: "var(--tone-violet-soft, #f3e8ff)",
+                  disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !distilleryUnlocked,
+                }),
+                position:
+                  onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                    ? "relative"
+                    : "static",
+                zIndex:
+                  onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                    ? 2
+                    : 1,
+                boxShadow:
+                  onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                    ? "0 0 0 2px rgba(124,58,237,0.18), 0 12px 28px rgba(124,58,237,0.14)"
+                    : "none",
+                animation:
+                  onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                    ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite"
+                    : "none",
+              }}
             >
               {distilleryUnlocked ? "Abrir Destileria" : "Investigar en Laboratorio"}
             </button>
@@ -1170,7 +1244,24 @@ export default function Sanctuary({ state, dispatch }) {
       {infrastructureVisible && (
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1rem" }}>
         {blueprintDecisionUnlocked && (
-        <div style={sectionCardStyle("var(--tone-danger, #D85A30)")}>
+        <div
+          data-onboarding-target={onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO ? "blueprint-stash" : undefined}
+          onClick={() => acknowledgeTutorialStep(ONBOARDING_STEPS.BLUEPRINT_INTRO)}
+          style={{
+            ...sectionCardStyle("var(--tone-danger, #D85A30)"),
+            position: onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO ? "relative" : "static",
+            zIndex: onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO ? 2 : 1,
+            boxShadow:
+              onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO
+                ? "0 0 0 2px rgba(216,90,48,0.18), 0 12px 28px rgba(216,90,48,0.14)"
+                : "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
+            animation:
+              onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO
+                ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite"
+                : "none",
+            cursor: onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO ? "pointer" : "default",
+          }}
+        >
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div>
               <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
@@ -1211,15 +1302,50 @@ export default function Sanctuary({ state, dispatch }) {
                       <div style={{ fontSize: "0.64rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>Blueprint ahora o desguace con retorno mayor.</div>
                       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                         <button
+                          disabled={
+                            onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
+                            (state?.onboarding?.flags?.blueprintConverted || item.id !== tutorialBlueprintItemId)
+                          }
                           onClick={() => dispatch({ type: "CONVERT_EXTRACTED_ITEM_TO_BLUEPRINT", extractedItemId: item.id, now })}
-                          style={actionButtonStyle({ primary: true })}
+                          data-onboarding-target={
+                            onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
+                            item.id === tutorialBlueprintItemId &&
+                            !state?.onboarding?.flags?.blueprintConverted
+                              ? "tutorial-blueprint-action"
+                              : undefined
+                          }
+                          style={actionButtonStyle({
+                            primary: !(
+                              onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
+                              (state?.onboarding?.flags?.blueprintConverted || item.id !== tutorialBlueprintItemId)
+                            ),
+                            disabled:
+                              onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
+                              (state?.onboarding?.flags?.blueprintConverted || item.id !== tutorialBlueprintItemId),
+                          })}
                         >
                           Convertir a blueprint
                         </button>
                         <button
                           onClick={() => dispatch({ type: "START_SCRAP_EXTRACTED_ITEM_JOB", extractedItemId: item.id, now })}
-                          disabled={scrapBlocked}
-                          style={actionButtonStyle({ disabled: scrapBlocked })}
+                          data-onboarding-target={
+                            onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
+                            item.id === tutorialBlueprintItemId &&
+                            !state?.onboarding?.flags?.blueprintScrapped
+                              ? "tutorial-blueprint-action"
+                              : undefined
+                          }
+                          disabled={
+                            scrapBlocked ||
+                            (onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
+                              (state?.onboarding?.flags?.blueprintScrapped || item.id !== tutorialBlueprintItemId))
+                          }
+                          style={actionButtonStyle({
+                            disabled:
+                              scrapBlocked ||
+                              (onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
+                                (state?.onboarding?.flags?.blueprintScrapped || item.id !== tutorialBlueprintItemId)),
+                          })}
                         >
                           Desguazar
                         </button>
@@ -1404,15 +1530,16 @@ export default function Sanctuary({ state, dispatch }) {
               onClick={() => (deepForgeStation.unlocked ? setShowDeepForge(true) : openLaboratoryFromSanctuary("forge-card"))}
               disabled={
                 deepForgeStation.unlocked
-                  ? blueprintCount <= 0
+                  ? (Array.isArray(sanctuary?.stash) ? sanctuary.stash.length : 0) <= 0
                   : onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN
               }
+              data-onboarding-target={onboardingStep === ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE ? "open-deep-forge" : undefined}
               style={stationButtonStyle({
                 tone: "var(--tone-danger, #D85A30)",
                 surface: "var(--tone-danger-soft, #fff1f2)",
                 disabled:
                   deepForgeStation.unlocked
-                    ? blueprintCount <= 0
+                    ? (Array.isArray(sanctuary?.stash) ? sanctuary.stash.length : 0) <= 0
                     : onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
               })}
             >

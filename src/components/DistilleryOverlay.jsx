@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { getOnboardingTutorialBundleId, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 
 function panelStyle() {
   return {
@@ -87,6 +88,8 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
   }, []);
 
   const sanctuary = state.sanctuary || {};
+  const onboardingStep = state?.onboarding?.step || null;
+  const tutorialBundleId = getOnboardingTutorialBundleId(state);
   const cargoInventory = Array.isArray(sanctuary?.cargoInventory) ? sanctuary.cargoInventory : [];
   const resources = sanctuary?.resources || {};
   const jobs = Array.isArray(sanctuary?.jobs) ? sanctuary.jobs : [];
@@ -159,9 +162,20 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
               <div style={{ display: "grid", gap: "8px" }}>
                 {cargoInventory.map(bundle => {
                   const preview = getDistillPreview(bundle);
-                  const blocked = runningJobs.length >= distillerySlots;
+                  const tutorialLocked =
+                    onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB &&
+                    bundle.id !== tutorialBundleId;
+                  const blocked = runningJobs.length >= distillerySlots || tutorialLocked;
                   return (
-                    <div key={bundle.id} style={panelStyle()}>
+                    <div
+                      key={bundle.id}
+                      data-onboarding-target={
+                        onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB && bundle.id === tutorialBundleId
+                          ? "tutorial-distillery-bundle"
+                          : undefined
+                      }
+                      style={panelStyle()}
+                    >
                       <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
                         <div>
                           <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>{bundle.label}</div>
@@ -186,7 +200,7 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                           disabled={blocked}
                           style={actionButtonStyle({ primary: !blocked, disabled: blocked })}
                         >
-                          Destilar
+                          {tutorialLocked ? "Bloqueado por tutorial" : "Destilar"}
                         </button>
                       </div>
                     </div>

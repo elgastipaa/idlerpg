@@ -4,7 +4,7 @@ import {
   getSanctuaryStationState,
   SANCTUARY_STATION_DEFAULTS,
 } from "../engine/sanctuary/laboratoryEngine";
-import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
+import { getOnboardingResearchTargetId, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 
 function panelStyle(accent = "var(--tone-accent, #4338ca)") {
   return {
@@ -120,6 +120,7 @@ function unlockOrderIndex(researchId = "") {
 export default function Laboratory({ state, dispatch }) {
   const [now, setNow] = useState(Date.now());
   const onboardingStep = state?.onboarding?.step || null;
+  const spotlightResearchId = getOnboardingResearchTargetId(onboardingStep);
   const spotlightDistilleryResearch = onboardingStep === ONBOARDING_STEPS.RESEARCH_DISTILLERY;
 
   useEffect(() => {
@@ -161,6 +162,22 @@ export default function Laboratory({ state, dispatch }) {
   const unlockedStations = Object.values(SANCTUARY_STATION_DEFAULTS)
     .filter(station => station.id !== "laboratory")
     .filter(station => getSanctuaryStationState(sanctuary, station.id).unlocked).length;
+
+  useEffect(() => {
+    if (!spotlightResearchId) return undefined;
+
+    let frameId = null;
+    const scrollToTarget = () => {
+      const target = document.querySelector(`[data-onboarding-target="research-card-${spotlightResearchId}"]`);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+
+    frameId = requestAnimationFrame(scrollToTarget);
+    return () => {
+      if (frameId != null) cancelAnimationFrame(frameId);
+    };
+  }, [spotlightResearchId]);
 
   return (
     <div style={{ padding: "1rem", display: "grid", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
@@ -314,7 +331,16 @@ export default function Laboratory({ state, dispatch }) {
                 <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
                   {job.output?.summary || "El Laboratorio termino una mejora de infraestructura."}
                 </div>
-                <button onClick={() => dispatch({ type: "CLAIM_SANCTUARY_JOB", jobId: job.id, now })} style={buttonStyle({ primary: true })}>
+                <button
+                  onClick={() => dispatch({ type: "CLAIM_SANCTUARY_JOB", jobId: job.id, now })}
+                  data-onboarding-target={
+                    onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY &&
+                    job?.input?.researchId === "unlock_distillery"
+                      ? "claim-distillery-research"
+                      : undefined
+                  }
+                  style={buttonStyle({ primary: true })}
+                >
                   Reclamar
                 </button>
               </div>
@@ -347,14 +373,39 @@ export default function Laboratory({ state, dispatch }) {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "10px" }}>
             {entries.map(entry => (
-              <div key={entry.id} style={metricCardStyle()}>
+              <div
+                key={entry.id}
+                data-onboarding-target={spotlightResearchId === entry.id ? `research-card-${entry.id}` : undefined}
+                onClick={() => {
+                  if (spotlightResearchId === entry.id && !spotlightDistilleryResearch) {
+                    dispatch({ type: "ACK_ONBOARDING_STEP" });
+                  }
+                }}
+                style={metricCardStyle()}
+              >
                 {(() => {
-                  const spotlightResearch = spotlightDistilleryResearch && entry.id === "unlock_distillery";
-                  const tutorialLocked = spotlightDistilleryResearch && entry.id !== "unlock_distillery";
+                  const spotlightResearch = spotlightResearchId === entry.id;
+                  const tutorialLocked = spotlightResearchId != null && entry.id !== spotlightResearchId;
                   const buttonEnabled = entry.canStart && !tutorialLocked;
                   return (
                     <>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "8px",
+                    alignItems: "start",
+                    flexWrap: "wrap",
+                    borderRadius: "12px",
+                    padding: spotlightResearch ? "8px 10px" : 0,
+                    background: spotlightResearch ? "var(--tone-accent-soft, #eef2ff)" : "transparent",
+                    boxShadow: spotlightResearch
+                      ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.14)"
+                      : "none",
+                    animation: spotlightResearch ? "laboratorySpotlightPulse 1600ms ease-in-out infinite" : "none",
+                    cursor: spotlightResearch && !spotlightDistilleryResearch ? "pointer" : "default",
+                  }}
+                >
                   <div>
                     <div style={{ fontSize: "0.82rem", fontWeight: "900" }}>{entry.label}</div>
                     <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
@@ -380,17 +431,16 @@ export default function Laboratory({ state, dispatch }) {
                 )}
 
                 <button
-                  onClick={() => dispatch({ type: "START_LAB_RESEARCH", researchId: entry.id, now })}
+                  onClick={event => {
+                    event.stopPropagation();
+                    dispatch({ type: "START_LAB_RESEARCH", researchId: entry.id, now });
+                  }}
                   disabled={!buttonEnabled}
-                  data-onboarding-target={spotlightResearch ? "research-distillery" : undefined}
+                  data-onboarding-target={spotlightResearch ? `research-${entry.id}` : undefined}
                   style={{
                     ...buttonStyle({ primary: buttonEnabled, disabled: !buttonEnabled }),
                     position: spotlightResearch ? "relative" : "static",
                     zIndex: spotlightResearch ? 2 : 1,
-                    boxShadow: spotlightResearch
-                      ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.14)"
-                      : "none",
-                    animation: spotlightResearch ? "laboratorySpotlightPulse 1600ms ease-in-out infinite" : "none",
                   }}
                 >
                   {entry.completed ? "Completada" : entry.running ? "En curso" : "Investigar"}

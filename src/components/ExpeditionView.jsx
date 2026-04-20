@@ -53,6 +53,12 @@ export default function ExpeditionView({ state, dispatch }) {
   const fieldForgeUnlocked = isFieldForgeUnlocked(state);
   const onboardingStep = state?.onboarding?.step || null;
   const spotlightInventorySubview = onboardingStep === ONBOARDING_STEPS.EQUIP_INTRO;
+  const spotlightCodexSubview = onboardingStep === ONBOARDING_STEPS.HUNT_INTRO;
+  const tutorialSubviewTarget = spotlightInventorySubview
+    ? "inventory"
+    : spotlightCodexSubview
+      ? "codex"
+      : null;
   const activeSubview = getExpeditionSubview(state?.currentTab || "combat");
   const availableSubviews = useMemo(
     () => ["combat", ...(inventoryUnlocked ? ["inventory"] : []), ...(fieldForgeUnlocked ? ["crafting"] : []), ...(huntUnlocked ? ["codex"] : [])],
@@ -98,14 +104,23 @@ export default function ExpeditionView({ state, dispatch }) {
       >
         {availableSubviews.map(viewId => {
           const active = resolvedSubview === viewId;
-          const disabled = reforgeLocked && !active;
-          const spotlight = spotlightInventorySubview && viewId === "inventory";
+          const tutorialLocked = tutorialSubviewTarget != null && viewId !== tutorialSubviewTarget;
+          const disabled = (reforgeLocked && !active) || tutorialLocked;
+          const spotlight =
+            (spotlightInventorySubview && viewId === "inventory") ||
+            (spotlightCodexSubview && viewId === "codex");
           return (
             <button
               key={viewId}
               onClick={() => dispatch({ type: "SET_TAB", tab: viewId })}
               disabled={disabled}
-              data-onboarding-target={spotlight ? "subview-inventory" : undefined}
+              data-onboarding-target={
+                spotlight
+                  ? viewId === "inventory"
+                    ? "subview-inventory"
+                    : "subview-codex"
+                  : undefined
+              }
               style={{
                 ...subnavButtonStyle({ active, disabled }),
                 minWidth: isMobile ? "92px" : "110px",

@@ -299,6 +299,9 @@ function buildCompletedOnboardingState({
         Number(prestige?.level || 0) > 0,
       laboratoryUnlocked: Boolean(sanctuary?.stations?.laboratory?.unlocked),
       distilleryUnlocked: Boolean(sanctuary?.stations?.distillery?.unlocked),
+      distilleryJobStarted:
+        Boolean(sanctuary?.stations?.distillery?.unlocked) ||
+        (Array.isArray(sanctuary?.jobs) ? sanctuary.jobs.some(job => job?.station === "distillery") : false),
       blueprintDecisionUnlocked:
         Number(prestige?.level || 0) >= 2 ||
         (Array.isArray(sanctuary?.blueprints) ? sanctuary.blueprints.length : 0) > 0 ||
@@ -306,10 +309,24 @@ function buildCompletedOnboardingState({
       firstEchoesSeen:
         Number(prestige?.level || 0) > 0 ||
         Number(prestige?.totalEchoesEarned || 0) > 0,
+      firstEchoTabOpened:
+        Number(prestige?.level || 0) > 0 ||
+        Number(prestige?.totalEchoesEarned || 0) > 0,
       firstEchoNodeBought: prestigeNodesBought > 0,
+      firstPrestigeCloseSeen: prestigeNodesBought > 0,
+      blueprintScrapped:
+        Number(prestige?.level || 0) >= 3 ||
+        (Array.isArray(sanctuary?.jobs) ? sanctuary.jobs.some(job => job?.type === "scrap_extracted_item") : false),
+      blueprintConverted:
+        (Array.isArray(sanctuary?.blueprints) ? sanctuary.blueprints.length : 0) > 0,
+      firstBlueprintMaterializationSeen:
+        (Array.isArray(sanctuary?.blueprints) ? sanctuary.blueprints.length : 0) > 0,
       deepForgeReadySeen:
         Number(prestige?.level || 0) >= 3 ||
         Boolean(sanctuary?.stations?.deepForge?.unlocked),
+      firstDeepForgeUseSeen:
+        Boolean(sanctuary?.stations?.deepForge?.unlocked) &&
+        (Array.isArray(sanctuary?.jobs) ? sanctuary.jobs.some(job => job?.station === "deepForge") : false),
       libraryReadySeen:
         Number(prestige?.level || 0) >= 4 ||
         Boolean(sanctuary?.stations?.codexResearch?.unlocked),
@@ -321,6 +338,8 @@ function buildCompletedOnboardingState({
         Boolean(sanctuary?.stations?.sigilInfusion?.unlocked),
       abyssPortalReadySeen:
         Boolean(abyss?.portalUnlocked) || Boolean(abyss?.tier25BossCleared),
+      tier25CapSeen: Boolean(abyss?.tier25BossCleared),
+      firstAbyssSeen: Number(abyss?.highestTierReached || 1) >= 26,
     },
   };
 }

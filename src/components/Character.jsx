@@ -83,6 +83,7 @@ export default function Character({ player, dispatch, state }) {
   const computedStats = useMemo(() => calcStats(player), [player]);
   const onboardingStep = state?.onboarding?.step || null;
   const specTutorialActive = onboardingStep === ONBOARDING_STEPS.CHOOSE_SPEC;
+  const spotlightHeroOverview = onboardingStep === ONBOARDING_STEPS.HERO_INTRO;
 
   useEffect(() => {
     if (!specTutorialActive || player.specialization) return undefined;
@@ -99,6 +100,22 @@ export default function Character({ player, dispatch, state }) {
       if (frameId != null) cancelAnimationFrame(frameId);
     };
   }, [specTutorialActive, player.specialization, availableSpecs.length]);
+
+  useEffect(() => {
+    if (!spotlightHeroOverview) return undefined;
+
+    let frameId = null;
+    const scrollToOverview = () => {
+      const target = document.querySelector('[data-onboarding-target="hero-overview"]');
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    frameId = requestAnimationFrame(scrollToOverview);
+    return () => {
+      if (frameId != null) cancelAnimationFrame(frameId);
+    };
+  }, [spotlightHeroOverview]);
 
   if (!player.class) {
     return (
@@ -161,7 +178,20 @@ export default function Character({ player, dispatch, state }) {
           100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
         }
       `}</style>
-      <header style={headerCardStyle}>
+      <header
+        data-onboarding-target={spotlightHeroOverview ? "hero-overview" : undefined}
+        onClick={() => spotlightHeroOverview && dispatch({ type: "ACK_ONBOARDING_STEP" })}
+        style={{
+          ...headerCardStyle,
+          position: spotlightHeroOverview ? "relative" : "static",
+          zIndex: spotlightHeroOverview ? 2 : 1,
+          boxShadow: spotlightHeroOverview
+            ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 30px rgba(83,74,183,0.16)"
+            : headerCardStyle.boxShadow,
+          animation: spotlightHeroOverview ? "chooseSpecPulse 1600ms ease-in-out infinite" : "none",
+          cursor: spotlightHeroOverview ? "pointer" : "default",
+        }}
+      >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em" }}>Heroe</div>

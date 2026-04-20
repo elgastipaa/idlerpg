@@ -11,6 +11,7 @@ import {
   isPrestigeBranchUnlocked,
 } from "../engine/progression/prestigeEngine";
 import { getAbyssUnlockEntries } from "../engine/progression/abyssProgression";
+import { getOnboardingFirstEchoNodeId, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 
 const PERCENT_KEYS = new Set([
   "damagePct",
@@ -190,6 +191,12 @@ export default function Prestige({ state, dispatch }) {
   const activePrestigeNodes = Object.keys(prestige.nodes || {}).filter(key => (prestige.nodes?.[key] || 0) > 0).length;
   const purchasableNodes = PRESTIGE_TREE_NODES.filter(node => canPurchasePrestigeNode(state, node).ok);
   const recommendedNode = purchasableNodes[0] || null;
+  const onboardingStep = state?.onboarding?.step || null;
+  const spotlightFirstEchoes = onboardingStep === ONBOARDING_STEPS.FIRST_ECHOES;
+  const spotlightFirstEchoNode = onboardingStep === ONBOARDING_STEPS.BUY_FIRST_ECHO_NODE;
+  const tutorialEchoNodeId = spotlightFirstEchoNode
+    ? (getOnboardingFirstEchoNodeId(state) || recommendedNode?.id || null)
+    : null;
   const resetBreakdown = (prestigePreview.breakdown || []).filter(entry => Math.abs(Number(entry.echoes || 0)) > 0);
   const highlightedBonuses = bonusRows.slice(0, 6);
   const abyssUnlocks = useMemo(() => getAbyssUnlockEntries(state?.abyss || {}), [state?.abyss]);
@@ -236,9 +243,56 @@ export default function Prestige({ state, dispatch }) {
       .sort((a, b) => a.tier - b.tier);
   }, [activeBranchNodes]);
 
+  useEffect(() => {
+    if (!tutorialEchoNodeId) return;
+    const targetNode = PRESTIGE_TREE_NODES.find(node => node.id === tutorialEchoNodeId);
+    if (targetNode?.branch && targetNode.branch !== activeBranchId) {
+      setActiveBranchId(targetNode.branch);
+    }
+  }, [activeBranchId, tutorialEchoNodeId]);
+
+  useEffect(() => {
+    if (!spotlightFirstEchoes && !spotlightFirstEchoNode) return undefined;
+
+    let frameId = null;
+    const selector = spotlightFirstEchoNode
+      ? '[data-onboarding-target="buy-first-echo-node-card"]'
+      : '[data-onboarding-target="prestige-summary"]';
+    const scrollToTarget = () => {
+      const target = document.querySelector(selector);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+
+    frameId = requestAnimationFrame(scrollToTarget);
+    return () => {
+      if (frameId != null) cancelAnimationFrame(frameId);
+    };
+  }, [spotlightFirstEchoNode, spotlightFirstEchoes, tutorialEchoNodeId, activeBranchId]);
+
   return (
     <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
-      <section style={summaryPanelStyle}>
+      <style>{`
+        @keyframes prestigeSpotlightPulse {
+          0% { box-shadow: 0 0 0 0 rgba(199,210,254,0.22); }
+          70% { box-shadow: 0 0 0 10px rgba(199,210,254,0); }
+          100% { box-shadow: 0 0 0 0 rgba(199,210,254,0); }
+        }
+      `}</style>
+      <section
+        data-onboarding-target={spotlightFirstEchoes ? "prestige-summary" : undefined}
+        onClick={() => spotlightFirstEchoes && dispatch({ type: "ACK_ONBOARDING_STEP" })}
+        style={{
+          ...summaryPanelStyle,
+          position: spotlightFirstEchoes ? "relative" : "static",
+          zIndex: spotlightFirstEchoes ? 2 : 1,
+          boxShadow: spotlightFirstEchoes
+            ? "0 0 0 2px rgba(199,210,254,0.28), 0 16px 34px rgba(15,23,42,0.28)"
+            : "none",
+          animation: spotlightFirstEchoes ? "prestigeSpotlightPulse 1600ms ease-in-out infinite" : "none",
+          cursor: spotlightFirstEchoes ? "pointer" : "default",
+        }}
+      >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "12px", flexWrap: "wrap" }}>
           <div style={{ minWidth: 0 }}>
             <div style={sectionTitleStyle}>Ecos</div>
@@ -525,6 +579,9 @@ export default function Prestige({ state, dispatch }) {
                     const level = getPrestigeNodeLevel(prestige, node.id);
                     const purchase = canPurchasePrestigeNode(state, node);
                     const tone = getNodeTone(node, player);
+                    const spotlightNode = tutorialEchoNodeId != null && node.id === tutorialEchoNodeId;
+                    const tutorialLocked = tutorialEchoNodeId != null && node.id !== tutorialEchoNodeId;
+                    const buttonEnabled = purchase.ok && !tutorialLocked;
                     const currentEffects = Object.entries(node.effectsPerLevel || {}).map(([key, value]) => [key, value * level]);
                     const currentSummary = summarizeEffectEntries(currentEffects, {
                       emptyLabel: "Sin invertir todavia",
@@ -535,12 +592,26 @@ export default function Prestige({ state, dispatch }) {
                     return (
                       <div
                         key={node.id}
-                        style={nodeCardCompactStyle({
-                          active: level > 0,
-                          canBuy: purchase.ok,
-                          color: activeBranch.color,
-                          tone,
-                        })}
+                        data-onboarding-target={spotlightNode ? "buy-first-echo-node-card" : undefined}
+                        style={{
+                          ...nodeCardCompactStyle({
+                            active: level > 0,
+                            canBuy: buttonEnabled,
+                            color: activeBranch.color,
+                            tone,
+                          }),
+                          position: spotlightNode ? "relative" : "static",
+                          zIndex: spotlightNode ? 2 : 1,
+                          boxShadow: spotlightNode
+                            ? "0 0 0 2px rgba(199,210,254,0.28), 0 16px 34px rgba(15,23,42,0.28)"
+                            : nodeCardCompactStyle({
+                                active: level > 0,
+                                canBuy: buttonEnabled,
+                                color: activeBranch.color,
+                                tone,
+                              }).boxShadow,
+                          animation: spotlightNode ? "prestigeSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                        }}
                       >
                         <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" }}>
                           <div style={{ minWidth: 0 }}>
@@ -565,7 +636,7 @@ export default function Prestige({ state, dispatch }) {
                         )}
 
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
-                          <span style={nodeStatusPillStyle(purchase.ok, tone, activeBranch.color)}>
+                          <span style={nodeStatusPillStyle(buttonEnabled, tone, activeBranch.color)}>
                             {level >= node.maxLevel
                               ? "Max"
                               : purchase.reason === "unlock"
@@ -582,12 +653,13 @@ export default function Prestige({ state, dispatch }) {
                           </span>
                           <button
                             onClick={() => dispatch({ type: "BUY_PRESTIGE_NODE", nodeId: node.id })}
-                            disabled={!purchase.ok}
-                            style={nodeBuyButtonStyle(activeBranch.color, purchase.ok)}
+                            disabled={!buttonEnabled}
+                            data-onboarding-target={spotlightNode ? "buy-first-echo-node" : undefined}
+                            style={nodeBuyButtonStyle(activeBranch.color, buttonEnabled)}
                           >
                             {level >= node.maxLevel
                               ? "Maximo"
-                              : purchase.ok
+                              : buttonEnabled
                                 ? `Comprar ${purchase.cost}`
                                 : purchase.reason === "unlock"
                                   ? "Bloqueado"

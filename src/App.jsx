@@ -475,11 +475,18 @@ export default function App() {
                     (t === "combat" && !expeditionUnlocked) ||
                     !isPrimaryTabAllowed(t, onboardingStep);
                   const spotlightHeroPrimary = onboardingStep === ONBOARDING_STEPS.OPEN_HERO && t === "character";
+                  const spotlightPrestigePrimary = onboardingStep === ONBOARDING_STEPS.FIRST_ECHOES && t === "prestige";
                   return (
                     <button
                       key={t}
                       disabled={disabled}
-                      data-onboarding-target={spotlightHeroPrimary ? "primary-hero-tab" : undefined}
+                      data-onboarding-target={
+                        spotlightHeroPrimary
+                          ? "primary-hero-tab"
+                          : spotlightPrestigePrimary
+                            ? "primary-prestige-tab"
+                            : undefined
+                      }
                       onClick={() => handlePrimaryTabPress(t)}
                       style={{
                         padding: "7px 13px",
@@ -494,12 +501,12 @@ export default function App() {
                         gap: "6px",
                         transition: "all 0.2s",
                         opacity: disabled ? 0.55 : 1,
-                        position: spotlightHeroPrimary ? "relative" : "static",
-                        zIndex: spotlightHeroPrimary ? 2 : 1,
-                        boxShadow: spotlightHeroPrimary
+                        position: spotlightHeroPrimary || spotlightPrestigePrimary ? "relative" : "static",
+                        zIndex: spotlightHeroPrimary || spotlightPrestigePrimary ? 2 : 1,
+                        boxShadow: spotlightHeroPrimary || spotlightPrestigePrimary
                           ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 28px rgba(83,74,183,0.18)"
                           : "none",
-                        animation: spotlightHeroPrimary ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                        animation: spotlightHeroPrimary || spotlightPrestigePrimary ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
                       }}
                     >
                   <span>{PRIMARY_TAB_CONFIG[t].icon}</span>
@@ -541,7 +548,7 @@ export default function App() {
         </main>
       </div>
 
-      {state.combat?.pendingRunSetup && state.player?.class && state.player?.specialization && (
+      {state.combat?.pendingRunSetup && state.player?.class && (
         <RunSigilOverlay
           isMobile={isMobile}
           pendingRunSigilIds={pendingRunSigilIds}
@@ -643,11 +650,18 @@ export default function App() {
                 (t === "combat" && !expeditionUnlocked) ||
                 !isPrimaryTabAllowed(t, onboardingStep);
               const spotlightHeroPrimary = onboardingStep === ONBOARDING_STEPS.OPEN_HERO && t === "character";
+              const spotlightPrestigePrimary = onboardingStep === ONBOARDING_STEPS.FIRST_ECHOES && t === "prestige";
               return (
                 <button
                   key={t}
                   disabled={disabled}
-                  data-onboarding-target={spotlightHeroPrimary ? "primary-hero-tab" : undefined}
+                  data-onboarding-target={
+                    spotlightHeroPrimary
+                      ? "primary-hero-tab"
+                      : spotlightPrestigePrimary
+                        ? "primary-prestige-tab"
+                        : undefined
+                  }
                   onClick={() => handlePrimaryTabPress(t)}
                   style={{
                     flex: 1,
@@ -663,11 +677,11 @@ export default function App() {
                     position: "relative",
                     paddingTop: "5px",
                     opacity: disabled ? 0.45 : 1,
-                    boxShadow: spotlightHeroPrimary
+                    boxShadow: spotlightHeroPrimary || spotlightPrestigePrimary
                       ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.16)"
                       : "none",
-                    animation: spotlightHeroPrimary ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
-                    zIndex: spotlightHeroPrimary ? 2 : 1,
+                    animation: spotlightHeroPrimary || spotlightPrestigePrimary ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                    zIndex: spotlightHeroPrimary || spotlightPrestigePrimary ? 2 : 1,
                   }}
                 >
                   <span style={{ filter: isActive ? "none" : "grayscale(1) opacity(0.5)", position: "relative", fontSize: "21px", lineHeight: 1 }}>

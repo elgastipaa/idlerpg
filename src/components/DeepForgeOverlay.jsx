@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getRarityColor } from "../constants/rarity";
 import { getProjectUpgradeRule } from "../engine/sanctuary/jobEngine";
+import { getOnboardingTutorialDeepForgeProjectId, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 import {
   getLegendaryPowerImprintReduction,
   getUnlockedLegendaryPowers,
@@ -122,6 +123,8 @@ function resourceLine(project, resources, mode, affixIndex) {
 
 export default function DeepForgeOverlay({ state, dispatch, isMobile = false, onClose }) {
   const sanctuary = state.sanctuary || {};
+  const onboardingStep = state?.onboarding?.step || null;
+  const tutorialProjectId = getOnboardingTutorialDeepForgeProjectId(state);
   const stashProjects = Array.isArray(sanctuary?.stash) ? sanctuary.stash : [];
   const resources = {
     essence: Number(state.player?.essence || 0),
@@ -134,7 +137,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
   const deepForgeSession = sanctuary?.deepForgeSession || null;
 
   const [selectedProjectId, setSelectedProjectId] = useState(
-    () => deepForgeSession?.projectId || stashProjects[0]?.id || null
+    () => tutorialProjectId || deepForgeSession?.projectId || stashProjects[0]?.id || null
   );
   const [selectedAffixIndex, setSelectedAffixIndex] = useState(
     () => Number.isInteger(Number(deepForgeSession?.affixIndex))
@@ -145,9 +148,9 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
 
   useEffect(() => {
     if (!stashProjects.some(project => project?.id === selectedProjectId)) {
-      setSelectedProjectId(deepForgeSession?.projectId || stashProjects[0]?.id || null);
+      setSelectedProjectId(tutorialProjectId || deepForgeSession?.projectId || stashProjects[0]?.id || null);
     }
-  }, [deepForgeSession?.projectId, selectedProjectId, stashProjects]);
+  }, [deepForgeSession?.projectId, selectedProjectId, stashProjects, tutorialProjectId]);
 
   const selectedProject = useMemo(
     () => stashProjects.find(project => project?.id === selectedProjectId) || null,
@@ -198,7 +201,8 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
     !selectedProject ||
     upgradeLevel >= upgradeCap ||
     deepForgeJobs.length >= deepForgeSlots ||
-    resources.relicDust < nextDustCost;
+    resources.relicDust < nextDustCost ||
+    (onboardingStep === ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE && selectedProject?.id !== tutorialProjectId);
   const polishState = selectedProject && selectedAffixIndex != null
     ? resourceLine(selectedProject, resources, "polish", selectedAffixIndex)
     : { costs: { essence: 0, relicDust: 0 }, enough: false };
@@ -403,6 +407,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
                     <button
                       onClick={() => dispatch({ type: "START_DEEP_FORGE_JOB", projectId: selectedProject.id, now: Date.now() })}
                       disabled={upgradeBlocked}
+                      data-onboarding-target={onboardingStep === ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE ? "tutorial-deep-forge-project" : undefined}
                       style={actionButtonStyle({ primary: !upgradeBlocked, disabled: upgradeBlocked })}
                     >
                       Subir proyecto

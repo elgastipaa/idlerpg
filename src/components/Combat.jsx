@@ -351,6 +351,11 @@ export default function Combat({ state, dispatch }) {
   const spotlightAutoAdvance = onboardingStep === ONBOARDING_STEPS.AUTO_ADVANCE;
   const spotlightLives = onboardingStep === ONBOARDING_STEPS.FIRST_DEATH;
   const spotlightExtraction = onboardingStep === ONBOARDING_STEPS.EXTRACTION_READY;
+  const spotlightCombatEncounter = [
+    ONBOARDING_STEPS.COMBAT_INTRO,
+    ONBOARDING_STEPS.COMBAT_AFTER_TALENT,
+    ONBOARDING_STEPS.FIRST_BOSS,
+  ].includes(onboardingStep);
   const lockFirstBossRetreat = enemy.isBoss && !state?.onboarding?.flags?.firstDeathSeen;
   const combatTips = useMemo(() => ([
     {
@@ -954,7 +959,26 @@ export default function Combat({ state, dispatch }) {
           )}
         </div>
 
-        <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0 }}>
+        <div
+          data-onboarding-target={spotlightCombatEncounter ? "combat-encounter" : undefined}
+          onClick={() => spotlightCombatEncounter && dispatch({ type: "ACK_ONBOARDING_STEP" })}
+          style={{
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            minWidth: 0,
+            width: "100%",
+            borderRadius: "12px",
+            padding: spotlightCombatEncounter ? "8px 10px" : 0,
+            background: spotlightCombatEncounter ? "var(--tone-accent-soft, #eef2ff)" : "transparent",
+            boxShadow: spotlightCombatEncounter
+              ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 28px rgba(83,74,183,0.14)"
+              : "none",
+            animation: spotlightCombatEncounter ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
+            cursor: spotlightCombatEncounter ? "pointer" : "default",
+          }}
+        >
           <button
             title={[
               abyssMutator ? `Anomalia: ${abyssMutator.name}${abyssMutator.bossClause && enemy.isBoss ? ` · ${abyssMutator.bossClause}` : ""}` : "",
@@ -1224,6 +1248,7 @@ export default function Combat({ state, dispatch }) {
           <InlineStatusTray statuses={playerStatusPills} emptyLabel="Sin estados" isMobile={isMobile} />
           <div
             data-onboarding-target={spotlightLives ? "expedition-lives" : undefined}
+            onClick={() => spotlightLives && dispatch({ type: "ACK_ONBOARDING_STEP" })}
             style={{
               display: "flex",
               justifyContent: "space-between",
@@ -1236,6 +1261,7 @@ export default function Combat({ state, dispatch }) {
               background: spotlightLives ? "var(--tone-warning-soft, #fff7ed)" : "transparent",
               boxShadow: spotlightLives ? "0 0 0 2px rgba(245,158,11,0.16), 0 10px 24px rgba(245,158,11,0.12)" : "none",
               animation: spotlightLives ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
+              cursor: spotlightLives ? "pointer" : "default",
             }}
           >
             <span style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary, #94a3b8)" }}>

@@ -26,7 +26,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       return undefined;
     }
 
-    const selectors = getOnboardingSpotlightSelectors(step);
+    const selectors = getOnboardingSpotlightSelectors(step, state);
     if (!selectors.length) {
       setSpotlightRects([]);
       return undefined;
@@ -61,7 +61,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       window.removeEventListener("resize", scheduleMeasure);
       window.removeEventListener("scroll", scheduleMeasure, true);
     };
-  }, [step]);
+  }, [state, step]);
 
   const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
   const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
