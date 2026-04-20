@@ -276,10 +276,6 @@ export default function Sanctuary({ state, dispatch }) {
   const onboardingStep = state?.onboarding?.step || null;
   const hasClass = Boolean(state.player?.class);
   const hasSpec = Boolean(state.player?.specialization);
-  const shouldRequireSpecSelection =
-    hasClass &&
-    !hasSpec &&
-    (Number(state?.player?.level || 1) >= 5 || Number(state?.prestige?.level || 0) > 0);
   const sanctuary = state.sanctuary || {};
   const extractedItems = Array.isArray(sanctuary?.extractedItems) ? sanctuary.extractedItems : [];
   const blueprints = Array.isArray(sanctuary?.blueprints) ? sanctuary.blueprints : [];
@@ -406,14 +402,6 @@ export default function Sanctuary({ state, dispatch }) {
         helper: "La expedicion ya cerro. Primero confirma la extraccion abierta para volver a salir.",
       };
     }
-    if (shouldRequireSpecSelection) {
-      return {
-        label: "Elegir especializacion",
-        primary: true,
-        action: () => dispatch({ type: "SET_TAB", tab: "character" }),
-        helper: "Tu heroe ya tiene clase, pero esta run necesita una subclase antes de seguir.",
-      };
-    }
     if (expeditionPhase === "setup" || state.combat?.pendingRunSetup) {
       return {
         label: "Preparar expedicion",
@@ -423,12 +411,12 @@ export default function Sanctuary({ state, dispatch }) {
       };
     }
     return {
-      label: "Ir a Expedicion",
+      label: "Iniciar expedicion",
       primary: true,
-      action: () => dispatch({ type: "SET_TAB", tab: "combat" }),
-      helper: "Tu heroe ya esta listo. Vuelve al combate cuando quieras.",
+      action: () => dispatch({ type: "ENTER_EXPEDITION_SETUP" }),
+      helper: "Tu heroe ya esta listo. Abre la preparacion de la siguiente salida y vuelve al frente.",
     };
-  }, [dispatch, expeditionPhase, hasClass, laboratoryUnlocked, onboardingStep, shouldRequireSpecSelection, showingSanctuaryIntro, state.combat?.pendingRunSetup]);
+  }, [dispatch, expeditionPhase, hasClass, laboratoryUnlocked, onboardingStep, showingSanctuaryIntro, state.combat?.pendingRunSetup]);
 
   const expeditionLabel = hasClass
     ? `${state.player.class}${hasSpec ? ` · ${state.player.specialization}` : ""}`
@@ -572,18 +560,8 @@ export default function Sanctuary({ state, dispatch }) {
         tone: "accent",
         eyebrow: "Primer paso",
         title: "Elegi un heroe para empezar la primera expedicion",
-        body: "La cuenta todavia no tiene una build activa. Defini clase y luego especializacion para abrir el loop real del juego.",
+        body: "La cuenta todavia no tiene una build activa. Defini una clase para abrir el loop real del juego.",
         cta: "Ir a Heroe",
-        action: () => dispatch({ type: "SET_TAB", tab: "character" }),
-      };
-    }
-    if (shouldRequireSpecSelection) {
-      return {
-        tone: "accent",
-        eyebrow: "Siguiente paso",
-        title: "Termina de definir la especializacion",
-        body: "La clase ya esta elegida, pero falta cerrar la spec para que la expedicion tenga identidad real.",
-        cta: "Elegir especializacion",
         action: () => dispatch({ type: "SET_TAB", tab: "character" }),
       };
     }
@@ -593,8 +571,10 @@ export default function Sanctuary({ state, dispatch }) {
         eyebrow: "Objetivo temprano",
         title: "Empuja hasta Tier 5 para revelar el primer boss y Caza",
         body: "El primer quiebre del juego llega cuando ves un boss real. Ahi se abre mejor la lectura de objetivos y empieza a sentirse la seed de la run.",
-        cta: expeditionPhase === "active" ? "Volver a Expedicion" : "Ir a Expedicion",
-        action: () => dispatch({ type: "SET_TAB", tab: "combat" }),
+        cta: expeditionPhase === "active" ? "Volver a Expedicion" : "Iniciar expedicion",
+        action: () => (expeditionPhase === "active"
+          ? dispatch({ type: "SET_TAB", tab: "combat" })
+          : dispatch({ type: "ENTER_EXPEDITION_SETUP" })),
       };
     }
     if (expeditionPhase === "extraction") {
@@ -633,8 +613,10 @@ export default function Sanctuary({ state, dispatch }) {
         eyebrow: "Primer loop",
         title: "Haz una extraccion completa para traer valor al Santuario",
         body: "La expedicion ya no termina solo en loot inmediato. Extraer trae bundles persistentes y, si aparece, un item rescatado para decidir despues.",
-        cta: "Salir a farmear",
-        action: () => dispatch({ type: "SET_TAB", tab: "combat" }),
+        cta: expeditionPhase === "active" ? "Volver a Expedicion" : "Iniciar expedicion",
+        action: () => (expeditionPhase === "active"
+          ? dispatch({ type: "SET_TAB", tab: "combat" })
+          : dispatch({ type: "ENTER_EXPEDITION_SETUP" })),
       };
     }
     if (blueprintDecisionUnlocked && stashCount > 0 && !hasAnyBlueprint) {
@@ -693,8 +675,10 @@ export default function Sanctuary({ state, dispatch }) {
         eyebrow: "Primer prestige",
         title: "Tu siguiente meta es extraer una run que ya convierta a Ecos",
         body: "Con el primer prestige se abre el tablero de Ecos y el juego pasa de ser solo una expedicion a una cuenta persistente completa.",
-        cta: "Buscar ecos",
-        action: () => dispatch({ type: "SET_TAB", tab: "combat" }),
+        cta: expeditionPhase === "active" ? "Volver a Expedicion" : "Iniciar expedicion",
+        action: () => (expeditionPhase === "active"
+          ? dispatch({ type: "SET_TAB", tab: "combat" })
+          : dispatch({ type: "ENTER_EXPEDITION_SETUP" })),
       };
     }
     if (
@@ -740,7 +724,6 @@ export default function Sanctuary({ state, dispatch }) {
     errandStation.unlocked,
     expeditionPhase,
     hasClass,
-    hasSpec,
     infusionStation.unlocked,
     laboratoryUnlocked,
     laboratoryCompleted.unlock_errands,

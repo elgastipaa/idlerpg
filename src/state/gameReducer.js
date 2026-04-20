@@ -818,7 +818,11 @@ function baseGameReducer(state, action) {
       if (state.combat?.pendingRunSetup) {
         return {
           ...state,
-          currentTab: "sanctuary",
+          expedition: {
+            ...(state.expedition || createEmptyExpeditionState()),
+            phase: "setup",
+          },
+          currentTab: "combat",
         };
       }
 

@@ -336,7 +336,7 @@ export function getOnboardingStepMeta(step = null, state = {}) {
       return {
         title: "Este es tu Santuario",
         body: "Aqui preparas la cuenta y desde aqui inicias cada expedicion. El primer gesto del juego es salir desde esta base: primero inicias la run, luego eliges una clase y de ahi entras al combate.",
-        actionLabel: null,
+        actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.CHOOSE_CLASS:
       return {
@@ -347,8 +347,8 @@ export function getOnboardingStepMeta(step = null, state = {}) {
     case ONBOARDING_STEPS.COMBAT_INTRO:
       return {
         title: "El combate corre solo",
-        body: "Tu heroe pelea automaticamente. Tu trabajo es decidir cuando empujar, cuando mejorar equipo y cuando cerrar la expedicion con una extraccion. Toca el frente resaltado para seguir.",
-        actionLabel: null,
+        body: "Tu heroe pelea automaticamente. Tu trabajo es decidir cuando empujar, cuando mejorar equipo y cuando cerrar la expedicion con una extraccion.",
+        actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.CHOOSE_SPEC:
       return {
@@ -365,8 +365,8 @@ export function getOnboardingStepMeta(step = null, state = {}) {
     case ONBOARDING_STEPS.FIRST_DEATH:
       return {
         title: "El tutorial protege esta run",
-        body: "Aqui no puedes perder definitivamente la expedicion. Si caes, retrocedes, el auto-avance se corta y vuelves a pelear sin consumir vidas reales. Toca la tarjeta resaltada para seguir.",
-        actionLabel: null,
+        body: "Aqui no puedes perder definitivamente la expedicion. Si caes, retrocedes, el auto-avance se corta y vuelves a pelear sin consumir vidas reales.",
+        actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.OPEN_HERO:
       return {
@@ -377,8 +377,8 @@ export function getOnboardingStepMeta(step = null, state = {}) {
     case ONBOARDING_STEPS.HERO_INTRO:
       return {
         title: "Esta es tu Ficha",
-        body: "La Ficha resume la identidad de tu heroe: clase, spec, nivel, vida y lectura general de build. Toca la cabecera resaltada para seguir y pasar a Atributos.",
-        actionLabel: null,
+        body: "La Ficha resume la identidad de tu heroe: clase, spec, nivel, vida y lectura general de build.",
+        actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.HERO_SKILLS_INTRO:
       return {
@@ -437,8 +437,8 @@ export function getOnboardingStepMeta(step = null, state = {}) {
     case ONBOARDING_STEPS.FIRST_BOSS:
       return {
         title: "Has encontrado un boss",
-        body: "Un boss no es un monstruo normal: aguanta mas, suele tener mecanicas propias, castiga mas los errores y marca los hitos importantes de una expedicion. Toca el frente resaltado y sigue peleando.",
-        actionLabel: null,
+        body: "Un boss no es un monstruo normal: aguanta mas, suele tener mecanicas propias, castiga mas los errores y marca los hitos importantes de una expedicion.",
+        actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.HUNT_INTRO:
       return {

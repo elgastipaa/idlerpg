@@ -63,6 +63,31 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
     };
   }, [state, step]);
 
+  useEffect(() => {
+    if (!step) return undefined;
+
+    const selectors = getOnboardingSpotlightSelectors(step, state);
+    if (!selectors.length) return undefined;
+
+    let frameId = null;
+    const scrollTargetIntoView = () => {
+      const target = selectors
+        .flatMap(selector => [...document.querySelectorAll(selector)])
+        .find(node => node instanceof HTMLElement && node.offsetParent !== null);
+      if (!target) return;
+      target.scrollIntoView({
+        behavior: "smooth",
+        block: anchor === "subnav" ? "start" : "center",
+        inline: "nearest",
+      });
+    };
+
+    frameId = requestAnimationFrame(scrollTargetIntoView);
+    return () => {
+      if (frameId != null) cancelAnimationFrame(frameId);
+    };
+  }, [anchor, state, step]);
+
   const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
   const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
   const spotlightRect = spotlightRects.length
@@ -112,32 +137,21 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
 
     const body = document.body;
     const root = document.documentElement;
-    const scrollY = window.scrollY;
     const previousBodyOverflow = body.style.overflow;
-    const previousBodyPosition = body.style.position;
-    const previousBodyTop = body.style.top;
-    const previousBodyWidth = body.style.width;
     const previousBodyTouchAction = body.style.touchAction;
     const previousRootOverflow = root.style.overflow;
     const previousRootOverscroll = root.style.overscrollBehavior;
 
     body.style.overflow = "hidden";
-    body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
-    body.style.width = "100%";
     body.style.touchAction = "none";
     root.style.overflow = "hidden";
     root.style.overscrollBehavior = "none";
 
     return () => {
       body.style.overflow = previousBodyOverflow;
-      body.style.position = previousBodyPosition;
-      body.style.top = previousBodyTop;
-      body.style.width = previousBodyWidth;
       body.style.touchAction = previousBodyTouchAction;
       root.style.overflow = previousRootOverflow;
       root.style.overscrollBehavior = previousRootOverscroll;
-      window.scrollTo({ top: scrollY, behavior: "auto" });
     };
   }, [step]);
 
