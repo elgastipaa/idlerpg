@@ -1,4 +1,5 @@
 import { calculatePrestigeEchoGain, canPrestige } from "../progression/prestigeEngine";
+import { isBlueprintDecisionUnlocked } from "../onboarding/onboardingEngine";
 
 const PROJECT_ELIGIBLE_RARITIES = new Set(["rare", "epic", "legendary"]);
 const RARITY_RANK = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
@@ -227,9 +228,10 @@ export function buildExtractionPreview(state, { exitReason = "retire" } = {}) {
     extractionBonuses
   );
   const projectOptions = buildProjectOptions(state, exitReason);
+  const blueprintDecisionUnlocked = isBlueprintDecisionUnlocked(state);
   const availableSlots = {
     cargo: Math.max(0, Number(state?.sanctuary?.extractionUpgrades?.cargoSlots || 2)),
-    project: exitReason === "death"
+    project: exitReason === "death" || !blueprintDecisionUnlocked
       ? 0
       : Math.max(
           0,

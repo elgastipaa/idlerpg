@@ -44,27 +44,31 @@ function getHeroSubview(tab = "character") {
 export default function HeroView({ state, dispatch }) {
   const activeSubview = getHeroSubview(state?.currentTab || "character");
   const hasClass = Boolean(state?.player?.class);
-  const resolvedSubview = hasClass ? activeSubview : "character";
+  const hasSpec = Boolean(state?.player?.specialization);
+  const resolvedSubview = hasClass ? (hasSpec ? activeSubview : "character") : "character";
   const reforgeLocked = !!state?.combat?.reforgeSession;
+  const showSubviewButtons = hasClass && hasSpec;
 
   return (
     <div style={{ display: "grid", gap: "10px", padding: "10px" }}>
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-        {Object.entries(SUBVIEW_META).map(([viewId, meta]) => {
-          const active = resolvedSubview === viewId;
-          const disabled = (reforgeLocked && !active) || (!hasClass && viewId !== "character");
-          return (
-            <button
-              key={viewId}
-              onClick={() => dispatch({ type: "SET_TAB", tab: viewId })}
-              disabled={disabled}
-              style={buttonStyle({ active, disabled })}
-            >
-              {meta.label}
-            </button>
-          );
-        })}
-      </div>
+      {showSubviewButtons && (
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          {Object.entries(SUBVIEW_META).map(([viewId, meta]) => {
+            const active = resolvedSubview === viewId;
+            const disabled = (reforgeLocked && !active) || (!hasClass && viewId !== "character");
+            return (
+              <button
+                key={viewId}
+                onClick={() => dispatch({ type: "SET_TAB", tab: viewId })}
+                disabled={disabled}
+                style={buttonStyle({ active, disabled })}
+              >
+                {meta.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div>
         {resolvedSubview === "character" && <Character player={state.player} dispatch={dispatch} state={state} />}

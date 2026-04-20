@@ -1,0 +1,14 @@
+Al principio, que estén todas las tabs principales grayed out menos Expedición.
+Que cuando mate al primer bicho, le salte un popup que le explique que este juego es un juego con combate automático en el que va a tener que subir de nivel y realizar expediciones para progresar. En este mismo mensaje, le diría "Como primer paso, elegí una clase para jugar tu primer expedición" y con un botón "Elegir clase", lo mandaría a elegir Warrior o Mage.
+No lo obligaría a elegir spec todavía.
+Una vez elegida la clase, que vuelva automáticamente a Expedición (a combate) y cuando mate 5 monstruos más, que salga otro cartel focuseando al botón de auto-avance, y que le diga "Auto Avance te permite progresar de forma automática al siguiente Tier cada vez que matas un enemigo." o algo así.
+En la primer muerte, que salte un cartel "Al morir, vuelves a Tier 1, y pierdes 1 vida. Al perder las 3 vidas, la expedición termina de manera forzada y tienes que volver al Santuario sin recibir el 100% de las recompensas."
+A nivel 5, que salte un cartel que diga "Ahora vamos a elegir una especialización. Cada clase básica tiene 2 especializaciones posibles." con un botón "Elegir especialización" y que lo mande a una pantalla para elegir la subclase que prefiera (saquemos los prerequisitos de las subclases por ahora, la verdad termiann siendo al pedo).
+Una vez elegida la especialización, podemos mostrarle la Tab Héroe, y explicarle en 3 mensajes focuseados (de a uno) para qué sirve cada subtab, Ficha, Atributos, y Talentos.
+Podemos llevarlo a atributos y hacerle comprar 1 punto de fuerza (sólo si tiene el oro disponible, sino démosle el oro forzosamente).
+Que aparezca un mensaje de "Genial! Ahora repasemos los talentos" y lo lleve a la tab de talentos. Que diga "Cada nivel te otorga 1 Talent Point (TP), que podrás usar para comprar nodos en tus árboles de talentos. Hay un árbol de talento de clase básica, y otro por tu especialización."
+Luego de ese mensaje, que aparezca otro "Compremos tu primer nodo." y focusee un nodo del árbol básico para que lo compre por 1 TP (ya debería tenerlo porque es lvl 5).
+Luego explicale que puede resetear el árbol de forma gratuita cada 24hrs (si, hagamos este cambio que sea timeado), y pedile que lo resetee focuseando el botón.
+Hasta acá ya quedarían habilitadas las tabs de expedición y héroe.
+Después de esto, que vuelva a combate, y hagamos que caiga un drop garantizado si no tiene un item ya. De ambas maneras, que aparezca un mensaje diciendo que ahora vamos a equiparnos, y lo lleve a la subtab mochila. Que le explique de la misma forma que antes (con mensajes, y focuseando las secciones que queramos que le de foco sin que pueda irse del tutorial digamos) cómo equiparse un ítem. y brevemente cómo funciona el loot filter, y qué es "extraer" (por el auto-extraer).
+

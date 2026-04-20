@@ -103,6 +103,19 @@ function costLabel(costs = {}) {
   return parts.join(" · ") || "Sin costo";
 }
 
+function unlockOrderIndex(researchId = "") {
+  const order = [
+    "unlock_distillery",
+    "unlock_deep_forge",
+    "unlock_library",
+    "unlock_errands",
+    "unlock_sigil_altar",
+    "unlock_abyss_portal",
+  ];
+  const index = order.indexOf(researchId);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+}
+
 export default function Laboratory({ state, dispatch }) {
   const [now, setNow] = useState(Date.now());
 
@@ -130,6 +143,17 @@ export default function Laboratory({ state, dispatch }) {
     }
     return mapped;
   }, [catalog]);
+  const unlockEntries = useMemo(
+    () =>
+      catalog
+        .filter(entry => entry.group === "unlock")
+        .sort((left, right) => unlockOrderIndex(left.id) - unlockOrderIndex(right.id)),
+    [catalog]
+  );
+  const nextRecommendedUnlock = useMemo(
+    () => unlockEntries.find(entry => !entry.completed),
+    [unlockEntries]
+  );
   const completedCount = catalog.filter(entry => entry.completed).length;
   const unlockedStations = Object.values(SANCTUARY_STATION_DEFAULTS)
     .filter(station => station.id !== "laboratory")
@@ -177,6 +201,54 @@ export default function Laboratory({ state, dispatch }) {
             <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Listas</div>
             <div style={{ fontSize: "0.94rem", fontWeight: "900" }}>{claimableJobs.length}</div>
           </div>
+        </div>
+      </section>
+
+      <section style={panelStyle("var(--tone-success, #10b981)")}>
+        <div>
+          <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-success, #10b981)" }}>
+            Ruta del Santuario
+          </div>
+          <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+            Orden recomendado de funciones
+          </div>
+          <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.45 }}>
+            El Laboratorio define en qué orden crece la cuenta. No hace falta optimizarlo: sigue esta ruta para entender el loop nuevo sin abrir sistemas demasiado pronto.
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px" }}>
+          {unlockEntries.map((entry, index) => {
+            const isNext = nextRecommendedUnlock?.id === entry.id;
+            return (
+              <div
+                key={entry.id}
+                style={{
+                  ...metricCardStyle(),
+                  borderColor: isNext ? "rgba(99,102,241,0.28)" : "var(--color-border-primary, #e2e8f0)",
+                  background: isNext ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-tertiary, #f8fafc)",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                      Paso {index + 1}
+                    </div>
+                    <div style={{ fontSize: "0.82rem", fontWeight: "900", marginTop: "4px" }}>{entry.targetLabel || entry.label}</div>
+                  </div>
+                  <span style={chipStyle(entry.completed ? "var(--tone-success, #10b981)" : isNext ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #475569)")}>
+                    {entry.completed ? "Activo" : isNext ? "Siguiente" : "Luego"}
+                  </span>
+                </div>
+                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                  {entry.description}
+                </div>
+                <div style={{ fontSize: "0.68rem", color: entry.available ? "var(--color-text-secondary, #64748b)" : "var(--tone-danger, #D85A30)", lineHeight: 1.45 }}>
+                  {entry.prerequisiteLabel}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -279,7 +351,7 @@ export default function Laboratory({ state, dispatch }) {
                 </div>
 
                 <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
-                  {SANCTUARY_STATION_DEFAULTS[entry.stationId]?.label || entry.stationId} · {costLabel(entry.costs)} · {formatDuration(entry.durationMs)}
+                  {entry.targetLabel || SANCTUARY_STATION_DEFAULTS[entry.stationId]?.label || entry.stationId} · {costLabel(entry.costs)} · {formatDuration(entry.durationMs)}
                 </div>
                 <div style={{ fontSize: "0.68rem", color: entry.available ? "var(--color-text-secondary, #64748b)" : "var(--tone-danger, #D85A30)", lineHeight: 1.45 }}>
                   {entry.prerequisiteLabel}

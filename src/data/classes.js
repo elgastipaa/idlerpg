@@ -26,7 +26,7 @@ export const CLASSES = [
           defense: -3,
           critChance: 0.06,
         },
-        unlockCondition: { stat: "kills", value: 200 },
+        unlockCondition: { stat: "level", value: 5 },
         tags: ["glass_cannon", "rage_scaling"],
         mechanics: {
           scaling: "missingHp",
@@ -41,7 +41,7 @@ export const CLASSES = [
           defense: 6,
           damage: -3,
         },
-        unlockCondition: { stat: "level", value: 18 },
+        unlockCondition: { stat: "level", value: 5 },
         tags: ["tank", "defense_to_damage"],
         mechanics: {
           scaling: "defense_to_damage",
@@ -78,7 +78,7 @@ export const CLASSES = [
           damage: 8,
           critChance: 0.03,
         },
-        unlockCondition: { stat: "level", value: 18 },
+        unlockCondition: { stat: "level", value: 5 },
         tags: ["burst", "volatile"],
         mechanics: {
           scaling: "burst_chain",
@@ -93,7 +93,7 @@ export const CLASSES = [
           maxHp: 18,
           critChance: 0.02,
         },
-        unlockCondition: { stat: "kills", value: 200 },
+        unlockCondition: { stat: "level", value: 5 },
         tags: ["control", "ramp"],
         mechanics: {
           scaling: "mark_flow",

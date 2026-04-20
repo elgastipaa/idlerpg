@@ -4,7 +4,7 @@ import { getPlayerBuildTag } from "../utils/buildIdentity";
 import { buildSessionTelemetryEntries, buildSessionTelemetryReport, buildSessionTelemetrySections } from "../utils/runTelemetry";
 import { buildReplayDatasetSummary, buildReplayJsonExport, buildReplayLibraryExport, buildReplaySummary, buildReplayTextReport, deriveHumanReplayProfile, parseReplayImportPayload } from "../utils/replayLog";
 import { runBalanceBotSimulation } from "../engine/simulation/balanceBot";
-import { clearGame, importGameFromText, isRecoveryMode, saveGame, serializeSaveGame } from "../utils/storage";
+import { importGameFromText, isRecoveryMode, saveGame, serializeSaveGame } from "../utils/storage";
 
 function formatNumber(value) {
   if (typeof value !== "number") return value;
@@ -339,8 +339,8 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
       return;
     }
     if (!window.confirm("Esto borra tu save local actual. Continuar?")) return;
-    clearGame();
-    window.location.href = window.location.origin + window.location.pathname;
+    dispatch({ type: "RESET_ALL_PROGRESS", meta: { replay: false } });
+    setSaveImportStatus("Progreso reiniciado. Empezaste una cuenta nueva.");
   };
 
   const handleSaveReplayToLibrary = () => {

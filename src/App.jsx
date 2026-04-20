@@ -2,9 +2,11 @@ import React, { Suspense, lazy, useState, useEffect, useRef } from "react";
 import { useGame } from "./hooks/useGame";
 import Sanctuary from "./components/Sanctuary";
 import ExtractionOverlay from "./components/ExtractionOverlay";
+import OnboardingOverlay from "./components/OnboardingOverlay";
 import { getRarityColor } from "./constants/rarity";
 import { formatRunSigilLoadout, getRunSigil, normalizeRunSigilIds, RUN_SIGILS, summarizeRunSigilLoadout } from "./data/runSigils";
 import { getMaxRunSigilSlots } from "./engine/progression/abyssProgression";
+import { canOpenExpedition, shouldShowHeroPrimaryTab } from "./engine/onboarding/onboardingEngine";
 
 const Prestige = lazy(() => import("./components/Prestige"));
 const HeroView = lazy(() => import("./components/HeroView"));
@@ -304,7 +306,9 @@ export default function App() {
   const DESKTOP_MAX_WIDTH = 1180;
   const currentPrimaryTab = getVisiblePrimaryTab(state.currentTab, state);
   const prestigeTabUnlocked = isPrestigeTabUnlocked(state);
-  const visiblePrimaryTabs = ["sanctuary", "combat", "character", ...(prestigeTabUnlocked ? ["prestige"] : []), "registry"];
+  const expeditionUnlocked = canOpenExpedition(state);
+  const showHeroPrimaryTab = shouldShowHeroPrimaryTab(state);
+  const visiblePrimaryTabs = ["sanctuary", "combat", ...(showHeroPrimaryTab ? ["character"] : []), ...(prestigeTabUnlocked ? ["prestige"] : []), "registry"];
 
   useEffect(() => {
     if (prevPrimaryTabRef.current !== currentPrimaryTab) {
@@ -324,6 +328,10 @@ export default function App() {
       if (contentRef.current) {
         contentRef.current.scrollTo({ top: 0, behavior: "auto" });
       }
+      return;
+    }
+    if (tab === "combat" && !expeditionUnlocked) {
+      dispatch({ type: "SET_TAB", tab: "sanctuary" });
       return;
     }
     dispatch({ type: "SET_TAB", tab: getDefaultTabForPrimaryTab(tab) });
@@ -396,13 +404,13 @@ export default function App() {
               {visiblePrimaryTabs.map((t) => (
                 <button
                   key={t}
-                  disabled={reforgeLocked && currentPrimaryTab !== t}
+                  disabled={(reforgeLocked && currentPrimaryTab !== t) || (t === "combat" && !expeditionUnlocked)}
                   onClick={() => handlePrimaryTabPress(t)}
                   style={{
                     padding: "7px 13px",
-                    cursor: reforgeLocked && currentPrimaryTab !== t ? "not-allowed" : "pointer",
+                    cursor: (reforgeLocked && currentPrimaryTab !== t) || (t === "combat" && !expeditionUnlocked) ? "not-allowed" : "pointer",
                     backgroundColor: currentPrimaryTab === t ? "var(--color-background-info, #e0e7ff)" : "var(--color-background-secondary, #ffffff)",
-                    color: reforgeLocked && currentPrimaryTab !== t ? "var(--color-text-tertiary, #94a3b8)" : currentPrimaryTab === t ? "var(--color-text-info, #4338ca)" : "var(--color-text-primary, #1e293b)",
+                    color: (reforgeLocked && currentPrimaryTab !== t) || (t === "combat" && !expeditionUnlocked) ? "var(--color-text-tertiary, #94a3b8)" : currentPrimaryTab === t ? "var(--color-text-info, #4338ca)" : "var(--color-text-primary, #1e293b)",
                     border: "1px solid var(--color-border-tertiary, #cbd5e1)",
                     borderRadius: "8px",
                     fontWeight: "700",
@@ -410,7 +418,7 @@ export default function App() {
                     alignItems: "center",
                     gap: "6px",
                     transition: "all 0.2s",
-                    opacity: reforgeLocked && currentPrimaryTab !== t ? 0.55 : 1,
+                    opacity: (reforgeLocked && currentPrimaryTab !== t) || (t === "combat" && !expeditionUnlocked) ? 0.55 : 1,
                   }}
                 >
                   <span>{PRIMARY_TAB_CONFIG[t].icon}</span>
@@ -469,13 +477,16 @@ export default function App() {
         />
       )}
 
+      <OnboardingOverlay state={state} dispatch={dispatch} isMobile={isMobile} />
+
       {isMobile && (
         <>
           <nav style={{ position: "fixed", bottom: 0, left: 0, width: "100%", height: `${NAV_HEIGHT_MOBILE}px`, backgroundColor: "var(--color-background-secondary, #ffffff)", borderTop: "1px solid var(--color-border-secondary, #e2e8f0)", display: "flex", zIndex: 5000, paddingBottom: "env(safe-area-inset-bottom)", boxSizing: "content-box" }}>
             {visiblePrimaryTabs.map((t) => {
               const isActive = currentPrimaryTab === t;
+              const disabled = (reforgeLocked && !isActive) || (t === "combat" && !expeditionUnlocked);
               return (
-                <button key={t} disabled={reforgeLocked && !isActive} onClick={() => handlePrimaryTabPress(t)} style={{ flex: 1, minWidth: "56px", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "2px", background: isActive ? "var(--color-background-info, #f1f5f9)" : "transparent", border: "none", outline: "none", position: "relative", paddingTop: "5px", opacity: reforgeLocked && !isActive ? 0.45 : 1 }}>
+                <button key={t} disabled={disabled} onClick={() => handlePrimaryTabPress(t)} style={{ flex: 1, minWidth: "56px", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "2px", background: isActive ? "var(--color-background-info, #f1f5f9)" : "transparent", border: "none", outline: "none", position: "relative", paddingTop: "5px", opacity: disabled ? 0.45 : 1 }}>
                   <span style={{ filter: isActive ? "none" : "grayscale(1) opacity(0.5)", position: "relative", fontSize: "21px", lineHeight: 1 }}>
                     {PRIMARY_TAB_CONFIG[t].icon}
                   </span>

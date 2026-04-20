@@ -76,7 +76,35 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
   const projectOptions = preview.projectOptions || [];
   const selectedCargoIds = new Set(expedition.selectedCargoIds || []);
   const selectedProjectItemId = expedition.selectedProjectItemId || null;
-  const canCancel = expedition.exitReason !== "death";
+  const canCancel = expedition.exitReason !== "death" && !!state?.onboarding?.flags?.firstExtractionCompleted;
+  const selectedProject = projectOptions.find(option => option.itemId === selectedProjectItemId) || null;
+  const projectUnlocked = Number(preview.availableSlots?.project || 0) > 0;
+  const extractionSteps = [
+    {
+      label: "1. Rescatas valor",
+      body:
+        selectedCargoIds.size > 0
+          ? `${selectedCargoIds.size} bundle${selectedCargoIds.size === 1 ? "" : "s"} persistiran en el Santuario.`
+          : "Si eliges bundles, esos recursos van a la Destileria y al resto de estaciones.",
+    },
+    {
+      label: "2. Decides el item",
+      body: projectUnlocked
+        ? selectedProject
+          ? `${selectedProject.name} quedara guardado como item rescatado temporal. Luego decides si se vuelve blueprint o si lo rompes para ganar cargas.`
+          : "El item rescatado no vuelve equipado. Primero queda guardado en el Santuario y recien despues eliges blueprint o desguace."
+        : "En este tramo del onboarding solo rescatas cargo. Los items persistentes aparecen mas adelante, cuando ya entiendes Ecos y Santuario.",
+    },
+    {
+      label: "3. Conversion de run",
+      body:
+        preview.prestige?.mode === "echoes"
+          ? `Esta salida tambien se convierte en +${preview.prestige.echoes || 0} Ecos.`
+          : preview.prestige?.mode === "emergency"
+            ? `La emergencia recupera menos valor, pero aun asi convierte +${preview.prestige.echoes || 0} Ecos.`
+            : "Esta salida vuelve al Santuario sin convertir a Ecos todavia.",
+    },
+  ];
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,0.72)", zIndex: 9200, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", padding: isMobile ? "0" : "24px" }}>
@@ -112,6 +140,22 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
           <Metric label="Bosses" value={summary.bossesKilled || 0} />
           <Metric label="Kills" value={summary.kills || 0} />
           <Metric label="Duracion" value={`${summary.durationTicks || 0} ticks`} />
+        </section>
+
+        <section style={panelStyle()}>
+          <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
+            Que pasa despues
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "10px" }}>
+            {extractionSteps.map(step => (
+              <div key={step.label} style={{ background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "10px", display: "grid", gap: "4px" }}>
+                <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{step.label}</div>
+                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                  {step.body}
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.15fr 0.85fr", gap: "12px" }}>

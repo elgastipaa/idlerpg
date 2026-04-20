@@ -6,7 +6,13 @@ import SigilAltarOverlay from "./SigilAltarOverlay";
 import BibliotecaOverlay from "./BibliotecaOverlay";
 import LaboratoryOverlay from "./LaboratoryOverlay";
 import { getRunSigil } from "../data/runSigils";
+import { CLASSES } from "../data/classes";
 import { getSanctuaryStationState } from "../engine/sanctuary/laboratoryEngine";
+import {
+  isBlueprintDecisionUnlocked,
+  isDistilleryUnlocked,
+  isLaboratoryUnlocked,
+} from "../engine/onboarding/onboardingEngine";
 
 function sectionCardStyle(accent = "var(--tone-accent, #4338ca)") {
   return {
@@ -87,6 +93,31 @@ function chipStyle(accent = "var(--tone-accent, #4338ca)") {
     padding: "4px 8px",
     fontSize: "0.62rem",
     fontWeight: "900",
+  };
+}
+
+function nextStepToneStyle(tone = "accent") {
+  if (tone === "success") {
+    return {
+      accent: "var(--tone-success, #10b981)",
+      surface: "var(--tone-success-soft, #ecfdf5)",
+    };
+  }
+  if (tone === "warning") {
+    return {
+      accent: "var(--tone-warning, #f59e0b)",
+      surface: "var(--tone-warning-soft, #fff7ed)",
+    };
+  }
+  if (tone === "danger") {
+    return {
+      accent: "var(--tone-danger, #D85A30)",
+      surface: "var(--tone-danger-soft, #fff1f2)",
+    };
+  }
+  return {
+    accent: "var(--tone-accent, #4338ca)",
+    surface: "var(--tone-accent-soft, #eef2ff)",
   };
 }
 
@@ -200,9 +231,29 @@ export default function Sanctuary({ state, dispatch }) {
     return () => window.removeEventListener("primary-tab-reselected", handler);
   }, []);
 
+  useEffect(() => {
+    if (
+      [
+        "research_distillery",
+        "deep_forge_ready",
+        "library_ready",
+        "errands_ready",
+        "sigil_altar_ready",
+        "abyss_portal_ready",
+      ].includes(state?.onboarding?.step) &&
+      !showLaboratory
+    ) {
+      setShowLaboratory(true);
+    }
+  }, [showLaboratory, state?.onboarding?.step]);
+
   const expeditionPhase = state.expedition?.phase || "sanctuary";
   const hasClass = Boolean(state.player?.class);
   const hasSpec = Boolean(state.player?.specialization);
+  const shouldRequireSpecSelection =
+    hasClass &&
+    !hasSpec &&
+    (Number(state?.player?.level || 1) >= 5 || Number(state?.prestige?.level || 0) > 0);
   const sanctuary = state.sanctuary || {};
   const extractedItems = Array.isArray(sanctuary?.extractedItems) ? sanctuary.extractedItems : [];
   const blueprints = Array.isArray(sanctuary?.blueprints) ? sanctuary.blueprints : [];
@@ -225,6 +276,13 @@ export default function Sanctuary({ state, dispatch }) {
   const infusionStation = getSanctuaryStationState(sanctuary, "sigilInfusion");
   const deepForgeStation = getSanctuaryStationState(sanctuary, "deepForge");
   const laboratoryStation = getSanctuaryStationState(sanctuary, "laboratory");
+  const laboratoryUnlocked = laboratoryStation.unlocked || isLaboratoryUnlocked(state);
+  const distilleryUnlocked = distilleryStation.unlocked && isDistilleryUnlocked(state);
+  const blueprintDecisionUnlocked = isBlueprintDecisionUnlocked(state);
+  const infrastructureVisible = Boolean(state?.onboarding?.completed || state?.onboarding?.flags?.firstExtractionCompleted);
+  const laboratoryCompleted = sanctuary?.laboratory?.completed || {};
+  const abyssPortalUnlocked = Boolean(state?.abyss?.portalUnlocked);
+  const tier25BossCleared = Boolean(state?.abyss?.tier25BossCleared);
 
   const claimableJobs = useMemo(
     () => jobs.filter(job => job?.status === "claimable"),
@@ -262,12 +320,14 @@ export default function Sanctuary({ state, dispatch }) {
         helper: "La expedicion ya cerro. Primero confirma la extraccion abierta para volver a salir.",
       };
     }
-    if (!hasClass || !hasSpec) {
+    if (!hasClass || shouldRequireSpecSelection) {
       return {
         label: hasClass ? "Elegir especializacion" : "Elegir heroe",
         primary: true,
         action: () => dispatch({ type: "SET_TAB", tab: "character" }),
-        helper: "Antes de salir, defini clase y especializacion para esta expedicion.",
+        helper: hasClass
+          ? "Tu heroe ya tiene clase, pero esta run necesita una subclase antes de seguir."
+          : "Antes de salir, define una clase para esta expedicion.",
       };
     }
     if (expeditionPhase === "setup" || state.combat?.pendingRunSetup) {
@@ -284,11 +344,278 @@ export default function Sanctuary({ state, dispatch }) {
       action: () => dispatch({ type: "SET_TAB", tab: "combat" }),
       helper: "Tu heroe ya esta listo. Vuelve al combate cuando quieras.",
     };
-  }, [dispatch, expeditionPhase, hasClass, hasSpec, state.combat?.pendingRunSetup]);
+  }, [dispatch, expeditionPhase, hasClass, hasSpec, shouldRequireSpecSelection, state.combat?.pendingRunSetup]);
 
   const expeditionLabel = hasClass
     ? `${state.player.class}${hasSpec ? ` · ${state.player.specialization}` : ""}`
     : "Sin heroe asignado";
+
+  if (!hasClass) {
+    return (
+      <div style={{ padding: "12px", display: "grid", gap: "12px" }}>
+        <section style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
+          <div style={{ display: "grid", gap: "6px" }}>
+            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+              Santuario
+            </div>
+            <div style={{ fontSize: "1rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+              Asigna un heroe para abrir tu primera expedicion
+            </div>
+            <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+              El juego se divide en dos mitades: primero sobrevives a la expedicion y luego vuelves al Santuario para transformar esa run en progreso permanente.
+            </div>
+          </div>
+        </section>
+
+        <section style={sectionCardStyle("var(--tone-info, #0369a1)")}>
+          <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
+            Elegir clase
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
+            {CLASSES.map(clase => (
+              <button
+                key={clase.id}
+                onClick={() => dispatch({ type: "SELECT_CLASS", classId: clase.id })}
+                style={{
+                  border: "1px solid var(--color-border-primary, #e2e8f0)",
+                  background: "var(--color-background-secondary, #ffffff)",
+                  borderRadius: "14px",
+                  padding: "14px",
+                  display: "grid",
+                  gap: "8px",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div style={{ fontSize: "1.4rem", lineHeight: 1 }}>{clase.icon || "?"}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: "0.92rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{clase.name}</div>
+                    <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      {clase.playstyle || "Clase"}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+                  {clase.description}
+                </div>
+                <div style={{ fontSize: "0.66rem", color: "var(--tone-accent, #4338ca)", fontWeight: "900" }}>
+                  {clase.id === "warrior"
+                    ? "Impacto frontal, aguante y curva mas estable."
+                    : "Caster mas fragil al inicio, pero con mas precision y control."}
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  const totalCargoQuantity = useMemo(
+    () => cargoInventory.reduce((total, bundle) => total + Math.max(0, Number(bundle?.quantity || 0)), 0),
+    [cargoInventory]
+  );
+
+  const nextStep = useMemo(() => {
+    const unlockedEchoes = Number(state?.prestige?.level || 0) > 0 || Number(state?.prestige?.totalEchoesEarned || 0) > 0;
+    const hasAnyCargo = totalCargoQuantity > 0;
+    const hasAnyBlueprint = blueprintCount > 0;
+    const maxTierReached = Number(state?.combat?.maxTier || 1);
+    const hasSeenBoss = maxTierReached >= 5 || Number(state?.combat?.analytics?.bossKills || 0) > 0;
+    if (!hasClass) {
+      return {
+        tone: "accent",
+        eyebrow: "Primer paso",
+        title: "Elegi un heroe para empezar la primera expedicion",
+        body: "La cuenta todavia no tiene una build activa. Defini clase y luego especializacion para abrir el loop real del juego.",
+        cta: "Ir a Heroe",
+        action: () => dispatch({ type: "SET_TAB", tab: "character" }),
+      };
+    }
+    if (shouldRequireSpecSelection) {
+      return {
+        tone: "accent",
+        eyebrow: "Siguiente paso",
+        title: "Termina de definir la especializacion",
+        body: "La clase ya esta elegida, pero falta cerrar la spec para que la expedicion tenga identidad real.",
+        cta: "Elegir especializacion",
+        action: () => dispatch({ type: "SET_TAB", tab: "character" }),
+      };
+    }
+    if (!hasSeenBoss) {
+      return {
+        tone: "warning",
+        eyebrow: "Objetivo temprano",
+        title: "Empuja hasta Tier 5 para revelar el primer boss y Caza",
+        body: "El primer quiebre del juego llega cuando ves un boss real. Ahi se abre mejor la lectura de objetivos y empieza a sentirse la seed de la run.",
+        cta: expeditionPhase === "active" ? "Volver a Expedicion" : "Ir a Expedicion",
+        action: () => dispatch({ type: "SET_TAB", tab: "combat" }),
+      };
+    }
+    if (expeditionPhase === "extraction") {
+      return {
+        tone: "accent",
+        eyebrow: "Decision activa",
+        title: "Resuelve la extraccion antes de seguir",
+        body: "Esta salida define que bundles persisten, si rescatas un item temporal y si la run ya convierte a Ecos.",
+        cta: "Abrir extraccion",
+        action: () => dispatch({ type: "SET_TAB", tab: "sanctuary" }),
+      };
+    }
+    if (!laboratoryUnlocked && sanctuary?.jobs?.length === 0 && hasAnyCargo) {
+      return {
+        tone: "accent",
+        eyebrow: "Primer retorno",
+        title: "La primera extraccion abre el Laboratorio",
+        body: "Tu siguiente paso ya no es solo volver a pelear. Activa el Laboratorio y usa su primer research para encender la Destileria.",
+        cta: "Abrir Laboratorio",
+        action: () => setShowLaboratory(true),
+      };
+    }
+    if (laboratoryUnlocked && !distilleryUnlocked) {
+      return {
+        tone: "accent",
+        eyebrow: "Infraestructura",
+        title: "Investiga la Destileria para procesar tu primer cargo",
+        body: "Sin esta estacion, los bundles solo se acumulan. La Destileria convierte lo rescatado en tinta, flux, polvo y esencia.",
+        cta: "Ir al Laboratorio",
+        action: () => setShowLaboratory(true),
+      };
+    }
+    if (!hasAnyCargo && stashCount === 0 && !hasAnyBlueprint) {
+      return {
+        tone: "warning",
+        eyebrow: "Primer loop",
+        title: "Haz una extraccion completa para traer valor al Santuario",
+        body: "La expedicion ya no termina solo en loot inmediato. Extraer trae bundles persistentes y, si aparece, un item rescatado para decidir despues.",
+        cta: "Salir a farmear",
+        action: () => dispatch({ type: "SET_TAB", tab: "combat" }),
+      };
+    }
+    if (blueprintDecisionUnlocked && stashCount > 0 && !hasAnyBlueprint) {
+      return {
+        tone: "danger",
+        eyebrow: "Decision clave",
+        title: "Convierte un item rescatado en blueprint o desguazalo",
+        body: "El item rescatado no vuelve equipado. Elige si se transforma en plano persistente o si lo rompes para ganar cargas de afinidad.",
+        cta: "Revisar stash",
+        action: () => setShowDeepForge(true),
+      };
+    }
+    if (blueprintDecisionUnlocked && Number(state?.prestige?.level || 0) >= 3 && !deepForgeStation.unlocked) {
+      return {
+        tone: "accent",
+        eyebrow: "Proyecto persistente",
+        title: "Ya puedes investigar la Forja Profunda",
+        body: "Desde Prestige 3, el Laboratorio puede abrir la estacion donde se trabajan blueprints a largo plazo.",
+        cta: "Ir al Laboratorio",
+        action: () => setShowLaboratory(true),
+      };
+    }
+    if (Number(state?.prestige?.level || 0) >= 4 && !libraryStation.unlocked) {
+      return {
+        tone: "accent",
+        eyebrow: "Conocimiento",
+        title: "Biblioteca ya puede investigarse",
+        body: "Desde Prestige 4, el Laboratorio puede abrir la Biblioteca para transformar tinta y descubrimientos en progreso permanente real.",
+        cta: "Ir al Laboratorio",
+        action: () => setShowLaboratory(true),
+      };
+    }
+    if (Number(state?.prestige?.level || 0) >= 5 && !errandStation.unlocked) {
+      return {
+        tone: "accent",
+        eyebrow: "Apoyo paralelo",
+        title: "Encargos ya pueden organizarse",
+        body: "Desde Prestige 5, el Laboratorio habilita equipos paralelos del Santuario para seguir trayendo valor mientras tu heroe corre expediciones.",
+        cta: "Ir al Laboratorio",
+        action: () => setShowLaboratory(true),
+      };
+    }
+    if (Number(state?.prestige?.level || 0) >= 6 && !infusionStation.unlocked) {
+      return {
+        tone: "accent",
+        eyebrow: "Preparacion",
+        title: "Altar de Sigilos ya puede erigirse",
+        body: "Desde Prestige 6, el Laboratorio puede activar el Altar y convertir flux en una preparacion mas dirigida para la siguiente run.",
+        cta: "Ir al Laboratorio",
+        action: () => setShowLaboratory(true),
+      };
+    }
+    if (hasAnyBlueprint && !unlockedEchoes) {
+      return {
+        tone: "success",
+        eyebrow: "Primer prestige",
+        title: "Tu siguiente meta es extraer una run que ya convierta a Ecos",
+        body: "Con el primer prestige se abre el tablero de Ecos y el juego pasa de ser solo una expedicion a una cuenta persistente completa.",
+        cta: "Buscar ecos",
+        action: () => dispatch({ type: "SET_TAB", tab: "combat" }),
+      };
+    }
+    if (
+      tier25BossCleared &&
+      !abyssPortalUnlocked &&
+      laboratoryCompleted.unlock_library &&
+      laboratoryCompleted.unlock_errands &&
+      laboratoryCompleted.unlock_sigil_altar
+    ) {
+      return {
+        tone: "danger",
+        eyebrow: "Fin del mundo base",
+        title: "El Portal al Abismo ya puede investigarse",
+        body: "Derrotaste al boss de Tier 25. Sin ese portal, la expedicion no puede avanzar mas alla del mundo base aunque sigas empujando.",
+        cta: "Abrir Laboratorio",
+        action: () => setShowLaboratory(true),
+      };
+    }
+    if (libraryStation.unlocked && Number(resources?.codexInk || 0) <= 0) {
+      return {
+        tone: "accent",
+        eyebrow: "Biblioteca",
+        title: "Necesitas Tinta de Biblioteca para activar hitos permanentes",
+        body: "Recupera codex traces, destilalos y luego invierte esa tinta en la Biblioteca para convertir kills y descubrimientos en bonificaciones reales.",
+        cta: "Abrir Biblioteca",
+        action: () => setShowLibrary(true),
+      };
+    }
+    return {
+      tone: "success",
+      eyebrow: "Santuario activo",
+      title: "Ya tienes el loop principal funcionando",
+      body: "Ahora el foco es refinar blueprints, mantener jobs corriendo y convertir una buena expedicion en mejor cuenta, no solo en mejor run.",
+      cta: "Abrir Forja Profunda",
+      action: () => setShowDeepForge(true),
+    };
+  }, [
+    blueprintDecisionUnlocked,
+    blueprintCount,
+    deepForgeStation.unlocked,
+    dispatch,
+    distilleryUnlocked,
+    errandStation.unlocked,
+    expeditionPhase,
+    hasClass,
+    hasSpec,
+    infusionStation.unlocked,
+    laboratoryUnlocked,
+    laboratoryCompleted.unlock_errands,
+    laboratoryCompleted.unlock_library,
+    laboratoryCompleted.unlock_sigil_altar,
+    libraryStation.unlocked,
+    resources?.codexInk,
+    sanctuary?.jobs,
+    stashCount,
+    abyssPortalUnlocked,
+    state?.combat?.analytics?.bossKills,
+    state?.combat?.maxTier,
+    state?.prestige?.level,
+    state?.prestige?.totalEchoesEarned,
+    tier25BossCleared,
+    totalCargoQuantity,
+  ]);
+  const nextStepTone = nextStepToneStyle(nextStep.tone);
 
   const totalStoredSigilCharges = useMemo(
     () => Object.values(sigilInfusions).reduce((total, entry) => total + Math.max(0, Number(entry?.charges || 0)), 0),
@@ -301,10 +628,6 @@ export default function Sanctuary({ state, dispatch }) {
   const claimableLibraryJobs = useMemo(
     () => jobs.filter(job => job?.station === "codexResearch" && job?.status === "claimable"),
     [jobs]
-  );
-  const totalCargoQuantity = useMemo(
-    () => cargoInventory.reduce((total, bundle) => total + Math.max(0, Number(bundle?.quantity || 0)), 0),
-    [cargoInventory]
   );
   const runningErrandJobs = useMemo(
     () => jobs.filter(job => job?.station === "errands" && job?.status === "running"),
@@ -396,6 +719,26 @@ export default function Sanctuary({ state, dispatch }) {
         </div>
       </section>
 
+      <section style={{ ...sectionCardStyle(nextStepTone.accent), borderTop: `3px solid ${nextStepTone.accent}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0, display: "grid", gap: "6px" }}>
+            <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: nextStepTone.accent }}>
+              {nextStep.eyebrow}
+            </div>
+            <div style={{ fontSize: "1rem", fontWeight: "900" }}>{nextStep.title}</div>
+            <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.5, maxWidth: "72ch" }}>
+              {nextStep.body}
+            </div>
+          </div>
+          <button
+            onClick={nextStep.action}
+            style={stationButtonStyle({ tone: nextStepTone.accent, surface: nextStepTone.surface })}
+          >
+            {nextStep.cta}
+          </button>
+        </div>
+      </section>
+
       {claimableJobs.length > 0 && (
       <section style={sectionCardStyle("var(--tone-warning, #f59e0b)")}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
@@ -436,6 +779,7 @@ export default function Sanctuary({ state, dispatch }) {
       </section>
       )}
 
+      {infrastructureVisible && (
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1rem" }}>
         <div style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
@@ -510,14 +854,14 @@ export default function Sanctuary({ state, dispatch }) {
               </div>
             </div>
             <div style={chipStyle("var(--tone-violet, #7c3aed)")}>
-              {distilleryStation.unlocked ? `${runningByStation.distillery || 0} / ${distillerySlots} ocupados` : "Bloqueada"}
+              {distilleryUnlocked ? `${runningByStation.distillery || 0} / ${distillerySlots} ocupados` : "Bloqueada"}
             </div>
           </div>
 
           <div style={{ fontSize: "0.69rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
-            {distilleryStation.unlocked
+            {distilleryUnlocked
               ? "Refina cargo persistente en tiempo real."
-              : "Desbloqueala desde Laboratorio."}
+              : "Se activa desde el Laboratorio."}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
@@ -550,13 +894,13 @@ export default function Sanctuary({ state, dispatch }) {
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>Convierte bundles en recursos utiles.</div>
             <button
-              onClick={() => (distilleryStation.unlocked ? setShowDistillery(true) : setShowLaboratory(true))}
+              onClick={() => (distilleryUnlocked ? setShowDistillery(true) : setShowLaboratory(true))}
               style={stationButtonStyle({
                 tone: "var(--tone-violet, #7c3aed)",
                 surface: "var(--tone-violet-soft, #f3e8ff)",
               })}
             >
-              {distilleryStation.unlocked ? "Abrir Destileria" : "Investigar en Laboratorio"}
+              {distilleryUnlocked ? "Abrir Destileria" : "Investigar en Laboratorio"}
             </button>
           </div>
         </div>
@@ -685,8 +1029,11 @@ export default function Sanctuary({ state, dispatch }) {
           </div>
         </div>
       </section>
+      )}
 
+      {infrastructureVisible && (
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1rem" }}>
+        {blueprintDecisionUnlocked && (
         <div style={sectionCardStyle("var(--tone-danger, #D85A30)")}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div>
@@ -748,6 +1095,7 @@ export default function Sanctuary({ state, dispatch }) {
             </div>
           )}
         </div>
+        )}
         <div style={sectionCardStyle("var(--tone-info, #0369a1)")}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div>
@@ -801,7 +1149,7 @@ export default function Sanctuary({ state, dispatch }) {
               </div>
             </div>
             <div style={chipStyle("var(--tone-accent, #4338ca)")}>
-              {laboratoryStation.unlocked ? `${laboratoryRunningCount} / ${Math.max(1, Number(laboratoryStation.slots || 1))} jobs` : "Bloqueado"}
+              {laboratoryUnlocked ? `${laboratoryRunningCount} / ${Math.max(1, Number(laboratoryStation.slots || 1))} jobs` : "Bloqueado"}
             </div>
           </div>
 
@@ -827,7 +1175,7 @@ export default function Sanctuary({ state, dispatch }) {
                 Activo
               </div>
               <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {laboratoryStation.unlocked ? "Si" : "No"}
+                {laboratoryUnlocked ? "Si" : "No"}
               </div>
             </div>
           </div>
@@ -837,17 +1185,20 @@ export default function Sanctuary({ state, dispatch }) {
               {laboratoryClaimableCount > 0 ? "Hay investigaciones listas." : "Gestiona la infraestructura del hub."}
             </div>
             <button
-              onClick={() => setShowLaboratory(true)}
+              onClick={() => laboratoryUnlocked && setShowLaboratory(true)}
+              disabled={!laboratoryUnlocked}
               style={stationButtonStyle({
                 tone: "var(--tone-accent, #4338ca)",
                 surface: "var(--tone-accent-soft, #eef2ff)",
+                disabled: !laboratoryUnlocked,
               })}
             >
-              Abrir Laboratorio
+              {laboratoryUnlocked ? "Abrir Laboratorio" : "Se abre tras la primera extraccion"}
             </button>
           </div>
         </div>
 
+        {blueprintDecisionUnlocked && (
         <div style={sectionCardStyle("var(--tone-danger, #D85A30)")}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div>
@@ -913,7 +1264,9 @@ export default function Sanctuary({ state, dispatch }) {
             </button>
           </div>
         </div>
+        )}
       </section>
+      )}
 
       {showDistillery && (
         <DistilleryOverlay

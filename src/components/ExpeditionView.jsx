@@ -3,6 +3,7 @@ import Combat from "./Combat";
 import Inventory from "./Inventory";
 import Crafting from "./Crafting";
 import Codex from "./Codex";
+import { isHuntUnlocked, isInventorySubviewUnlocked } from "../engine/onboarding/onboardingEngine";
 
 const SUBVIEW_META = {
   combat: { label: "Combate" },
@@ -44,21 +45,15 @@ function getExpeditionSubview(tab = "combat") {
   return "combat";
 }
 
-function isHuntUnlocked(state) {
-  const currentTier = Number(state?.combat?.currentTier || 1);
-  const maxTier = Number(state?.combat?.maxTier || 1);
-  const seenFamilies = Array.isArray(state?.expedition?.seenFamilyIds) ? state.expedition.seenFamilyIds.length : 0;
-  return currentTier >= 5 || maxTier >= 5 || seenFamilies > 0;
-}
-
 export default function ExpeditionView({ state, dispatch }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const reforgeLocked = !!state?.combat?.reforgeSession;
   const huntUnlocked = isHuntUnlocked(state);
+  const inventoryUnlocked = isInventorySubviewUnlocked(state);
   const activeSubview = getExpeditionSubview(state?.currentTab || "combat");
   const availableSubviews = useMemo(
-    () => ["combat", "inventory", "crafting", ...(huntUnlocked ? ["codex"] : [])],
-    [huntUnlocked]
+    () => ["combat", ...(inventoryUnlocked ? ["inventory"] : []), "crafting", ...(huntUnlocked ? ["codex"] : [])],
+    [huntUnlocked, inventoryUnlocked]
   );
   const resolvedSubview = availableSubviews.includes(activeSubview) ? activeSubview : "combat";
   const isCombatSubview = resolvedSubview === "combat";

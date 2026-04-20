@@ -28,6 +28,7 @@ import {
   normalizeBlueprintRecord,
   normalizeExtractedItemRecord,
 } from "./sanctuary/blueprintEngine";
+import { createEmptyOnboardingState, normalizeOnboardingState } from "./onboarding/onboardingEngine";
 
 const MAX_REWARD_GOLD = Math.max(
   1,
@@ -184,7 +185,7 @@ function mergeNumericBonuses(target = {}, source = {}) {
 
 function deriveExpeditionPhase({ player = {}, combat = {} } = {}) {
   if (combat?.pendingRunSetup) return "setup";
-  if (player?.class && player?.specialization) return "active";
+  if (player?.class && (player?.specialization || Number(player?.prestigeLevelHint || 0) <= 0)) return "active";
   return "sanctuary";
 }
 
@@ -206,6 +207,75 @@ function appendSeenFamilyIds(expedition = {}, enemy = null) {
   const current = Array.isArray(expedition?.seenFamilyIds) ? expedition.seenFamilyIds : [];
   if (!familyId || current.includes(familyId)) return current;
   return [...current, familyId];
+}
+
+function buildCompletedOnboardingState({
+  player = {},
+  stats = {},
+  combat = {},
+  prestige = {},
+  sanctuary = {},
+  abyss = {},
+} = {}) {
+  const hasBossProgress =
+    Number(combat?.maxTier || 1) >= 5 ||
+    Number(combat?.analytics?.bossKills || 0) > 0 ||
+    Number(stats?.bossKills || 0) > 0;
+  const prestigeNodesBought = Object.values(prestige?.nodes || {}).reduce((sum, value) => sum + Number(value || 0), 0);
+
+  return {
+    ...createEmptyOnboardingState(),
+    completed: true,
+    step: null,
+    flags: {
+      ...createEmptyOnboardingState().flags,
+      classChosen: Boolean(player?.class),
+      expeditionIntroSeen: true,
+      autoAdvanceUnlocked: true,
+      firstDeathSeen: Number(stats?.deaths || 0) > 0 || Number(stats?.kills || 0) > 0,
+      specChosen: Boolean(player?.specialization),
+      heroIntroSeen: true,
+      firstAttributeSpent: true,
+      firstTalentBought: true,
+      inventoryUnlocked: true,
+      firstItemEquipped: Boolean(player?.equipment?.weapon || player?.equipment?.armor),
+      firstBossSeen: hasBossProgress,
+      huntUnlocked: hasBossProgress,
+      extractionUnlocked:
+        Boolean(sanctuary?.stations?.laboratory?.unlocked) ||
+        (Array.isArray(sanctuary?.cargoInventory) ? sanctuary.cargoInventory.length : 0) > 0 ||
+        Number(prestige?.level || 0) > 0,
+      firstExtractionCompleted:
+        Boolean(sanctuary?.stations?.laboratory?.unlocked) ||
+        (Array.isArray(sanctuary?.cargoInventory) ? sanctuary.cargoInventory.length : 0) > 0 ||
+        (Array.isArray(sanctuary?.jobs) ? sanctuary.jobs.length : 0) > 0 ||
+        Number(prestige?.level || 0) > 0,
+      laboratoryUnlocked: Boolean(sanctuary?.stations?.laboratory?.unlocked),
+      distilleryUnlocked: Boolean(sanctuary?.stations?.distillery?.unlocked),
+      blueprintDecisionUnlocked:
+        Number(prestige?.level || 0) >= 2 ||
+        (Array.isArray(sanctuary?.blueprints) ? sanctuary.blueprints.length : 0) > 0 ||
+        (Array.isArray(sanctuary?.extractedItems) ? sanctuary.extractedItems.length : 0) > 0,
+      firstEchoesSeen:
+        Number(prestige?.level || 0) > 0 ||
+        Number(prestige?.totalEchoesEarned || 0) > 0,
+      firstEchoNodeBought: prestigeNodesBought > 0,
+      deepForgeReadySeen:
+        Number(prestige?.level || 0) >= 3 ||
+        Boolean(sanctuary?.stations?.deepForge?.unlocked),
+      libraryReadySeen:
+        Number(prestige?.level || 0) >= 4 ||
+        Boolean(sanctuary?.stations?.codexResearch?.unlocked),
+      errandsReadySeen:
+        Number(prestige?.level || 0) >= 5 ||
+        Boolean(sanctuary?.stations?.errands?.unlocked),
+      sigilAltarReadySeen:
+        Number(prestige?.level || 0) >= 6 ||
+        Boolean(sanctuary?.stations?.sigilInfusion?.unlocked),
+      abyssPortalReadySeen:
+        Boolean(abyss?.portalUnlocked) || Boolean(abyss?.tier25BossCleared),
+    },
+  };
 }
 
 const freshState = {
@@ -297,6 +367,7 @@ const freshState = {
   currentTab: "sanctuary",
   sanctuary: createEmptySanctuaryState(),
   expedition: createEmptyExpeditionState(),
+  onboarding: createEmptyOnboardingState(),
 
   combat: {
     enemy: spawnEnemy(1, DEFAULT_RUN_CONTEXT),
@@ -478,6 +549,7 @@ function mergeStateWithDefaults(base, incoming) {
   const rawCombat = migratedIncoming.combat || {};
   const rawSanctuary = migratedIncoming.sanctuary || {};
   const rawExpedition = migratedIncoming.expedition || {};
+  const rawStats = migratedIncoming.stats || {};
   const abyssTierCandidate = Math.max(
     Number(migratedIncoming.abyss?.highestTierReached || 1),
     Number(rawCombat.maxTier || 1),
@@ -528,6 +600,7 @@ function mergeStateWithDefaults(base, incoming) {
     player: {
       class: rawPlayer.class ?? base.player.class,
       specialization: rawPlayer.specialization ?? base.player.specialization,
+      prestigeLevelHint: prestigeLevel,
     },
     combat: {
       pendingRunSetup,
@@ -610,6 +683,7 @@ function mergeStateWithDefaults(base, incoming) {
     combat: rawCombat,
     codex: normalizedCodex,
     abyss: normalizedAbyss,
+    onboarding: migratedIncoming.onboarding || {},
   });
   const normalizedSanctuary = {
     ...preLaboratorySanctuary,
@@ -623,6 +697,7 @@ function mergeStateWithDefaults(base, incoming) {
         combat: rawCombat,
         codex: normalizedCodex,
         abyss: normalizedAbyss,
+        onboarding: migratedIncoming.onboarding || {},
       }
     ),
   };
@@ -650,6 +725,53 @@ function mergeStateWithDefaults(base, incoming) {
       ...(rawExpedition.activeExtractionBonuses || {}),
     },
   };
+
+  const shouldSkipFreshOnboarding =
+    Boolean(rawPlayer.class) ||
+    Boolean(rawPlayer.specialization) ||
+    Number(rawPlayer.level || 1) > 1 ||
+    Number(rawStats.kills || 0) > 0 ||
+    Number(rawStats.itemsFound || 0) > 0 ||
+    Number(migratedIncoming.prestige?.level || 0) > 0 ||
+    Number(migratedIncoming.prestige?.totalEchoesEarned || 0) > 0;
+
+  const hasHistoricSanctuaryProgress =
+    (Array.isArray(normalizedSanctuary.cargoInventory) ? normalizedSanctuary.cargoInventory.length : 0) > 0 ||
+    (Array.isArray(normalizedSanctuary.extractedItems) ? normalizedSanctuary.extractedItems.length : 0) > 0 ||
+    (Array.isArray(normalizedSanctuary.blueprints) ? normalizedSanctuary.blueprints.length : 0) > 0 ||
+    (Array.isArray(normalizedSanctuary.jobs) ? normalizedSanctuary.jobs.length : 0) > 0 ||
+    Object.keys(normalizedSanctuary.laboratory?.completed || {}).length > 0 ||
+    Object.values(normalizedSanctuary.resources || {}).some(value => Number(value || 0) > 0) ||
+    Object.values(normalizedSanctuary.stations || {}).some(station => Boolean(station?.unlocked));
+
+  const hasHistoricAccountProgress =
+    Boolean(rawPlayer.specialization) ||
+    Number(rawPlayer.level || 1) >= 5 ||
+    Number(rawStats.kills || 0) >= 25 ||
+    Number(rawCombat.maxTier || 1) >= 10 ||
+    Number(normalizedPrestige.level || 0) > 0 ||
+    Number(normalizedPrestige.totalEchoesEarned || 0) > 0 ||
+    Boolean(normalizedAbyss.portalUnlocked) ||
+    Boolean(normalizedAbyss.tier25BossCleared);
+
+  const shouldForceCompleteLegacyOnboarding =
+    Boolean(migratedIncoming.onboarding) &&
+    !Boolean(migratedIncoming.onboarding?.completed) &&
+    (hasHistoricSanctuaryProgress || hasHistoricAccountProgress);
+
+  const normalizedOnboarding =
+    shouldForceCompleteLegacyOnboarding || (!migratedIncoming.onboarding && shouldSkipFreshOnboarding)
+      ? buildCompletedOnboardingState({
+          player: rawPlayer,
+          stats: rawStats,
+          combat: rawCombat,
+          prestige: normalizedPrestige,
+          sanctuary: normalizedSanctuary,
+          abyss: normalizedAbyss,
+        })
+      : migratedIncoming.onboarding
+        ? normalizeOnboardingState(migratedIncoming.onboarding)
+        : createEmptyOnboardingState();
 
   const hasPlayerStatCorruption =
     !Number.isFinite(rawBaseDamage) ||
@@ -840,6 +962,7 @@ function mergeStateWithDefaults(base, incoming) {
         normalizedExpedition.phase === "active" ? normalizeEnemy(rawCombat.enemy, rawCombat.currentTier, normalizedRunContext) : null
       ),
     },
+    onboarding: normalizedOnboarding,
     abyss: normalizedAbyss,
     codex: recordCodexSighting(normalizedCodex, normalizeEnemy(rawCombat.enemy, rawCombat.currentTier, normalizedRunContext)),
     replay: normalizedReplay,

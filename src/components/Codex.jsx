@@ -186,6 +186,18 @@ export default function Codex({ state, dispatch, mode = "hunt" }) {
     () => Object.fromEntries(powerEntries.map(entry => [entry.id, getCodexResearchDefinition(codex, { researchType: "power", targetId: entry.id })])),
     [codex, powerEntries]
   );
+  const libraryNextStep = useMemo(() => {
+    if (claimableResearchJobs.length > 0) {
+      return "Tienes investigaciones listas para reclamar. Activarlas convierte progreso fresco en bonos permanentes.";
+    }
+    if (runningResearchJobs.length > 0) {
+      return "La Biblioteca ya esta trabajando. Sigue cazando kills y copias mientras esperas para preparar el siguiente rango.";
+    }
+    if (codexInk <= 0) {
+      return "No tienes tinta todavia. Recupera `codex_trace`, destilalo en Santuario y vuelve para activar hitos.";
+    }
+    return "Las kills historicas no activan bonos solas. Primero llena progreso fresco del objetivo y luego gasta tinta para investigarlo.";
+  }, [claimableResearchJobs.length, runningResearchJobs.length, codexInk]);
   const undiscoveredPowerTargets = useMemo(() => {
     const bossEntriesById = Object.fromEntries(bossEntries.map(entry => [entry.id, entry]));
     const familyEntriesById = Object.fromEntries(familyEntries.map(entry => [entry.id, entry]));
@@ -525,6 +537,16 @@ export default function Codex({ state, dispatch, mode = "hunt" }) {
         </>
       ) : activeTab === "mastery" ? (
         <>
+          <section style={panelStyle}>
+            <div style={sectionStyle}>Siguiente paso</div>
+            <div style={{ ...cardStyle, background: "var(--tone-accent-soft, #eef2ff)", border: "1px solid rgba(99,102,241,0.18)" }}>
+              <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)" }}>Biblioteca del Santuario</div>
+              <div style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.45 }}>
+                {libraryNextStep}
+              </div>
+            </div>
+          </section>
+
           <section style={panelStyle}>
             <div style={sectionStyle}>Resumen</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px" }}>

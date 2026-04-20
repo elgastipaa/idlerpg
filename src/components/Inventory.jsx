@@ -87,6 +87,9 @@ export default function Inventory({ state, player, dispatch }) {
 
   const inventory = player.inventory || [];
   const equipment = player.equipment || { weapon: null, armor: null };
+  const onboardingStep = state?.onboarding?.step || null;
+  const equipTutorialActive = onboardingStep === "equip_first_item";
+  const lockInventorySideActions = equipTutorialActive;
   const activeBuildTag = getPlayerBuildTag(player);
   const lootRules = state?.settings?.lootRules || {
     autoSellRarities: [],
@@ -177,6 +180,7 @@ export default function Inventory({ state, player, dispatch }) {
             </div>
             <button
               onClick={() => setShowLootFilterModal(true)}
+              disabled={lockInventorySideActions}
               style={gearButtonStyle(isDarkMode)}
             >
               <span style={{ fontSize: "0.85rem", lineHeight: 1 }}>⚙</span>
@@ -212,6 +216,7 @@ export default function Inventory({ state, player, dispatch }) {
           <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
             <button
               onClick={() => setShowOnlyUpgrades(current => !current)}
+              disabled={lockInventorySideActions}
               style={{
                 border: "1px solid",
                 borderColor: showOnlyUpgrades ? (isDarkMode ? "rgba(16,185,129,0.45)" : "#86efac") : "var(--color-border-primary, #e2e8f0)",
@@ -236,7 +241,6 @@ export default function Inventory({ state, player, dispatch }) {
           {bulkSellGroups.map(group => (
             <button
               key={group.rarity}
-              disabled={group.items.length === 0}
               onClick={() => {
                 if (pendingBulkSell !== group.rarity) {
                   setPendingBulkSell(group.rarity);
@@ -245,9 +249,10 @@ export default function Inventory({ state, player, dispatch }) {
                 dispatch({ type: "SELL_ITEMS", itemIds: group.items.map(item => item.id) });
                 setPendingBulkSell(null);
               }}
+              disabled={lockInventorySideActions || group.items.length === 0}
               style={{
                 ...bulkSellButtonStyle(group, pendingBulkSell === group.rarity, isDarkMode),
-                cursor: group.items.length > 0 ? "pointer" : "not-allowed",
+                cursor: lockInventorySideActions || group.items.length === 0 ? "not-allowed" : "pointer",
               }}
             >
               <span style={{ display: "flex", justifyContent: "center" }}>
@@ -288,6 +293,7 @@ export default function Inventory({ state, player, dispatch }) {
                   dispatch({ type: "SELL_ITEM", item });
                   setPendingSellId(null);
                 }}
+                lockInteractions={lockInventorySideActions}
               />
             ))}
           </div>
@@ -620,7 +626,7 @@ function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode
   );
 }
 
-function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, isDarkMode = false, isMobile = false, pendingSell, onOpen, onEquip, onSell }) {
+function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, isDarkMode = false, isMobile = false, pendingSell, onOpen, onEquip, onSell, lockInteractions = false }) {
   const color = getRarityColor(item.rarity);
   const compareItem = equippedCompare || { bonus: {}, rating: 0 };
   const isBetter = (item.rating || 0) > (compareItem.rating || 0);
@@ -637,7 +643,7 @@ function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, 
         <div style={{ position: "absolute", top: "6px", right: "8px", fontSize: "0.8rem", color: "var(--tone-warning, #f59e0b)", textShadow: "0 1px 8px rgba(245,158,11,0.4)" }}>★</div>
       )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px" }}>
-        <button onClick={onOpen} style={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", background: "none", padding: 0, cursor: "pointer" }}>
+        <button onClick={lockInteractions ? undefined : onOpen} disabled={lockInteractions} style={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", background: "none", padding: 0, cursor: lockInteractions ? "default" : "pointer" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
             <span style={rarityBadgeStyle(item.rarity)}>{getCompactRarityLabel(item.rarity)}</span>
             <span style={itemGlyphStyle}>{getItemGlyph(item.name)}</span>
@@ -693,7 +699,7 @@ function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, 
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
         <button onClick={onEquip} style={{ ...btnBase, background: "var(--tone-accent-soft, #ede9fe)", color: "var(--tone-accent, #534AB7)", padding: "8px 10px" }}>EQUIPAR</button>
-        <button onClick={onSell} style={{ ...btnBase, background: pendingSell ? "#7f1d1d" : "var(--color-background-secondary, #ffffff)", color: pendingSell ? "#fff" : "#D85A30", border: `1px solid ${pendingSell ? "#ef4444" : "#D85A30"}` }}>
+        <button onClick={lockInteractions ? undefined : onSell} disabled={lockInteractions} style={{ ...btnBase, background: pendingSell ? "#7f1d1d" : "var(--color-background-secondary, #ffffff)", color: pendingSell ? "#fff" : "#D85A30", border: `1px solid ${pendingSell ? "#ef4444" : "#D85A30"}`, opacity: lockInteractions ? 0.45 : 1, cursor: lockInteractions ? "not-allowed" : "pointer" }}>
           {pendingSell ? `CONFIRMAR ${formatNumber(item.sellValue || 0)}g` : `VENDER ${formatNumber(item.sellValue || 0)}g`}
         </button>
       </div>

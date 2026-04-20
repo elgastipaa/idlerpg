@@ -9,6 +9,7 @@ import { calcStats } from "../engine/combat/statEngine";
 import { computeEffectModifiers } from "../engine/effects/effectEngine";
 import { ITEM_STAT_LABELS as STAT_LABELS } from "../utils/itemPresentation";
 import { getLegendaryStaticBonuses, getTargetedLegendaryDropsForEnemy } from "../utils/legendaryPowers";
+import { isAutoAdvanceUnlocked, isExtractionUnlocked } from "../engine/onboarding/onboardingEngine";
 import CombatGuidanceStrip from "./combat/CombatGuidanceStrip";
 
 const COLORS = {
@@ -338,6 +339,8 @@ export default function Combat({ state, dispatch }) {
   const expeditionDeathLimit = Math.max(1, Number(expedition.deathLimit || 3));
   const expeditionDeathCount = Math.max(0, Number(expedition.deathCount || 0));
   const remainingSafeDeaths = Math.max(0, expeditionDeathLimit - expeditionDeathCount);
+  const autoAdvanceUnlocked = isAutoAdvanceUnlocked(state);
+  const extractionUnlocked = isExtractionUnlocked(state);
   const combatTips = useMemo(() => ([
     {
       title: "Arma primero",
@@ -876,7 +879,7 @@ export default function Combat({ state, dispatch }) {
           >
             {">"}
           </button>
-          {!isMobile && (
+          {!isMobile && autoAdvanceUnlocked && (
             <button
               onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
               title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
@@ -889,7 +892,7 @@ export default function Combat({ state, dispatch }) {
         </div>
 
         <div style={{ display: "flex", justifyContent: "center", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-          {isMobile && (
+          {isMobile && autoAdvanceUnlocked && (
             <button
               onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
               title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
@@ -899,22 +902,24 @@ export default function Combat({ state, dispatch }) {
               🥾
             </button>
           )}
-          <button
-            onClick={() => dispatch({ type: "OPEN_EXTRACTION", exitReason: "retire" })}
-            style={{
-              border: "1px solid var(--tone-accent, #534AB7)",
-              background: "var(--tone-accent-soft, #eef2ff)",
-              color: "var(--tone-accent, #534AB7)",
-              borderRadius: "999px",
-              padding: "6px 11px",
-              fontSize: "0.62rem",
-              fontWeight: "900",
-              cursor: "pointer",
-              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.02)",
-            }}
-          >
-            Extraer al Santuario
-          </button>
+          {extractionUnlocked && (
+            <button
+              onClick={() => dispatch({ type: "OPEN_EXTRACTION", exitReason: "retire" })}
+              style={{
+                border: "1px solid var(--tone-accent, #534AB7)",
+                background: "var(--tone-accent-soft, #eef2ff)",
+                color: "var(--tone-accent, #534AB7)",
+                borderRadius: "999px",
+                padding: "6px 11px",
+                fontSize: "0.62rem",
+                fontWeight: "900",
+                cursor: "pointer",
+                boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.02)",
+              }}
+            >
+              Extraer al Santuario
+            </button>
+          )}
         </div>
 
         <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", minWidth: 0 }}>
@@ -1473,8 +1478,7 @@ export default function Combat({ state, dispatch }) {
       <button
         onClick={() => {
           if (confirm("Borrar todo?")) {
-            localStorage.clear();
-            window.location.reload();
+            dispatch({ type: "RESET_ALL_PROGRESS" });
           }
         }}
         style={{

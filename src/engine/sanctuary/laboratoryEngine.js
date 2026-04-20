@@ -2,7 +2,7 @@ export const SANCTUARY_STATION_DEFAULTS = {
   distillery: {
     id: "distillery",
     label: "Destileria",
-    unlocked: true,
+    unlocked: false,
     slots: 1,
     timeReductionPct: 0,
   },
@@ -37,7 +37,7 @@ export const SANCTUARY_STATION_DEFAULTS = {
   laboratory: {
     id: "laboratory",
     label: "Laboratorio",
-    unlocked: true,
+    unlocked: false,
     slots: 1,
     timeReductionPct: 0,
   },
@@ -47,6 +47,26 @@ const TIME_REDUCTION_STEP = 0.15;
 
 export const LAB_RESEARCH_DEFINITIONS = [
   {
+    id: "unlock_distillery",
+    group: "unlock",
+    label: "Calibrar Destileria",
+    description: "Activa la primera estacion persistente del Santuario para convertir bundles en recursos utiles entre expediciones.",
+    stationId: "distillery",
+    costs: { codexInk: 0, relicDust: 0, essence: 0 },
+    durationMs: 20 * 1000,
+    apply: { unlock: true },
+  },
+  {
+    id: "unlock_deep_forge",
+    group: "unlock",
+    label: "Abrir Forja Profunda",
+    description: "Permite trabajar blueprints a largo plazo con estructura, sintonía y ascensión persistente.",
+    stationId: "deepForge",
+    costs: { codexInk: 24, relicDust: 0, essence: 120 },
+    durationMs: 20 * 60 * 1000,
+    apply: { unlock: true },
+  },
+  {
     id: "unlock_library",
     group: "unlock",
     label: "Catalogar Biblioteca",
@@ -54,16 +74,6 @@ export const LAB_RESEARCH_DEFINITIONS = [
     stationId: "codexResearch",
     costs: { codexInk: 15, relicDust: 0, essence: 60 },
     durationMs: 10 * 60 * 1000,
-    apply: { unlock: true },
-  },
-  {
-    id: "unlock_sigil_altar",
-    group: "unlock",
-    label: "Erigir Altar de Sigilos",
-    description: "Abre el altar donde las cargas de sigilo se convierten en preparación real para la próxima expedición.",
-    stationId: "sigilInfusion",
-    costs: { codexInk: 12, relicDust: 0, essence: 70 },
-    durationMs: 12 * 60 * 1000,
     apply: { unlock: true },
   },
   {
@@ -77,14 +87,25 @@ export const LAB_RESEARCH_DEFINITIONS = [
     apply: { unlock: true },
   },
   {
-    id: "unlock_deep_forge",
+    id: "unlock_sigil_altar",
     group: "unlock",
-    label: "Abrir Forja Profunda",
-    description: "Permite trabajar blueprints a largo plazo con estructura, sintonía y ascensión persistente.",
-    stationId: "deepForge",
-    costs: { codexInk: 24, relicDust: 0, essence: 120 },
-    durationMs: 20 * 60 * 1000,
+    label: "Erigir Altar de Sigilos",
+    description: "Abre el altar donde las cargas de sigilo se convierten en preparación real para la próxima expedición.",
+    stationId: "sigilInfusion",
+    costs: { codexInk: 12, relicDust: 0, essence: 70 },
+    durationMs: 12 * 60 * 1000,
     apply: { unlock: true },
+  },
+  {
+    id: "unlock_abyss_portal",
+    group: "unlock",
+    label: "Abrir Portal al Abismo",
+    description: "Rompe el techo de Tier 25 y permite avanzar al Abismo real una vez que el Santuario domina su infraestructura clave.",
+    stationId: "laboratory",
+    targetLabel: "Portal al Abismo",
+    costs: { codexInk: 36, relicDust: 4, essence: 180 },
+    durationMs: 25 * 60 * 1000,
+    apply: { unlockAbyssPortal: true },
   },
   {
     id: "distillery_slots_1",
@@ -201,7 +222,7 @@ function getProgressTier(state = {}) {
     Number(state?.combat?.maxTier || 1),
     Number(state?.combat?.currentTier || 1),
     Number(state?.prestige?.bestHistoricTier || 1),
-    Number(state?.abyss?.highestAbyssReached || 1)
+    Number(state?.abyss?.highestTierReached || 1)
   );
 }
 
@@ -222,8 +243,17 @@ function inferStationUnlocked(stationId, sanctuary = {}, context = {}) {
   const jobs = Array.isArray(sanctuary?.jobs) ? sanctuary.jobs : [];
   const hasJob = jobs.some(job => job?.station === stationId);
   const resources = sanctuary?.resources || {};
-
-  if (stationId === "distillery") return true;
+  const legacyOnboardingCompleted = Boolean(context?.onboarding?.completed);
+  if (stationId === "distillery") {
+    if (legacyOnboardingCompleted) return true;
+    return (
+      hasJob ||
+      (Array.isArray(sanctuary?.cargoInventory) ? sanctuary.cargoInventory.length : 0) > 0 ||
+      Number(resources.codexInk || 0) > 0 ||
+      Number(resources.sigilFlux || 0) > 0 ||
+      Number(resources.relicDust || 0) > 0
+    );
+  }
   if (stationId === "codexResearch") {
     return hasJob || Number(resources.codexInk || 0) > 0 || hasCodexProgress(context);
   }
@@ -241,7 +271,16 @@ function inferStationUnlocked(stationId, sanctuary = {}, context = {}) {
       getTotalFamilyCharges(sanctuary) > 0
     );
   }
-  if (stationId === "laboratory") return true;
+  if (stationId === "laboratory") {
+    if (legacyOnboardingCompleted) return true;
+    return (
+      hasJob ||
+      Object.keys(sanctuary?.laboratory?.completed || {}).length > 0 ||
+      Object.values(sanctuary?.stations || {}).some(
+        station => station?.id !== "laboratory" && Boolean(station?.unlocked)
+      )
+    );
+  }
   return false;
 }
 
@@ -273,26 +312,46 @@ function evaluateResearchPrerequisite(state = {}, definition = {}) {
   const completed = sanctuary?.laboratory?.completed || {};
 
   switch (definition.id) {
-    case "unlock_library":
+    case "unlock_distillery":
       return {
-        ok: progressTier >= 5 || Number(state?.prestige?.level || 0) >= 1,
-        label: "Requiere Tier 5 o primer reset",
-      };
-    case "unlock_sigil_altar":
-      return {
-        ok: progressTier >= 8 || completed.unlock_library || Number(state?.prestige?.level || 0) >= 1,
-        label: "Requiere Tier 8 o Biblioteca activa",
-      };
-    case "unlock_errands":
-      return {
-        ok: progressTier >= 10 || completed.unlock_sigil_altar || Number(state?.prestige?.level || 0) >= 1,
-        label: "Requiere Tier 10 o Altar activo",
+        ok: Boolean(state?.onboarding?.completed || state?.onboarding?.flags?.laboratoryUnlocked),
+        label: "Requiere la primera extraccion",
       };
     case "unlock_deep_forge":
       return {
-        ok: blueprintCount >= 1 || totalCharges >= 12,
-        label: "Requiere 1 blueprint o 12 cargas",
+        ok: Number(state?.prestige?.level || 0) >= 3,
+        label: "Requiere Prestige 3",
       };
+    case "unlock_library":
+      return {
+        ok: Number(state?.prestige?.level || 0) >= 4,
+        label: "Requiere Prestige 4",
+      };
+    case "unlock_errands":
+      return {
+        ok: Number(state?.prestige?.level || 0) >= 5,
+        label: "Requiere Prestige 5",
+      };
+    case "unlock_sigil_altar":
+      return {
+        ok: Number(state?.prestige?.level || 0) >= 6,
+        label: "Requiere Prestige 6",
+      };
+    case "unlock_abyss_portal": {
+      const hasTier25Boss = Boolean(state?.abyss?.tier25BossCleared);
+      const hasInfrastructure =
+        Boolean(completed.unlock_library) &&
+        Boolean(completed.unlock_errands) &&
+        Boolean(completed.unlock_sigil_altar);
+      return {
+        ok: hasTier25Boss && hasInfrastructure,
+        label: !hasTier25Boss
+          ? "Requiere derrotar al boss de Tier 25"
+          : !hasInfrastructure
+            ? "Requiere Biblioteca, Encargos y Altar de Sigilos"
+            : "Listo para abrir el Abismo",
+      };
+    }
     default:
       return {
         ok: isSanctuaryStationUnlocked(sanctuary, definition.stationId),
@@ -340,6 +399,8 @@ export function buildSanctuaryStationsWithLaboratory(baseStations = {}, laborato
     if (stationId !== "distillery" && stationId !== "laboratory") {
       nextStations[stationId].unlocked =
         Boolean(nextStations[stationId].unlocked) || inferStationUnlocked(stationId, sanctuary, context);
+    } else if (context?.onboarding?.completed) {
+      nextStations[stationId].unlocked = true;
     }
   }
 
@@ -420,11 +481,19 @@ export function createLaboratoryResearchJob(state = {}, researchId = "", now = D
       researchId,
       label: entry.label,
       stationId: entry.stationId,
+      targetLabel:
+        entry.targetLabel ||
+        SANCTUARY_STATION_DEFAULTS[entry.stationId]?.label ||
+        entry.stationId,
       costs: { ...(entry.costs || {}) },
     },
     output: {
       label: entry.label,
       stationId: entry.stationId,
+      targetLabel:
+        entry.targetLabel ||
+        SANCTUARY_STATION_DEFAULTS[entry.stationId]?.label ||
+        entry.stationId,
       summary: entry.description,
     },
   };

@@ -1,7 +1,7 @@
 import { useReducer, useEffect, useRef, useCallback } from "react";
 import { gameReducer } from "../state/gameReducer";
 import { initialState } from "../engine/stateInitializer";
-import { isRecoveryMode, saveGame } from "../utils/storage";
+import { clearGame, isRecoveryMode, saveGame } from "../utils/storage";
 import { TICK_MS } from "../constants";
 import { getLifetimeXp } from "../engine/leveling";
 
@@ -58,6 +58,24 @@ export const useGame = () => {
   const offlineJobRef = useRef(null);
   const recoveryMode = isRecoveryMode();
   const dispatch = useCallback((action) => {
+    if (action?.type === "RESET_ALL_PROGRESS") {
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      offlineJobRef.current = null;
+      hiddenAtRef.current = null;
+      clearGame();
+      rawDispatch({
+        type: "RESET_ALL_PROGRESS",
+        meta: {
+          ...(action?.meta || {}),
+          source: "ui",
+        },
+      });
+      return;
+    }
+
     const inferredSource =
       action?.meta?.source ||
       (action?.type === "TICK"
@@ -95,6 +113,7 @@ export const useGame = () => {
 
   const startOfflineProgress = useCallback((offlineTicks) => {
     if (recoveryMode) return;
+    if (latestStateRef.current?.onboarding?.step) return;
     const count = Math.max(0, Math.min(3600, Math.floor(offlineTicks || 0)));
     if (count <= 0) return;
 
@@ -113,6 +132,10 @@ export const useGame = () => {
     const step = () => {
       const job = offlineJobRef.current;
       if (!job) return;
+      if (latestStateRef.current?.onboarding?.step) {
+        offlineJobRef.current = null;
+        return;
+      }
       if (latestStateRef.current?.expedition?.phase !== "active") {
         offlineJobRef.current = null;
         return;
@@ -142,6 +165,7 @@ export const useGame = () => {
       if (document.hidden) return;
       if (offlineJobRef.current) return;
       if (latestStateRef.current?.expedition?.phase !== "active") return;
+      if (latestStateRef.current?.onboarding?.step) return;
       dispatch({ type: "TICK" });
     }, TICK_MS);
     return () => clearInterval(id);

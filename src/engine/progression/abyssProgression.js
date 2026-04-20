@@ -1,5 +1,7 @@
 import { BASE_TIER_COUNT } from "../combat/encounterRouting";
 
+export const ABYSS_PORTAL_TIER = BASE_TIER_COUNT;
+
 export const ABYSS_UNLOCKS = [
   {
     id: "abyss_i",
@@ -53,12 +55,23 @@ export function createEmptyAbyssState() {
   return {
     highestTierReached: 1,
     highestDepthReached: 0,
+    portalUnlocked: false,
+    tier25BossCleared: false,
     unlocks: { ...DEFAULT_UNLOCKS },
   };
 }
 
 export function normalizeAbyssState(rawState = {}) {
   const highestTierReached = sanitizeTier(rawState.highestTierReached || 1, 1);
+  const legacyPortalUnlocked =
+    highestTierReached > ABYSS_PORTAL_TIER ||
+    ABYSS_UNLOCKS.some(unlock => Boolean(rawState?.unlocks?.[unlock.key]));
+  const portalUnlocked = Boolean(rawState.portalUnlocked || legacyPortalUnlocked);
+  const tier25BossCleared = Boolean(
+    rawState.tier25BossCleared ||
+      portalUnlocked ||
+      highestTierReached > ABYSS_PORTAL_TIER
+  );
   const derivedUnlocks = Object.fromEntries(
     ABYSS_UNLOCKS.map(unlock => [unlock.key, highestTierReached >= unlock.minTier])
   );
@@ -73,6 +86,8 @@ export function normalizeAbyssState(rawState = {}) {
   return {
     highestTierReached,
     highestDepthReached: getAbyssDepthForTier(highestTierReached),
+    portalUnlocked,
+    tier25BossCleared,
     unlocks,
   };
 }
@@ -110,6 +125,14 @@ export function getAbyssUnlockEntries(abyss = {}) {
 
 export function hasAbyssUnlock(abyss = {}, key = "") {
   return Boolean(normalizeAbyssState(abyss).unlocks?.[key]);
+}
+
+export function isAbyssPortalUnlocked(abyss = {}) {
+  return Boolean(normalizeAbyssState(abyss).portalUnlocked);
+}
+
+export function getAbyssTierCap(abyss = {}) {
+  return isAbyssPortalUnlocked(abyss) ? Number.MAX_SAFE_INTEGER : ABYSS_PORTAL_TIER;
 }
 
 export function getMaxRunSigilSlots(abyss = {}) {

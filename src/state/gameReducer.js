@@ -78,7 +78,7 @@ import {
   canPurchasePrestigeNode,
   syncPrestigeBonuses,
 } from "../engine/progression/prestigeEngine";
-import { getMaxRunSigilSlots, syncAbyssState } from "../engine/progression/abyssProgression";
+import { getAbyssTierCap, getMaxRunSigilSlots, normalizeAbyssState, syncAbyssState } from "../engine/progression/abyssProgression";
 import { PRESTIGE_TREE_NODES } from "../data/prestige";
 import { ABYSS_PREFIXES, ABYSS_SUFFIXES } from "../data/affixes";
 import {
@@ -99,6 +99,13 @@ import {
   selectSpecialization
 } from "../engine/progression/progressionEngine";
 import { getLifetimeXp } from "../engine/leveling";
+import {
+  advanceOnboarding,
+  createEmptyOnboardingState,
+  getBlockedOnboardingAction,
+  normalizeOnboardingState,
+} from "../engine/onboarding/onboardingEngine";
+import { createFreshState } from "../engine/stateInitializer";
 
 const CRIT_CAP         = 0.75;
 const ATTACK_SPEED_CAP = 0.70;
@@ -250,7 +257,7 @@ function deriveExpeditionPhase(state) {
   if (explicitPhase === "extraction") return "extraction";
   if (explicitPhase === "sanctuary") return "sanctuary";
   if (explicitPhase === "active") return "active";
-  if (state?.player?.class && state?.player?.specialization) return "active";
+  if (state?.player?.class && (state?.player?.specialization || Number(state?.prestige?.level || 0) <= 0)) return "active";
   return "sanctuary";
 }
 
@@ -528,9 +535,19 @@ function buildPrestigeResetState(state, { echoesGained, nextPrestigeLevel, nextP
 }
 
 function baseGameReducer(state, action) {
+  if (getBlockedOnboardingAction(state?.onboarding?.step, action)) {
+    return state;
+  }
+
   switch (action.type) {
 
+    case "RESET_ALL_PROGRESS":
+      return createFreshState();
+
     case "SET_TAB":
+      if (state.onboarding?.step) {
+        return state;
+      }
       if (state.combat?.reforgeSession && action.tab !== state.currentTab) {
         return state;
       }
@@ -692,6 +709,12 @@ function baseGameReducer(state, action) {
         },
       };
 
+    case "ACK_ONBOARDING_STEP":
+      return {
+        ...state,
+        onboarding: normalizeOnboardingState(state.onboarding || createEmptyOnboardingState()),
+      };
+
     case "SET_THEME":
       return {
         ...state,
@@ -843,6 +866,7 @@ function baseGameReducer(state, action) {
     case "CANCEL_EXTRACTION": {
       if (state.expedition?.phase !== "extraction") return state;
       if (state.expedition?.exitReason === "death") return state;
+      if (!state.onboarding?.flags?.firstExtractionCompleted) return state;
       return {
         ...state,
         currentTab: "combat",
@@ -930,6 +954,15 @@ function baseGameReducer(state, action) {
           state.sanctuary?.blueprints || [],
           state.sanctuary?.activeBlueprints || {}
         ),
+        stations: {
+          ...createEmptySanctuaryState().stations,
+          ...(state.sanctuary?.stations || {}),
+          laboratory: {
+            ...createEmptySanctuaryState().stations.laboratory,
+            ...((state.sanctuary?.stations || {}).laboratory || {}),
+            unlocked: true,
+          },
+        },
         deepForgeSession: null,
       };
 
@@ -1125,7 +1158,7 @@ function baseGameReducer(state, action) {
           ...state.combat,
           log: [
             ...(state.combat?.log || []),
-            `SANTUARIO: Laboratorio inicia ${job.input?.label || "investigacion"} para ${SANCTUARY_STATION_DEFAULTS[job.input?.stationId]?.label || "infraestructura"}.`,
+            `SANTUARIO: Laboratorio inicia ${job.input?.label || "investigacion"} para ${job.input?.targetLabel || SANCTUARY_STATION_DEFAULTS[job.input?.stationId]?.label || "infraestructura"}.`,
           ].slice(-20),
         },
       };
@@ -1828,6 +1861,7 @@ function baseGameReducer(state, action) {
         ...createEmptySanctuaryState().stations,
         ...(state.sanctuary?.stations || {}),
       };
+      let nextAbyss = normalizeAbyssState(state?.abyss || {});
       let nextFamilyCharges = {
         ...createEmptyFamilyChargeState(),
         ...(state.sanctuary?.familyCharges || {}),
@@ -1965,7 +1999,14 @@ function baseGameReducer(state, action) {
           ...createEmptySanctuaryState().stations,
           ...(nextSanctuaryAfterResearch.stations || {}),
         };
-        logLine = `SANTUARIO: Laboratorio completa ${job.input?.label || "investigacion"} y mejora ${SANCTUARY_STATION_DEFAULTS[job.input?.stationId]?.label || "el Santuario"}.`;
+        if (job.input?.researchId === "unlock_abyss_portal") {
+          nextAbyss = {
+            ...nextAbyss,
+            portalUnlocked: true,
+            tier25BossCleared: true,
+          };
+        }
+        logLine = `SANTUARIO: Laboratorio completa ${job.input?.label || "investigacion"} y mejora ${job.input?.targetLabel || SANCTUARY_STATION_DEFAULTS[job.input?.stationId]?.label || "el Santuario"}.`;
       } else if (job.type === "forge_project") {
         const sourceProject = job.input?.project || {};
         const nextUpgradeLevel = Math.max(0, Number(job.output?.nextUpgradeLevel || (Number(sourceProject?.upgradeLevel || 0) + 1)));
@@ -1989,6 +2030,7 @@ function baseGameReducer(state, action) {
         ...state,
         player: nextPlayer,
         codex: nextCodex,
+        abyss: nextAbyss,
         stats: {
           ...state.stats,
           upgradesCrafted: (state.stats?.upgradesCrafted || 0) + (job.type === "forge_project" ? 1 : 0),
@@ -2179,7 +2221,8 @@ function baseGameReducer(state, action) {
 
     // --------------------------------------------------------
     case "SET_TIER": {
-      const tier     = Math.max(1, Math.min(action.tier, state.combat.maxTier));
+      const tierCap  = getAbyssTierCap(state?.abyss || {});
+      const tier     = Math.max(1, Math.min(action.tier, state.combat.maxTier, tierCap));
       const prevTier = state.combat.currentTier || 1;
       const runContext = state.combat?.runContext || createRunContext();
       const nextEnemy = spawnEnemy(tier, runContext);
@@ -2977,7 +3020,11 @@ export function gameReducer(state, action) {
   const baseNextState = withAbyssProgression(state, baseGameReducer(state, action));
   if (baseNextState === state) return state;
 
-  const nextState = withExpeditionState(state, baseNextState);
+  const nextState = advanceOnboarding(
+    state,
+    withExpeditionState(state, baseNextState),
+    action
+  );
   return recordReplayState(state, nextState, action);
 }
 

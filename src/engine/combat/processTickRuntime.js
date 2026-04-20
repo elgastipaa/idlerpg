@@ -16,6 +16,7 @@ import { summarizeLootEvent } from "../../utils/lootHighlights";
 import { createEmptySessionAnalytics } from "../../utils/runTelemetry";
 import { recordCodexKill, recordCodexSighting, recordLegendaryPowerDiscovery, syncCodexBonuses } from "../progression/codexEngine";
 import { createEmptyPrestigeCycleProgress } from "../progression/prestigeEngine";
+import { ABYSS_PORTAL_TIER, getAbyssTierCap, normalizeAbyssState } from "../progression/abyssProgression";
 import { getRunSigilCodexModifiers } from "../../data/runSigils";
 import { buildExtractionPreview } from "../sanctuary/extractionEngine";
 import {
@@ -1644,9 +1645,18 @@ export function processTick(state) {
   const currentTier = currentCombatTier;
   const maxTier = Math.max(state.combat.maxTier || 1, currentTier);
   const autoAdvance = state.combat.autoAdvance || false;
-  const unlockedTier = currentTier + 1;
+  const abyssState = normalizeAbyssState(state?.abyss || {});
+  const tierCap = getAbyssTierCap(abyssState);
+  const unlockedTier = Math.min(tierCap, currentTier + 1);
   const nextTier = autoAdvance ? unlockedTier : currentTier;
   const newMaxTier = Math.max(maxTier, unlockedTier);
+  const nextAbyssState =
+    enemy.isBoss && currentTier === ABYSS_PORTAL_TIER
+      ? {
+          ...abyssState,
+          tier25BossCleared: true,
+        }
+      : abyssState;
 
   const newStats = {
     ...state.stats,
@@ -1819,6 +1829,7 @@ export function processTick(state) {
     ...state,
     player: newPlayer,
     codex: nextCodex,
+    abyss: nextAbyssState,
     stats: newStats,
     achievements: newAchievements,
     combat: {
