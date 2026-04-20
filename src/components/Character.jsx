@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { CLASSES } from "../data/classes";
 import { xpRequired } from "../engine/leveling";
 import { calcStats } from "../engine/combat/statEngine";
+import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
 import {
   formatItemNumber as formatNumber,
@@ -80,6 +81,24 @@ export default function Character({ player, dispatch, state }) {
   const availableSpecs = selectedClass?.specializations || [];
   const buildTag = useMemo(() => (player.class ? getPlayerBuildTag(player) : null), [player]);
   const computedStats = useMemo(() => calcStats(player), [player]);
+  const onboardingStep = state?.onboarding?.step || null;
+  const specTutorialActive = onboardingStep === ONBOARDING_STEPS.CHOOSE_SPEC;
+
+  useEffect(() => {
+    if (!specTutorialActive || player.specialization) return undefined;
+
+    let frameId = null;
+    const scrollToSpec = () => {
+      const target = document.querySelector('[data-onboarding-target="choose-spec-card"]');
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+
+    frameId = requestAnimationFrame(scrollToSpec);
+    return () => {
+      if (frameId != null) cancelAnimationFrame(frameId);
+    };
+  }, [specTutorialActive, player.specialization, availableSpecs.length]);
 
   if (!player.class) {
     return (
@@ -135,6 +154,13 @@ export default function Character({ player, dispatch, state }) {
 
   return (
     <div style={{ padding: isMobile ? "1rem" : "1.5rem", maxWidth: "100%", display: "flex", flexDirection: "column", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+      <style>{`
+        @keyframes chooseSpecPulse {
+          0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.2); }
+          70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
+          100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
+        }
+      `}</style>
       <header style={headerCardStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", flexWrap: "wrap" }}>
           <div>
@@ -197,19 +223,51 @@ export default function Character({ player, dispatch, state }) {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {availableSpecs.map(spec => {
-                const canUnlock = canUnlockSpec(spec, player, kills);
+                const canUnlock = specTutorialActive || canUnlockSpec(spec, player, kills);
                 const reqText = getRequirementText(spec.unlockCondition);
                 return (
-                  <div key={spec.id} style={{ background: canUnlock ? "var(--color-background-tertiary, #f8fafc)" : "var(--tone-warning-soft, #fff7ed)", border: `1px solid ${canUnlock ? "var(--color-border-primary, #e2e8f0)" : "#fed7aa"}`, borderRadius: "10px", padding: "10px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                  <div
+                    key={spec.id}
+                    data-onboarding-target={specTutorialActive ? "choose-spec-card" : undefined}
+                    style={{
+                      background: canUnlock ? "var(--color-background-tertiary, #f8fafc)" : "var(--tone-warning-soft, #fff7ed)",
+                      border: `1px solid ${canUnlock ? "var(--color-border-primary, #e2e8f0)" : "#fed7aa"}`,
+                      borderRadius: "10px",
+                      padding: "10px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "8px",
+                      position: specTutorialActive ? "relative" : "static",
+                      zIndex: specTutorialActive ? 2 : 1,
+                      boxShadow: specTutorialActive ? "0 10px 24px rgba(83,74,183,0.14)" : "none",
+                      animation: specTutorialActive ? "chooseSpecPulse 1600ms ease-in-out infinite" : "none",
+                    }}
+                  >
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: "0.76rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>{spec.name}</div>
                       <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.35, marginTop: "3px" }}>{spec.description}</div>
-                      <div style={{ fontSize: "0.6rem", color: canUnlock ? "var(--tone-success, #1D9E75)" : "var(--tone-danger, #D85A30)", fontWeight: "900", marginTop: "4px" }}>Req: {reqText}</div>
+                      <div style={{ fontSize: "0.6rem", color: canUnlock ? "var(--tone-success, #1D9E75)" : "var(--tone-danger, #D85A30)", fontWeight: "900", marginTop: "4px" }}>
+                        {specTutorialActive ? "Tutorial: elige una subclase" : `Req: ${reqText}`}
+                      </div>
                     </div>
                     <button
                       disabled={!canUnlock}
+                      data-onboarding-target={specTutorialActive ? "choose-spec" : undefined}
                       onClick={() => dispatch({ type: "SELECT_SPECIALIZATION", specId: spec.id })}
-                      style={{ background: canUnlock ? "var(--tone-success, #1D9E75)" : "var(--color-background-tertiary, #f1f5f9)", color: canUnlock ? "#fff" : "var(--color-text-tertiary, #94a3b8)", border: "none", padding: "8px 10px", borderRadius: "8px", fontSize: "0.66rem", fontWeight: "900", cursor: canUnlock ? "pointer" : "not-allowed", flexShrink: 0 }}
+                      style={{
+                        background: canUnlock ? "var(--tone-success, #1D9E75)" : "var(--color-background-tertiary, #f1f5f9)",
+                        color: canUnlock ? "#fff" : "var(--color-text-tertiary, #94a3b8)",
+                        border: "none",
+                        padding: "8px 10px",
+                        borderRadius: "8px",
+                        fontSize: "0.66rem",
+                        fontWeight: "900",
+                        cursor: canUnlock ? "pointer" : "not-allowed",
+                        flexShrink: 0,
+                        position: specTutorialActive ? "relative" : "static",
+                        zIndex: specTutorialActive ? 3 : 1,
+                      }}
                     >
                       Elegir
                     </button>

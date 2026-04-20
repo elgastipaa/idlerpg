@@ -14,7 +14,7 @@ import {
   recordCodexSighting,
   syncCodexBonuses,
 } from "../engine/progression/codexEngine";
-import { createEmptySessionAnalytics } from "../utils/runTelemetry";
+import { createEmptyAccountTelemetry, createEmptySessionAnalytics, sanitizeAccountTelemetry } from "../utils/runTelemetry";
 import { buildReplayLibraryEntry, createEmptyReplayLog, normalizeReplayLibrary, recordReplayState } from "../utils/replayLog";
 import { buildExtractionPreview } from "../engine/sanctuary/extractionEngine";
 import {
@@ -101,11 +101,13 @@ import {
 import { getLifetimeXp } from "../engine/leveling";
 import {
   advanceOnboarding,
+  ONBOARDING_STEPS,
   createEmptyOnboardingState,
   getBlockedOnboardingAction,
+  isExtractionUnlocked,
   normalizeOnboardingState,
 } from "../engine/onboarding/onboardingEngine";
-import { createFreshState } from "../engine/stateInitializer";
+import { createEmptySaveDiagnostics, createFreshState, mergeStateWithDefaults } from "../engine/stateInitializer";
 
 const CRIT_CAP         = 0.75;
 const ATTACK_SPEED_CAP = 0.70;
@@ -251,13 +253,161 @@ function createEmptyExpeditionState() {
   };
 }
 
+function getAccountTelemetry(state = {}) {
+  return sanitizeAccountTelemetry(state?.accountTelemetry || createEmptyAccountTelemetry());
+}
+
+function getSaveDiagnostics(state = {}) {
+  return {
+    ...createEmptySaveDiagnostics(),
+    ...(state?.saveDiagnostics || {}),
+  };
+}
+
+function getCurrentOnlineSeconds(telemetry = {}) {
+  return Math.max(0, Number(telemetry.totalOnlineSeconds || 0) + Number(telemetry.currentSessionSeconds || 0));
+}
+
+function markFirstTelemetryMoment(telemetry = {}, key) {
+  if (!key) return telemetry;
+  if (telemetry[key] != null) return telemetry;
+  return {
+    ...telemetry,
+    [key]: getCurrentOnlineSeconds(telemetry),
+  };
+}
+
+function finalizeExpeditionTelemetry(
+  telemetry = {},
+  expedition = {},
+  { exitReason = "retire", prestige = false, now = Date.now() } = {}
+) {
+  const nextTelemetry = sanitizeAccountTelemetry(telemetry || createEmptyAccountTelemetry());
+  const startedAt = Number(expedition?.startedAt || 0);
+  const currentTracked = Math.max(0, Number(nextTelemetry.currentExpeditionSeconds || 0));
+  const durationSeconds = startedAt > 0 ? Math.max(currentTracked, Math.floor((now - startedAt) / 1000)) : currentTracked;
+
+  nextTelemetry.completedExpeditionCount = Math.max(0, Number(nextTelemetry.completedExpeditionCount || 0)) + 1;
+  nextTelemetry.extractionCount = Math.max(0, Number(nextTelemetry.extractionCount || 0)) + 1;
+  if (prestige) {
+    nextTelemetry.prestigeExtractionCount = Math.max(0, Number(nextTelemetry.prestigeExtractionCount || 0)) + 1;
+  } else if (exitReason !== "death") {
+    nextTelemetry.manualExtractionCount = Math.max(0, Number(nextTelemetry.manualExtractionCount || 0)) + 1;
+  }
+  nextTelemetry.totalExpeditionLifecycleSeconds =
+    Math.max(0, Number(nextTelemetry.totalExpeditionLifecycleSeconds || 0)) + durationSeconds;
+  nextTelemetry.longestExpeditionSeconds = Math.max(
+    Math.max(0, Number(nextTelemetry.longestExpeditionSeconds || 0)),
+    durationSeconds
+  );
+  nextTelemetry.currentExpeditionSeconds = 0;
+  if (exitReason === "death") {
+    nextTelemetry.emergencyExtractionCount = Math.max(0, Number(nextTelemetry.emergencyExtractionCount || 0)) + 1;
+  }
+  if (nextTelemetry.firstExtractionAtOnlineSeconds == null) {
+    nextTelemetry.firstExtractionAtOnlineSeconds = getCurrentOnlineSeconds(nextTelemetry);
+  }
+
+  return nextTelemetry;
+}
+
+function trackAccountPhaseTime(telemetry = {}, phase = "sanctuary", seconds = 0, now = Date.now()) {
+  const nextTelemetry = sanitizeAccountTelemetry(telemetry || createEmptyAccountTelemetry());
+  const safeSeconds = Math.max(0, Math.floor(Number(seconds || 0)));
+  if (safeSeconds <= 0) {
+    return {
+      ...nextTelemetry,
+      lastActiveAt: now,
+    };
+  }
+
+  nextTelemetry.currentSessionSeconds = Math.max(0, Number(nextTelemetry.currentSessionSeconds || 0)) + safeSeconds;
+  nextTelemetry.totalOnlineSeconds = Math.max(0, Number(nextTelemetry.totalOnlineSeconds || 0)) + safeSeconds;
+  nextTelemetry.longestSessionSeconds = Math.max(
+    Math.max(0, Number(nextTelemetry.longestSessionSeconds || 0)),
+    nextTelemetry.currentSessionSeconds
+  );
+  nextTelemetry.lastActiveAt = now;
+
+  if (phase === "active") {
+    nextTelemetry.totalExpeditionSeconds = Math.max(0, Number(nextTelemetry.totalExpeditionSeconds || 0)) + safeSeconds;
+    nextTelemetry.currentExpeditionSeconds = Math.max(0, Number(nextTelemetry.currentExpeditionSeconds || 0)) + safeSeconds;
+  } else if (phase === "setup") {
+    nextTelemetry.totalSetupSeconds = Math.max(0, Number(nextTelemetry.totalSetupSeconds || 0)) + safeSeconds;
+  } else if (phase === "extraction") {
+    nextTelemetry.totalExtractionSeconds = Math.max(0, Number(nextTelemetry.totalExtractionSeconds || 0)) + safeSeconds;
+  } else {
+    nextTelemetry.totalSanctuarySeconds = Math.max(0, Number(nextTelemetry.totalSanctuarySeconds || 0)) + safeSeconds;
+  }
+
+  return nextTelemetry;
+}
+
+function applyDerivedAccountTelemetry(prevState, nextState) {
+  if (nextState === prevState) return nextState;
+
+  let nextTelemetry = getAccountTelemetry(nextState);
+  let changed = false;
+  const setFirstMoment = key => {
+    const updated = markFirstTelemetryMoment(nextTelemetry, key);
+    if (updated !== nextTelemetry) {
+      nextTelemetry = updated;
+      changed = true;
+    }
+  };
+
+  if (!prevState?.player?.specialization && nextState?.player?.specialization) {
+    setFirstMoment("firstSpecAtOnlineSeconds");
+  }
+  if (Number(prevState?.stats?.bossKills || 0) <= 0 && Number(nextState?.stats?.bossKills || 0) > 0) {
+    setFirstMoment("firstBossAtOnlineSeconds");
+  }
+  if (!prevState?.sanctuary?.stations?.laboratory?.unlocked && nextState?.sanctuary?.stations?.laboratory?.unlocked) {
+    setFirstMoment("firstLaboratoryAtOnlineSeconds");
+  }
+  if (!prevState?.sanctuary?.stations?.distillery?.unlocked && nextState?.sanctuary?.stations?.distillery?.unlocked) {
+    setFirstMoment("firstDistilleryAtOnlineSeconds");
+  }
+  if ((Array.isArray(prevState?.sanctuary?.blueprints) ? prevState.sanctuary.blueprints.length : 0) <= 0 &&
+      (Array.isArray(nextState?.sanctuary?.blueprints) ? nextState.sanctuary.blueprints.length : 0) > 0) {
+    setFirstMoment("firstBlueprintAtOnlineSeconds");
+  }
+  if (!prevState?.sanctuary?.stations?.deepForge?.unlocked && nextState?.sanctuary?.stations?.deepForge?.unlocked) {
+    setFirstMoment("firstDeepForgeAtOnlineSeconds");
+  }
+  if (!prevState?.sanctuary?.stations?.codexResearch?.unlocked && nextState?.sanctuary?.stations?.codexResearch?.unlocked) {
+    setFirstMoment("firstLibraryAtOnlineSeconds");
+  }
+  if (!prevState?.sanctuary?.stations?.errands?.unlocked && nextState?.sanctuary?.stations?.errands?.unlocked) {
+    setFirstMoment("firstErrandsAtOnlineSeconds");
+  }
+  if (!prevState?.sanctuary?.stations?.sigilInfusion?.unlocked && nextState?.sanctuary?.stations?.sigilInfusion?.unlocked) {
+    setFirstMoment("firstSigilAltarAtOnlineSeconds");
+  }
+  if (!prevState?.abyss?.portalUnlocked && nextState?.abyss?.portalUnlocked) {
+    setFirstMoment("firstAbyssPortalAtOnlineSeconds");
+  }
+
+  if (!changed) return nextState;
+  return {
+    ...nextState,
+    accountTelemetry: nextTelemetry,
+  };
+}
+
 function deriveExpeditionPhase(state) {
   const explicitPhase = state?.expedition?.phase;
+  const firstExtractionCompleted = Boolean(state?.onboarding?.flags?.firstExtractionCompleted);
   if (state?.combat?.pendingRunSetup) return "setup";
   if (explicitPhase === "extraction") return "extraction";
-  if (explicitPhase === "sanctuary") return "sanctuary";
+  if (explicitPhase === "sanctuary") {
+    if (state?.player?.class && !firstExtractionCompleted) {
+      return "active";
+    }
+    return "sanctuary";
+  }
   if (explicitPhase === "active") return "active";
-  if (state?.player?.class && (state?.player?.specialization || Number(state?.prestige?.level || 0) <= 0)) return "active";
+  if (state?.player?.class) return "active";
   return "sanctuary";
 }
 
@@ -544,10 +694,92 @@ function baseGameReducer(state, action) {
     case "RESET_ALL_PROGRESS":
       return createFreshState();
 
+    case "START_ACCOUNT_SESSION": {
+      const now = Number(action.now || Date.now());
+      const telemetry = getAccountTelemetry(state);
+      return {
+        ...state,
+        accountTelemetry: {
+          ...telemetry,
+          firstSeenAt: telemetry.firstSeenAt || now,
+          lastActiveAt: now,
+          lastSessionStartedAt: now,
+          currentSessionSeconds: 0,
+          sessionCount: Math.max(0, Number(telemetry.sessionCount || 0)) + 1,
+          saveResets: Math.max(0, Number(telemetry.saveResets || 0)) + (action.reset ? 1 : 0),
+        },
+      };
+    }
+
+    case "TRACK_ACCOUNT_TIME": {
+      const seconds = Math.max(0, Math.floor(Number(action.seconds || 0)));
+      if (seconds <= 0) return state;
+      const phase = action.phase || state.expedition?.phase || deriveExpeditionPhase(state);
+      return {
+        ...state,
+        accountTelemetry: trackAccountPhaseTime(
+          getAccountTelemetry(state),
+          phase,
+          seconds,
+          Number(action.now || Date.now())
+        ),
+      };
+    }
+
+    case "TRACK_OFFLINE_TIME": {
+      const seconds = Math.max(0, Math.floor(Number(action.seconds || 0)));
+      if (seconds <= 0) return state;
+      const telemetry = getAccountTelemetry(state);
+      return {
+        ...state,
+        accountTelemetry: {
+          ...telemetry,
+          totalOfflineSeconds: Math.max(0, Number(telemetry.totalOfflineSeconds || 0)) + seconds,
+          offlineRecoveryCount: Math.max(0, Number(telemetry.offlineRecoveryCount || 0)) + 1,
+          longestOfflineSeconds: Math.max(Math.max(0, Number(telemetry.longestOfflineSeconds || 0)), seconds),
+          lastActiveAt: Number(action.now || Date.now()),
+        },
+      };
+    }
+
+    case "REPAIR_SAVE_STATE": {
+      const repairedState = mergeStateWithDefaults(createFreshState(), state);
+      const telemetry = {
+        ...getAccountTelemetry(repairedState),
+        saveRepairs: Math.max(0, Number(repairedState?.accountTelemetry?.saveRepairs || 0)) + 1,
+        lastActiveAt: Number(action.now || Date.now()),
+      };
+      return {
+        ...repairedState,
+        accountTelemetry: telemetry,
+        saveDiagnostics: {
+          ...getSaveDiagnostics(repairedState),
+          legacyNeedsRepair: false,
+          lastRepairAt: Number(action.now || Date.now()),
+        },
+        combat: {
+          ...repairedState.combat,
+          log: [
+            ...(repairedState.combat?.log || []),
+            "SAVE: estado reparado y remigrado con la version actual.",
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "DISMISS_LEGACY_SAVE_PROMPT": {
+      const diagnostics = getSaveDiagnostics(state);
+      if (!diagnostics.legacyNeedsRepair) return state;
+      return {
+        ...state,
+        saveDiagnostics: {
+          ...diagnostics,
+          legacyPromptShownCount: Math.min(3, Math.max(0, Number(diagnostics.legacyPromptShownCount || 0)) + 1),
+        },
+      };
+    }
+
     case "SET_TAB":
-      if (state.onboarding?.step) {
-        return state;
-      }
       if (state.combat?.reforgeSession && action.tab !== state.currentTab) {
         return state;
       }
@@ -559,7 +791,7 @@ function baseGameReducer(state, action) {
       };
 
     case "ENTER_EXPEDITION_SETUP": {
-      if (!state.player?.class || !state.player?.specialization) {
+      if (!state.player?.class) {
         return {
           ...state,
           currentTab: "character",
@@ -739,7 +971,8 @@ function baseGameReducer(state, action) {
 
     case "START_RUN": {
       if (!state.combat?.pendingRunSetup) return state;
-      if (!state.player?.class || !state.player?.specialization) return state;
+      if (!state.player?.class) return state;
+      const startedAt = Number(action.now || Date.now());
       const runSigilIds = resolveRunSigilLoadout(
         state,
         state.combat?.pendingRunSigilIds || state.combat?.pendingRunSigilId || "free"
@@ -752,12 +985,12 @@ function baseGameReducer(state, action) {
       const materializedLoadout = materializeBlueprintLoadout(
         consumedInfusions.sanctuary?.blueprints || [],
         activeBlueprints,
-        { now: Date.now() }
+        { now: startedAt }
       );
       const nextBlueprints = consumeBlueprintMaterialization(
         consumedInfusions.sanctuary?.blueprints || [],
         activeBlueprints,
-        { now: Date.now() }
+        { now: startedAt }
       );
       const nextRunContext = state.combat?.runContext || createRunContext();
       const nextEnemy = spawnEnemy(state.combat?.currentTier || 1, nextRunContext);
@@ -798,8 +1031,8 @@ function baseGameReducer(state, action) {
         expedition: {
           ...(state.expedition || createEmptyExpeditionState()),
           phase: "active",
-          id: `expedition_${Date.now()}`,
-          startedAt: Date.now(),
+          id: `expedition_${startedAt}`,
+          startedAt,
           exitReason: null,
           seenFamilyIds: appendSeenFamilyIds(createEmptyExpeditionState(), nextEnemy),
           cargoFound: [],
@@ -832,20 +1065,31 @@ function baseGameReducer(state, action) {
               : []),
           ].slice(-20),
         },
+        accountTelemetry: {
+          ...getAccountTelemetry(state),
+          expeditionCount: Math.max(0, Number(state?.accountTelemetry?.expeditionCount || 0)) + 1,
+          currentExpeditionSeconds: 0,
+          lastActiveAt: startedAt,
+        },
       };
     }
 
     case "OPEN_EXTRACTION": {
       const exitReason = action.exitReason === "death" ? "death" : "retire";
       if (state.expedition?.phase === "extraction") return state;
-      if (!state.player?.class || !state.player?.specialization) return state;
+      if (!state.player?.class) return state;
+      if (exitReason !== "death" && !isExtractionUnlocked(state)) return state;
 
       const extractionPreview = buildExtractionPreview(state, { exitReason });
-      const defaultCargoIds = (extractionPreview.cargoOptions || [])
-        .slice(0, Math.max(0, Number(extractionPreview.availableSlots?.cargo || 0)))
-        .map(option => option.id);
-      const defaultProjectItemId =
-        Number(extractionPreview.availableSlots?.project || 0) > 0
+      const onboardingExtractionTutorial = state?.onboarding?.step === ONBOARDING_STEPS.EXTRACTION_READY;
+      const defaultCargoIds = onboardingExtractionTutorial
+        ? []
+        : (extractionPreview.cargoOptions || [])
+            .slice(0, Math.max(0, Number(extractionPreview.availableSlots?.cargo || 0)))
+            .map(option => option.id);
+      const defaultProjectItemId = onboardingExtractionTutorial
+        ? null
+        : Number(extractionPreview.availableSlots?.project || 0) > 0
           ? extractionPreview.projectOptions?.[0]?.itemId || null
           : null;
 
@@ -866,7 +1110,6 @@ function baseGameReducer(state, action) {
     case "CANCEL_EXTRACTION": {
       if (state.expedition?.phase !== "extraction") return state;
       if (state.expedition?.exitReason === "death") return state;
-      if (!state.onboarding?.flags?.firstExtractionCompleted) return state;
       return {
         ...state,
         currentTab: "combat",
@@ -916,6 +1159,7 @@ function baseGameReducer(state, action) {
 
     case "CONFIRM_EXTRACTION": {
       if (state.expedition?.phase !== "extraction") return state;
+      const extractionAt = Number(action.now || Date.now());
 
       const exitReason = state.expedition?.exitReason === "death" ? "death" : "retire";
       const preview = state.expedition?.extractionPreview || buildExtractionPreview(state, {
@@ -925,13 +1169,13 @@ function baseGameReducer(state, action) {
       const selectedCargo = (preview.cargoOptions || [])
         .filter(option => selectedCargoIds.has(option.id))
         .map(option => ({
-          id: `${option.id}_${Date.now()}`,
+          id: `${option.id}_${extractionAt}`,
           type: option.type,
           quantity: Math.max(1, Number(option.recoveredQuantity || option.quantity || 1)),
           label: option.label,
           description: option.description,
           source: exitReason,
-          extractedAt: Date.now(),
+          extractedAt: extractionAt,
         }));
       const retainedItem = buildRetainedExtractionItem(
         state,
@@ -970,6 +1214,11 @@ function baseGameReducer(state, action) {
         const prestigeCheck = canPrestige(state);
         if (!prestigeCheck.ok) return state;
         const echoesGained = preview?.prestige?.echoes || calculatePrestigeEchoGain(state);
+        const finalizedTelemetry = finalizeExpeditionTelemetry(getAccountTelemetry(state), state.expedition, {
+          exitReason,
+          prestige: true,
+          now: extractionAt,
+        });
         const nextPrestigeLevel = (state.prestige?.level || 0) + 1;
         const nextRunContext = createRunContext();
         const resetRunSigilIds = normalizeRunSigilIds("free", {
@@ -987,10 +1236,18 @@ function baseGameReducer(state, action) {
           ),
           nodes: { ...(state.prestige?.nodes || {}) },
         };
+        const nextAccountTelemetry =
+          finalizedTelemetry.firstPrestigeAtOnlineSeconds == null
+            ? {
+                ...finalizedTelemetry,
+                firstPrestigeAtOnlineSeconds: getCurrentOnlineSeconds(finalizedTelemetry),
+              }
+            : finalizedTelemetry;
         return buildPrestigeResetState(
           {
             ...state,
             sanctuary: nextSanctuary,
+            accountTelemetry: nextAccountTelemetry,
           },
           {
             echoesGained,
@@ -1010,9 +1267,15 @@ function baseGameReducer(state, action) {
         exitReason,
         goldMultiplier: exitReason === "death" ? 0.75 : 1,
       });
+      const nextAccountTelemetry = finalizeExpeditionTelemetry(getAccountTelemetry(state), state.expedition, {
+        exitReason,
+        prestige: false,
+        now: extractionAt,
+      });
       return withAchievementProgress({
         ...postResetState,
         sanctuary: nextSanctuary,
+        accountTelemetry: nextAccountTelemetry,
         combat: {
           ...postResetState.combat,
           log: [
@@ -1046,6 +1309,10 @@ function baseGameReducer(state, action) {
           cargoInventory: (state.sanctuary?.cargoInventory || []).filter(entry => entry?.id !== job.input?.cargoId),
           jobs: [...(state.sanctuary?.jobs || []), job],
         },
+        accountTelemetry: {
+          ...getAccountTelemetry(state),
+          distillJobsStarted: Math.max(0, Number(state?.accountTelemetry?.distillJobsStarted || 0)) + 1,
+        },
         combat: {
           ...state.combat,
           log: [
@@ -1072,6 +1339,10 @@ function baseGameReducer(state, action) {
           ...createEmptySanctuaryState(),
           ...(state.sanctuary || {}),
           jobs: [...(state.sanctuary?.jobs || []), job],
+        },
+        accountTelemetry: {
+          ...getAccountTelemetry(state),
+          errandJobsStarted: Math.max(0, Number(state?.accountTelemetry?.errandJobsStarted || 0)) + 1,
         },
         combat: {
           ...state.combat,
@@ -1119,6 +1390,10 @@ function baseGameReducer(state, action) {
           },
           jobs: [...(state.sanctuary?.jobs || []), job],
         },
+        accountTelemetry: {
+          ...getAccountTelemetry(state),
+          codexResearchStarted: Math.max(0, Number(state?.accountTelemetry?.codexResearchStarted || 0)) + 1,
+        },
         combat: {
           ...state.combat,
           log: [
@@ -1153,6 +1428,10 @@ function baseGameReducer(state, action) {
             relicDust: Math.max(0, Number(state.sanctuary?.resources?.relicDust || 0) - spentDust),
           },
           jobs: [...(state.sanctuary?.jobs || []), job],
+        },
+        accountTelemetry: {
+          ...getAccountTelemetry(state),
+          labResearchStarted: Math.max(0, Number(state?.accountTelemetry?.labResearchStarted || 0)) + 1,
         },
         combat: {
           ...state.combat,
@@ -1193,6 +1472,10 @@ function baseGameReducer(state, action) {
           blueprints: nextBlueprints,
           activeBlueprints: nextActiveBlueprints,
           familyCharges: addBlueprintCharges(state.sanctuary?.familyCharges || {}, chargeReward),
+        },
+        accountTelemetry: {
+          ...getAccountTelemetry(state),
+          blueprintsCreated: Math.max(0, Number(state?.accountTelemetry?.blueprintsCreated || 0)) + 1,
         },
         combat: {
           ...state.combat,
@@ -1336,6 +1619,10 @@ function baseGameReducer(state, action) {
           },
           activeBlueprints: ensureValidActiveBlueprints(blueprints, state.sanctuary?.activeBlueprints || {}),
         },
+        accountTelemetry: {
+          ...getAccountTelemetry(state),
+          blueprintStructureUpgrades: Math.max(0, Number(state?.accountTelemetry?.blueprintStructureUpgrades || 0)) + 1,
+        },
         combat: {
           ...state.combat,
           log: [
@@ -1376,6 +1663,10 @@ function baseGameReducer(state, action) {
             relicDust: Math.max(0, Number(state.sanctuary?.resources?.relicDust || 0) - spentDust),
           },
           activeBlueprints: ensureValidActiveBlueprints(blueprints, state.sanctuary?.activeBlueprints || {}),
+        },
+        accountTelemetry: {
+          ...getAccountTelemetry(state),
+          blueprintPowerTunes: Math.max(0, Number(state?.accountTelemetry?.blueprintPowerTunes || 0)) + 1,
         },
         combat: {
           ...state.combat,
@@ -1426,6 +1717,10 @@ function baseGameReducer(state, action) {
           },
           activeBlueprints: ensureValidActiveBlueprints(blueprints, state.sanctuary?.activeBlueprints || {}),
         },
+        accountTelemetry: {
+          ...getAccountTelemetry(state),
+          blueprintAscensions: Math.max(0, Number(state?.accountTelemetry?.blueprintAscensions || 0)) + 1,
+        },
         combat: {
           ...state.combat,
           log: [
@@ -1455,6 +1750,10 @@ function baseGameReducer(state, action) {
           blueprints: nextBlueprints,
           activeBlueprints: ensureValidActiveBlueprints(nextBlueprints, state.sanctuary?.activeBlueprints || {}),
         },
+        accountTelemetry: {
+          ...getAccountTelemetry(state),
+          blueprintsDiscarded: Math.max(0, Number(state?.accountTelemetry?.blueprintsDiscarded || 0)) + 1,
+        },
         combat: {
           ...state.combat,
           log: [
@@ -1480,6 +1779,10 @@ function baseGameReducer(state, action) {
             sigilFlux: Math.max(0, Number(state.sanctuary?.resources?.sigilFlux || 0) - fuelCost),
           },
           jobs: [...(state.sanctuary?.jobs || []), job],
+        },
+        accountTelemetry: {
+          ...getAccountTelemetry(state),
+          sigilJobsStarted: Math.max(0, Number(state?.accountTelemetry?.sigilJobsStarted || 0)) + 1,
         },
         combat: {
           ...state.combat,
@@ -2026,11 +2329,28 @@ function baseGameReducer(state, action) {
         logLine = `SANTUARIO: Forja Profunda completa · ${forgedProject.name} sube a +${nextUpgradeLevel}.`;
       }
 
+      const nextAccountTelemetry = {
+        ...getAccountTelemetry(state),
+        distillJobsCompleted:
+          Math.max(0, Number(state?.accountTelemetry?.distillJobsCompleted || 0)) + (job.type === "distill_bundle" ? 1 : 0),
+        codexResearchCompleted:
+          Math.max(0, Number(state?.accountTelemetry?.codexResearchCompleted || 0)) + (job.type === "codex_research" ? 1 : 0),
+        labResearchCompleted:
+          Math.max(0, Number(state?.accountTelemetry?.labResearchCompleted || 0)) + (job.type === "laboratory_research" ? 1 : 0),
+        errandJobsCompleted:
+          Math.max(0, Number(state?.accountTelemetry?.errandJobsCompleted || 0)) + (job.type === "sanctuary_errand" ? 1 : 0),
+        sigilJobsCompleted:
+          Math.max(0, Number(state?.accountTelemetry?.sigilJobsCompleted || 0)) + (job.type === "infuse_sigil" ? 1 : 0),
+        blueprintsScrapped:
+          Math.max(0, Number(state?.accountTelemetry?.blueprintsScrapped || 0)) + (job.type === "scrap_extracted_item" ? 1 : 0),
+      };
+
       return withAchievementProgress({
         ...state,
         player: nextPlayer,
         codex: nextCodex,
         abyss: nextAbyss,
+        accountTelemetry: nextAccountTelemetry,
         stats: {
           ...state.stats,
           upgradesCrafted: (state.stats?.upgradesCrafted || 0) + (job.type === "forge_project" ? 1 : 0),
@@ -2221,8 +2541,15 @@ function baseGameReducer(state, action) {
 
     // --------------------------------------------------------
     case "SET_TIER": {
+      const firstBossRetreatLocked =
+        Boolean(state?.combat?.enemy?.isBoss) && !Boolean(state?.onboarding?.flags?.firstDeathSeen);
+      const requestedTier = Number(action.tier || 1);
+      const currentTierValue = Number(state?.combat?.currentTier || 1);
+      if (firstBossRetreatLocked && requestedTier < currentTierValue) {
+        return state;
+      }
       const tierCap  = getAbyssTierCap(state?.abyss || {});
-      const tier     = Math.max(1, Math.min(action.tier, state.combat.maxTier, tierCap));
+      const tier     = Math.max(1, Math.min(requestedTier, state.combat.maxTier, tierCap));
       const prevTier = state.combat.currentTier || 1;
       const runContext = state.combat?.runContext || createRunContext();
       const nextEnemy = spawnEnemy(tier, runContext);
@@ -2503,10 +2830,32 @@ function baseGameReducer(state, action) {
     }
 
     case "SELECT_CLASS":
-      return selectClass(state, action.classId);
+      {
+        const nextState = selectClass(state, action.classId);
+        if (nextState === state) return state;
+        const onboarding = normalizeOnboardingState(state.onboarding || createEmptyOnboardingState());
+        return {
+          ...nextState,
+          currentTab: "combat",
+          expedition: {
+            ...(nextState.expedition || createEmptyExpeditionState()),
+            phase: "active",
+          },
+          onboarding: {
+            ...onboarding,
+            step: ONBOARDING_STEPS.COMBAT_INTRO,
+            flags: {
+              ...onboarding.flags,
+              classChosen: true,
+            },
+          },
+        };
+      }
 
     case "SELECT_SPECIALIZATION":
-      return selectSpecialization(state, action.specId);
+      return selectSpecialization(state, action.specId, {
+        ignoreRequirement: state?.onboarding?.step === ONBOARDING_STEPS.CHOOSE_SPEC,
+      });
 
     // --------------------------------------------------------
     case "BUY_PRESTIGE_NODE": {
@@ -3020,12 +3369,13 @@ export function gameReducer(state, action) {
   const baseNextState = withAbyssProgression(state, baseGameReducer(state, action));
   if (baseNextState === state) return state;
 
-  const nextState = advanceOnboarding(
+  const onboardingState = advanceOnboarding(
     state,
     withExpeditionState(state, baseNextState),
     action
   );
-  return recordReplayState(state, nextState, action);
+  const telemetryState = applyDerivedAccountTelemetry(state, onboardingState);
+  return recordReplayState(state, telemetryState, action);
 }
 
 

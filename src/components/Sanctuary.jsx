@@ -9,6 +9,7 @@ import { getRunSigil } from "../data/runSigils";
 import { CLASSES } from "../data/classes";
 import { getSanctuaryStationState } from "../engine/sanctuary/laboratoryEngine";
 import {
+  ONBOARDING_STEPS,
   isBlueprintDecisionUnlocked,
   isDistilleryUnlocked,
   isLaboratoryUnlocked,
@@ -248,6 +249,7 @@ export default function Sanctuary({ state, dispatch }) {
   }, [showLaboratory, state?.onboarding?.step]);
 
   const expeditionPhase = state.expedition?.phase || "sanctuary";
+  const onboardingStep = state?.onboarding?.step || null;
   const hasClass = Boolean(state.player?.class);
   const hasSpec = Boolean(state.player?.specialization);
   const shouldRequireSpecSelection =
@@ -283,6 +285,15 @@ export default function Sanctuary({ state, dispatch }) {
   const laboratoryCompleted = sanctuary?.laboratory?.completed || {};
   const abyssPortalUnlocked = Boolean(state?.abyss?.portalUnlocked);
   const tier25BossCleared = Boolean(state?.abyss?.tier25BossCleared);
+  const showingSanctuaryIntro = !hasClass && onboardingStep === ONBOARDING_STEPS.EXPEDITION_INTRO;
+  const choosingClass = !hasClass && onboardingStep === ONBOARDING_STEPS.CHOOSE_CLASS;
+
+  function scrollToClassSelection() {
+    const element = document.getElementById("onboarding-class-selector");
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
 
   const claimableJobs = useMemo(
     () => jobs.filter(job => job?.status === "claimable"),
@@ -304,6 +315,22 @@ export default function Sanctuary({ state, dispatch }) {
   const laboratoryCompletedCount = Object.keys(sanctuary?.laboratory?.completed || {}).length;
 
   const expeditionCta = useMemo(() => {
+    if (showingSanctuaryIntro) {
+      return {
+        label: "Iniciar expedicion",
+        primary: true,
+        action: () => dispatch({ type: "ACK_ONBOARDING_STEP" }),
+        helper: "Toca este boton para aprender el primer gesto del juego. Luego eliges una clase y ahi si entras al combate.",
+      };
+    }
+    if (!hasClass) {
+      return {
+        label: "Elegir clase",
+        primary: true,
+        action: scrollToClassSelection,
+        helper: "La run todavia no tiene identidad. Baja a las cartas y elige Warrior o Mage para entrar al combate.",
+      };
+    }
     if (expeditionPhase === "active") {
       return {
         label: "Volver a Expedicion",
@@ -320,14 +347,12 @@ export default function Sanctuary({ state, dispatch }) {
         helper: "La expedicion ya cerro. Primero confirma la extraccion abierta para volver a salir.",
       };
     }
-    if (!hasClass || shouldRequireSpecSelection) {
+    if (shouldRequireSpecSelection) {
       return {
-        label: hasClass ? "Elegir especializacion" : "Elegir heroe",
+        label: "Elegir especializacion",
         primary: true,
         action: () => dispatch({ type: "SET_TAB", tab: "character" }),
-        helper: hasClass
-          ? "Tu heroe ya tiene clase, pero esta run necesita una subclase antes de seguir."
-          : "Antes de salir, define una clase para esta expedicion.",
+        helper: "Tu heroe ya tiene clase, pero esta run necesita una subclase antes de seguir.",
       };
     }
     if (expeditionPhase === "setup" || state.combat?.pendingRunSetup) {
@@ -344,7 +369,7 @@ export default function Sanctuary({ state, dispatch }) {
       action: () => dispatch({ type: "SET_TAB", tab: "combat" }),
       helper: "Tu heroe ya esta listo. Vuelve al combate cuando quieras.",
     };
-  }, [dispatch, expeditionPhase, hasClass, hasSpec, shouldRequireSpecSelection, state.combat?.pendingRunSetup]);
+  }, [dispatch, expeditionPhase, hasClass, shouldRequireSpecSelection, showingSanctuaryIntro, state.combat?.pendingRunSetup]);
 
   const expeditionLabel = hasClass
     ? `${state.player.class}${hasSpec ? ` · ${state.player.specialization}` : ""}`
@@ -359,56 +384,115 @@ export default function Sanctuary({ state, dispatch }) {
               Santuario
             </div>
             <div style={{ fontSize: "1rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-              Asigna un heroe para abrir tu primera expedicion
+              {showingSanctuaryIntro
+                ? "Inicia tu primera expedicion desde aqui"
+                : "Elige una clase para abrir tu primera expedicion"}
             </div>
             <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
-              El juego se divide en dos mitades: primero sobrevives a la expedicion y luego vuelves al Santuario para transformar esa run en progreso permanente.
+              {showingSanctuaryIntro
+                ? "El Santuario es tu base. Primero aprendes a salir desde aqui; recien despues eliges una clase y entras al combate."
+                : "Ahora ya sabes el flujo general. El siguiente paso es elegir Warrior o Mage para que la primera run tenga una identidad base."}
             </div>
+            {showingSanctuaryIntro && (
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "6px" }}>
+                <button
+                  onClick={expeditionCta.action}
+                  data-onboarding-target={showingSanctuaryIntro ? "start-expedition" : undefined}
+                  style={{
+                    ...actionButtonStyle({ primary: true }),
+                    boxShadow: "0 0 0 2px rgba(83,74,183,0.16), 0 12px 28px rgba(83,74,183,0.14)",
+                    animation: "sanctuarySpotlightPulse 1600ms ease-in-out infinite",
+                  }}
+                >
+                  {expeditionCta.label}
+                </button>
+              </div>
+            )}
           </div>
         </section>
 
-        <section style={sectionCardStyle("var(--tone-info, #0369a1)")}>
-          <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
-            Elegir clase
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
-            {CLASSES.map(clase => (
-              <button
-                key={clase.id}
-                onClick={() => dispatch({ type: "SELECT_CLASS", classId: clase.id })}
-                style={{
-                  border: "1px solid var(--color-border-primary, #e2e8f0)",
-                  background: "var(--color-background-secondary, #ffffff)",
-                  borderRadius: "14px",
-                  padding: "14px",
-                  display: "grid",
-                  gap: "8px",
-                  textAlign: "left",
-                  cursor: "pointer",
-                  boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <div style={{ fontSize: "1.4rem", lineHeight: 1 }}>{clase.icon || "?"}</div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: "0.92rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{clase.name}</div>
-                    <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      {clase.playstyle || "Clase"}
+        {showingSanctuaryIntro ? (
+          <section style={sectionCardStyle("var(--tone-info, #0369a1)")}>
+            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
+              Primera run
+            </div>
+            <div style={{ display: "grid", gap: "8px" }}>
+              <div style={{ fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                Primero sal desde el Santuario.
+              </div>
+              <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+                Toca <strong>Iniciar expedicion</strong>. En el siguiente paso elegirás una clase para esa salida y, recien ahi, entrarás al combate para arrancar la run.
+              </div>
+              <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)" }}>
+                Usa el boton real resaltado arriba, no este panel.
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section
+            id="onboarding-class-selector"
+            style={{
+              ...sectionCardStyle("var(--tone-info, #0369a1)"),
+              boxShadow:
+                choosingClass
+                  ? "0 0 0 2px rgba(3,105,161,0.14), 0 12px 30px rgba(3,105,161,0.16)"
+                  : "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
+              animation: choosingClass ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite" : "none",
+            }}
+          >
+            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
+              {choosingClass ? "Paso obligatorio" : "Elegir clase"}
+            </div>
+            {choosingClass && (
+              <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+                Elige una clase para esta primera salida. En cuanto la selecciones entraras al combate y la expedicion arrancara.
+              </div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
+              {CLASSES.map(clase => (
+                <button
+                  key={clase.id}
+                  onClick={() => dispatch({ type: "SELECT_CLASS", classId: clase.id })}
+                  data-onboarding-target={choosingClass ? "choose-class" : undefined}
+                  style={{
+                    border: "1px solid var(--color-border-primary, #e2e8f0)",
+                    background: "var(--color-background-secondary, #ffffff)",
+                    borderRadius: "14px",
+                    padding: "14px",
+                    display: "grid",
+                    gap: "8px",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    position: "relative",
+                    zIndex: choosingClass ? 2 : 1,
+                    boxShadow: choosingClass
+                      ? "0 0 0 2px rgba(3,105,161,0.18), 0 14px 34px rgba(3,105,161,0.18)"
+                      : "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
+                    animation: choosingClass ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite" : "none",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <div style={{ fontSize: "1.4rem", lineHeight: 1 }}>{clase.icon || "?"}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: "0.92rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{clase.name}</div>
+                      <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                        {clase.playstyle || "Clase"}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
-                  {clase.description}
-                </div>
-                <div style={{ fontSize: "0.66rem", color: "var(--tone-accent, #4338ca)", fontWeight: "900" }}>
-                  {clase.id === "warrior"
-                    ? "Impacto frontal, aguante y curva mas estable."
-                    : "Caster mas fragil al inicio, pero con mas precision y control."}
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
+                  <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+                    {clase.description}
+                  </div>
+                  <div style={{ fontSize: "0.66rem", color: "var(--tone-accent, #4338ca)", fontWeight: "900" }}>
+                    {clase.id === "warrior"
+                      ? "Impacto frontal, aguante y curva mas estable."
+                      : "Caster mas fragil al inicio, pero con mas precision y control."}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     );
   }
@@ -649,6 +733,13 @@ export default function Sanctuary({ state, dispatch }) {
 
   return (
     <div style={{ padding: "0.9rem", display: "grid", gap: "0.9rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+      <style>{`
+        @keyframes sanctuarySpotlightPulse {
+          0% { box-shadow: 0 0 0 0 rgba(3,105,161,0.24); }
+          70% { box-shadow: 0 0 0 10px rgba(3,105,161,0); }
+          100% { box-shadow: 0 0 0 0 rgba(3,105,161,0); }
+        }
+      `}</style>
       <section style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ minWidth: 0 }}>
@@ -663,7 +754,16 @@ export default function Sanctuary({ state, dispatch }) {
             <div style={{ padding: "8px 10px", borderRadius: "999px", border: "1px solid rgba(99,102,241,0.18)", background: "var(--tone-accent-soft, #eef2ff)", color: "var(--tone-accent, #4338ca)", fontSize: "0.68rem", fontWeight: "900", whiteSpace: "nowrap" }}>
               {formatPhaseLabel(expeditionPhase)}
             </div>
-            <button onClick={expeditionCta.action} style={actionButtonStyle({ primary: expeditionCta.primary })}>
+            <button
+              onClick={expeditionCta.action}
+              style={{
+                ...actionButtonStyle({ primary: expeditionCta.primary }),
+                boxShadow: showingSanctuaryIntro
+                  ? "0 0 0 2px rgba(83,74,183,0.16), 0 12px 28px rgba(83,74,183,0.14)"
+                  : undefined,
+                animation: showingSanctuaryIntro ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite" : "none",
+              }}
+            >
               {expeditionCta.label}
             </button>
           </div>

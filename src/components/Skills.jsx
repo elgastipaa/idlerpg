@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { calcStats } from "../engine/combat/statEngine";
 import { getClassBuildStatGroups } from "../utils/classBuildStats";
+import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 
 const UPGRADES_UI = [
   { id: "damage", name: "Fuerza", description: "+2% dano total", baseCost: 180, costMultiplier: 1.18, maxLevel: 50, icon: "?" },
@@ -13,6 +14,8 @@ const UPGRADES_UI = [
 
 export default function Skills({ state, dispatch }) {
   const { player } = state;
+  const onboardingStep = state?.onboarding?.step || null;
+  const spotlightAttributes = onboardingStep === ONBOARDING_STEPS.SPEND_ATTRIBUTE;
   const playerUpgrades = player.upgrades || {};
   const computedStats = calcStats(player);
   const buildGroups = getClassBuildStatGroups(player.class, computedStats);
@@ -25,8 +28,40 @@ export default function Skills({ state, dispatch }) {
     return () => window.removeEventListener("resize", handler);
   }, []);
 
+  useEffect(() => {
+    if (!spotlightAttributes) return undefined;
+    let cancelled = false;
+    let attempt = 0;
+
+    const scrollToForceUpgrade = () => {
+      if (cancelled) return;
+      const target = document.querySelector('[data-onboarding-target="upgrade-attribute"]');
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      attempt += 1;
+      if (attempt < 8) {
+        window.setTimeout(scrollToForceUpgrade, 80);
+      }
+    };
+
+    const timer = window.setTimeout(scrollToForceUpgrade, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [spotlightAttributes]);
+
   return (
     <div style={{ padding: isMobile ? "1rem" : "1.5rem", display: "flex", flexDirection: "column", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+      <style>{`
+        @keyframes skillsSpotlightPulse {
+          0% { box-shadow: 0 0 0 0 rgba(29,158,117,0.24); }
+          70% { box-shadow: 0 0 0 10px rgba(29,158,117,0); }
+          100% { box-shadow: 0 0 0 0 rgba(29,158,117,0); }
+        }
+      `}</style>
       <section>
         <header style={headerStyle}>
           <h2 style={titleStyle}>Atributos</h2>
@@ -39,10 +74,25 @@ export default function Skills({ state, dispatch }) {
             const isMaxed = currentLevel >= up.maxLevel;
             const cost = Math.floor(up.baseCost * Math.pow(up.costMultiplier, currentLevel));
             const canAfford = player.gold >= cost;
+            const spotlightUpgrade = spotlightAttributes && up.id === "damage" && !isMaxed;
+            const lockedByTutorial = spotlightAttributes && up.id !== "damage";
             const progress = (currentLevel / up.maxLevel) * 100;
 
             return (
-              <div key={up.id} style={upgradeCardStyle}>
+              <div
+                key={up.id}
+                data-onboarding-target={spotlightUpgrade ? "upgrade-attribute-card" : undefined}
+                style={{
+                  ...upgradeCardStyle,
+                  position: spotlightUpgrade ? "relative" : "static",
+                  zIndex: spotlightUpgrade ? 2 : 1,
+                  boxShadow: spotlightUpgrade
+                    ? "0 0 0 2px rgba(29,158,117,0.16), 0 12px 28px rgba(29,158,117,0.14)"
+                    : upgradeCardStyle.boxShadow,
+                  animation: spotlightUpgrade ? "skillsSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                  opacity: lockedByTutorial ? 0.42 : 1,
+                }}
+              >
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
                     <span style={{ fontWeight: "900", fontSize: "0.85rem", color: "var(--color-text-primary, #1e293b)" }}>{up.icon} {up.name}</span>
@@ -57,13 +107,19 @@ export default function Skills({ state, dispatch }) {
                 </div>
 
                 <button
-                  disabled={!canAfford || isMaxed}
+                  disabled={lockedByTutorial || !canAfford || isMaxed}
                   onClick={() => dispatch({ type: "UPGRADE_PLAYER", upgradeId: up.id })}
+                  data-onboarding-target={spotlightUpgrade ? "upgrade-attribute" : undefined}
                   style={{
                     ...btnUpgradeStyle,
                     background: isMaxed ? "transparent" : canAfford ? "#1D9E75" : "#f1f5f9",
                     color: isMaxed ? "#f59e0b" : canAfford ? "white" : "#94a3b8",
                     border: isMaxed ? "2px solid #f59e0b" : "none",
+                    position: spotlightUpgrade ? "relative" : "static",
+                    zIndex: spotlightUpgrade ? 3 : 1,
+                    boxShadow: spotlightUpgrade ? "0 0 0 2px rgba(29,158,117,0.18), 0 10px 22px rgba(29,158,117,0.24)" : "none",
+                    cursor: lockedByTutorial ? "not-allowed" : btnUpgradeStyle.cursor,
+                    opacity: lockedByTutorial ? 0.55 : 1,
                   }}
                 >
                   {isMaxed ? "MAX" : `${cost} g`}

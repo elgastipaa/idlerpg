@@ -1,7 +1,14 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { calculatePrestigeEchoGain, canPrestige, getPrestigeResonanceSummary } from "../engine/progression/prestigeEngine";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
-import { buildSessionTelemetryEntries, buildSessionTelemetryReport, buildSessionTelemetrySections } from "../utils/runTelemetry";
+import {
+  buildAccountTelemetryEntries,
+  buildAccountTelemetryReport,
+  buildAccountTelemetrySections,
+  buildSessionTelemetryEntries,
+  buildSessionTelemetryReport,
+  buildSessionTelemetrySections,
+} from "../utils/runTelemetry";
 import { buildReplayDatasetSummary, buildReplayJsonExport, buildReplayLibraryExport, buildReplaySummary, buildReplayTextReport, deriveHumanReplayProfile, parseReplayImportPayload } from "../utils/replayLog";
 import { runBalanceBotSimulation } from "../engine/simulation/balanceBot";
 import { importGameFromText, isRecoveryMode, saveGame, serializeSaveGame } from "../utils/storage";
@@ -23,6 +30,16 @@ function formatShortDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
   return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+function formatDurationSeconds(totalSeconds = 0) {
+  const seconds = Math.max(0, Math.floor(Number(totalSeconds || 0)));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (minutes < 60) return `${minutes}m ${remainingSeconds}s`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m ${remainingSeconds}s`;
 }
 
 function slugifyName(value = "") {
@@ -66,6 +83,8 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
   const isDarkMode = state.settings?.theme === "dark";
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [openSections, setOpenSections] = useState({
+    diagnostics: false,
+    accountTelemetry: false,
     save: false,
     bot: false,
     replay: false,
@@ -76,6 +95,8 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
   const [saveCopied, setSaveCopied] = useState(false);
   const [saveImportText, setSaveImportText] = useState("");
   const [saveImportStatus, setSaveImportStatus] = useState("");
+  const [diagnosticsCopied, setDiagnosticsCopied] = useState(false);
+  const [accountTelemetryCopied, setAccountTelemetryCopied] = useState(false);
   const [replayCopied, setReplayCopied] = useState(false);
   const [replayJsonCopied, setReplayJsonCopied] = useState(false);
   const [replayBundleCopied, setReplayBundleCopied] = useState(false);
@@ -103,6 +124,9 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
   const telemetryEntries = useMemo(() => buildSessionTelemetryEntries(state), [state]);
   const telemetrySections = useMemo(() => buildSessionTelemetrySections(state), [state]);
   const telemetryText = useMemo(() => buildSessionTelemetryReport(state), [state]);
+  const accountTelemetryEntries = useMemo(() => buildAccountTelemetryEntries(state), [state]);
+  const accountTelemetrySections = useMemo(() => buildAccountTelemetrySections(state), [state]);
+  const accountTelemetryText = useMemo(() => buildAccountTelemetryReport(state), [state]);
   const replaySummary = useMemo(() => buildReplaySummary(state), [state]);
   const replayProfile = useMemo(() => deriveHumanReplayProfile(state.replay || {}), [state.replay]);
   const replayText = useMemo(() => buildReplayTextReport(state), [state]);
@@ -141,6 +165,29 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
   const buildTag = getPlayerBuildTag(player);
   const isLab = mode === "lab";
   const isStatsMode = !isLab;
+  const diagnosticsRows = useMemo(() => {
+    const stations = state?.sanctuary?.stations || {};
+    const unlockedStations = Object.entries(stations)
+      .filter(([, station]) => Boolean(station?.unlocked))
+      .map(([stationId, station]) => station?.label || stationId);
+    return [
+      { label: "Tab actual", value: state?.currentTab || "-" },
+      { label: "Fase expedicion", value: state?.expedition?.phase || "-" },
+      { label: "Onboarding", value: state?.onboarding?.completed ? "Completo" : (state?.onboarding?.step || "sin paso") },
+      { label: "Clase / Spec", value: `${state?.player?.class || "-"} / ${state?.player?.specialization || "-"}` },
+      { label: "Tier actual / max", value: `T${formatNumber(state?.combat?.currentTier || 1)} / T${formatNumber(state?.combat?.maxTier || 1)}` },
+      { label: "Prestige / Ecos", value: `${formatNumber(state?.prestige?.level || 0)} / ${formatNumber(state?.prestige?.echoes || 0)}` },
+      { label: "Portal al Abismo", value: state?.abyss?.portalUnlocked ? "Abierto" : (state?.abyss?.tier25BossCleared ? "Listo para research" : "Cerrado") },
+      { label: "Estaciones activas", value: unlockedStations.join(", ") || "-" },
+      { label: "Jobs corriendo", value: formatNumber((state?.sanctuary?.jobs || []).filter(job => job?.status === "running").length) },
+      { label: "Save age", value: state?.savedAt ? formatDurationSeconds((Date.now() - Number(state.savedAt || 0)) / 1000) : "-" },
+    ];
+  }, [state]);
+  const diagnosticsText = useMemo(() => [
+    "Diagnostico de Save",
+    "===================",
+    ...diagnosticsRows.map(row => `${row.label}: ${row.value}`),
+  ].join("\n"), [diagnosticsRows]);
 
   const damagePerTick = snapshot.damagePerTick || 0;
   const goldPerTick = snapshot.goldPerTick || 0;
@@ -158,6 +205,8 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
   useEffect(() => {
     if (!isMobile) {
       setOpenSections({
+        diagnostics: isLab,
+        accountTelemetry: isLab,
         save: isLab,
         bot: isLab,
         replay: isLab,
@@ -167,6 +216,8 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
       return;
     }
     setOpenSections({
+      diagnostics: isLab,
+      accountTelemetry: false,
       save: false,
       bot: false,
       replay: false,
@@ -232,6 +283,30 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
       window.setTimeout(() => setSaveCopied(false), 1800);
     } catch {
       setSaveCopied(false);
+    }
+  };
+
+  const handleCopyDiagnostics = async () => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(diagnosticsText);
+      }
+      setDiagnosticsCopied(true);
+      window.setTimeout(() => setDiagnosticsCopied(false), 1800);
+    } catch {
+      setDiagnosticsCopied(false);
+    }
+  };
+
+  const handleCopyAccountTelemetry = async () => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(accountTelemetryText);
+      }
+      setAccountTelemetryCopied(true);
+      window.setTimeout(() => setAccountTelemetryCopied(false), 1800);
+    } catch {
+      setAccountTelemetryCopied(false);
     }
   };
 
@@ -341,6 +416,15 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
     if (!window.confirm("Esto borra tu save local actual. Continuar?")) return;
     dispatch({ type: "RESET_ALL_PROGRESS", meta: { replay: false } });
     setSaveImportStatus("Progreso reiniciado. Empezaste una cuenta nueva.");
+  };
+
+  const handleRepairSave = () => {
+    if (recoveryMode) {
+      setSaveImportStatus("La reparacion no aplica dentro de recovery. Sali del modo recovery primero.");
+      return;
+    }
+    dispatch({ type: "REPAIR_SAVE_STATE", now: Date.now(), meta: { replay: false } });
+    setSaveImportStatus("Save remigrado con la version actual. Revisa Diagnostico y Santuario.");
   };
 
   const handleSaveReplayToLibrary = () => {
@@ -537,6 +621,73 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
       )}
 
       {isLab && <section style={lightPanelStyle}>
+        <button onClick={() => toggleSection("diagnostics")} style={accordionHeaderButtonStyle}>
+          <div>
+            <div style={sectionTitleStyle}>Diagnostico</div>
+            <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>
+              Estado actual del save, onboarding, fases y unlocks clave para detectar cuentas rotas o mal migradas.
+            </div>
+          </div>
+          <span style={accordionLabelStyle}>{openSections.diagnostics ? "Ocultar" : "Ver"}</span>
+        </button>
+
+        {openSections.diagnostics && (
+          <>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" }}>
+              <button onClick={handleCopyDiagnostics} style={actionBtnStyle("#0f766e", "#ffffff")}>
+                {diagnosticsCopied ? "Diagnostico copiado" : "Copiar diagnostico"}
+              </button>
+              <button onClick={handleRepairSave} style={actionBtnStyle("#ffffff", "#b45309", "1px solid #fcd34d")}>
+                Reparar save
+              </button>
+              <button onClick={handleResetSave} style={actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca")}>
+                Reiniciar progreso
+              </button>
+            </div>
+
+            <div style={tableStyle}>
+              {diagnosticsRows.map(row => (
+                <DataRow key={`diag-${row.label}`} label={row.label} value={row.value} />
+              ))}
+            </div>
+          </>
+        )}
+      </section>}
+
+      {isLab && <section style={lightPanelStyle}>
+        <button onClick={() => toggleSection("accountTelemetry")} style={accordionHeaderButtonStyle}>
+          <div>
+            <div style={sectionTitleStyle}>Telemetria de Cuenta</div>
+            <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>
+              Online/offline, uso por fase, tiempos a hitos y adopcion real de sistemas del Santuario para balance futuro.
+            </div>
+          </div>
+          <span style={accordionLabelStyle}>{openSections.accountTelemetry ? "Ocultar" : "Ver"}</span>
+        </button>
+
+        {openSections.accountTelemetry && (
+          <>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" }}>
+              <button onClick={handleCopyAccountTelemetry} style={actionBtnStyle("#0f766e", "#ffffff")}>
+                {accountTelemetryCopied ? "Telemetria copiada" : "Copiar reporte de cuenta"}
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
+              {accountTelemetrySections.map(section => (
+                <div key={section.id} style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
+                  <div style={sectionTitleStyle}>{section.title}</div>
+                  {(section.rows || []).map(entry => (
+                    <DataRow key={`${section.id}-${entry.label}`} label={entry.label} value={entry.value} />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </section>}
+
+      {isLab && <section style={lightPanelStyle}>
         <button onClick={() => toggleSection("save")} style={accordionHeaderButtonStyle}>
           <div>
             <div style={sectionTitleStyle}>Save</div>
@@ -553,7 +704,8 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
               <button onClick={handleSaveNow} style={actionBtnStyle("#0f766e", "#ffffff")}>Guardar ahora</button>
               <button onClick={handleCopySave} style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}>{saveCopied ? "Save copiado" : "Copiar JSON save"}</button>
               <button onClick={handleDownloadSave} style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}>Descargar save</button>
-              <button onClick={handleResetSave} style={actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca")}>Resetear save</button>
+              <button onClick={handleRepairSave} style={actionBtnStyle("#ffffff", "#b45309", "1px solid #fcd34d")}>Reparar save</button>
+              <button onClick={handleResetSave} style={actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca")}>Reiniciar progreso</button>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "0.95fr 1.05fr", gap: "10px" }}>

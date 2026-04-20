@@ -2,6 +2,7 @@ import React from "react";
 import Character from "./Character";
 import Skills from "./Skills";
 import Talents from "./Talents";
+import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 
 const SUBVIEW_META = {
   character: { label: "Ficha" },
@@ -45,23 +46,61 @@ export default function HeroView({ state, dispatch }) {
   const activeSubview = getHeroSubview(state?.currentTab || "character");
   const hasClass = Boolean(state?.player?.class);
   const hasSpec = Boolean(state?.player?.specialization);
-  const resolvedSubview = hasClass ? (hasSpec ? activeSubview : "character") : "character";
+  const heroFlags = state?.onboarding?.flags || {};
+  const tutorialHeroUnlocked = Boolean(
+    heroFlags?.heroTabUnlocked ||
+    heroFlags?.heroIntroSeen ||
+    heroFlags?.firstAttributeSpent ||
+    heroFlags?.firstTalentBought ||
+    heroFlags?.specChosen
+  );
+  const allowTutorialSubviews = hasClass && (hasSpec || tutorialHeroUnlocked);
+  const resolvedSubview = hasClass ? (allowTutorialSubviews ? activeSubview : "character") : "character";
   const reforgeLocked = !!state?.combat?.reforgeSession;
-  const showSubviewButtons = hasClass && hasSpec;
+  const showSubviewButtons = allowTutorialSubviews;
+  const onboardingStep = state?.onboarding?.step || null;
 
   return (
     <div style={{ display: "grid", gap: "10px", padding: "10px" }}>
+      <style>{`
+        @keyframes heroSubviewSpotlightPulse {
+          0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
+          70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
+          100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
+        }
+      `}</style>
       {showSubviewButtons && (
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           {Object.entries(SUBVIEW_META).map(([viewId, meta]) => {
             const active = resolvedSubview === viewId;
             const disabled = (reforgeLocked && !active) || (!hasClass && viewId !== "character");
+            const spotlight =
+              (onboardingStep === ONBOARDING_STEPS.HERO_CHARACTER_INTRO && viewId === "character") ||
+              (onboardingStep === ONBOARDING_STEPS.HERO_SKILLS_INTRO && viewId === "skills") ||
+              (onboardingStep === ONBOARDING_STEPS.HERO_TALENTS_INTRO && viewId === "talents");
             return (
               <button
                 key={viewId}
                 onClick={() => dispatch({ type: "SET_TAB", tab: viewId })}
                 disabled={disabled}
-                style={buttonStyle({ active, disabled })}
+                data-onboarding-target={
+                  spotlight
+                    ? viewId === "character"
+                      ? "hero-subview-character"
+                      : viewId === "skills"
+                      ? "hero-subview-skills"
+                      : "hero-subview-talents"
+                    : undefined
+                }
+                style={{
+                  ...buttonStyle({ active, disabled }),
+                  position: spotlight ? "relative" : "static",
+                  zIndex: spotlight ? 2 : 1,
+                  boxShadow: spotlight
+                    ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.14)"
+                    : buttonStyle({ active, disabled }).boxShadow,
+                  animation: spotlight ? "heroSubviewSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                }}
               >
                 {meta.label}
               </button>

@@ -698,7 +698,7 @@ export function selectClass(state, classId) {
 // SELECT SPECIALIZATION
 // ============================================================
 
-export function selectSpecialization(state, specId) {
+export function selectSpecialization(state, specId, options = {}) {
   const playerClass = CLASSES.find(c => c.id === state.player.class);
   if (!playerClass || state.player.specialization) return state;
 
@@ -708,7 +708,7 @@ export function selectSpecialization(state, specId) {
   const { stat, value } = spec.unlockCondition;
   const current = getProgressValue(state, stat);
 
-  if (current < value) return state;
+  if (current < value && !options.ignoreRequirement) return state;
 
   let p = {
     ...state.player,

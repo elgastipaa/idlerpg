@@ -21,6 +21,7 @@ import {
   getLegendaryPowerSummary,
 } from "../utils/itemPresentation";
 import { getCompactRarityLabel, getItemGlyph, getUpgradeBadgeTone } from "../utils/itemVisuals";
+import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 
 const BULK_SELL_RARITIES = ["common", "magic", "rare", "epic"];
 const AUTO_LOOT_RARITIES = ["common", "magic", "rare", "epic"];
@@ -88,7 +89,7 @@ export default function Inventory({ state, player, dispatch }) {
   const inventory = player.inventory || [];
   const equipment = player.equipment || { weapon: null, armor: null };
   const onboardingStep = state?.onboarding?.step || null;
-  const equipTutorialActive = onboardingStep === "equip_first_item";
+  const equipTutorialActive = onboardingStep === ONBOARDING_STEPS.EQUIP_FIRST_ITEM;
   const lockInventorySideActions = equipTutorialActive;
   const activeBuildTag = getPlayerBuildTag(player);
   const lootRules = state?.settings?.lootRules || {
@@ -130,6 +131,31 @@ export default function Inventory({ state, player, dispatch }) {
     });
   }, [inventory, showOnlyUpgrades, equipment]);
 
+  useEffect(() => {
+    if (!equipTutorialActive) return undefined;
+    let cancelled = false;
+    let attempt = 0;
+
+    const scrollToTutorialItem = () => {
+      if (cancelled) return;
+      const target = document.querySelector('[data-onboarding-target="tutorial-first-item"]');
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      attempt += 1;
+      if (attempt < 8) {
+        window.setTimeout(scrollToTutorialItem, 80);
+      }
+    };
+
+    const timer = window.setTimeout(scrollToTutorialItem, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [equipTutorialActive, sortedItems?.[0]?.id]);
+
   const detailItem = [...inventory, ...(equipment.weapon ? [equipment.weapon] : []), ...(equipment.armor ? [equipment.armor] : [])]
     .find(item => item.id === detailItemId) || null;
   const detailItemLocation = detailItem ? getItemLocation(detailItem, equipment) : null;
@@ -150,6 +176,13 @@ export default function Inventory({ state, player, dispatch }) {
 
   return (
     <div style={{ padding: isMobile ? "0.9rem" : "1.25rem", maxWidth: "100%", display: "flex", flexDirection: "column", gap: "0.9rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+      <style>{`
+        @keyframes inventorySpotlightPulse {
+          0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.24); }
+          70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
+          100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
+        }
+      `}</style>
       <header style={{ borderBottom: "1px solid var(--color-border-primary, #e2e8f0)", paddingBottom: "0.8rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.7rem", gap: "12px" }}>
           <div>
@@ -277,6 +310,7 @@ export default function Inventory({ state, player, dispatch }) {
               <InventoryRow
                 key={item.id}
                 item={item}
+                tutorialTarget={equipTutorialActive && sortedItems[0]?.id === item.id}
                 equippedCompare={item.type === "weapon" ? equipment.weapon : equipment.armor}
                 activeBuildTag={activeBuildTag}
                 wishlistAffixes={wishlistAffixes}
@@ -294,6 +328,7 @@ export default function Inventory({ state, player, dispatch }) {
                   setPendingSellId(null);
                 }}
                 lockInteractions={lockInventorySideActions}
+                spotlightEquip={equipTutorialActive}
               />
             ))}
           </div>
@@ -337,6 +372,7 @@ export default function Inventory({ state, player, dispatch }) {
           onEquip={() => dispatch({ type: "EQUIP_ITEM", item: detailItem })}
           onSell={() => dispatch({ type: "SELL_ITEM", item: detailItem })}
           canSell={!detailItemLocation}
+          spotlightEquip={equipTutorialActive}
         />
       )}
     </div>
@@ -626,7 +662,7 @@ function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode
   );
 }
 
-function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, isDarkMode = false, isMobile = false, pendingSell, onOpen, onEquip, onSell, lockInteractions = false }) {
+function InventoryRow({ item, tutorialTarget = false, equippedCompare, activeBuildTag, wishlistAffixes, isDarkMode = false, isMobile = false, pendingSell, onOpen, onEquip, onSell, lockInteractions = false, spotlightEquip = false }) {
   const color = getRarityColor(item.rarity);
   const compareItem = equippedCompare || { bonus: {}, rating: 0 };
   const isBetter = (item.rating || 0) > (compareItem.rating || 0);
@@ -638,7 +674,18 @@ function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, 
   const topStats = getPrioritizedStatEntries(item.bonus || {}, 2);
   const legendaryPower = getLegendaryPowerSummary(item);
   return (
-    <div style={{ ...compactCardStyle, borderLeft: `4px solid ${color}`, gap: "8px" }}>
+    <div
+      data-onboarding-target={tutorialTarget ? "tutorial-first-item" : undefined}
+      style={{
+        ...compactCardStyle,
+        borderLeft: `4px solid ${color}`,
+        gap: "8px",
+        boxShadow: tutorialTarget
+          ? "0 0 0 2px rgba(83,74,183,0.16), 0 10px 24px rgba(83,74,183,0.16)"
+          : compactCardStyle.boxShadow,
+        animation: tutorialTarget ? "inventorySpotlightPulse 1600ms ease-in-out infinite" : "none",
+      }}
+    >
       {hasPerfect && (
         <div style={{ position: "absolute", top: "6px", right: "8px", fontSize: "0.8rem", color: "var(--tone-warning, #f59e0b)", textShadow: "0 1px 8px rgba(245,158,11,0.4)" }}>★</div>
       )}
@@ -698,7 +745,20 @@ function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, 
       {implicitEntries.length > 0 && <div style={{ fontSize: "0.62rem", color: "var(--color-text-info, #4338ca)", fontWeight: "800" }}>Implicito: {formatImplicitSummary(item)}</div>}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-        <button onClick={onEquip} style={{ ...btnBase, background: "var(--tone-accent-soft, #ede9fe)", color: "var(--tone-accent, #534AB7)", padding: "8px 10px" }}>EQUIPAR</button>
+        <button
+          onClick={onEquip}
+          data-onboarding-target={spotlightEquip ? "equip-item" : undefined}
+          style={{
+            ...btnBase,
+            background: "var(--tone-accent-soft, #ede9fe)",
+            color: "var(--tone-accent, #534AB7)",
+            padding: "8px 10px",
+            boxShadow: spotlightEquip ? "0 0 0 2px rgba(83,74,183,0.16), 0 8px 20px rgba(83,74,183,0.18)" : "none",
+            animation: spotlightEquip ? "inventorySpotlightPulse 1600ms ease-in-out infinite" : "none",
+          }}
+        >
+          EQUIPAR
+        </button>
         <button onClick={lockInteractions ? undefined : onSell} disabled={lockInteractions} style={{ ...btnBase, background: pendingSell ? "#7f1d1d" : "var(--color-background-secondary, #ffffff)", color: pendingSell ? "#fff" : "#D85A30", border: `1px solid ${pendingSell ? "#ef4444" : "#D85A30"}`, opacity: lockInteractions ? 0.45 : 1, cursor: lockInteractions ? "not-allowed" : "pointer" }}>
           {pendingSell ? `CONFIRMAR ${formatNumber(item.sellValue || 0)}g` : `VENDER ${formatNumber(item.sellValue || 0)}g`}
         </button>
@@ -707,7 +767,7 @@ function InventoryRow({ item, equippedCompare, activeBuildTag, wishlistAffixes, 
   );
 }
 
-function ItemDetailModal({ item, equippedCompare, activeBuildTag, wishlistAffixes, isDarkMode = false, onClose, onEquip, onSell, canSell = true }) {
+function ItemDetailModal({ item, equippedCompare, activeBuildTag, wishlistAffixes, isDarkMode = false, onClose, onEquip, onSell, canSell = true, spotlightEquip = false }) {
   const [showAllAffixes, setShowAllAffixes] = useState(false);
   const compareItem = equippedCompare || { bonus: {}, rating: 0 };
   const stats = getItemStats(item);
@@ -823,7 +883,20 @@ function ItemDetailModal({ item, equippedCompare, activeBuildTag, wishlistAffixe
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-          <button onClick={onEquip} style={{ ...btnBase, background: "var(--tone-accent-soft, #ede9fe)", color: "var(--tone-accent, #534AB7)", padding: "10px" }}>EQUIPAR</button>
+          <button
+            onClick={onEquip}
+            data-onboarding-target={spotlightEquip ? "equip-item" : undefined}
+            style={{
+              ...btnBase,
+              background: "var(--tone-accent-soft, #ede9fe)",
+              color: "var(--tone-accent, #534AB7)",
+              padding: "10px",
+              boxShadow: spotlightEquip ? "0 0 0 2px rgba(83,74,183,0.16), 0 8px 20px rgba(83,74,183,0.18)" : "none",
+              animation: spotlightEquip ? "inventorySpotlightPulse 1600ms ease-in-out infinite" : "none",
+            }}
+          >
+            EQUIPAR
+          </button>
           <button
             onClick={onSell}
             disabled={!canSell}

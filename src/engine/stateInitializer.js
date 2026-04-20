@@ -2,7 +2,12 @@
 import { ENEMIES } from "../data/enemies";
 import { BOSSES } from "../data/bosses";
 import { normalizeStoredItem } from "../utils/loot";
-import { createEmptySessionAnalytics, sanitizeSessionAnalytics } from "../utils/runTelemetry";
+import {
+  createEmptyAccountTelemetry,
+  createEmptySessionAnalytics,
+  sanitizeAccountTelemetry,
+  sanitizeSessionAnalytics,
+} from "../utils/runTelemetry";
 import { createEmptyReplayLibrary, createEmptyReplayLog, normalizeReplayLibrary, normalizeReplayLog } from "../utils/replayLog";
 import { calcItemRating } from "./inventory/inventoryEngine";
 import { spawnEnemy } from "./combat/enemyEngine";
@@ -120,6 +125,24 @@ const DEFAULT_LOOT_RULES = {
 
 const DEFAULT_RUN_CONTEXT = createRunContext({ firstRun: true });
 
+export function createEmptySaveDiagnostics() {
+  return {
+    legacyNeedsRepair: false,
+    legacyPromptShownCount: 0,
+    lastRepairAt: null,
+  };
+}
+
+export function sanitizeSaveDiagnostics(rawDiagnostics = {}) {
+  return {
+    ...createEmptySaveDiagnostics(),
+    ...(rawDiagnostics || {}),
+    legacyNeedsRepair: Boolean(rawDiagnostics?.legacyNeedsRepair),
+    legacyPromptShownCount: Math.max(0, Math.floor(Number(rawDiagnostics?.legacyPromptShownCount || 0))),
+    lastRepairAt: rawDiagnostics?.lastRepairAt ? Number(rawDiagnostics.lastRepairAt) || null : null,
+  };
+}
+
 function createEmptySanctuaryState() {
   return {
     stash: [],
@@ -183,8 +206,22 @@ function mergeNumericBonuses(target = {}, source = {}) {
   return next;
 }
 
-function deriveExpeditionPhase({ player = {}, combat = {} } = {}) {
+function deriveExpeditionPhase({ player = {}, combat = {}, expedition = {}, onboarding = {} } = {}) {
+  const explicitPhase = expedition?.phase;
+  const firstExtractionCompleted = Boolean(onboarding?.flags?.firstExtractionCompleted);
   if (combat?.pendingRunSetup) return "setup";
+  if (explicitPhase === "extraction") return "extraction";
+  if (explicitPhase === "sanctuary") {
+    if (
+      player?.class &&
+      (player?.specialization || Number(player?.prestigeLevelHint || 0) <= 0) &&
+      !firstExtractionCompleted
+    ) {
+      return "active";
+    }
+    return "sanctuary";
+  }
+  if (explicitPhase === "active") return "active";
   if (player?.class && (player?.specialization || Number(player?.prestigeLevelHint || 0) <= 0)) return "active";
   return "sanctuary";
 }
@@ -471,6 +508,8 @@ const freshState = {
 
   replay: createEmptyReplayLog(),
   replayLibrary: createEmptyReplayLibrary(),
+  accountTelemetry: createEmptyAccountTelemetry(),
+  saveDiagnostics: createEmptySaveDiagnostics(),
 };
 
 export function createFreshState() {
@@ -519,7 +558,7 @@ function normalizeEnemy(enemy, currentTier, runContext) {
   };
 }
 
-function mergeStateWithDefaults(base, incoming) {
+export function mergeStateWithDefaults(base, incoming) {
   if (!incoming) return base;
   const migratedIncoming = migrateTalentsToV2(incoming);
   const normalizedReplay = normalizeReplayLog(migratedIncoming.replay || base.replay);
@@ -602,9 +641,11 @@ function mergeStateWithDefaults(base, incoming) {
       specialization: rawPlayer.specialization ?? base.player.specialization,
       prestigeLevelHint: prestigeLevel,
     },
+    expedition: rawExpedition,
     combat: {
       pendingRunSetup,
     },
+    onboarding: migratedIncoming.onboarding || {},
   });
   const preLaboratorySanctuary = {
     ...createEmptySanctuaryState(),
@@ -758,6 +799,27 @@ function mergeStateWithDefaults(base, incoming) {
     Boolean(migratedIncoming.onboarding) &&
     !Boolean(migratedIncoming.onboarding?.completed) &&
     (hasHistoricSanctuaryProgress || hasHistoricAccountProgress);
+
+  const hasPersistedSaveDiagnostics = typeof migratedIncoming.saveDiagnostics === "object" && migratedIncoming.saveDiagnostics != null;
+  const legacySchemaDetected =
+    !hasPersistedSaveDiagnostics &&
+    (
+      shouldForceCompleteLegacyOnboarding ||
+      hasHistoricSanctuaryProgress ||
+      hasHistoricAccountProgress ||
+      Array.isArray(rawSanctuary.stash) ||
+      rawCombat.pendingRunSigilId != null ||
+      rawCombat.pendingRunSigilIds != null ||
+      rawSanctuary.deepForgeSession != null
+    );
+  const normalizedSaveDiagnostics = sanitizeSaveDiagnostics(
+    legacySchemaDetected
+      ? {
+          ...(migratedIncoming.saveDiagnostics || {}),
+          legacyNeedsRepair: true,
+        }
+      : (migratedIncoming.saveDiagnostics || base.saveDiagnostics)
+  );
 
   const normalizedOnboarding =
     shouldForceCompleteLegacyOnboarding || (!migratedIncoming.onboarding && shouldSkipFreshOnboarding)
@@ -967,6 +1029,8 @@ function mergeStateWithDefaults(base, incoming) {
     codex: recordCodexSighting(normalizedCodex, normalizeEnemy(rawCombat.enemy, rawCombat.currentTier, normalizedRunContext)),
     replay: normalizedReplay,
     replayLibrary: normalizedReplayLibrary,
+    accountTelemetry: sanitizeAccountTelemetry(migratedIncoming.accountTelemetry || base.accountTelemetry),
+    saveDiagnostics: normalizedSaveDiagnostics,
   };
 
   const detectedCorruption =

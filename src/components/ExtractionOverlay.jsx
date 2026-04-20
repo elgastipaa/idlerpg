@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { getRarityColor } from "../constants/rarity";
+import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 
 function panelStyle() {
   return {
@@ -76,7 +77,13 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
   const projectOptions = preview.projectOptions || [];
   const selectedCargoIds = new Set(expedition.selectedCargoIds || []);
   const selectedProjectItemId = expedition.selectedProjectItemId || null;
-  const canCancel = expedition.exitReason !== "death" && !!state?.onboarding?.flags?.firstExtractionCompleted;
+  const onboardingStep = state?.onboarding?.step || null;
+  const extractionTutorialActive = [
+    ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO,
+    ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM,
+    ONBOARDING_STEPS.EXTRACTION_CONFIRM,
+  ].includes(onboardingStep);
+  const canCancel = expedition.exitReason !== "death" && !extractionTutorialActive;
   const selectedProject = projectOptions.find(option => option.itemId === selectedProjectItemId) || null;
   const projectUnlocked = Number(preview.availableSlots?.project || 0) > 0;
   const extractionSteps = [
@@ -106,9 +113,48 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
     },
   ];
 
+  useEffect(() => {
+    if (!extractionTutorialActive) return undefined;
+    let cancelled = false;
+    let attempt = 0;
+
+    const selector =
+      onboardingStep === ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO
+        ? '[data-onboarding-target="tutorial-extraction-cargo"]'
+        : onboardingStep === ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM
+          ? '[data-onboarding-target="tutorial-extraction-item"]'
+          : '[data-onboarding-target="tutorial-extraction-confirm"]';
+
+    const scrollToTarget = () => {
+      if (cancelled) return;
+      const target = document.querySelector(selector);
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      attempt += 1;
+      if (attempt < 8) {
+        window.setTimeout(scrollToTarget, 80);
+      }
+    };
+
+    const timer = window.setTimeout(scrollToTarget, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [extractionTutorialActive, onboardingStep, cargoOptions.length, projectOptions.length]);
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,0.72)", zIndex: 9200, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", padding: isMobile ? "0" : "24px" }}>
       <div style={{ width: "100%", maxWidth: "980px", maxHeight: "100vh", overflow: "auto", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", borderRadius: isMobile ? "0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", display: "grid", gap: "12px", padding: isMobile ? "18px 16px 20px" : "20px 22px 22px" }}>
+        <style>{`
+          @keyframes extractionSpotlightPulse {
+            0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
+            70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
+            100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
+          }
+        `}</style>
         <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "start" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: expedition.exitReason === "death" ? "var(--tone-danger, #D85A30)" : "var(--tone-accent, #4338ca)" }}>
@@ -181,8 +227,19 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                 </div>
               ) : cargoOptions.map(option => {
                 const active = selectedCargoIds.has(option.id);
+                const spotlight = onboardingStep === ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO && cargoOptions[0]?.id === option.id;
                 return (
-                  <button key={option.id} onClick={() => dispatch({ type: "SELECT_EXTRACTION_CARGO", cargoId: option.id })} style={chipStyle(active)}>
+                  <button
+                    key={option.id}
+                    onClick={() => dispatch({ type: "SELECT_EXTRACTION_CARGO", cargoId: option.id })}
+                    data-onboarding-target={spotlight ? "tutorial-extraction-cargo" : undefined}
+                    style={{
+                      ...chipStyle(active),
+                      position: spotlight ? "relative" : "static",
+                      zIndex: spotlight ? 2 : 1,
+                      animation: spotlight ? "extractionSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                    }}
+                  >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
                       <div style={{ fontSize: "0.8rem", fontWeight: "900" }}>{option.label}</div>
                       <div style={{ fontSize: "0.68rem", fontWeight: "900", color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)" }}>
@@ -220,10 +277,21 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                       ? "La salida de emergencia no asegura items rescatados. Mas adelante entran seguros."
                       : "No aparecieron candidatos elegibles para rescatar en esta salida."}
                   </div>
-                ) : projectOptions.map(option => {
-                  const active = selectedProjectItemId === option.itemId;
-                  return (
-                    <button key={option.itemId} onClick={() => dispatch({ type: "SELECT_EXTRACTION_PROJECT", itemId: option.itemId })} style={chipStyle(active, Number(preview.availableSlots?.project || 0) <= 0)}>
+              ) : projectOptions.map(option => {
+                const active = selectedProjectItemId === option.itemId;
+                const spotlight = onboardingStep === ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM && projectOptions[0]?.itemId === option.itemId;
+                return (
+                    <button
+                      key={option.itemId}
+                      onClick={() => dispatch({ type: "SELECT_EXTRACTION_PROJECT", itemId: option.itemId })}
+                      data-onboarding-target={spotlight ? "tutorial-extraction-item" : undefined}
+                      style={{
+                        ...chipStyle(active, Number(preview.availableSlots?.project || 0) <= 0),
+                        position: spotlight ? "relative" : "static",
+                        zIndex: spotlight ? 2 : 1,
+                        animation: spotlight ? "extractionSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                      }}
+                    >
                       <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
                         <div style={{ fontSize: "0.78rem", fontWeight: "900", color: getRarityColor(option.rarity) }}>{option.name}</div>
                         <div style={{ fontSize: "0.64rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
@@ -275,7 +343,13 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
             )}
             <button
               onClick={() => dispatch({ type: "CONFIRM_EXTRACTION" })}
-              style={actionButtonStyle({ primary: preview.prestige?.mode !== "emergency", danger: preview.prestige?.mode === "emergency" })}
+              data-onboarding-target={onboardingStep === ONBOARDING_STEPS.EXTRACTION_CONFIRM ? "tutorial-extraction-confirm" : undefined}
+              style={{
+                ...actionButtonStyle({ primary: preview.prestige?.mode !== "emergency", danger: preview.prestige?.mode === "emergency" }),
+                position: onboardingStep === ONBOARDING_STEPS.EXTRACTION_CONFIRM ? "relative" : "static",
+                zIndex: onboardingStep === ONBOARDING_STEPS.EXTRACTION_CONFIRM ? 2 : 1,
+                animation: onboardingStep === ONBOARDING_STEPS.EXTRACTION_CONFIRM ? "extractionSpotlightPulse 1600ms ease-in-out infinite" : "none",
+              }}
             >
               {preview.prestige?.mode === "echoes"
                 ? "Extraer y convertir a ecos"

@@ -16,6 +16,7 @@ import {
   getNodeTreeSpendRequirement,
   getNodeUpgradeCost,
 } from "../engine/talents/talentTreeEngine";
+import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 
 const TYPE_COLORS = {
   aura: "var(--tone-accent, #534AB7)",
@@ -548,7 +549,7 @@ function getNodeActionLabel(nodeState, compact = false) {
   return `+${nodeState.nextCost || 0}${compact ? "" : " TP"}`;
 }
 
-function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, prereqText = "" }) {
+function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, prereqText = "", spotlight = false }) {
   const displayType = getTalentDisplayType(nodeState.activeTalent);
   const typeColor = TYPE_COLORS[displayType] || "var(--color-text-secondary, #64748b)";
   const isUnlocked = nodeState.currentLevel > 0;
@@ -627,7 +628,12 @@ function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, pre
       <button
         onClick={() => dispatch({ type: "UPGRADE_TALENT_NODE", nodeId: node.talent.id })}
         disabled={!canUpgrade}
-        style={treeButtonStyle(nodeState.isMaxed, canUpgrade)}
+        data-onboarding-target={spotlight ? "buy-talent" : undefined}
+        style={{
+          ...treeButtonStyle(nodeState.isMaxed, canUpgrade),
+          boxShadow: spotlight ? "0 0 0 2px rgba(99,102,241,0.16), 0 8px 20px rgba(99,102,241,0.18)" : "none",
+          animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
+        }}
       >
         {getNodeActionLabel(nodeState)}
       </button>
@@ -635,7 +641,7 @@ function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, pre
   );
 }
 
-function MobileTalentNodeRow({ node, nodeState, justUnlocked, dispatch, prereqText }) {
+function MobileTalentNodeRow({ node, nodeState, justUnlocked, dispatch, prereqText, spotlight = false }) {
   const displayType = getTalentDisplayType(nodeState.activeTalent);
   const typeColor = TYPE_COLORS[displayType] || "var(--color-text-secondary, #64748b)";
   const isUnlocked = nodeState.currentLevel > 0;
@@ -670,7 +676,12 @@ function MobileTalentNodeRow({ node, nodeState, justUnlocked, dispatch, prereqTe
         <button
           onClick={() => dispatch({ type: "UPGRADE_TALENT_NODE", nodeId: node.talent.id })}
           disabled={!canUpgrade}
-          style={treeButtonStyle(nodeState.isMaxed, canUpgrade, true)}
+          data-onboarding-target={spotlight ? "buy-talent" : undefined}
+          style={{
+            ...treeButtonStyle(nodeState.isMaxed, canUpgrade, true),
+            boxShadow: spotlight ? "0 0 0 2px rgba(99,102,241,0.16), 0 8px 20px rgba(99,102,241,0.18)" : "none",
+            animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
+          }}
         >
           {compactButtonLabel}
         </button>
@@ -747,6 +758,8 @@ export default function Talents({ state, dispatch }) {
   const [recentUnlocks, setRecentUnlocks] = useState({});
   const [canScrollTreesLeft, setCanScrollTreesLeft] = useState(false);
   const [canScrollTreesRight, setCanScrollTreesRight] = useState(false);
+  const onboardingStep = state?.onboarding?.step || null;
+  const spotlightTalentPurchase = onboardingStep === ONBOARDING_STEPS.BUY_TALENT;
   const trackedUnlocksRef = useRef(unlockedTalents || []);
   const treeTabsScrollerRef = useRef(null);
 
@@ -768,6 +781,31 @@ export default function Talents({ state, dispatch }) {
     const timer = setTimeout(() => setRecentUnlocks({}), 950);
     return () => clearTimeout(timer);
   }, [unlockedTalents]);
+
+  useEffect(() => {
+    if (!spotlightTalentPurchase) return undefined;
+    let cancelled = false;
+    let attempt = 0;
+
+    const scrollToTutorialTalent = () => {
+      if (cancelled) return;
+      const target = document.querySelector('[data-onboarding-target="buy-talent"]');
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      attempt += 1;
+      if (attempt < 8) {
+        window.setTimeout(scrollToTutorialTalent, 80);
+      }
+    };
+
+    const timer = window.setTimeout(scrollToTutorialTalent, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [spotlightTalentPurchase, selectedTreeId]);
 
   const playerLevel = player.level || 1;
   const treesByProgression = getTalentTreesForPlayer({ playerClass, playerSpec, playerLevel });
@@ -826,6 +864,9 @@ export default function Talents({ state, dispatch }) {
     () => (selectedTree?.nodes || []).filter(node => canUnlockNode(state, node.talent.id)),
     [selectedTree, state]
   );
+  const tutorialTalentNodeId = spotlightTalentPurchase
+    ? (selectedTreeBuyableNodes[0]?.talent?.id || null)
+    : null;
   const totalBuyableNodes = useMemo(
     () => treeData.reduce((total, item) => total + item.nodes.filter(node => canUnlockNode(state, node.talent.id)).length, 0),
     [treeData, state]
@@ -834,6 +875,13 @@ export default function Talents({ state, dispatch }) {
 
   return (
     <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "6px", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", minHeight: "100%" }}>
+      <style>{`
+        @keyframes talentSpotlightPulse {
+          0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.24); }
+          70% { box-shadow: 0 0 0 10px rgba(99,102,241,0); }
+          100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+        }
+      `}</style>
       <div style={{ display: "flex", flexDirection: "column", gap: "10px", paddingBottom: "4px" }}>
         <header style={headerStyle}>
           <div>
@@ -967,6 +1015,13 @@ export default function Talents({ state, dispatch }) {
                           justUnlocked={!!justUnlocked}
                           dispatch={dispatch}
                           prereqText={prereqText}
+                          spotlight={
+                            spotlightTalentPurchase &&
+                            tutorialTalentNodeId != null &&
+                            node.talent.id === tutorialTalentNodeId &&
+                            nodeState.canUnlockNext &&
+                            !!nodeState.nextTalent
+                          }
                         />
                       );
                     })}
@@ -1001,6 +1056,13 @@ export default function Talents({ state, dispatch }) {
                             justUnlocked={!!justUnlocked}
                             dispatch={dispatch}
                             prereqText={prereqText}
+                            spotlight={
+                              spotlightTalentPurchase &&
+                              tutorialTalentNodeId != null &&
+                              node.talent.id === tutorialTalentNodeId &&
+                              nodeState.canUnlockNext &&
+                              !!nodeState.nextTalent
+                            }
                           />
                         );
                       })}

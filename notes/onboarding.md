@@ -3,6 +3,31 @@
 Fecha: 2026-04-19 UTC  
 Estado: versión consolidada después de iterar `notes/onboarding_mio.md` y `notes/onboarding_tabla.md`
 
+## Nota de implementación actual
+
+El tramo temprano ya no usa el orden viejo `nivel 5 -> spec -> Heroe` antes del primer boss.
+
+La versión actual que estamos probando es:
+
+1. `Santuario` vestíbulo
+2. `Iniciar expedición`
+3. elegir `clase`
+4. combate automático
+5. `Auto-avance`
+6. `Mochila` + primer equip
+7. primer boss
+8. primera muerte contra boss
+9. espera de `2s`
+10. abrir `Heroe`
+11. elegir `spec`
+12. `Ficha`
+13. `Atributos`
+14. `Talentos`
+15. volver a la run
+16. matar el boss para continuar el tutorial
+
+Este documento mantiene la tesis general, pero el detalle operativo del beat vive ahora en [beats.md](./beats.md).
+
 ## 1. Tesis
 
 El onboarding correcto tiene que enseñar el juego en capas, no todo junto.

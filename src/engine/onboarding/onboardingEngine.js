@@ -1,23 +1,32 @@
 import { ITEMS } from "../../data/items";
+import { PLAYER_UPGRADES } from "../../data/playerUpgrades";
 import { addToInventory } from "../inventory/inventoryEngine";
 import { materializeItem } from "../../utils/loot";
 
 export const ONBOARDING_STEPS = {
   CHOOSE_CLASS: "choose_class",
   EXPEDITION_INTRO: "expedition_intro",
+  COMBAT_INTRO: "combat_intro",
   AUTO_ADVANCE: "auto_advance",
   FIRST_DEATH: "first_death",
+  OPEN_HERO: "open_hero",
   CHOOSE_SPEC: "choose_spec",
   HERO_INTRO: "hero_intro",
+  HERO_SKILLS_INTRO: "hero_skills_intro",
   SPEND_ATTRIBUTE: "spend_attribute",
+  HERO_TALENTS_INTRO: "hero_talents_intro",
   TALENT_INTRO: "talent_intro",
   BUY_TALENT: "buy_talent",
+  HERO_CHARACTER_INTRO: "hero_character_intro",
   COMBAT_AFTER_TALENT: "combat_after_talent",
   EQUIP_INTRO: "equip_intro",
   EQUIP_FIRST_ITEM: "equip_first_item",
   FIRST_BOSS: "first_boss",
   HUNT_INTRO: "hunt_intro",
   EXTRACTION_READY: "extraction_ready",
+  EXTRACTION_SELECT_CARGO: "extraction_select_cargo",
+  EXTRACTION_SELECT_ITEM: "extraction_select_item",
+  EXTRACTION_CONFIRM: "extraction_confirm",
   FIRST_SANCTUARY_RETURN: "first_sanctuary_return",
   RESEARCH_DISTILLERY: "research_distillery",
   DISTILLERY_READY: "distillery_ready",
@@ -33,6 +42,7 @@ export const ONBOARDING_STEPS = {
 
 const INFO_STEPS = new Set([
   ONBOARDING_STEPS.EXPEDITION_INTRO,
+  ONBOARDING_STEPS.COMBAT_INTRO,
   ONBOARDING_STEPS.FIRST_DEATH,
   ONBOARDING_STEPS.HERO_INTRO,
   ONBOARDING_STEPS.TALENT_INTRO,
@@ -55,8 +65,10 @@ const INFO_STEPS = new Set([
 const BASE_ONBOARDING_FLAGS = {
   classChosen: false,
   expeditionIntroSeen: false,
+  combatIntroSeen: false,
   autoAdvanceUnlocked: false,
   firstDeathSeen: false,
+  heroTabUnlocked: false,
   specChosen: false,
   heroIntroSeen: false,
   firstAttributeSpent: false,
@@ -82,18 +94,29 @@ const BASE_ONBOARDING_FLAGS = {
 export function createEmptyOnboardingState() {
   return {
     completed: false,
-    step: ONBOARDING_STEPS.CHOOSE_CLASS,
+    step: ONBOARDING_STEPS.EXPEDITION_INTRO,
     flags: { ...BASE_ONBOARDING_FLAGS },
     equipKillTarget: null,
+    bossHeroDelayTicks: 0,
+    bossHeroQueued: false,
+    extractionReadyDelayTicks: 0,
   };
 }
 
 export function normalizeOnboardingState(onboarding = {}) {
+  const hasExplicitStep =
+    onboarding != null && Object.prototype.hasOwnProperty.call(onboarding, "step");
+  const normalizedStep = onboarding?.completed
+    ? null
+    : hasExplicitStep
+      ? (onboarding.step === undefined ? ONBOARDING_STEPS.EXPEDITION_INTRO : onboarding.step)
+      : ONBOARDING_STEPS.EXPEDITION_INTRO;
+
   return {
     ...createEmptyOnboardingState(),
     ...(onboarding || {}),
     completed: Boolean(onboarding?.completed),
-    step: onboarding?.completed ? null : onboarding?.step || ONBOARDING_STEPS.CHOOSE_CLASS,
+    step: normalizedStep,
     flags: {
       ...BASE_ONBOARDING_FLAGS,
       ...(onboarding?.flags || {}),
@@ -102,6 +125,9 @@ export function normalizeOnboardingState(onboarding = {}) {
       onboarding?.equipKillTarget == null
         ? null
         : Math.max(0, Math.floor(Number(onboarding.equipKillTarget || 0))),
+    bossHeroDelayTicks: Math.max(0, Math.floor(Number(onboarding?.bossHeroDelayTicks || 0))),
+    bossHeroQueued: Boolean(onboarding?.bossHeroQueued),
+    extractionReadyDelayTicks: Math.max(0, Math.floor(Number(onboarding?.extractionReadyDelayTicks || 0))),
   };
 }
 
@@ -110,7 +136,20 @@ export function isOnboardingBlocking(state = {}) {
 }
 
 export function shouldShowHeroPrimaryTab(state = {}) {
-  return Boolean(state?.player?.specialization) || state?.currentTab === "character";
+  const heroFlags = state?.onboarding?.flags || {};
+  return (
+    Boolean(state?.player?.specialization) ||
+    Boolean(
+      heroFlags?.heroTabUnlocked ||
+      heroFlags?.heroIntroSeen ||
+      heroFlags?.firstAttributeSpent ||
+      heroFlags?.firstTalentBought ||
+      heroFlags?.specChosen
+    ) ||
+    state?.currentTab === "character" ||
+    state?.currentTab === "skills" ||
+    state?.currentTab === "talents"
+  );
 }
 
 export function canOpenExpedition(state = {}) {
@@ -121,6 +160,12 @@ export function isInventorySubviewUnlocked(state = {}) {
   if (state?.onboarding?.completed) return true;
   if (state?.onboarding?.flags?.inventoryUnlocked) return true;
   return [ONBOARDING_STEPS.EQUIP_INTRO, ONBOARDING_STEPS.EQUIP_FIRST_ITEM].includes(state?.onboarding?.step);
+}
+
+export function isFieldForgeUnlocked(state = {}) {
+  if (state?.onboarding?.completed) return true;
+  if (state?.onboarding?.flags?.firstBossSeen) return true;
+  return false;
 }
 
 export function isAutoAdvanceUnlocked(state = {}) {
@@ -137,7 +182,13 @@ export function isHuntUnlocked(state = {}) {
 
 export function isExtractionUnlocked(state = {}) {
   if (state?.onboarding?.completed) return true;
-  if (state?.onboarding?.flags?.extractionUnlocked) return true;
+  if (state?.onboarding?.step === ONBOARDING_STEPS.EXTRACTION_READY) return true;
+  if (state?.onboarding?.flags?.extractionUnlocked) {
+    return (
+      Boolean(state?.onboarding?.flags?.firstBossSeen) &&
+      Math.max(1, Number(state?.combat?.currentTier || 1)) >= 6
+    );
+  }
   return false;
 }
 
@@ -159,78 +210,172 @@ export function isBlueprintDecisionUnlocked(state = {}) {
   return Number(state?.prestige?.level || 0) >= 2;
 }
 
+export function getOnboardingRequiredTab(step = null) {
+  switch (step) {
+    case ONBOARDING_STEPS.EXPEDITION_INTRO:
+    case ONBOARDING_STEPS.CHOOSE_CLASS:
+    case ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN:
+    case ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO:
+    case ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM:
+    case ONBOARDING_STEPS.EXTRACTION_CONFIRM:
+    case ONBOARDING_STEPS.RESEARCH_DISTILLERY:
+    case ONBOARDING_STEPS.DISTILLERY_READY:
+    case ONBOARDING_STEPS.BLUEPRINT_INTRO:
+    case ONBOARDING_STEPS.DEEP_FORGE_READY:
+    case ONBOARDING_STEPS.LIBRARY_READY:
+    case ONBOARDING_STEPS.ERRANDS_READY:
+    case ONBOARDING_STEPS.SIGIL_ALTAR_READY:
+    case ONBOARDING_STEPS.ABYSS_PORTAL_READY:
+      return "sanctuary";
+    case ONBOARDING_STEPS.CHOOSE_SPEC:
+    case ONBOARDING_STEPS.HERO_INTRO:
+    case ONBOARDING_STEPS.HERO_SKILLS_INTRO:
+    case ONBOARDING_STEPS.HERO_TALENTS_INTRO:
+    case ONBOARDING_STEPS.HERO_CHARACTER_INTRO:
+      return "character";
+    case ONBOARDING_STEPS.SPEND_ATTRIBUTE:
+      return "skills";
+    case ONBOARDING_STEPS.TALENT_INTRO:
+    case ONBOARDING_STEPS.BUY_TALENT:
+      return "talents";
+    case ONBOARDING_STEPS.EQUIP_FIRST_ITEM:
+      return "inventory";
+    case ONBOARDING_STEPS.FIRST_ECHOES:
+    case ONBOARDING_STEPS.BUY_FIRST_ECHO_NODE:
+      return "prestige";
+    case ONBOARDING_STEPS.COMBAT_INTRO:
+    case ONBOARDING_STEPS.AUTO_ADVANCE:
+    case ONBOARDING_STEPS.FIRST_DEATH:
+    case ONBOARDING_STEPS.COMBAT_AFTER_TALENT:
+    case ONBOARDING_STEPS.EQUIP_INTRO:
+    case ONBOARDING_STEPS.FIRST_BOSS:
+    case ONBOARDING_STEPS.HUNT_INTRO:
+    case ONBOARDING_STEPS.EXTRACTION_READY:
+      return "combat";
+    default:
+      return null;
+  }
+}
+
+export function isOnboardingTabAllowed(step = null, tab = "sanctuary") {
+  if (!step) return true;
+  if (["registry", "system", "stats", "achievements"].includes(tab)) return true;
+  const requiredTab = getOnboardingRequiredTab(step);
+  if (!requiredTab) return true;
+  if (requiredTab === tab) return true;
+  if (requiredTab === "character" && ["character", "skills", "talents"].includes(tab)) return true;
+  if (requiredTab === "combat" && ["combat", "inventory", "crafting", "codex"].includes(tab)) return true;
+  return false;
+}
+
 export function getOnboardingStepMeta(step = null, state = {}) {
   switch (step) {
     case ONBOARDING_STEPS.EXPEDITION_INTRO:
       return {
-        title: "Tu heroe pelea solo",
-        body: "Mira el combate. Ganas experiencia, subes niveles y mas adelante conseguiras equipo.",
+        title: "Este es tu Santuario",
+        body: "Aqui preparas la cuenta y desde aqui inicias cada expedicion. El primer gesto del juego es salir desde esta base: primero inicias la run, luego eliges una clase y de ahi entras al combate.",
+        actionLabel: null,
+      };
+    case ONBOARDING_STEPS.CHOOSE_CLASS:
+      return {
+        title: "Ahora elige una clase",
+        body: "Tu primera run necesita una identidad base. Elige Warrior o Mage y, apenas lo hagas, entraras al combate para arrancar la expedicion.",
+        actionLabel: null,
+      };
+    case ONBOARDING_STEPS.COMBAT_INTRO:
+      return {
+        title: "El combate corre solo",
+        body: "Tu heroe pelea automaticamente. Tu trabajo es decidir cuando empujar, cuando mejorar equipo y cuando cerrar la expedicion con una extraccion.",
         actionLabel: "Entendido",
       };
     case ONBOARDING_STEPS.CHOOSE_SPEC:
       return {
         title: "Elige una especializacion",
-        body: "Toca una subclase para definir la direccion de esta build.",
+        body: "Despues de tus primeros talentos, ya puedes elegir una subclase. Toca una de las opciones resaltadas para definir la direccion de esta build.",
         actionLabel: null,
       };
     case ONBOARDING_STEPS.AUTO_ADVANCE:
       return {
         title: "Activa el auto-avance",
-        body: "Toca el boton de botas. Cuando esta activo, tu heroe empuja tiers por su cuenta.",
+        body: "Toca el boton de botas resaltado. Cuando esta activo, tu heroe empuja tiers por su cuenta.",
         actionLabel: null,
       };
     case ONBOARDING_STEPS.FIRST_DEATH:
       return {
         title: "Morir no borra la expedicion",
-        body: "Has perdido una vida de expedicion. Retrocedes, el auto-avance se corta y vuelves a intentarlo.",
+        body: "Has perdido una vida de expedicion. Mira el bloque resaltado: ahi ves cuantas te quedan. Retrocedes, el auto-avance se corta y vuelves a intentarlo.",
         actionLabel: "Seguir",
+      };
+    case ONBOARDING_STEPS.OPEN_HERO:
+      return {
+        title: "Abre la hoja de Heroe",
+        body: "Ya viste que un boss puede frenarte. Abre la tab resaltada de Heroe para empezar a leer tu build y ubicar donde vive cada decision importante de la run.",
+        actionLabel: null,
       };
     case ONBOARDING_STEPS.HERO_INTRO:
       return {
-        title: "Esta es tu ficha",
-        body: "Aqui lees el estado de tu build. Ahora vamos a gastar tu primer atributo.",
-        actionLabel: "Ir a atributos",
+        title: "Esta es tu Ficha",
+        body: "La Ficha resume la identidad de tu heroe: clase, spec, nivel, vida y lectura general de build. Desde aqui vas a saltar a Atributos y Talentos cuando quieras ajustar la run.",
+        actionLabel: "Seguir",
+      };
+    case ONBOARDING_STEPS.HERO_SKILLS_INTRO:
+      return {
+        title: "Abre Atributos",
+        body: "Ahora toca la subtab resaltada de Atributos. Ahi gastas oro para reforzar el perfil base de la run.",
+        actionLabel: null,
       };
     case ONBOARDING_STEPS.SPEND_ATTRIBUTE:
       return {
-        title: "Compra un atributo",
-        body: "Gasta 1 mejora. Puedes elegir la que quieras.",
+        title: "Compra 1 punto de Fuerza",
+        body: "Empieza por Fuerza para que notes un impacto inmediato al volver a la run. Toca el boton resaltado de esa mejora.",
+        actionLabel: null,
+      };
+    case ONBOARDING_STEPS.HERO_TALENTS_INTRO:
+      return {
+        title: "Abre Talentos",
+        body: "La tercera subtab es Talentos. Ahi empiezas a construir la direccion real de la build con nodos persistentes de esta expedicion.",
         actionLabel: null,
       };
     case ONBOARDING_STEPS.TALENT_INTRO:
       return {
         title: "Ahora veamos talentos",
-        body: "Los talentos definen la build. Abre el arbol y compra el primero.",
-        actionLabel: "Ir a talentos",
+        body: "Los talentos definen la direccion real de la build. Compra el primer nodo resaltado.",
+        actionLabel: null,
       };
     case ONBOARDING_STEPS.BUY_TALENT:
       return {
         title: "Compra tu primer talento",
-        body: "Elige uno de los nodos basicos del primer tramo.",
+        body: "Compra el primer nodo resaltado. Ese sera tu primer punto real de build para esta run.",
+        actionLabel: null,
+      };
+    case ONBOARDING_STEPS.HERO_CHARACTER_INTRO:
+      return {
+        title: "Ahora vuelve a Ficha",
+        body: "Ya tienes un primer talento. Toca la subtab resaltada de Ficha: ahi vamos a elegir la especializacion de esta build.",
         actionLabel: null,
       };
     case ONBOARDING_STEPS.COMBAT_AFTER_TALENT:
       return {
-        title: "Vuelve a la expedicion",
-        body: "Mata un par de enemigos mas. Luego aprenderas a equiparte.",
-        actionLabel: "Volver a combate",
+        title: "Ahora vuelve al boss",
+        body: "Ya tienes clase, atributo, talento y especializacion. Vuelve al combate y derrota al boss de Tier 5 para continuar el tutorial.",
+        actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.EQUIP_INTRO:
       return {
         title: "Ya puedes equiparte",
-        body: "Abre la mochila y prepara tu primer item.",
-        actionLabel: "Abrir mochila",
+        body: "Toca el boton resaltado de Mochila. Ahi vas a preparar tu primer item de esta run.",
+        actionLabel: null,
       };
     case ONBOARDING_STEPS.EQUIP_FIRST_ITEM:
       return {
         title: "Equipa tu primer item",
-        body: "Toca EQUIPAR sobre un objeto para usarlo en esta run.",
+        body: "Baja hasta el primer item resaltado y equipalo para usarlo en esta run.",
         actionLabel: null,
       };
     case ONBOARDING_STEPS.FIRST_BOSS:
       return {
         title: "Has encontrado un boss",
-        body: "Los bosses pegan mas fuerte, tienen mejor botin y marcan los hitos importantes de una expedicion.",
+        body: "Un boss no es un monstruo normal: aguanta mas, suele tener mecanicas propias, castiga mas los errores y marca los hitos importantes de una expedicion. Si caes, no pierdes la run, pero tendras que reorganizarte.",
         actionLabel: "Pelear",
       };
     case ONBOARDING_STEPS.HUNT_INTRO:
@@ -241,9 +386,27 @@ export function getOnboardingStepMeta(step = null, state = {}) {
       };
     case ONBOARDING_STEPS.EXTRACTION_READY:
       return {
-        title: "Ahora puedes retirarte",
-        body: "Se habilito Extraer al Santuario. Usa esa salida cuando quieras cerrar bien la run y volver con valor persistente.",
-        actionLabel: "Entendido",
+        title: "Aprendamos Extraccion",
+        body: "Ya pasaste el primer boss. Toca el boton resaltado de Extraer al Santuario para cerrar bien la run y llevar valor de vuelta a tu base.",
+        actionLabel: null,
+      };
+    case ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO:
+      return {
+        title: "Elige que cargo rescatar",
+        body: "Toca uno de los bundles resaltados para decidir que recursos vuelven al Santuario. Esa sera la materia prima de tus primeras estaciones.",
+        actionLabel: null,
+      };
+    case ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM:
+      return {
+        title: "Elige un item rescatado",
+        body: "Ahora toca una pieza para guardarla temporalmente. Mas adelante decidiremos si se vuelve blueprint o si se desguaza.",
+        actionLabel: null,
+      };
+    case ONBOARDING_STEPS.EXTRACTION_CONFIRM:
+      return {
+        title: "Confirma la extraccion",
+        body: "Ya esta todo listo. Confirma la extraccion para volver al Santuario y desbloquear el Laboratorio.",
+        actionLabel: null,
       };
     case ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN:
       return {
@@ -360,6 +523,16 @@ function injectTutorialEquipment(nextState) {
   };
 }
 
+function getStrengthTutorialGold(player = {}) {
+  const strengthUpgrade = PLAYER_UPGRADES.find(upgrade => upgrade.id === "damage");
+  if (!strengthUpgrade) return 300;
+  const currentLevel = Math.max(0, Number(player?.upgrades?.damage || 0));
+  const nextCost = Math.floor(
+    strengthUpgrade.baseCost * Math.pow(strengthUpgrade.costMultiplier, currentLevel)
+  );
+  return Math.max(300, nextCost + 20);
+}
+
 function withNextStep(nextState, onboarding, step, extra = {}) {
   return {
     ...nextState,
@@ -369,6 +542,10 @@ function withNextStep(nextState, onboarding, step, extra = {}) {
       ...onboarding,
       ...extra.onboarding,
       step,
+      bossHeroDelayTicks:
+        extra.onboarding?.bossHeroDelayTicks == null
+          ? onboarding?.bossHeroDelayTicks || 0
+          : extra.onboarding.bossHeroDelayTicks,
     },
   };
 }
@@ -378,11 +555,34 @@ export function getBlockedOnboardingAction(step = null, action = {}) {
   if (!step) return false;
   if (type === "TOGGLE_THEME" || type === "SET_THEME") return false;
   if (type === "ACK_ONBOARDING_STEP") return false;
+  if (type === "RESET_ALL_PROGRESS") return false;
+  if (type === "SET_TAB") {
+    if (["registry", "system", "stats", "achievements"].includes(action?.tab)) {
+      return false;
+    }
+    if (step === ONBOARDING_STEPS.OPEN_HERO) {
+      return !["character", "skills", "talents"].includes(action?.tab);
+    }
+    if (step === ONBOARDING_STEPS.HERO_SKILLS_INTRO) {
+      return action?.tab !== "skills";
+    }
+    if (step === ONBOARDING_STEPS.HERO_TALENTS_INTRO) {
+      return action?.tab !== "talents";
+    }
+    if (step === ONBOARDING_STEPS.HERO_CHARACTER_INTRO) {
+      return action?.tab !== "character";
+    }
+  }
+  if (type === "SET_TAB") {
+    return !isOnboardingTabAllowed(step, action?.tab || "sanctuary");
+  }
 
   switch (step) {
     case ONBOARDING_STEPS.CHOOSE_CLASS:
       return type !== "SELECT_CLASS";
     case ONBOARDING_STEPS.EXPEDITION_INTRO:
+      return type !== "ACK_ONBOARDING_STEP";
+    case ONBOARDING_STEPS.COMBAT_INTRO:
       return type !== "ACK_ONBOARDING_STEP";
     case ONBOARDING_STEPS.AUTO_ADVANCE:
       return type !== "TOGGLE_AUTO_ADVANCE";
@@ -393,9 +593,9 @@ export function getBlockedOnboardingAction(step = null, action = {}) {
     case ONBOARDING_STEPS.HERO_INTRO:
       return type !== "ACK_ONBOARDING_STEP";
     case ONBOARDING_STEPS.SPEND_ATTRIBUTE:
-      return type !== "UPGRADE_PLAYER";
+      return !(type === "UPGRADE_PLAYER" && action?.upgradeId === "damage");
     case ONBOARDING_STEPS.TALENT_INTRO:
-      return type !== "ACK_ONBOARDING_STEP";
+      return type !== "UPGRADE_TALENT_NODE" && type !== "UNLOCK_TALENT";
     case ONBOARDING_STEPS.BUY_TALENT:
       return type !== "UPGRADE_TALENT_NODE" && type !== "UNLOCK_TALENT";
     case ONBOARDING_STEPS.COMBAT_AFTER_TALENT:
@@ -409,7 +609,13 @@ export function getBlockedOnboardingAction(step = null, action = {}) {
     case ONBOARDING_STEPS.HUNT_INTRO:
       return type !== "ACK_ONBOARDING_STEP";
     case ONBOARDING_STEPS.EXTRACTION_READY:
-      return type !== "ACK_ONBOARDING_STEP";
+      return type !== "OPEN_EXTRACTION";
+    case ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO:
+      return type !== "SELECT_EXTRACTION_CARGO";
+    case ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM:
+      return type !== "SELECT_EXTRACTION_PROJECT";
+    case ONBOARDING_STEPS.EXTRACTION_CONFIRM:
+      return type !== "CONFIRM_EXTRACTION";
     case ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN:
       return type !== "ACK_ONBOARDING_STEP";
     case ONBOARDING_STEPS.RESEARCH_DISTILLERY: {
@@ -445,20 +651,86 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     };
   }
 
+  const prevUpgradeLevels = countUpgradeLevels(prevState?.player);
+  const nextUpgradeLevels = countUpgradeLevels(nextState?.player);
+  const prevTalents = countUnlockedTalents(prevState?.player);
+  const nextTalents = countUnlockedTalents(nextState?.player);
+  const hasInventoryItem = (nextState?.player?.inventory || []).length > 0;
+  const nextKills = Number(nextState?.combat?.sessionKills || 0);
+  const prevCombatTier = Math.max(1, Number(prevState?.combat?.currentTier || 1));
+  const prevDeaths = Number(prevState?.stats?.deaths || 0);
+  const nextDeaths = Number(nextState?.stats?.deaths || 0);
+  const prevBossKills = Number(prevState?.combat?.runStats?.bossKills || prevState?.combat?.analytics?.bossKills || 0);
+  const nextBossKills = Number(nextState?.combat?.runStats?.bossKills || nextState?.combat?.analytics?.bossKills || 0);
+  const prevEnemyWasBoss = Boolean(prevState?.combat?.enemy?.isBoss);
+  const currentEnemyIsBoss = Boolean(nextState?.combat?.enemy?.isBoss);
+  const currentCombatTier = Math.max(1, Number(nextState?.combat?.currentTier || 1));
+  const currentTier = Math.max(
+    currentCombatTier,
+    Number(nextState?.combat?.maxTier || 1)
+  );
+  const prevPrestigeLevel = Number(prevState?.prestige?.level || 0);
+  const nextPrestigeLevel = Number(nextState?.prestige?.level || 0);
+  const prevPrestigeNodes = Object.values(prevState?.prestige?.nodes || {}).reduce((sum, value) => sum + Number(value || 0), 0);
+  const nextPrestigeNodes = Object.values(nextState?.prestige?.nodes || {}).reduce((sum, value) => sum + Number(value || 0), 0);
+  const nextLaboratoryCompleted = nextState?.sanctuary?.laboratory?.completed || {};
+  const nextAbyssPortalUnlocked = Boolean(nextState?.abyss?.portalUnlocked);
+  const nextTier25BossCleared = Boolean(nextState?.abyss?.tier25BossCleared);
+  const canOpenHeroAfterBoss =
+    !onboarding.flags.heroIntroSeen &&
+    nextState?.player?.class &&
+    onboarding.flags.firstBossSeen;
+  const claimedJob =
+    action.type === "CLAIM_SANCTUARY_JOB"
+      ? (Array.isArray(prevState?.sanctuary?.jobs)
+          ? prevState.sanctuary.jobs.find(job => job?.id === (action.jobId || action.payload?.jobId))
+          : null)
+      : null;
+
   if (action.type === "ACK_ONBOARDING_STEP") {
     if (onboarding.step === ONBOARDING_STEPS.EXPEDITION_INTRO) {
+      return withNextStep(
+        nextState,
+        {
+          ...onboarding,
+          flags: {
+            ...onboarding.flags,
+            expeditionIntroSeen: true,
+          },
+        },
+        ONBOARDING_STEPS.CHOOSE_CLASS,
+        { currentTab: "sanctuary" }
+      );
+    } else if (onboarding.step === ONBOARDING_STEPS.COMBAT_INTRO) {
       onboarding = {
         ...onboarding,
         step: null,
         flags: {
           ...onboarding.flags,
-          expeditionIntroSeen: true,
+          combatIntroSeen: true,
         },
       };
     } else if (onboarding.step === ONBOARDING_STEPS.FIRST_DEATH) {
+      if (onboarding.bossHeroQueued && canOpenHeroAfterBoss) {
+        return {
+          ...nextState,
+          onboarding: {
+            ...onboarding,
+            step: null,
+            bossHeroDelayTicks: 2,
+            bossHeroQueued: false,
+            flags: {
+              ...onboarding.flags,
+              firstDeathSeen: true,
+            },
+          },
+          currentTab: "combat",
+        };
+      }
       onboarding = {
         ...onboarding,
         step: null,
+        bossHeroQueued: false,
         flags: {
           ...onboarding.flags,
           firstDeathSeen: true,
@@ -474,38 +746,20 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
             heroIntroSeen: true,
           },
         },
-        ONBOARDING_STEPS.SPEND_ATTRIBUTE,
+        ONBOARDING_STEPS.HERO_SKILLS_INTRO,
         {
-          currentTab: "skills",
-          player: {
-            ...nextState.player,
-            gold: Math.max(Number(nextState?.player?.gold || 0), 300),
-          },
+          currentTab: "character",
         }
       );
-    } else if (onboarding.step === ONBOARDING_STEPS.TALENT_INTRO) {
-      return withNextStep(nextState, onboarding, ONBOARDING_STEPS.BUY_TALENT, { currentTab: "talents" });
     } else if (onboarding.step === ONBOARDING_STEPS.COMBAT_AFTER_TALENT) {
-      const nextKills = Number(nextState?.combat?.sessionKills || 0);
       onboarding = {
         ...onboarding,
         step: null,
-        equipKillTarget: Math.max(nextKills + 2, Number(onboarding.equipKillTarget || 0)),
       };
       nextState = {
         ...nextState,
         currentTab: "combat",
       };
-    } else if (onboarding.step === ONBOARDING_STEPS.EQUIP_INTRO) {
-      return withNextStep(nextState, onboarding, ONBOARDING_STEPS.EQUIP_FIRST_ITEM, {
-        currentTab: "inventory",
-        onboarding: {
-          flags: {
-            ...onboarding.flags,
-            inventoryUnlocked: true,
-          },
-        },
-      });
     } else if (onboarding.step === ONBOARDING_STEPS.FIRST_BOSS) {
       onboarding = {
         ...onboarding,
@@ -612,52 +866,62 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     }
   }
 
-  const prevUpgradeLevels = countUpgradeLevels(prevState?.player);
-  const nextUpgradeLevels = countUpgradeLevels(nextState?.player);
-  const prevTalents = countUnlockedTalents(prevState?.player);
-  const nextTalents = countUnlockedTalents(nextState?.player);
-  const hasInventoryItem = (nextState?.player?.inventory || []).length > 0;
-  const nextKills = Number(nextState?.combat?.sessionKills || 0);
-  const prevDeaths = Number(prevState?.stats?.deaths || 0);
-  const nextDeaths = Number(nextState?.stats?.deaths || 0);
-  const prevBossKills = Number(prevState?.combat?.runStats?.bossKills || prevState?.combat?.analytics?.bossKills || 0);
-  const nextBossKills = Number(nextState?.combat?.runStats?.bossKills || nextState?.combat?.analytics?.bossKills || 0);
-  const currentEnemyIsBoss = Boolean(nextState?.combat?.enemy?.isBoss);
-  const currentTier = Math.max(
-    Number(nextState?.combat?.currentTier || 1),
-    Number(nextState?.combat?.maxTier || 1)
-  );
-  const prevPrestigeLevel = Number(prevState?.prestige?.level || 0);
-  const nextPrestigeLevel = Number(nextState?.prestige?.level || 0);
-  const prevPrestigeNodes = Object.values(prevState?.prestige?.nodes || {}).reduce((sum, value) => sum + Number(value || 0), 0);
-  const nextPrestigeNodes = Object.values(nextState?.prestige?.nodes || {}).reduce((sum, value) => sum + Number(value || 0), 0);
-  const nextLaboratoryCompleted = nextState?.sanctuary?.laboratory?.completed || {};
-  const nextAbyssPortalUnlocked = Boolean(nextState?.abyss?.portalUnlocked);
-  const nextTier25BossCleared = Boolean(nextState?.abyss?.tier25BossCleared);
-  const claimedJob =
-    action.type === "CLAIM_SANCTUARY_JOB"
-      ? (Array.isArray(prevState?.sanctuary?.jobs)
-          ? prevState.sanctuary.jobs.find(job => job?.id === (action.jobId || action.payload?.jobId))
-          : null)
-      : null;
+  if (
+    onboarding.step === ONBOARDING_STEPS.EQUIP_INTRO &&
+    action.type === "SET_TAB" &&
+    action.tab === "inventory"
+  ) {
+    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.EQUIP_FIRST_ITEM, {
+      currentTab: "inventory",
+      onboarding: {
+        flags: {
+          ...onboarding.flags,
+          inventoryUnlocked: true,
+        },
+      },
+    });
+  }
+
+  if (
+    onboarding.step === ONBOARDING_STEPS.HERO_SKILLS_INTRO &&
+    action.type === "SET_TAB" &&
+    action.tab === "skills"
+  ) {
+    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.SPEND_ATTRIBUTE, {
+      currentTab: "skills",
+      player: {
+        ...nextState.player,
+        gold: Math.max(Number(nextState?.player?.gold || 0), getStrengthTutorialGold(nextState?.player)),
+      },
+    });
+  }
+
+  if (
+    onboarding.step === ONBOARDING_STEPS.HERO_TALENTS_INTRO &&
+    action.type === "SET_TAB" &&
+    action.tab === "talents"
+  ) {
+    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.BUY_TALENT, {
+      currentTab: "talents",
+    });
+  }
 
   if (!onboarding.flags.classChosen && nextState?.player?.class) {
-    onboarding = {
-      ...onboarding,
-      step: ONBOARDING_STEPS.EXPEDITION_INTRO,
-      flags: {
-        ...onboarding.flags,
-        classChosen: true,
-      },
-    };
     return {
       ...nextState,
-      onboarding,
+      onboarding: {
+        ...onboarding,
+        step: null,
+        flags: {
+          ...onboarding.flags,
+          classChosen: true,
+        },
+      },
       currentTab: "combat",
     };
   }
 
-  if (!onboarding.flags.autoAdvanceUnlocked && nextKills >= 3 && !onboarding.step) {
+  if (!onboarding.flags.autoAdvanceUnlocked && (nextKills >= 3 || currentCombatTier >= 2) && !onboarding.step) {
     return withNextStep(nextState, onboarding, ONBOARDING_STEPS.AUTO_ADVANCE, { currentTab: "combat" });
   }
 
@@ -667,6 +931,7 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
       onboarding: {
         ...onboarding,
         step: null,
+        bossHeroQueued: false,
         flags: {
           ...onboarding.flags,
           autoAdvanceUnlocked: true,
@@ -676,31 +941,119 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
   }
 
   if (!onboarding.flags.firstDeathSeen && nextDeaths > prevDeaths) {
-    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.FIRST_DEATH, { currentTab: "combat" });
-  }
-
-  if (
-    !onboarding.flags.specChosen &&
-    nextState?.player?.class &&
-    !nextState?.player?.specialization &&
-    Number(nextState?.player?.level || 1) >= 5
-  ) {
-    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.CHOOSE_SPEC, { currentTab: "character" });
-  }
-
-  if (!onboarding.flags.specChosen && nextState?.player?.specialization) {
     return withNextStep(
       nextState,
       {
         ...onboarding,
+        bossHeroQueued: prevEnemyWasBoss,
+      },
+      ONBOARDING_STEPS.FIRST_DEATH,
+      { currentTab: "combat" }
+    );
+  }
+
+  if (canOpenHeroAfterBoss && prevEnemyWasBoss && nextDeaths > prevDeaths && !onboarding.step) {
+    return {
+      ...nextState,
+      onboarding: {
+        ...onboarding,
+        step: null,
+        bossHeroDelayTicks: 2,
+        bossHeroQueued: false,
+        flags: {
+          ...onboarding.flags,
+        },
+      },
+    };
+  }
+
+  if (canOpenHeroAfterBoss && !onboarding.step && onboarding.bossHeroDelayTicks > 0) {
+    const tickAdvance =
+      action.type === "BULK_TICK"
+        ? Math.max(1, Math.floor(Number(action.count || 0)))
+        : action.type === "TICK"
+          ? 1
+          : 0;
+    if (tickAdvance > 0) {
+      const remainingTicks = Math.max(0, onboarding.bossHeroDelayTicks - tickAdvance);
+      if (remainingTicks <= 0) {
+        return withNextStep(
+          nextState,
+          {
+            ...onboarding,
+            bossHeroDelayTicks: 0,
+            flags: {
+              ...onboarding.flags,
+              heroTabUnlocked: true,
+            },
+          },
+          ONBOARDING_STEPS.OPEN_HERO,
+          { currentTab: "combat" }
+        );
+      }
+      return {
+        ...nextState,
+        onboarding: {
+          ...onboarding,
+          step: null,
+          bossHeroDelayTicks: remainingTicks,
+          flags: {
+            ...onboarding.flags,
+          },
+        },
+      };
+    }
+  }
+
+  if (
+    onboarding.step === ONBOARDING_STEPS.OPEN_HERO &&
+    action.type === "SET_TAB" &&
+    ["character", "skills", "talents"].includes(action.tab)
+  ) {
+    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.HERO_INTRO, {
+      currentTab: "character",
+    });
+  }
+
+  if (
+    canOpenHeroAfterBoss &&
+    !onboarding.step &&
+    onboarding.bossHeroDelayTicks <= 0 &&
+    prevCombatTier >= 5 &&
+    currentCombatTier <= 4 &&
+    nextDeaths === prevDeaths
+  ) {
+    return withNextStep(
+      nextState,
+      {
+        ...onboarding,
+        bossHeroDelayTicks: 0,
+        flags: {
+          ...onboarding.flags,
+          heroTabUnlocked: true,
+        },
+      },
+      ONBOARDING_STEPS.OPEN_HERO,
+      { currentTab: "combat" }
+    );
+  }
+
+  if (!onboarding.flags.specChosen && nextState?.player?.specialization) {
+    const shouldReturnToCombat = onboarding.flags.firstTalentBought || onboarding.step === ONBOARDING_STEPS.CHOOSE_SPEC;
+    return withNextStep(
+      nextState,
+      {
+        ...onboarding,
+        bossHeroDelayTicks: 0,
+        bossHeroQueued: false,
         flags: {
           ...onboarding.flags,
           specChosen: true,
         },
       },
-      ONBOARDING_STEPS.HERO_INTRO,
+      shouldReturnToCombat ? ONBOARDING_STEPS.COMBAT_AFTER_TALENT : ONBOARDING_STEPS.HERO_INTRO,
       {
-        currentTab: "character",
+        currentTab: shouldReturnToCombat ? "combat" : "character",
         player: {
           ...nextState.player,
           gold: Math.max(Number(nextState?.player?.gold || 0), 300),
@@ -709,7 +1062,12 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     );
   }
 
-  if (onboarding.step === ONBOARDING_STEPS.SPEND_ATTRIBUTE && nextUpgradeLevels > prevUpgradeLevels) {
+  if (
+    onboarding.step === ONBOARDING_STEPS.SPEND_ATTRIBUTE &&
+    action.type === "UPGRADE_PLAYER" &&
+    action.upgradeId === "damage" &&
+    nextState !== prevState
+  ) {
     return withNextStep(
       nextState,
       {
@@ -719,11 +1077,17 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
           firstAttributeSpent: true,
         },
       },
-      ONBOARDING_STEPS.TALENT_INTRO
+      ONBOARDING_STEPS.HERO_TALENTS_INTRO
     );
   }
 
   if (onboarding.step === ONBOARDING_STEPS.BUY_TALENT && nextTalents > prevTalents) {
+    const nextStep =
+      !onboarding.flags.specChosen &&
+      nextState?.player?.class &&
+      !nextState?.player?.specialization
+        ? ONBOARDING_STEPS.HERO_CHARACTER_INTRO
+        : ONBOARDING_STEPS.COMBAT_AFTER_TALENT;
     return withNextStep(
       nextState,
       {
@@ -733,15 +1097,86 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
           firstTalentBought: true,
         },
       },
-      ONBOARDING_STEPS.COMBAT_AFTER_TALENT
+      nextStep,
+      {
+        currentTab: nextState?.currentTab,
+      }
     );
   }
 
   if (
-    onboarding.equipKillTarget != null &&
+    onboarding.step === ONBOARDING_STEPS.HERO_CHARACTER_INTRO &&
+    action.type === "SET_TAB" &&
+    action.tab === "character"
+  ) {
+    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.CHOOSE_SPEC, {
+      currentTab: "character",
+    });
+  }
+
+  if (
+    onboarding.step === ONBOARDING_STEPS.EXTRACTION_READY &&
+    action.type === "OPEN_EXTRACTION"
+  ) {
+    const preview = nextState?.expedition?.extractionPreview || {};
+    const hasProjectOptions = Array.isArray(preview?.projectOptions) && preview.projectOptions.length > 0;
+    const hasCargoOptions = Array.isArray(preview?.cargoOptions) && preview.cargoOptions.length > 0;
+    return withNextStep(
+      nextState,
+      {
+        ...onboarding,
+        extractionReadyDelayTicks: 0,
+        flags: {
+          ...onboarding.flags,
+          extractionUnlocked: true,
+        },
+      },
+      hasCargoOptions
+        ? ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO
+        : hasProjectOptions
+          ? ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM
+          : ONBOARDING_STEPS.EXTRACTION_CONFIRM,
+      { currentTab: "sanctuary" }
+    );
+  }
+
+  if (
+    onboarding.step === ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO &&
+    action.type === "SELECT_EXTRACTION_CARGO"
+  ) {
+    const selectedCargoCount = Array.isArray(nextState?.expedition?.selectedCargoIds)
+      ? nextState.expedition.selectedCargoIds.length
+      : 0;
+    if (selectedCargoCount > 0) {
+      const hasProjectOptions = Array.isArray(nextState?.expedition?.extractionPreview?.projectOptions)
+        && nextState.expedition.extractionPreview.projectOptions.length > 0
+        && Number(nextState?.expedition?.extractionPreview?.availableSlots?.project || 0) > 0;
+      return withNextStep(
+        nextState,
+        onboarding,
+        hasProjectOptions ? ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM : ONBOARDING_STEPS.EXTRACTION_CONFIRM,
+        { currentTab: "sanctuary" }
+      );
+    }
+  }
+
+  if (
+    onboarding.step === ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM &&
+    action.type === "SELECT_EXTRACTION_PROJECT"
+  ) {
+    if (nextState?.expedition?.selectedProjectItemId) {
+      return withNextStep(nextState, onboarding, ONBOARDING_STEPS.EXTRACTION_CONFIRM, {
+        currentTab: "sanctuary",
+      });
+    }
+  }
+
+  if (
+    onboarding.flags.autoAdvanceUnlocked &&
     !onboarding.flags.firstItemEquipped &&
+    !onboarding.flags.inventoryUnlocked &&
     !onboarding.step &&
-    nextKills >= onboarding.equipKillTarget
+    currentTier >= 3
   ) {
     const ensuredState = hasInventoryItem ? nextState : injectTutorialEquipment(nextState);
     return withNextStep(ensuredState, onboarding, ONBOARDING_STEPS.EQUIP_INTRO, {
@@ -784,9 +1219,59 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     onboarding.flags.huntUnlocked &&
     !onboarding.flags.extractionUnlocked &&
     !onboarding.step &&
-    currentTier >= 9
+    currentTier >= 6 &&
+    onboarding.extractionReadyDelayTicks <= 0
   ) {
-    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.EXTRACTION_READY, { currentTab: "combat" });
+    return {
+      ...nextState,
+      onboarding: {
+        ...onboarding,
+        step: null,
+        extractionReadyDelayTicks: 2,
+        flags: {
+          ...onboarding.flags,
+        },
+      },
+    };
+  }
+
+  if (
+    onboarding.flags.huntUnlocked &&
+    !onboarding.flags.extractionUnlocked &&
+    !onboarding.step &&
+    onboarding.extractionReadyDelayTicks > 0
+  ) {
+    const tickAdvance =
+      action.type === "BULK_TICK"
+        ? Math.max(1, Math.floor(Number(action.count || 0)))
+        : action.type === "TICK"
+          ? 1
+          : 0;
+    if (tickAdvance > 0) {
+      const remainingTicks = Math.max(0, onboarding.extractionReadyDelayTicks - tickAdvance);
+      if (remainingTicks <= 0) {
+        return withNextStep(
+          nextState,
+          {
+            ...onboarding,
+            extractionReadyDelayTicks: 0,
+          },
+          ONBOARDING_STEPS.EXTRACTION_READY,
+          { currentTab: "combat" }
+        );
+      }
+      return {
+        ...nextState,
+        onboarding: {
+          ...onboarding,
+          step: null,
+          extractionReadyDelayTicks: remainingTicks,
+          flags: {
+            ...onboarding.flags,
+          },
+        },
+      };
+    }
   }
 
   if (action.type === "CONFIRM_EXTRACTION" && !onboarding.flags.firstExtractionCompleted) {
@@ -928,6 +1413,25 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     });
   }
 
+  const requiredTab = getOnboardingRequiredTab(onboarding.step);
+  if (
+    requiredTab &&
+    nextState?.currentTab !== requiredTab &&
+    !isOnboardingTabAllowed(onboarding.step, nextState?.currentTab || "sanctuary")
+  ) {
+    return {
+      ...nextState,
+      currentTab: requiredTab,
+      onboarding: {
+        ...onboarding,
+        step: onboarding.step,
+        flags: {
+          ...onboarding.flags,
+        },
+      },
+    };
+  }
+
   return {
     ...nextState,
     onboarding: {
@@ -941,8 +1445,77 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
 }
 
 export function getOnboardingOverlayAnchor(step = null) {
-  if (step === ONBOARDING_STEPS.SPEND_ATTRIBUTE || step === ONBOARDING_STEPS.BUY_TALENT) return "bottom";
+  if (step === ONBOARDING_STEPS.EQUIP_INTRO) return "subnav";
+  if (
+    step === ONBOARDING_STEPS.HERO_INTRO ||
+    step === ONBOARDING_STEPS.HERO_SKILLS_INTRO ||
+    step === ONBOARDING_STEPS.HERO_TALENTS_INTRO ||
+    step === ONBOARDING_STEPS.HERO_CHARACTER_INTRO
+  ) {
+    return "subnav";
+  }
+  if (
+    step === ONBOARDING_STEPS.SPEND_ATTRIBUTE ||
+    step === ONBOARDING_STEPS.BUY_TALENT ||
+    step === ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO ||
+    step === ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM ||
+    step === ONBOARDING_STEPS.EXTRACTION_CONFIRM
+  ) return "bottom";
   return "top";
+}
+
+export function getOnboardingSpotlightSelectors(step = null) {
+  switch (step) {
+    case ONBOARDING_STEPS.EXPEDITION_INTRO:
+      return ['[data-onboarding-target="start-expedition"]'];
+    case ONBOARDING_STEPS.CHOOSE_CLASS:
+      return ['[data-onboarding-target="choose-class"]'];
+    case ONBOARDING_STEPS.OPEN_HERO:
+      return ['[data-onboarding-target="primary-hero-tab"]'];
+    case ONBOARDING_STEPS.HERO_INTRO:
+      return ['[data-onboarding-target="hero-subview-skills"]'];
+    case ONBOARDING_STEPS.AUTO_ADVANCE:
+      return ['[data-onboarding-target="auto-advance"]'];
+    case ONBOARDING_STEPS.FIRST_DEATH:
+      return ['[data-onboarding-target="expedition-lives"]'];
+    case ONBOARDING_STEPS.EXTRACTION_READY:
+      return ['[data-onboarding-target="open-extraction"]'];
+    case ONBOARDING_STEPS.HERO_SKILLS_INTRO:
+      return ['[data-onboarding-target="hero-subview-skills"]'];
+    case ONBOARDING_STEPS.HERO_TALENTS_INTRO:
+      return ['[data-onboarding-target="hero-subview-talents"]'];
+    case ONBOARDING_STEPS.HERO_CHARACTER_INTRO:
+      return ['[data-onboarding-target="hero-subview-character"]'];
+    case ONBOARDING_STEPS.EQUIP_INTRO:
+      return ['[data-onboarding-target="subview-inventory"]'];
+    case ONBOARDING_STEPS.EQUIP_FIRST_ITEM:
+      return [
+        '[data-onboarding-target="tutorial-first-item"]',
+        '[data-onboarding-target="equip-item"]',
+      ];
+    case ONBOARDING_STEPS.SPEND_ATTRIBUTE:
+      return [
+        '[data-onboarding-target="upgrade-attribute-card"]',
+        '[data-onboarding-target="upgrade-attribute"]',
+      ];
+    case ONBOARDING_STEPS.CHOOSE_SPEC:
+      return [
+        '[data-onboarding-target="choose-spec-card"]',
+        '[data-onboarding-target="choose-spec"]',
+      ];
+    case ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO:
+      return ['[data-onboarding-target="tutorial-extraction-cargo"]'];
+    case ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM:
+      return ['[data-onboarding-target="tutorial-extraction-item"]'];
+    case ONBOARDING_STEPS.EXTRACTION_CONFIRM:
+      return ['[data-onboarding-target="tutorial-extraction-confirm"]'];
+    case ONBOARDING_STEPS.RESEARCH_DISTILLERY:
+      return ['[data-onboarding-target="research-distillery"]'];
+    case ONBOARDING_STEPS.BUY_TALENT:
+      return ['[data-onboarding-target="buy-talent"]'];
+    default:
+      return [];
+  }
 }
 
 export function isInfoOnlyOnboardingStep(step = null) {

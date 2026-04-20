@@ -366,6 +366,7 @@ export default function Laboratory({ state, dispatch }) {
                 <button
                   onClick={() => dispatch({ type: "START_LAB_RESEARCH", researchId: entry.id, now })}
                   disabled={!entry.canStart}
+                  data-onboarding-target={entry.id === "unlock_distillery" ? "research-distillery" : undefined}
                   style={buttonStyle({ primary: entry.canStart, disabled: !entry.canStart })}
                 >
                   {entry.completed ? "Completada" : entry.running ? "En curso" : "Investigar"}

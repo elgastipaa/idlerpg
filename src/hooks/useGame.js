@@ -8,6 +8,7 @@ import { getLifetimeXp } from "../engine/leveling";
 const OFFLINE_MIN_SECONDS = 60;
 const OFFLINE_CHUNK_SIZE = 120;
 const SAVE_THROTTLE_MS = import.meta.env.DEV ? 600 : 1800;
+const ACCOUNT_TICK_MS = 5000;
 
 function buildOfflineSnapshot(state = {}) {
   return {
@@ -56,21 +57,35 @@ export const useGame = () => {
   const latestStateRef = useRef(state);
   const saveTimerRef = useRef(null);
   const offlineJobRef = useRef(null);
+  const accountSessionStartedRef = useRef(false);
+  const lastAccountTrackedAtRef = useRef(null);
   const recoveryMode = isRecoveryMode();
   const dispatch = useCallback((action) => {
     if (action?.type === "RESET_ALL_PROGRESS") {
+      const now = Date.now();
       if (saveTimerRef.current) {
         window.clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
       }
       offlineJobRef.current = null;
       hiddenAtRef.current = null;
+      accountSessionStartedRef.current = true;
+      lastAccountTrackedAtRef.current = now;
       clearGame();
       rawDispatch({
         type: "RESET_ALL_PROGRESS",
         meta: {
           ...(action?.meta || {}),
           source: "ui",
+        },
+      });
+      rawDispatch({
+        type: "START_ACCOUNT_SESSION",
+        now,
+        reset: true,
+        meta: {
+          ...(action?.meta || {}),
+          source: "system",
         },
       });
       return;
@@ -96,6 +111,35 @@ export const useGame = () => {
   useEffect(() => {
     latestStateRef.current = state;
   }, [state]);
+
+  const flushAccountTime = useCallback((now = Date.now()) => {
+    if (recoveryMode) return;
+    if (document.hidden) return;
+    if (!accountSessionStartedRef.current) return;
+    if (!lastAccountTrackedAtRef.current) {
+      lastAccountTrackedAtRef.current = now;
+      return;
+    }
+    const elapsedSeconds = Math.max(0, Math.floor((now - lastAccountTrackedAtRef.current) / 1000));
+    if (elapsedSeconds <= 0) return;
+    lastAccountTrackedAtRef.current = now;
+    dispatch({
+      type: "TRACK_ACCOUNT_TIME",
+      seconds: elapsedSeconds,
+      phase: latestStateRef.current?.expedition?.phase || "sanctuary",
+      now,
+      meta: { replay: false },
+    });
+  }, [dispatch, recoveryMode]);
+
+  useEffect(() => {
+    if (recoveryMode) return;
+    if (accountSessionStartedRef.current) return;
+    const now = Date.now();
+    accountSessionStartedRef.current = true;
+    lastAccountTrackedAtRef.current = now;
+    dispatch({ type: "START_ACCOUNT_SESSION", now, meta: { replay: false, source: "system" } });
+  }, [dispatch, recoveryMode]);
 
   useEffect(() => {
     if (recoveryMode) return;
@@ -161,6 +205,14 @@ export const useGame = () => {
   }, [dispatch, recoveryMode]);
 
   useEffect(() => {
+    if (recoveryMode) return undefined;
+    const id = window.setInterval(() => {
+      flushAccountTime(Date.now());
+    }, ACCOUNT_TICK_MS);
+    return () => window.clearInterval(id);
+  }, [flushAccountTime, recoveryMode]);
+
+  useEffect(() => {
     const id = setInterval(() => {
       if (document.hidden) return;
       if (offlineJobRef.current) return;
@@ -185,51 +237,67 @@ export const useGame = () => {
     if (hydratedRef.current) return;
     hydratedRef.current = true;
     if (recoveryMode) return;
-    if (state.expedition?.phase !== "active") return;
 
     const savedAt = state.savedAt;
     if (!savedAt) return;
 
     const elapsedMs = Math.max(0, Date.now() - savedAt);
-    if (elapsedMs < OFFLINE_MIN_SECONDS * 1000) return;
-    const offlineTicks = Math.max(0, Math.min(3600, Math.floor(elapsedMs / TICK_MS)));
-    if (offlineTicks > 0) {
-      startOfflineProgress(offlineTicks);
+    const offlineSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+    if (offlineSeconds > 0) {
+      dispatch({ type: "TRACK_OFFLINE_TIME", seconds: offlineSeconds, now: Date.now(), meta: { replay: false } });
     }
-  }, [recoveryMode, startOfflineProgress, state.savedAt]);
+    if (state.expedition?.phase === "active" && elapsedMs >= OFFLINE_MIN_SECONDS * 1000) {
+      const offlineTicks = Math.max(0, Math.min(3600, Math.floor(elapsedMs / TICK_MS)));
+      if (offlineTicks > 0) {
+        startOfflineProgress(offlineTicks);
+      }
+    }
+  }, [dispatch, recoveryMode, startOfflineProgress, state.expedition?.phase, state.savedAt]);
 
   useEffect(() => {
     if (recoveryMode) return;
     const handleVisibilityChange = () => {
       if (document.hidden) {
+        flushAccountTime(Date.now());
         hiddenAtRef.current = Date.now();
         flushSave();
         return;
       }
 
+      const restoreAt = Date.now();
       dispatch({ type: "SYNC_SANCTUARY_JOBS", now: Date.now() });
 
       if (!hiddenAtRef.current) return;
-      if (latestStateRef.current?.expedition?.phase !== "active") return;
-
-      const elapsedMs = Math.max(0, Date.now() - hiddenAtRef.current);
+      const elapsedMs = Math.max(0, restoreAt - hiddenAtRef.current);
       hiddenAtRef.current = null;
-      if (elapsedMs < OFFLINE_MIN_SECONDS * 1000) return;
-      const offlineTicks = Math.max(0, Math.min(3600, Math.floor(elapsedMs / TICK_MS)));
-      if (offlineTicks > 0) {
-        startOfflineProgress(offlineTicks);
+      const offlineSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+      if (offlineSeconds > 0) {
+        dispatch({ type: "TRACK_OFFLINE_TIME", seconds: offlineSeconds, now: restoreAt, meta: { replay: false } });
+      }
+      lastAccountTrackedAtRef.current = restoreAt;
+      if (latestStateRef.current?.expedition?.phase === "active" && elapsedMs >= OFFLINE_MIN_SECONDS * 1000) {
+        const offlineTicks = Math.max(0, Math.min(3600, Math.floor(elapsedMs / TICK_MS)));
+        if (offlineTicks > 0) {
+          startOfflineProgress(offlineTicks);
+        }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [flushSave, recoveryMode, startOfflineProgress]);
+  }, [dispatch, flushAccountTime, flushSave, recoveryMode, startOfflineProgress]);
 
   useEffect(() => {
     if (recoveryMode) return undefined;
 
-    const handlePageHide = () => flushSave();
-    const handleBeforeUnload = () => flushSave();
+    const handlePageHide = () => {
+      flushAccountTime(Date.now());
+      flushSave();
+    };
+    const handleBeforeUnload = () => {
+      flushAccountTime(Date.now());
+      flushSave();
+    };
 
     window.addEventListener("pagehide", handlePageHide);
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -238,7 +306,7 @@ export const useGame = () => {
       window.removeEventListener("pagehide", handlePageHide);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [flushSave, recoveryMode]);
+  }, [flushAccountTime, flushSave, recoveryMode]);
 
   useEffect(() => {
     if (recoveryMode) return;
@@ -250,15 +318,19 @@ export const useGame = () => {
   }, [recoveryMode, state]);
 
   useEffect(() => () => {
+    flushAccountTime(Date.now());
     flushSave();
-  }, [flushSave]);
+  }, [flushAccountTime, flushSave]);
 
   useEffect(() => {
     if (!import.meta.hot || recoveryMode) return undefined;
-    const dispose = () => flushSave();
+    const dispose = () => {
+      flushAccountTime(Date.now());
+      flushSave();
+    };
     import.meta.hot.dispose(dispose);
     return () => {};
-  }, [flushSave, recoveryMode]);
+  }, [flushAccountTime, flushSave, recoveryMode]);
 
   return { state, dispatch };
 };

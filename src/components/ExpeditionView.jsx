@@ -3,7 +3,7 @@ import Combat from "./Combat";
 import Inventory from "./Inventory";
 import Crafting from "./Crafting";
 import Codex from "./Codex";
-import { isHuntUnlocked, isInventorySubviewUnlocked } from "../engine/onboarding/onboardingEngine";
+import { isFieldForgeUnlocked, isHuntUnlocked, isInventorySubviewUnlocked, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 
 const SUBVIEW_META = {
   combat: { label: "Combate" },
@@ -50,10 +50,13 @@ export default function ExpeditionView({ state, dispatch }) {
   const reforgeLocked = !!state?.combat?.reforgeSession;
   const huntUnlocked = isHuntUnlocked(state);
   const inventoryUnlocked = isInventorySubviewUnlocked(state);
+  const fieldForgeUnlocked = isFieldForgeUnlocked(state);
+  const onboardingStep = state?.onboarding?.step || null;
+  const spotlightInventorySubview = onboardingStep === ONBOARDING_STEPS.EQUIP_INTRO;
   const activeSubview = getExpeditionSubview(state?.currentTab || "combat");
   const availableSubviews = useMemo(
-    () => ["combat", ...(inventoryUnlocked ? ["inventory"] : []), "crafting", ...(huntUnlocked ? ["codex"] : [])],
-    [huntUnlocked, inventoryUnlocked]
+    () => ["combat", ...(inventoryUnlocked ? ["inventory"] : []), ...(fieldForgeUnlocked ? ["crafting"] : []), ...(huntUnlocked ? ["codex"] : [])],
+    [fieldForgeUnlocked, huntUnlocked, inventoryUnlocked]
   );
   const resolvedSubview = availableSubviews.includes(activeSubview) ? activeSubview : "combat";
   const isCombatSubview = resolvedSubview === "combat";
@@ -74,6 +77,13 @@ export default function ExpeditionView({ state, dispatch }) {
         minWidth: 0,
       }}
     >
+      <style>{`
+        @keyframes expeditionSubviewSpotlightPulse {
+          0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
+          70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
+          100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
+        }
+      `}</style>
       <div
         style={{
           display: "flex",
@@ -89,15 +99,21 @@ export default function ExpeditionView({ state, dispatch }) {
         {availableSubviews.map(viewId => {
           const active = resolvedSubview === viewId;
           const disabled = reforgeLocked && !active;
+          const spotlight = spotlightInventorySubview && viewId === "inventory";
           return (
             <button
               key={viewId}
               onClick={() => dispatch({ type: "SET_TAB", tab: viewId })}
               disabled={disabled}
+              data-onboarding-target={spotlight ? "subview-inventory" : undefined}
               style={{
                 ...subnavButtonStyle({ active, disabled }),
                 minWidth: isMobile ? "92px" : "110px",
                 padding: isMobile ? "9px 11px" : "10px 12px",
+                boxShadow: spotlight
+                  ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.14)"
+                  : subnavButtonStyle({ active, disabled }).boxShadow,
+                animation: spotlight ? "expeditionSubviewSpotlightPulse 1600ms ease-in-out infinite" : "none",
               }}
             >
               {SUBVIEW_META[viewId].label}

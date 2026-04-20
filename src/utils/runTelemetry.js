@@ -102,6 +102,100 @@ export function createEmptySessionAnalytics() {
   };
 }
 
+export function createEmptyAccountTelemetry() {
+  return {
+    version: 1,
+    firstSeenAt: null,
+    lastActiveAt: null,
+    lastSessionStartedAt: null,
+    currentSessionSeconds: 0,
+    totalOnlineSeconds: 0,
+    totalOfflineSeconds: 0,
+    offlineRecoveryCount: 0,
+    longestOfflineSeconds: 0,
+    totalSanctuarySeconds: 0,
+    totalExpeditionSeconds: 0,
+    totalSetupSeconds: 0,
+    totalExtractionSeconds: 0,
+    sessionCount: 0,
+    longestSessionSeconds: 0,
+    expeditionCount: 0,
+    completedExpeditionCount: 0,
+    extractionCount: 0,
+    manualExtractionCount: 0,
+    prestigeExtractionCount: 0,
+    emergencyExtractionCount: 0,
+    currentExpeditionSeconds: 0,
+    longestExpeditionSeconds: 0,
+    totalExpeditionLifecycleSeconds: 0,
+    distillJobsStarted: 0,
+    distillJobsCompleted: 0,
+    codexResearchStarted: 0,
+    codexResearchCompleted: 0,
+    labResearchStarted: 0,
+    labResearchCompleted: 0,
+    errandJobsStarted: 0,
+    errandJobsCompleted: 0,
+    sigilJobsStarted: 0,
+    sigilJobsCompleted: 0,
+    blueprintsCreated: 0,
+    blueprintsScrapped: 0,
+    blueprintsDiscarded: 0,
+    blueprintStructureUpgrades: 0,
+    blueprintPowerTunes: 0,
+    blueprintAscensions: 0,
+    saveRepairs: 0,
+    saveResets: 0,
+    firstSpecAtOnlineSeconds: null,
+    firstBossAtOnlineSeconds: null,
+    firstExtractionAtOnlineSeconds: null,
+    firstPrestigeAtOnlineSeconds: null,
+    firstLaboratoryAtOnlineSeconds: null,
+    firstDistilleryAtOnlineSeconds: null,
+    firstBlueprintAtOnlineSeconds: null,
+    firstDeepForgeAtOnlineSeconds: null,
+    firstLibraryAtOnlineSeconds: null,
+    firstErrandsAtOnlineSeconds: null,
+    firstSigilAltarAtOnlineSeconds: null,
+    firstAbyssPortalAtOnlineSeconds: null,
+  };
+}
+
+export function sanitizeAccountTelemetry(rawTelemetry = {}) {
+  const base = createEmptyAccountTelemetry();
+  const next = {
+    ...base,
+    ...(rawTelemetry || {}),
+  };
+
+  const numericKeys = Object.keys(base).filter(
+    key => typeof base[key] === "number"
+  );
+  for (const key of numericKeys) {
+    next[key] = Math.max(0, Number(next[key] || 0));
+  }
+
+  next.firstSeenAt = next.firstSeenAt ? Number(next.firstSeenAt) || null : null;
+  next.lastActiveAt = next.lastActiveAt ? Number(next.lastActiveAt) || null : null;
+  next.lastSessionStartedAt = next.lastSessionStartedAt
+    ? Number(next.lastSessionStartedAt) || null
+    : null;
+  next.firstSpecAtOnlineSeconds = next.firstSpecAtOnlineSeconds != null ? Number(next.firstSpecAtOnlineSeconds) || 0 : null;
+  next.firstBossAtOnlineSeconds = next.firstBossAtOnlineSeconds != null ? Number(next.firstBossAtOnlineSeconds) || 0 : null;
+  next.firstExtractionAtOnlineSeconds = next.firstExtractionAtOnlineSeconds != null ? Number(next.firstExtractionAtOnlineSeconds) || 0 : null;
+  next.firstPrestigeAtOnlineSeconds = next.firstPrestigeAtOnlineSeconds != null ? Number(next.firstPrestigeAtOnlineSeconds) || 0 : null;
+  next.firstLaboratoryAtOnlineSeconds = next.firstLaboratoryAtOnlineSeconds != null ? Number(next.firstLaboratoryAtOnlineSeconds) || 0 : null;
+  next.firstDistilleryAtOnlineSeconds = next.firstDistilleryAtOnlineSeconds != null ? Number(next.firstDistilleryAtOnlineSeconds) || 0 : null;
+  next.firstBlueprintAtOnlineSeconds = next.firstBlueprintAtOnlineSeconds != null ? Number(next.firstBlueprintAtOnlineSeconds) || 0 : null;
+  next.firstDeepForgeAtOnlineSeconds = next.firstDeepForgeAtOnlineSeconds != null ? Number(next.firstDeepForgeAtOnlineSeconds) || 0 : null;
+  next.firstLibraryAtOnlineSeconds = next.firstLibraryAtOnlineSeconds != null ? Number(next.firstLibraryAtOnlineSeconds) || 0 : null;
+  next.firstErrandsAtOnlineSeconds = next.firstErrandsAtOnlineSeconds != null ? Number(next.firstErrandsAtOnlineSeconds) || 0 : null;
+  next.firstSigilAltarAtOnlineSeconds = next.firstSigilAltarAtOnlineSeconds != null ? Number(next.firstSigilAltarAtOnlineSeconds) || 0 : null;
+  next.firstAbyssPortalAtOnlineSeconds = next.firstAbyssPortalAtOnlineSeconds != null ? Number(next.firstAbyssPortalAtOnlineSeconds) || 0 : null;
+
+  return next;
+}
+
 export function sanitizeSessionAnalytics(rawAnalytics = {}) {
   const base = createEmptySessionAnalytics();
   const analytics = {
@@ -140,6 +234,13 @@ export function sanitizeSessionAnalytics(rawAnalytics = {}) {
     autoExtractedItems,
     bestDropScore: Math.max(0, Number(analytics.bestDropScore || 0)),
   };
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 function getTierMapValue(map = {}, tier = 1) {
@@ -449,6 +550,122 @@ export function buildSessionTelemetrySections(state) {
   ];
 
   return sections;
+}
+
+export function buildAccountTelemetrySections(state) {
+  const telemetry = sanitizeAccountTelemetry(state?.accountTelemetry || createEmptyAccountTelemetry());
+  const avgSession = telemetry.sessionCount > 0 ? telemetry.totalOnlineSeconds / telemetry.sessionCount : 0;
+  const avgExpedition =
+    telemetry.completedExpeditionCount > 0
+      ? telemetry.totalExpeditionLifecycleSeconds / telemetry.completedExpeditionCount
+      : 0;
+  const avgOffline = telemetry.offlineRecoveryCount > 0 ? telemetry.totalOfflineSeconds / telemetry.offlineRecoveryCount : 0;
+
+  return [
+    {
+      id: "account_time",
+      title: "Cuenta y Tiempo",
+      rows: [
+        { label: "Primer uso", value: formatDateTime(telemetry.firstSeenAt) },
+        { label: "Ultima actividad", value: formatDateTime(telemetry.lastActiveAt) },
+        { label: "Sesiones", value: formatValue(telemetry.sessionCount) },
+        { label: "Online total", value: formatDurationFromTicks(telemetry.totalOnlineSeconds) },
+        { label: "Offline total", value: formatDurationFromTicks(telemetry.totalOfflineSeconds) },
+        { label: "Offline promedio", value: formatDurationFromTicks(avgOffline) },
+        { label: "Offline mas largo", value: formatDurationFromTicks(telemetry.longestOfflineSeconds) },
+        { label: "Recuperaciones offline", value: formatValue(telemetry.offlineRecoveryCount) },
+        { label: "Sesion actual", value: formatDurationFromTicks(telemetry.currentSessionSeconds) },
+        { label: "Sesion promedio", value: formatDurationFromTicks(avgSession) },
+        { label: "Sesion mas larga", value: formatDurationFromTicks(telemetry.longestSessionSeconds) },
+      ],
+    },
+    {
+      id: "account_phase",
+      title: "Uso por Fase",
+      rows: [
+        { label: "Santuario", value: formatDurationFromTicks(telemetry.totalSanctuarySeconds) },
+        { label: "Preparacion", value: formatDurationFromTicks(telemetry.totalSetupSeconds) },
+        { label: "Expedicion activa", value: formatDurationFromTicks(telemetry.totalExpeditionSeconds) },
+        { label: "Extraccion", value: formatDurationFromTicks(telemetry.totalExtractionSeconds) },
+        { label: "Expediciones iniciadas", value: formatValue(telemetry.expeditionCount) },
+        { label: "Expediciones cerradas", value: formatValue(telemetry.completedExpeditionCount) },
+        { label: "Extracciones manuales", value: formatValue(telemetry.manualExtractionCount) },
+        { label: "Extracciones con ecos", value: formatValue(telemetry.prestigeExtractionCount) },
+        { label: "Duracion promedio expedicion", value: formatDurationFromTicks(avgExpedition) },
+        { label: "Duracion maxima expedicion", value: formatDurationFromTicks(telemetry.longestExpeditionSeconds) },
+      ],
+    },
+    {
+      id: "account_milestones",
+      title: "Hitos de Cuenta",
+      rows: [
+        { label: "Primera spec a", value: telemetry.firstSpecAtOnlineSeconds != null ? formatDurationFromTicks(telemetry.firstSpecAtOnlineSeconds) : "-" },
+        { label: "Extracciones", value: formatValue(telemetry.extractionCount) },
+        { label: "Extracciones de emergencia", value: formatValue(telemetry.emergencyExtractionCount) },
+        { label: "Primer boss visto a", value: telemetry.firstBossAtOnlineSeconds != null ? formatDurationFromTicks(telemetry.firstBossAtOnlineSeconds) : "-" },
+        { label: "Primera extraccion a", value: telemetry.firstExtractionAtOnlineSeconds != null ? formatDurationFromTicks(telemetry.firstExtractionAtOnlineSeconds) : "-" },
+        { label: "Primer prestige a", value: telemetry.firstPrestigeAtOnlineSeconds != null ? formatDurationFromTicks(telemetry.firstPrestigeAtOnlineSeconds) : "-" },
+      ],
+    },
+    {
+      id: "account_unlocks",
+      title: "Unlocks del Santuario",
+      rows: [
+        { label: "Laboratorio a", value: telemetry.firstLaboratoryAtOnlineSeconds != null ? formatDurationFromTicks(telemetry.firstLaboratoryAtOnlineSeconds) : "-" },
+        { label: "Destileria a", value: telemetry.firstDistilleryAtOnlineSeconds != null ? formatDurationFromTicks(telemetry.firstDistilleryAtOnlineSeconds) : "-" },
+        { label: "Primer blueprint a", value: telemetry.firstBlueprintAtOnlineSeconds != null ? formatDurationFromTicks(telemetry.firstBlueprintAtOnlineSeconds) : "-" },
+        { label: "Forja Profunda a", value: telemetry.firstDeepForgeAtOnlineSeconds != null ? formatDurationFromTicks(telemetry.firstDeepForgeAtOnlineSeconds) : "-" },
+        { label: "Biblioteca a", value: telemetry.firstLibraryAtOnlineSeconds != null ? formatDurationFromTicks(telemetry.firstLibraryAtOnlineSeconds) : "-" },
+        { label: "Encargos a", value: telemetry.firstErrandsAtOnlineSeconds != null ? formatDurationFromTicks(telemetry.firstErrandsAtOnlineSeconds) : "-" },
+        { label: "Altar de Sigilos a", value: telemetry.firstSigilAltarAtOnlineSeconds != null ? formatDurationFromTicks(telemetry.firstSigilAltarAtOnlineSeconds) : "-" },
+        { label: "Portal al Abismo a", value: telemetry.firstAbyssPortalAtOnlineSeconds != null ? formatDurationFromTicks(telemetry.firstAbyssPortalAtOnlineSeconds) : "-" },
+      ],
+    },
+    {
+      id: "account_systems",
+      title: "Uso de Sistemas",
+      rows: [
+        { label: "Destilerias iniciadas", value: formatValue(telemetry.distillJobsStarted) },
+        { label: "Destilerias reclamadas", value: formatValue(telemetry.distillJobsCompleted) },
+        { label: "Research Biblioteca iniciados", value: formatValue(telemetry.codexResearchStarted) },
+        { label: "Research Biblioteca reclamados", value: formatValue(telemetry.codexResearchCompleted) },
+        { label: "Research Laboratorio iniciados", value: formatValue(telemetry.labResearchStarted) },
+        { label: "Research Laboratorio reclamados", value: formatValue(telemetry.labResearchCompleted) },
+        { label: "Encargos iniciados", value: formatValue(telemetry.errandJobsStarted) },
+        { label: "Encargos reclamados", value: formatValue(telemetry.errandJobsCompleted) },
+        { label: "Infusiones de sigilo", value: formatValue(telemetry.sigilJobsStarted) },
+        { label: "Infusiones reclamadas", value: formatValue(telemetry.sigilJobsCompleted) },
+      ],
+    },
+    {
+      id: "account_blueprints",
+      title: "Blueprints y Save",
+      rows: [
+        { label: "Blueprints creados", value: formatValue(telemetry.blueprintsCreated) },
+        { label: "Items rescatados desguazados", value: formatValue(telemetry.blueprintsScrapped) },
+        { label: "Blueprints descartados", value: formatValue(telemetry.blueprintsDiscarded) },
+        { label: "Estructuras reforzadas", value: formatValue(telemetry.blueprintStructureUpgrades) },
+        { label: "Poderes sintonizados", value: formatValue(telemetry.blueprintPowerTunes) },
+        { label: "Ascensiones", value: formatValue(telemetry.blueprintAscensions) },
+        { label: "Reparaciones de save", value: formatValue(telemetry.saveRepairs) },
+        { label: "Resets de cuenta", value: formatValue(telemetry.saveResets) },
+      ],
+    },
+  ];
+}
+
+export function buildAccountTelemetryEntries(state) {
+  return flattenSectionsToEntries(buildAccountTelemetrySections(state));
+}
+
+export function buildAccountTelemetryReport(state) {
+  return buildAccountTelemetrySections(state)
+    .map(section => [
+      section.title,
+      "-".repeat(section.title.length),
+      ...(section.rows || []).map(row => `${row.label}: ${row.value}`),
+    ].join("\n"))
+    .join("\n\n");
 }
 
 export function buildSessionTelemetryEntries(state) {

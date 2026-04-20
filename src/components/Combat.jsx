@@ -9,7 +9,7 @@ import { calcStats } from "../engine/combat/statEngine";
 import { computeEffectModifiers } from "../engine/effects/effectEngine";
 import { ITEM_STAT_LABELS as STAT_LABELS } from "../utils/itemPresentation";
 import { getLegendaryStaticBonuses, getTargetedLegendaryDropsForEnemy } from "../utils/legendaryPowers";
-import { isAutoAdvanceUnlocked, isExtractionUnlocked } from "../engine/onboarding/onboardingEngine";
+import { isAutoAdvanceUnlocked, isExtractionUnlocked, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 import CombatGuidanceStrip from "./combat/CombatGuidanceStrip";
 
 const COLORS = {
@@ -59,6 +59,11 @@ const COMBAT_ANIMATION_STYLES = `
   0% { opacity: 0; transform: translate(-50%, 6px) scale(0.94); }
   18% { opacity: 1; transform: translate(-50%, 0) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -26px) scale(1.02); }
+}
+@keyframes combatSpotlightPulse {
+  0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.26); }
+  70% { box-shadow: 0 0 0 10px rgba(99,102,241,0); }
+  100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
 }
 `;
 
@@ -341,6 +346,11 @@ export default function Combat({ state, dispatch }) {
   const remainingSafeDeaths = Math.max(0, expeditionDeathLimit - expeditionDeathCount);
   const autoAdvanceUnlocked = isAutoAdvanceUnlocked(state);
   const extractionUnlocked = isExtractionUnlocked(state);
+  const onboardingStep = state?.onboarding?.step || null;
+  const spotlightAutoAdvance = onboardingStep === ONBOARDING_STEPS.AUTO_ADVANCE;
+  const spotlightLives = onboardingStep === ONBOARDING_STEPS.FIRST_DEATH;
+  const spotlightExtraction = onboardingStep === ONBOARDING_STEPS.EXTRACTION_READY;
+  const lockFirstBossRetreat = enemy.isBoss && !state?.onboarding?.flags?.firstDeathSeen;
   const combatTips = useMemo(() => ([
     {
       title: "Arma primero",
@@ -822,8 +832,9 @@ export default function Combat({ state, dispatch }) {
         >
           <button
             onClick={() => dispatch({ type: "SET_TIER", tier: currentTier - 1 })}
-            disabled={currentTier <= 1}
-            style={navBtnStyle(currentTier > 1)}
+            disabled={currentTier <= 1 || lockFirstBossRetreat}
+            style={navBtnStyle(currentTier > 1 && !lockFirstBossRetreat)}
+            title={lockFirstBossRetreat ? "No puedes retroceder antes de ver tu primera muerte del tutorial" : undefined}
           >
             {"<"}
           </button>
@@ -884,7 +895,15 @@ export default function Combat({ state, dispatch }) {
               onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
               title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
               aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
-              style={autoAdvanceBtnStyle(autoAdvance)}
+              data-onboarding-target={spotlightAutoAdvance ? "auto-advance" : undefined}
+              style={{
+                ...autoAdvanceBtnStyle(autoAdvance),
+                boxShadow: spotlightAutoAdvance
+                  ? "0 0 0 3px rgba(99,102,241,0.22), 0 0 24px rgba(99,102,241,0.24), 0 14px 30px rgba(99,102,241,0.22)"
+                  : autoAdvanceBtnStyle(autoAdvance).boxShadow,
+                animation: spotlightAutoAdvance ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                transform: spotlightAutoAdvance ? "scale(1.05)" : "none",
+              }}
             >
               🥾
             </button>
@@ -897,7 +916,15 @@ export default function Combat({ state, dispatch }) {
               onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
               title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
               aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
-              style={autoAdvanceBtnStyle(autoAdvance)}
+              data-onboarding-target={spotlightAutoAdvance ? "auto-advance" : undefined}
+              style={{
+                ...autoAdvanceBtnStyle(autoAdvance),
+                boxShadow: spotlightAutoAdvance
+                  ? "0 0 0 3px rgba(99,102,241,0.22), 0 0 24px rgba(99,102,241,0.24), 0 14px 30px rgba(99,102,241,0.22)"
+                  : autoAdvanceBtnStyle(autoAdvance).boxShadow,
+                animation: spotlightAutoAdvance ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                transform: spotlightAutoAdvance ? "scale(1.05)" : "none",
+              }}
             >
               🥾
             </button>
@@ -905,6 +932,7 @@ export default function Combat({ state, dispatch }) {
           {extractionUnlocked && (
             <button
               onClick={() => dispatch({ type: "OPEN_EXTRACTION", exitReason: "retire" })}
+              data-onboarding-target={spotlightExtraction ? "open-extraction" : undefined}
               style={{
                 border: "1px solid var(--tone-accent, #534AB7)",
                 background: "var(--tone-accent-soft, #eef2ff)",
@@ -915,6 +943,9 @@ export default function Combat({ state, dispatch }) {
                 fontWeight: "900",
                 cursor: "pointer",
                 boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.02)",
+                position: spotlightExtraction ? "relative" : "static",
+                zIndex: spotlightExtraction ? 2 : 1,
+                animation: spotlightExtraction ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
               }}
             >
               Extraer al Santuario
@@ -1190,7 +1221,22 @@ export default function Combat({ state, dispatch }) {
             />
           </div>
           <InlineStatusTray statuses={playerStatusPills} emptyLabel="Sin estados" isMobile={isMobile} />
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "6px" }}>
+          <div
+            data-onboarding-target={spotlightLives ? "expedition-lives" : undefined}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "8px",
+              alignItems: "center",
+              flexWrap: "wrap",
+              marginTop: "6px",
+              borderRadius: "12px",
+              padding: spotlightLives ? "6px 8px" : 0,
+              background: spotlightLives ? "var(--tone-warning-soft, #fff7ed)" : "transparent",
+              boxShadow: spotlightLives ? "0 0 0 2px rgba(245,158,11,0.16), 0 10px 24px rgba(245,158,11,0.12)" : "none",
+              animation: spotlightLives ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
+            }}
+          >
             <span style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary, #94a3b8)" }}>
               Vidas de expedicion
             </span>

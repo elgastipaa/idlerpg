@@ -6,7 +6,12 @@ import OnboardingOverlay from "./components/OnboardingOverlay";
 import { getRarityColor } from "./constants/rarity";
 import { formatRunSigilLoadout, getRunSigil, normalizeRunSigilIds, RUN_SIGILS, summarizeRunSigilLoadout } from "./data/runSigils";
 import { getMaxRunSigilSlots } from "./engine/progression/abyssProgression";
-import { canOpenExpedition, shouldShowHeroPrimaryTab } from "./engine/onboarding/onboardingEngine";
+import {
+  canOpenExpedition,
+  getOnboardingRequiredTab,
+  ONBOARDING_STEPS,
+  shouldShowHeroPrimaryTab,
+} from "./engine/onboarding/onboardingEngine";
 
 const Prestige = lazy(() => import("./components/Prestige"));
 const HeroView = lazy(() => import("./components/HeroView"));
@@ -244,6 +249,7 @@ const PRIMARY_TAB_CONFIG = {
 export default function App() {
   const { state, dispatch } = useGame();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [showLegacySavePrompt, setShowLegacySavePrompt] = useState(false);
   const contentRef = useRef(null);
   const prevPrimaryTabRef = useRef(null);
   const offlineSummary = state.combat?.offlineSummary;
@@ -304,11 +310,16 @@ export default function App() {
   const HEADER_HEIGHT_DESKTOP = 68;
   const NAV_HEIGHT_MOBILE = 72;
   const DESKTOP_MAX_WIDTH = 1180;
+  const onboardingStep = state?.onboarding?.step || null;
   const currentPrimaryTab = getVisiblePrimaryTab(state.currentTab, state);
   const prestigeTabUnlocked = isPrestigeTabUnlocked(state);
   const expeditionUnlocked = canOpenExpedition(state);
   const showHeroPrimaryTab = shouldShowHeroPrimaryTab(state);
   const visiblePrimaryTabs = ["sanctuary", "combat", ...(showHeroPrimaryTab ? ["character"] : []), ...(prestigeTabUnlocked ? ["prestige"] : []), "registry"];
+  const saveDiagnostics = state.saveDiagnostics || {};
+  const shouldOfferLegacyRepair =
+    Boolean(saveDiagnostics.legacyNeedsRepair) &&
+    Number(saveDiagnostics.legacyPromptShownCount || 0) < 3;
 
   useEffect(() => {
     if (prevPrimaryTabRef.current !== currentPrimaryTab) {
@@ -319,6 +330,14 @@ export default function App() {
       prevPrimaryTabRef.current = currentPrimaryTab;
     }
   }, [currentPrimaryTab]);
+
+  useEffect(() => {
+    if (!shouldOfferLegacyRepair) {
+      setShowLegacySavePrompt(false);
+      return;
+    }
+    setShowLegacySavePrompt(true);
+  }, [shouldOfferLegacyRepair]);
 
   function handlePrimaryTabPress(tab) {
     const isActive = currentPrimaryTab === tab;
@@ -332,6 +351,21 @@ export default function App() {
     }
     if (tab === "combat" && !expeditionUnlocked) {
       dispatch({ type: "SET_TAB", tab: "sanctuary" });
+      return;
+    }
+    const requiredOnboardingTab = getOnboardingRequiredTab(state?.onboarding?.step || null);
+    if (
+      tab === "combat" &&
+      ["combat", "inventory", "crafting", "codex"].includes(requiredOnboardingTab)
+    ) {
+      dispatch({ type: "SET_TAB", tab: requiredOnboardingTab });
+      return;
+    }
+    if (
+      tab === "character" &&
+      ["character", "skills", "talents"].includes(requiredOnboardingTab)
+    ) {
+      dispatch({ type: "SET_TAB", tab: requiredOnboardingTab });
       return;
     }
     dispatch({ type: "SET_TAB", tab: getDefaultTabForPrimaryTab(tab) });
@@ -364,6 +398,17 @@ export default function App() {
       />
     </div>
   );
+
+  function dismissLegacySavePrompt() {
+    if (!showLegacySavePrompt) return;
+    setShowLegacySavePrompt(false);
+    dispatch({ type: "DISMISS_LEGACY_SAVE_PROMPT", meta: { replay: false } });
+  }
+
+  function handleLegacyRepairRoute() {
+    dismissLegacySavePrompt();
+    dispatch({ type: "SET_TAB", tab: "system", meta: { replay: false } });
+  }
 
   return (
     <div style={{ backgroundColor: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", minHeight: "100vh", display: "flex", flexDirection: "column", width: "100%" }}>
@@ -398,29 +443,47 @@ export default function App() {
       </header>
 
       <div ref={contentRef} style={{ paddingTop: isMobile ? `${HEADER_HEIGHT_MOBILE}px` : `${HEADER_HEIGHT_DESKTOP}px`, paddingBottom: isMobile ? "180px" : "40px", paddingLeft: isMobile ? "0px" : "24px", paddingRight: isMobile ? "0px" : "24px", maxWidth: isMobile ? "100%" : `${DESKTOP_MAX_WIDTH}px`, width: "100%", margin: "0 auto", flex: 1 }}>
+        <style>{`
+          @keyframes appPrimaryTabSpotlightPulse {
+            0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
+            70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
+            100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
+          }
+        `}</style>
         {!isMobile && (
           <div style={{ marginBottom: "12px", background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-tertiary, #cbd5e1)", borderRadius: "12px", boxShadow: "0 4px 20px var(--color-shadow, rgba(0,0,0,0.05))", padding: "10px 12px" }}>
             <nav style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               {visiblePrimaryTabs.map((t) => (
-                <button
-                  key={t}
-                  disabled={(reforgeLocked && currentPrimaryTab !== t) || (t === "combat" && !expeditionUnlocked)}
-                  onClick={() => handlePrimaryTabPress(t)}
-                  style={{
-                    padding: "7px 13px",
-                    cursor: (reforgeLocked && currentPrimaryTab !== t) || (t === "combat" && !expeditionUnlocked) ? "not-allowed" : "pointer",
-                    backgroundColor: currentPrimaryTab === t ? "var(--color-background-info, #e0e7ff)" : "var(--color-background-secondary, #ffffff)",
-                    color: (reforgeLocked && currentPrimaryTab !== t) || (t === "combat" && !expeditionUnlocked) ? "var(--color-text-tertiary, #94a3b8)" : currentPrimaryTab === t ? "var(--color-text-info, #4338ca)" : "var(--color-text-primary, #1e293b)",
-                    border: "1px solid var(--color-border-tertiary, #cbd5e1)",
-                    borderRadius: "8px",
-                    fontWeight: "700",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    transition: "all 0.2s",
-                    opacity: (reforgeLocked && currentPrimaryTab !== t) || (t === "combat" && !expeditionUnlocked) ? 0.55 : 1,
-                  }}
-                >
+                (() => {
+                  const disabled = (reforgeLocked && currentPrimaryTab !== t) || (t === "combat" && !expeditionUnlocked);
+                  const spotlightHeroPrimary = onboardingStep === ONBOARDING_STEPS.OPEN_HERO && t === "character";
+                  return (
+                    <button
+                      key={t}
+                      disabled={disabled}
+                      data-onboarding-target={spotlightHeroPrimary ? "primary-hero-tab" : undefined}
+                      onClick={() => handlePrimaryTabPress(t)}
+                      style={{
+                        padding: "7px 13px",
+                        cursor: disabled ? "not-allowed" : "pointer",
+                        backgroundColor: currentPrimaryTab === t ? "var(--color-background-info, #e0e7ff)" : "var(--color-background-secondary, #ffffff)",
+                        color: disabled ? "var(--color-text-tertiary, #94a3b8)" : currentPrimaryTab === t ? "var(--color-text-info, #4338ca)" : "var(--color-text-primary, #1e293b)",
+                        border: "1px solid var(--color-border-tertiary, #cbd5e1)",
+                        borderRadius: "8px",
+                        fontWeight: "700",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        transition: "all 0.2s",
+                        opacity: disabled ? 0.55 : 1,
+                        position: spotlightHeroPrimary ? "relative" : "static",
+                        zIndex: spotlightHeroPrimary ? 2 : 1,
+                        boxShadow: spotlightHeroPrimary
+                          ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 28px rgba(83,74,183,0.18)"
+                          : "none",
+                        animation: spotlightHeroPrimary ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                      }}
+                    >
                   <span>{PRIMARY_TAB_CONFIG[t].icon}</span>
                   {PRIMARY_TAB_CONFIG[t].label}
                   {t === "character" && hasTalentPoints && (
@@ -433,7 +496,9 @@ export default function App() {
                       {inventoryUpgrades > 9 ? "9+" : inventoryUpgrades}
                     </span>
                   )}
-                </button>
+                    </button>
+                  );
+                })()
               ))}
             </nav>
           </div>
@@ -479,14 +544,111 @@ export default function App() {
 
       <OnboardingOverlay state={state} dispatch={dispatch} isMobile={isMobile} />
 
+      {showLegacySavePrompt && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(2, 6, 23, 0.58)",
+            zIndex: 6500,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: isMobile ? "18px" : "28px",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "520px",
+              background: "var(--color-background-secondary, #ffffff)",
+              border: "1px solid var(--color-border-primary, #e2e8f0)",
+              borderRadius: "18px",
+              padding: isMobile ? "18px" : "22px",
+              display: "grid",
+              gap: "12px",
+              boxShadow: "0 24px 60px rgba(2, 6, 23, 0.35)",
+            }}
+          >
+            <div style={{ fontSize: "0.68rem", fontWeight: "900", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--tone-warning, #f59e0b)" }}>
+              Save legado detectado
+            </div>
+            <div style={{ fontSize: isMobile ? "1rem" : "1.08rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+              Save viejo para el sistema actual
+            </div>
+            <div style={{ fontSize: "0.78rem", lineHeight: 1.55, color: "var(--color-text-secondary, #475569)" }}>
+              Por favor reparalo en <strong>Registro &gt; Sistema &gt; Reparar save</strong>, o más recomendado, <strong>reiniciá tu progreso</strong>. Este aviso solo va a aparecer hasta <strong>3 veces</strong>.
+            </div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button
+                onClick={handleLegacyRepairRoute}
+                style={{
+                  border: "none",
+                  background: "var(--tone-warning, #f59e0b)",
+                  color: "#fff",
+                  borderRadius: "12px",
+                  padding: "10px 14px",
+                  fontSize: "0.76rem",
+                  fontWeight: "900",
+                  cursor: "pointer",
+                }}
+              >
+                Ir a Registro &gt; Sistema
+              </button>
+              <button
+                onClick={dismissLegacySavePrompt}
+                style={{
+                  border: "1px solid var(--color-border-primary, #e2e8f0)",
+                  background: "var(--color-background-secondary, #ffffff)",
+                  color: "var(--color-text-primary, #1e293b)",
+                  borderRadius: "12px",
+                  padding: "10px 14px",
+                  fontSize: "0.76rem",
+                  fontWeight: "900",
+                  cursor: "pointer",
+                }}
+              >
+                Más tarde
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isMobile && (
         <>
           <nav style={{ position: "fixed", bottom: 0, left: 0, width: "100%", height: `${NAV_HEIGHT_MOBILE}px`, backgroundColor: "var(--color-background-secondary, #ffffff)", borderTop: "1px solid var(--color-border-secondary, #e2e8f0)", display: "flex", zIndex: 5000, paddingBottom: "env(safe-area-inset-bottom)", boxSizing: "content-box" }}>
             {visiblePrimaryTabs.map((t) => {
               const isActive = currentPrimaryTab === t;
               const disabled = (reforgeLocked && !isActive) || (t === "combat" && !expeditionUnlocked);
+              const spotlightHeroPrimary = onboardingStep === ONBOARDING_STEPS.OPEN_HERO && t === "character";
               return (
-                <button key={t} disabled={disabled} onClick={() => handlePrimaryTabPress(t)} style={{ flex: 1, minWidth: "56px", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "2px", background: isActive ? "var(--color-background-info, #f1f5f9)" : "transparent", border: "none", outline: "none", position: "relative", paddingTop: "5px", opacity: disabled ? 0.45 : 1 }}>
+                <button
+                  key={t}
+                  disabled={disabled}
+                  data-onboarding-target={spotlightHeroPrimary ? "primary-hero-tab" : undefined}
+                  onClick={() => handlePrimaryTabPress(t)}
+                  style={{
+                    flex: 1,
+                    minWidth: "56px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexDirection: "column",
+                    gap: "2px",
+                    background: isActive ? "var(--color-background-info, #f1f5f9)" : "transparent",
+                    border: "none",
+                    outline: "none",
+                    position: "relative",
+                    paddingTop: "5px",
+                    opacity: disabled ? 0.45 : 1,
+                    boxShadow: spotlightHeroPrimary
+                      ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.16)"
+                      : "none",
+                    animation: spotlightHeroPrimary ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                    zIndex: spotlightHeroPrimary ? 2 : 1,
+                  }}
+                >
                   <span style={{ filter: isActive ? "none" : "grayscale(1) opacity(0.5)", position: "relative", fontSize: "21px", lineHeight: 1 }}>
                     {PRIMARY_TAB_CONFIG[t].icon}
                   </span>
