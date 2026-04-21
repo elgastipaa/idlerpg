@@ -157,7 +157,7 @@ function jobStationLabel(station = "") {
   if (station === "errands") return "Encargos";
   if (station === "sigilInfusion") return "Altar de Sigilos";
   if (station === "codexResearch") return "Biblioteca";
-  if (station === "deepForge") return "Forja Profunda";
+  if (station === "deepForge") return "Taller";
   if (station === "laboratory") return "Laboratorio";
   return "Santuario";
 }
@@ -1877,9 +1877,8 @@ export default function Sanctuary({ state, dispatch }) {
             <button
               onClick={() => (deepForgeStation.unlocked ? setShowDeepForge(true) : openLaboratoryFromSanctuary("forge-card"))}
               disabled={
-                deepForgeStation.unlocked
-                  ? (Array.isArray(sanctuary?.stash) ? sanctuary.stash.length : 0) <= 0
-                  : onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN
+                !deepForgeStation.unlocked &&
+                onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN
               }
               data-onboarding-target={onboardingStep === ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE ? "open-deep-forge" : undefined}
               style={{
@@ -1887,9 +1886,8 @@ export default function Sanctuary({ state, dispatch }) {
                   tone: "var(--tone-danger, #D85A30)",
                   surface: "var(--tone-danger-soft, #fff1f2)",
                   disabled:
-                    deepForgeStation.unlocked
-                      ? (Array.isArray(sanctuary?.stash) ? sanctuary.stash.length : 0) <= 0
-                      : onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
+                    !deepForgeStation.unlocked &&
+                    onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
                 }),
                 ...mobileFullWidthButtonStyle,
               }}

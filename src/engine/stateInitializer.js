@@ -237,7 +237,7 @@ function deriveExpeditionPhase({ player = {}, combat = {}, expedition = {}, onbo
 }
 
 function getDefaultTabForPhase(phase = "sanctuary") {
-  return phase === "active" ? "combat" : "sanctuary";
+  return phase === "active" || phase === "setup" ? "combat" : "sanctuary";
 }
 
 function normalizeStoredTab(tab, { phase = "sanctuary", prestigeUnlocked = false } = {}) {

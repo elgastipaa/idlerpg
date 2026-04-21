@@ -13,6 +13,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
   const infoOnly = isInfoOnlyOnboardingStep(step, state);
   const backdrop = infoOnly ? "rgba(2,6,23,0.46)" : "rgba(2,6,23,0.24)";
   const [spotlightRects, setSpotlightRects] = useState([]);
+  const [spotlightReady, setSpotlightReady] = useState(false);
   const [cardRect, setCardRect] = useState(null);
   const cardRef = useRef(null);
   const topOffset =
@@ -23,11 +24,22 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
   useEffect(() => {
     if (!step) {
       setSpotlightRects([]);
+      setSpotlightReady(false);
       return undefined;
     }
 
     const selectors = getOnboardingSpotlightSelectors(step, state);
     if (!selectors.length) {
+      setSpotlightRects([]);
+      setSpotlightReady(true);
+      return undefined;
+    }
+
+    if (infoOnly) {
+      setSpotlightReady(true);
+    }
+
+    if (!spotlightReady && !infoOnly) {
       setSpotlightRects([]);
       return undefined;
     }
@@ -61,22 +73,39 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       window.removeEventListener("resize", scheduleMeasure);
       window.removeEventListener("scroll", scheduleMeasure, true);
     };
-  }, [state, step]);
+  }, [infoOnly, spotlightReady, state, step]);
 
   useEffect(() => {
-    if (!step) return undefined;
+    if (!step) {
+      setSpotlightReady(false);
+      return undefined;
+    }
 
     const selectors = getOnboardingSpotlightSelectors(step, state);
-    if (!selectors.length) return undefined;
+    if (!selectors.length || infoOnly) {
+      setSpotlightReady(true);
+      return undefined;
+    }
 
     let frameId = null;
     let timeoutId = null;
     let attempts = 0;
+    setSpotlightReady(false);
     const scrollTargetIntoView = () => {
       const target = selectors
         .flatMap(selector => [...document.querySelectorAll(selector)])
         .find(node => node instanceof HTMLElement && node.offsetParent !== null);
-      if (!target) return;
+      if (!target) {
+        attempts += 1;
+        if (attempts < 8) {
+          timeoutId = window.setTimeout(() => {
+            frameId = requestAnimationFrame(scrollTargetIntoView);
+          }, 90);
+        } else {
+          setSpotlightReady(true);
+        }
+        return;
+      }
 
       const targetRect = target.getBoundingClientRect();
       const headerOffset = anchor === "subnav"
@@ -92,17 +121,25 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
         : navOffset + 12;
       const visibleTop = Math.max(12, safeTop);
       const visibleBottom = Math.max(visibleTop + 48, window.innerHeight - safeBottom);
+      let adjusted = false;
 
       if (targetRect.top < visibleTop) {
         window.scrollBy({
           top: targetRect.top - visibleTop,
           behavior: attempts === 0 ? "auto" : "smooth",
         });
+        adjusted = true;
       } else if (targetRect.bottom > visibleBottom) {
         window.scrollBy({
           top: targetRect.bottom - visibleBottom,
           behavior: attempts === 0 ? "auto" : "smooth",
         });
+        adjusted = true;
+      }
+
+      if (!adjusted) {
+        setSpotlightReady(true);
+        return;
       }
 
       attempts += 1;
@@ -110,6 +147,8 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
         timeoutId = window.setTimeout(() => {
           frameId = requestAnimationFrame(scrollTargetIntoView);
         }, 90);
+      } else {
+        setSpotlightReady(true);
       }
     };
 
@@ -118,7 +157,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       if (frameId != null) cancelAnimationFrame(frameId);
       if (timeoutId != null) window.clearTimeout(timeoutId);
     };
-  }, [anchor, cardRect?.height, isMobile, state, step]);
+  }, [anchor, infoOnly, isMobile, state, step]);
 
   const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
   const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
@@ -135,7 +174,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
     : null;
 
   useEffect(() => {
-    if (!step) {
+    if (!step || (!infoOnly && !spotlightReady)) {
       setCardRect(null);
       return undefined;
     }
@@ -162,9 +201,23 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       if (frameId != null) cancelAnimationFrame(frameId);
       window.removeEventListener("resize", scheduleMeasure);
     };
-  }, [step, meta?.title, meta?.body, meta?.actionLabel, isMobile]);
+  }, [infoOnly, isMobile, meta?.actionLabel, meta?.body, meta?.title, spotlightReady, step]);
 
   if (!step || !meta) return null;
+
+  if (!infoOnly && !spotlightReady) {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9800,
+          background: backdrop,
+          pointerEvents: "auto",
+        }}
+      />
+    );
+  }
 
   const cardWidth = Math.min(560, Math.max(0, viewportWidth - (isMobile ? 24 : 40)));
   const defaultLeft = Math.max(isMobile ? 12 : 20, Math.round((viewportWidth - cardWidth) / 2));

@@ -133,12 +133,15 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
 
   useEffect(() => {
     if (!equipTutorialActive) return undefined;
+    setDetailItemId(null);
     let cancelled = false;
     let attempt = 0;
 
     const scrollToTutorialItem = () => {
       if (cancelled) return;
-      const target = document.querySelector('[data-onboarding-target="tutorial-first-item"]');
+      const target =
+        document.querySelector('[data-onboarding-target="equip-item"]')
+        || document.querySelector('[data-onboarding-target="tutorial-first-item"]');
       if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "center" });
         return;
@@ -326,31 +329,34 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
           <div style={emptyStateStyle}>No tenes objetos en la mochila</div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
-            {sortedItems.map(item => (
-              <InventoryRow
-                key={item.id}
-                item={item}
-                tutorialTarget={equipTutorialActive && sortedItems[0]?.id === item.id}
-                equippedCompare={item.type === "weapon" ? equipment.weapon : equipment.armor}
-                activeBuildTag={activeBuildTag}
-                wishlistAffixes={wishlistAffixes}
-                isDarkMode={isDarkMode}
-                isMobile={isMobile}
-                pendingSell={pendingSellId === item.id}
-                onOpen={() => setDetailItemId(item.id)}
-                onEquip={() => dispatch({ type: "EQUIP_ITEM", item })}
-                onSell={() => {
-                  if (pendingSellId !== item.id) {
-                    setPendingSellId(item.id);
-                    return;
-                  }
-                  dispatch({ type: "SELL_ITEM", item });
-                  setPendingSellId(null);
-                }}
-                lockInteractions={lockInventorySideActions}
-                spotlightEquip={equipTutorialActive}
-              />
-            ))}
+            {sortedItems.map(item => {
+              const isTutorialItem = equipTutorialActive && sortedItems[0]?.id === item.id;
+              return (
+                <InventoryRow
+                  key={item.id}
+                  item={item}
+                  tutorialTarget={isTutorialItem}
+                  equippedCompare={item.type === "weapon" ? equipment.weapon : equipment.armor}
+                  activeBuildTag={activeBuildTag}
+                  wishlistAffixes={wishlistAffixes}
+                  isDarkMode={isDarkMode}
+                  isMobile={isMobile}
+                  pendingSell={pendingSellId === item.id}
+                  onOpen={() => setDetailItemId(item.id)}
+                  onEquip={() => dispatch({ type: "EQUIP_ITEM", item })}
+                  onSell={() => {
+                    if (pendingSellId !== item.id) {
+                      setPendingSellId(item.id);
+                      return;
+                    }
+                    dispatch({ type: "SELL_ITEM", item });
+                    setPendingSellId(null);
+                  }}
+                  lockInteractions={lockInventorySideActions}
+                  spotlightEquip={isTutorialItem}
+                />
+              );
+            })}
           </div>
         )}
       </section>

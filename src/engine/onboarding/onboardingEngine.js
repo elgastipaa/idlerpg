@@ -208,7 +208,11 @@ export function isExtractionUnlocked(state = {}) {
   if (state?.onboarding?.flags?.extractionUnlocked) {
     return (
       Boolean(state?.onboarding?.flags?.firstBossSeen) &&
-      Math.max(1, Number(state?.combat?.currentTier || 1)) >= 6
+      Math.max(
+        1,
+        Number(state?.combat?.maxTier || 1),
+        Number(state?.combat?.currentTier || 1)
+      ) >= 6
     );
   }
   return false;
@@ -581,13 +585,13 @@ export function getOnboardingStepMeta(step = null, state = {}) {
       };
     case ONBOARDING_STEPS.DEEP_FORGE_READY:
       return {
-        title: "Forja Profunda ya puede investigarse",
-        body: "Desde Prestige 3, el Laboratorio ya puede abrir la ruta hacia Forja Profunda. Este beat es solo informativo: en el siguiente momento relevante la vas a usar de verdad.",
+        title: "El Taller ya puede investigarse",
+        body: "Desde Prestige 3, el Laboratorio ya puede abrir la ruta hacia el Taller. Este beat es solo informativo: en el siguiente momento relevante lo vas a usar de verdad.",
         actionLabel: null,
       };
     case ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE:
       return {
-        title: "Usa la Forja Profunda",
+        title: "Usa el Taller",
         body: "Abre la estacion y sube el proyecto marcado. Esta es la primera vez que conviertes una base prometedora en progreso persistente real del Santuario.",
         actionLabel: null,
       };
@@ -942,7 +946,21 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
   const nextBossKills = Number(nextState?.combat?.runStats?.bossKills || nextState?.combat?.analytics?.bossKills || 0);
   const prevEnemyWasBoss = Boolean(prevState?.combat?.enemy?.isBoss);
   const currentEnemyIsBoss = Boolean(nextState?.combat?.enemy?.isBoss);
+  const hasEquippedItem = Boolean(
+    nextState?.player?.equipment?.weapon ||
+    nextState?.player?.equipment?.armor ||
+    prevState?.player?.equipment?.weapon ||
+    prevState?.player?.equipment?.armor
+  );
+  const bossEncounteredNow = currentEnemyIsBoss || prevEnemyWasBoss || nextBossKills > prevBossKills;
   const currentCombatTier = Math.max(1, Number(nextState?.combat?.currentTier || 1));
+  const maxCombatTier = Math.max(
+    currentCombatTier,
+    Number(nextState?.combat?.maxTier || 1),
+    Number(prevState?.combat?.maxTier || 1),
+    Number(prevState?.combat?.currentTier || 1)
+  );
+  const bossTierReached = maxCombatTier >= 5;
   const currentTier = Math.max(
     currentCombatTier,
     Number(nextState?.combat?.maxTier || 1)
@@ -957,10 +975,19 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
   const nextExpeditionPhase = nextState?.expedition?.phase || "sanctuary";
   const expeditionInRunFlow = nextExpeditionPhase === "active" || nextExpeditionPhase === "setup";
   const currentStepRequiredTab = getOnboardingRequiredTab(onboarding.step);
+  const runCompatibleOnboardingTabs = new Set(["combat", "character", "skills", "talents", "inventory", "crafting", "codex"]);
+  const firstItemReady = onboarding.flags.firstItemEquipped || hasEquippedItem;
+  const bossPhaseUnlocked =
+    onboarding.flags.firstBossSeen ||
+    onboarding.bossHeroQueued ||
+    prevBossKills > 0 ||
+    nextBossKills > 0 ||
+    bossEncounteredNow ||
+    bossTierReached;
   const canOpenHeroAfterBoss =
     !onboarding.flags.heroIntroSeen &&
     nextState?.player?.class &&
-    onboarding.flags.firstBossSeen;
+    bossPhaseUnlocked;
   const claimedJob =
     action.type === "CLAIM_SANCTUARY_JOB"
       ? (Array.isArray(prevState?.sanctuary?.jobs)
@@ -968,10 +995,25 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
           : null)
       : null;
 
-  if (expeditionInRunFlow && currentStepRequiredTab && currentStepRequiredTab !== "combat") {
+  if (
+    expeditionInRunFlow &&
+    currentStepRequiredTab &&
+    !runCompatibleOnboardingTabs.has(currentStepRequiredTab)
+  ) {
     onboarding = {
       ...onboarding,
       step: null,
+    };
+  }
+
+  if (!onboarding.flags.firstItemEquipped && hasEquippedItem) {
+    onboarding = {
+      ...onboarding,
+      flags: {
+        ...onboarding.flags,
+        firstItemEquipped: true,
+        inventoryUnlocked: true,
+      },
     };
   }
 
@@ -1277,7 +1319,7 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
       nextState,
       {
         ...onboarding,
-        bossHeroQueued: prevEnemyWasBoss,
+        bossHeroQueued: bossPhaseUnlocked || prevEnemyWasBoss,
       },
       ONBOARDING_STEPS.FIRST_DEATH,
       { currentTab: "combat" }
@@ -1345,6 +1387,29 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     return withNextStep(nextState, onboarding, ONBOARDING_STEPS.HERO_INTRO, {
       currentTab: "character",
     });
+  }
+
+  if (
+    canOpenHeroAfterBoss &&
+    !onboarding.step &&
+    onboarding.bossHeroDelayTicks <= 0 &&
+    onboarding.flags.firstDeathSeen &&
+    !onboarding.flags.heroTabUnlocked &&
+    nextExpeditionPhase === "active"
+  ) {
+    return withNextStep(
+      nextState,
+      {
+        ...onboarding,
+        bossHeroDelayTicks: 0,
+        flags: {
+          ...onboarding.flags,
+          heroTabUnlocked: true,
+        },
+      },
+      ONBOARDING_STEPS.OPEN_HERO,
+      { currentTab: "combat" }
+    );
   }
 
   if (
@@ -1539,7 +1604,13 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     };
   }
 
-  if (!onboarding.flags.firstBossSeen && !onboarding.step && onboarding.flags.firstItemEquipped && currentEnemyIsBoss) {
+  if (
+    !onboarding.flags.firstBossSeen &&
+    !onboarding.step &&
+    firstItemReady &&
+    nextExpeditionPhase === "active" &&
+    (bossEncounteredNow || bossTierReached || nextBossKills > 0)
+  ) {
     return withNextStep(nextState, onboarding, ONBOARDING_STEPS.FIRST_BOSS, { currentTab: "combat" });
   }
 
@@ -1562,7 +1633,12 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     };
   }
 
-  if (!onboarding.flags.huntUnlocked && !onboarding.step && nextBossKills > prevBossKills) {
+  if (
+    onboarding.flags.firstBossSeen &&
+    !onboarding.flags.huntUnlocked &&
+    !onboarding.step &&
+    nextBossKills > 0
+  ) {
     return withNextStep(nextState, onboarding, ONBOARDING_STEPS.HUNT_INTRO, { currentTab: "combat" });
   }
 
@@ -1982,6 +2058,7 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
 
 export function getOnboardingOverlayAnchor(step = null) {
   if (step === ONBOARDING_STEPS.EQUIP_INTRO) return "subnav";
+  if (step === ONBOARDING_STEPS.HERO_INTRO) return "bottom";
   if (
     step === ONBOARDING_STEPS.HERO_SKILLS_INTRO ||
     step === ONBOARDING_STEPS.HERO_TALENTS_INTRO ||
@@ -2083,10 +2160,7 @@ export function getOnboardingSpotlightSelectors(step = null, state = {}) {
     case ONBOARDING_STEPS.EQUIP_INTRO:
       return ['[data-onboarding-target="subview-inventory"]'];
     case ONBOARDING_STEPS.EQUIP_FIRST_ITEM:
-      return [
-        '[data-onboarding-target="tutorial-first-item"]',
-        '[data-onboarding-target="equip-item"]',
-      ];
+      return ['[data-onboarding-target="equip-item"]'];
     case ONBOARDING_STEPS.SPEND_ATTRIBUTE:
       return [
         '[data-onboarding-target="upgrade-attribute-card"]',

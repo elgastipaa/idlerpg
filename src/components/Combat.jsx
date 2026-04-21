@@ -486,6 +486,56 @@ export default function Combat({ state, dispatch }) {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (!spotlightAutoAdvance) return undefined;
+
+    let frameId = null;
+    let timeoutId = null;
+    let attempts = 0;
+
+    const scrollAutoAdvanceIntoView = () => {
+      const target = document.querySelector('[data-onboarding-target="auto-advance"]');
+      if (!(target instanceof HTMLElement)) return;
+
+      const topSafe = isMobile ? 132 : 148;
+      const bottomSafe = isMobile ? 96 : 28;
+      const visibleBottom = Math.max(topSafe + 56, window.innerHeight - bottomSafe);
+      const behavior = attempts === 0 ? "auto" : "smooth";
+
+      target.scrollIntoView({
+        block: isMobile ? "center" : "start",
+        inline: "nearest",
+        behavior,
+      });
+
+      const rect = target.getBoundingClientRect();
+      if (rect.top < topSafe) {
+        window.scrollBy({
+          top: rect.top - topSafe - 12,
+          behavior,
+        });
+      } else if (rect.bottom > visibleBottom) {
+        window.scrollBy({
+          top: rect.bottom - visibleBottom + 12,
+          behavior,
+        });
+      }
+
+      attempts += 1;
+      if (attempts < 6) {
+        timeoutId = window.setTimeout(() => {
+          frameId = requestAnimationFrame(scrollAutoAdvanceIntoView);
+        }, 90);
+      }
+    };
+
+    frameId = requestAnimationFrame(scrollAutoAdvanceIntoView);
+    return () => {
+      if (frameId != null) cancelAnimationFrame(frameId);
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+    };
+  }, [isMobile, spotlightAutoAdvance]);
+
   if (!enemy) return null;
 
   const enemyHpPct = Math.max(0, (enemy.hp / enemy.maxHp) * 100);

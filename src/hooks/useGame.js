@@ -1,7 +1,7 @@
 import { useReducer, useEffect, useRef, useCallback } from "react";
 import { gameReducer } from "../state/gameReducer";
 import { initialState } from "../engine/stateInitializer";
-import { clearGame, isRecoveryMode, saveGame } from "../utils/storage";
+import { buildRecoveryExitUrl, clearGame, getSaveMode, isRecoveryMode, saveGame } from "../utils/storage";
 import { TICK_MS } from "../constants";
 import { getLifetimeXp } from "../engine/leveling";
 
@@ -59,6 +59,7 @@ export const useGame = () => {
   const offlineJobRef = useRef(null);
   const accountSessionStartedRef = useRef(false);
   const lastAccountTrackedAtRef = useRef(null);
+  const saveMode = getSaveMode();
   const recoveryMode = isRecoveryMode();
   const dispatch = useCallback((action) => {
     if (action?.type === "RESET_ALL_PROGRESS") {
@@ -107,6 +108,14 @@ export const useGame = () => {
       },
     });
   }, []);
+
+  useEffect(() => {
+    if (!saveMode.wipe) return;
+    clearGame();
+    const nextUrl = buildRecoveryExitUrl();
+    if (window.location.href === nextUrl) return;
+    window.location.replace(nextUrl);
+  }, [saveMode.wipe]);
 
   useEffect(() => {
     latestStateRef.current = state;

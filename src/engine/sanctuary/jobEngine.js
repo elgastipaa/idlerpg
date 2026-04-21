@@ -197,7 +197,7 @@ const SANCTUARY_ERRAND_BASE_DEFINITIONS = [
     id: "material_salvage",
     type: "materials",
     label: "Encargo de Recuperacion",
-    description: "Se recuperan materiales útiles para Forja Profunda y Altar de Sigilos.",
+    description: "Se recuperan materiales útiles para Taller y Altar de Sigilos.",
     rewardLabel: "Polvo de Reliquia y Flux",
   },
 ];

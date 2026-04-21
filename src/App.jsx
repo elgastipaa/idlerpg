@@ -70,7 +70,7 @@ class TabErrorBoundary extends React.Component {
                 cursor: "pointer",
               }}
             >
-              Ir a Combate
+              {this.props.recoverLabel || "Recuperar"}
             </button>
           )}
         </div>
@@ -539,7 +539,15 @@ export default function App() {
         <main style={{ width: "100%", background: isMobile ? "transparent" : "var(--color-background-secondary, #ffffff)", borderRadius: isMobile ? "0" : "12px", border: isMobile ? "none" : "1px solid var(--color-border-tertiary, #cbd5e1)", boxShadow: isMobile ? "none" : "0 4px 20px var(--color-shadow, rgba(0,0,0,0.05))" }}>
           <TabErrorBoundary
             label={PRIMARY_TAB_CONFIG[currentPrimaryTab].label}
-            onRecover={() => dispatch({ type: "SET_TAB", tab: state.expedition?.phase === "active" ? "combat" : "sanctuary" })}
+            recoverLabel={
+              ["active", "setup"].includes(state.expedition?.phase || "sanctuary")
+                ? "Ir a Expedicion"
+                : "Ir al Santuario"
+            }
+            onRecover={() => dispatch({
+              type: "SET_TAB",
+              tab: ["active", "setup"].includes(state.expedition?.phase || "sanctuary") ? "combat" : "sanctuary",
+            })}
           >
             <Suspense fallback={<TabLoadingCard label={PRIMARY_TAB_CONFIG[currentPrimaryTab].label} />}>
               {renderCurrentTab(state.currentTab, state, dispatch)}

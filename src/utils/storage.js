@@ -1,6 +1,6 @@
 export const STORAGE_KEY = "idleRPG";
 
-function getSaveMode() {
+export function getSaveMode() {
   if (typeof window === "undefined") return { fresh: false, wipe: false, noSave: false };
   const params = new URLSearchParams(window.location.search);
   return {
@@ -13,6 +13,15 @@ function getSaveMode() {
 export function isRecoveryMode() {
   const mode = getSaveMode();
   return mode.fresh || mode.wipe || mode.noSave;
+}
+
+export function buildRecoveryExitUrl() {
+  if (typeof window === "undefined") return "/";
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.delete("wipe");
+  nextUrl.searchParams.delete("fresh");
+  nextUrl.searchParams.delete("nosave");
+  return nextUrl.toString();
 }
 
 export const saveGame = (data) => {

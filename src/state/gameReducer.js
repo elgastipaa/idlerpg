@@ -803,7 +803,7 @@ function baseGameReducer(state, action) {
       return {
         ...state,
         currentTab: action.tab === "lab"
-          ? ((state.expedition?.phase || "sanctuary") === "active" ? "combat" : "sanctuary")
+          ? (["active", "setup"].includes(state.expedition?.phase || "sanctuary") ? "combat" : "sanctuary")
           : action.tab,
       };
 
@@ -3404,7 +3404,7 @@ function withExpeditionState(prevState, nextState) {
 
   let currentTab = nextState?.currentTab || "sanctuary";
   if (currentTab === "lab") {
-    currentTab = nextPhase === "active" ? "combat" : "sanctuary";
+    currentTab = nextPhase === "active" || nextPhase === "setup" ? "combat" : "sanctuary";
   }
   if (nextPhase === "sanctuary" && (currentTab === "combat" || currentTab === "inventory" || currentTab === "crafting" || currentTab === "codex")) {
     currentTab = "sanctuary";
