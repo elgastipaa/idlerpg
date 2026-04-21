@@ -560,6 +560,7 @@ function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, pre
 
   return (
     <div
+      data-onboarding-target={spotlight ? "buy-talent-card" : undefined}
       style={{
         background: "var(--color-background-secondary, #fff)",
         border: `1px solid ${justUnlocked ? "var(--tone-success, #22c55e)" : isUnlocked ? "var(--tone-success, #1D9E75)" : nodeState.allRequirementsMet ? "var(--color-border-primary, #e2e8f0)" : "var(--tone-danger, #fecaca)"}`,
@@ -569,8 +570,15 @@ function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, pre
         flexDirection: "column",
         gap: "7px",
         minWidth: 0,
-        boxShadow: justUnlocked ? "0 0 0 2px rgba(34,197,94,0.45), 0 0 22px rgba(34,197,94,0.35), 0 12px 24px rgba(29,158,117,0.24)" : "none",
-        transform: justUnlocked ? "scale(1.01)" : "none",
+        position: spotlight ? "relative" : "static",
+        zIndex: spotlight ? 2 : 1,
+        boxShadow: spotlight
+          ? "0 0 0 2px rgba(99,102,241,0.18), 0 12px 28px rgba(99,102,241,0.18)"
+          : justUnlocked
+            ? "0 0 0 2px rgba(34,197,94,0.45), 0 0 22px rgba(34,197,94,0.35), 0 12px 24px rgba(29,158,117,0.24)"
+            : "none",
+        animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
+        transform: spotlight || justUnlocked ? "scale(1.01)" : "none",
         transition: "all 0.2s ease",
       }}
     >
@@ -653,6 +661,7 @@ function MobileTalentNodeRow({ node, nodeState, justUnlocked, dispatch, prereqTe
 
   return (
     <article
+      data-onboarding-target={spotlight ? "buy-talent-card" : undefined}
       style={{
         background: "var(--color-background-secondary, #fff)",
         border: `1px solid ${justUnlocked ? "var(--tone-success, #22c55e)" : isUnlocked ? "var(--tone-success, #1D9E75)" : nodeState.allRequirementsMet ? "var(--color-border-primary, #e2e8f0)" : "var(--tone-danger, #fecaca)"}`,
@@ -662,7 +671,14 @@ function MobileTalentNodeRow({ node, nodeState, justUnlocked, dispatch, prereqTe
         flexDirection: "column",
         gap: "5px",
         minWidth: 0,
-        boxShadow: justUnlocked ? "0 0 0 2px rgba(34,197,94,0.42), 0 0 18px rgba(34,197,94,0.25)" : "none",
+        position: spotlight ? "relative" : "static",
+        zIndex: spotlight ? 2 : 1,
+        boxShadow: spotlight
+          ? "0 0 0 2px rgba(99,102,241,0.18), 0 12px 28px rgba(99,102,241,0.18)"
+          : justUnlocked
+            ? "0 0 0 2px rgba(34,197,94,0.42), 0 0 18px rgba(34,197,94,0.25)"
+            : "none",
+        animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
         transition: "all 0.2s ease",
       }}
     >
@@ -781,31 +797,6 @@ export default function Talents({ state, dispatch }) {
     const timer = setTimeout(() => setRecentUnlocks({}), 950);
     return () => clearTimeout(timer);
   }, [unlockedTalents]);
-
-  useEffect(() => {
-    if (!spotlightTalentPurchase) return undefined;
-    let cancelled = false;
-    let attempt = 0;
-
-    const scrollToTutorialTalent = () => {
-      if (cancelled) return;
-      const target = document.querySelector('[data-onboarding-target="buy-talent"]');
-      if (target) {
-        target.scrollIntoView({ behavior: "smooth", block: "center" });
-        return;
-      }
-      attempt += 1;
-      if (attempt < 8) {
-        window.setTimeout(scrollToTutorialTalent, 80);
-      }
-    };
-
-    const timer = window.setTimeout(scrollToTutorialTalent, 120);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [spotlightTalentPurchase, selectedTreeId]);
 
   const playerLevel = player.level || 1;
   const treesByProgression = getTalentTreesForPlayer({ playerClass, playerSpec, playerLevel });
@@ -943,6 +934,7 @@ export default function Talents({ state, dispatch }) {
       {visibleTrees.map(({ tree, nodes, progress }) => (
         <section key={tree.id} style={treeSectionWrapStyle}>
           <div
+            data-onboarding-top-guard={spotlightTalentPurchase ? "true" : undefined}
             style={{
               marginInline: "-14px",
               position: "sticky",

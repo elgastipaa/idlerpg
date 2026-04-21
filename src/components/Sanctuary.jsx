@@ -323,6 +323,21 @@ export default function Sanctuary({ state, dispatch }) {
     onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO && onboardingMode === "forced";
   const spotlightDistilleryReady =
     onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY && onboardingMode === "forced";
+  const sanctuaryOnboardingLocked = [
+    ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
+    ONBOARDING_STEPS.RESEARCH_DISTILLERY,
+    ONBOARDING_STEPS.DISTILLERY_READY,
+    ONBOARDING_STEPS.FIRST_DISTILLERY_JOB,
+    ONBOARDING_STEPS.BLUEPRINT_INTRO,
+    ONBOARDING_STEPS.BLUEPRINT_DECISION,
+    ONBOARDING_STEPS.FIRST_BLUEPRINT_MATERIALIZATION,
+    ONBOARDING_STEPS.DEEP_FORGE_READY,
+    ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE,
+    ONBOARDING_STEPS.LIBRARY_READY,
+    ONBOARDING_STEPS.ERRANDS_READY,
+    ONBOARDING_STEPS.SIGIL_ALTAR_READY,
+    ONBOARDING_STEPS.ABYSS_PORTAL_READY,
+  ].includes(onboardingStep);
   const forceDetailedInfrastructure = [
     ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
     ONBOARDING_STEPS.DISTILLERY_READY,
@@ -388,6 +403,70 @@ export default function Sanctuary({ state, dispatch }) {
   const laboratoryRunningCount = Number(runningByStation.laboratory || 0);
   const laboratoryClaimableCount = claimableJobs.filter(job => job?.station === "laboratory").length;
   const laboratoryCompletedCount = Object.keys(sanctuary?.laboratory?.completed || {}).length;
+  const hasRunningDistilleryResearch = jobs.some(
+    job =>
+      job?.station === "laboratory" &&
+      job?.input?.researchId === "unlock_distillery" &&
+      job?.status === "running"
+  );
+  const hasClaimableDistilleryResearch = jobs.some(
+    job =>
+      job?.station === "laboratory" &&
+      job?.input?.researchId === "unlock_distillery" &&
+      job?.status === "claimable"
+  );
+
+  function scrollToTarget(selector) {
+    window.requestAnimationFrame(() => {
+      const target = document.querySelector(selector);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
+
+  function guideSanctuaryOnboardingStep(stepId = onboardingStep) {
+    switch (stepId) {
+      case ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN:
+        scrollToTarget('[data-onboarding-target="open-laboratory"]');
+        return;
+      case ONBOARDING_STEPS.RESEARCH_DISTILLERY:
+        openLaboratoryFromSanctuary("header-cta");
+        return;
+      case ONBOARDING_STEPS.DISTILLERY_READY:
+        if (hasClaimableDistilleryResearch || hasRunningDistilleryResearch || !distilleryUnlocked) {
+          openLaboratoryFromSanctuary("header-cta");
+          return;
+        }
+        setShowDistillery(true);
+        return;
+      case ONBOARDING_STEPS.FIRST_DISTILLERY_JOB:
+        if (distilleryUnlocked) {
+          setShowDistillery(true);
+          return;
+        }
+        openLaboratoryFromSanctuary("header-cta");
+        return;
+      case ONBOARDING_STEPS.BLUEPRINT_INTRO:
+      case ONBOARDING_STEPS.BLUEPRINT_DECISION:
+      case ONBOARDING_STEPS.FIRST_BLUEPRINT_MATERIALIZATION:
+      case ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE:
+        if (deepForgeStation.unlocked) {
+          setShowDeepForge(true);
+          return;
+        }
+        openLaboratoryFromSanctuary("header-cta");
+        return;
+      case ONBOARDING_STEPS.DEEP_FORGE_READY:
+      case ONBOARDING_STEPS.LIBRARY_READY:
+      case ONBOARDING_STEPS.ERRANDS_READY:
+      case ONBOARDING_STEPS.SIGIL_ALTAR_READY:
+      case ONBOARDING_STEPS.ABYSS_PORTAL_READY:
+        openLaboratoryFromSanctuary("header-cta");
+        return;
+      default:
+        return;
+    }
+  }
 
   const expeditionCta = useMemo(() => {
     if (showingSanctuaryIntro) {
@@ -398,12 +477,48 @@ export default function Sanctuary({ state, dispatch }) {
         helper: "Toca este boton para aprender el primer gesto del juego. Luego eliges una clase y ahi si entras al combate.",
       };
     }
+    if (onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN) {
+      return {
+        label: "Ir al Laboratorio",
+        primary: true,
+        action: () => guideSanctuaryOnboardingStep(ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN),
+        helper: "La expedicion termino. Antes de volver a salir, abre el Laboratorio desde el boton real resaltado y desbloquea la primera estacion persistente.",
+      };
+    }
     if (onboardingStep === ONBOARDING_STEPS.RESEARCH_DISTILLERY) {
       return {
         label: "Abrir Laboratorio",
         primary: true,
-        action: () => openLaboratoryFromSanctuary("header-cta"),
+        action: () => guideSanctuaryOnboardingStep(ONBOARDING_STEPS.RESEARCH_DISTILLERY),
         helper: "La expedicion ya cerro. El siguiente paso del tutorial es investigar la Destileria desde el Laboratorio.",
+      };
+    }
+    if (onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY) {
+      return {
+        label: hasClaimableDistilleryResearch || hasRunningDistilleryResearch || !distilleryUnlocked
+          ? "Abrir Laboratorio"
+          : "Abrir Destileria",
+        primary: true,
+        action: () => guideSanctuaryOnboardingStep(ONBOARDING_STEPS.DISTILLERY_READY),
+        helper: hasClaimableDistilleryResearch || hasRunningDistilleryResearch || !distilleryUnlocked
+          ? "La expedicion sigue bloqueada por el tutorial hasta terminar de abrir la Destileria desde el Laboratorio."
+          : "La Destileria ya esta lista. Abrela y aprende a procesar tu primer cargo antes de volver a salir.",
+      };
+    }
+    if (onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB) {
+      return {
+        label: "Abrir Destileria",
+        primary: true,
+        action: () => guideSanctuaryOnboardingStep(ONBOARDING_STEPS.FIRST_DISTILLERY_JOB),
+        helper: "Todavia no toca otra expedicion. Primero manda a destilar un bundle real para cerrar el loop basico del Santuario.",
+      };
+    }
+    if (sanctuaryOnboardingLocked) {
+      return {
+        label: "Seguir tutorial",
+        primary: true,
+        action: () => guideSanctuaryOnboardingStep(onboardingStep),
+        helper: "Hay un paso obligatorio del Santuario activo. Mientras no lo cierres, el juego no va a dejar iniciar una nueva expedicion.",
       };
     }
     if (!hasClass) {
@@ -444,7 +559,20 @@ export default function Sanctuary({ state, dispatch }) {
       action: () => dispatch({ type: "ENTER_EXPEDITION_SETUP" }),
       helper: "Tu heroe ya esta listo. Abre la preparacion de la siguiente salida y vuelve al frente.",
     };
-  }, [dispatch, expeditionPhase, hasClass, laboratoryUnlocked, onboardingStep, showingSanctuaryIntro, state.combat?.pendingRunSetup]);
+  }, [
+    deepForgeStation.unlocked,
+    dispatch,
+    distilleryUnlocked,
+    expeditionPhase,
+    hasClass,
+    hasClaimableDistilleryResearch,
+    hasRunningDistilleryResearch,
+    laboratoryUnlocked,
+    onboardingStep,
+    sanctuaryOnboardingLocked,
+    showingSanctuaryIntro,
+    state.combat?.pendingRunSetup,
+  ]);
 
   const expeditionLabel = hasClass
     ? `${state.player.class}${hasSpec ? ` · ${state.player.specialization}` : ""}`
@@ -583,6 +711,62 @@ export default function Sanctuary({ state, dispatch }) {
     const hasAnyBlueprint = blueprintCount > 0;
     const maxTierReached = Number(state?.combat?.maxTier || 1);
     const hasSeenBoss = maxTierReached >= 5 || Number(state?.combat?.analytics?.bossKills || 0) > 0;
+    if (onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN) {
+      return {
+        tone: "accent",
+        eyebrow: "Primer retorno",
+        title: "Abre el Laboratorio para encender el Santuario",
+        body: "La primera extraccion no termina el loop: lo abre. Usa el boton real del Laboratorio y recien despues volveras a poder preparar otra expedicion.",
+        cta: "Ir al Laboratorio",
+        action: () => guideSanctuaryOnboardingStep(ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN),
+      };
+    }
+    if (onboardingStep === ONBOARDING_STEPS.RESEARCH_DISTILLERY) {
+      return {
+        tone: "accent",
+        eyebrow: "Infraestructura",
+        title: "Investiga la Destileria desde el Laboratorio",
+        body: "Ese research convierte la primera extraccion en progreso persistente real. Hasta que no lo hagas, el tutorial no te va a soltar de este paso.",
+        cta: "Abrir Laboratorio",
+        action: () => guideSanctuaryOnboardingStep(ONBOARDING_STEPS.RESEARCH_DISTILLERY),
+      };
+    }
+    if (onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY) {
+      return {
+        tone: "accent",
+        eyebrow: "Estacion nueva",
+        title: hasClaimableDistilleryResearch || hasRunningDistilleryResearch || !distilleryUnlocked
+          ? "Termina de habilitar la Destileria"
+          : "Abre la Destileria",
+        body: hasClaimableDistilleryResearch || hasRunningDistilleryResearch || !distilleryUnlocked
+          ? "La expedicion sigue frenada hasta cerrar este unlock. Entra al Laboratorio, reclama si hace falta y termina de abrir la estacion."
+          : "La estacion ya esta viva. Abrela y prepara la primera destilacion antes de volver a salir.",
+        cta: hasClaimableDistilleryResearch || hasRunningDistilleryResearch || !distilleryUnlocked
+          ? "Abrir Laboratorio"
+          : "Abrir Destileria",
+        action: () => guideSanctuaryOnboardingStep(ONBOARDING_STEPS.DISTILLERY_READY),
+      };
+    }
+    if (onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB) {
+      return {
+        tone: "accent",
+        eyebrow: "Primer job",
+        title: "Lanza tu primera destilacion",
+        body: "El tutorial te mantiene en el Santuario hasta que pongas a trabajar un bundle real. Haz ese click y despues ya vuelves al frente.",
+        cta: "Abrir Destileria",
+        action: () => guideSanctuaryOnboardingStep(ONBOARDING_STEPS.FIRST_DISTILLERY_JOB),
+      };
+    }
+    if (sanctuaryOnboardingLocked) {
+      return {
+        tone: "accent",
+        eyebrow: "Paso guiado",
+        title: "Completa el paso actual del Santuario",
+        body: "Hay un beat obligatorio del hub en curso. Mientras siga activo, el juego no va a dejar iniciar otra expedicion aunque el boton aparezca en otros contextos.",
+        cta: "Seguir tutorial",
+        action: () => guideSanctuaryOnboardingStep(onboardingStep),
+      };
+    }
     if (!hasClass) {
       return {
         tone: "accent",
@@ -769,6 +953,9 @@ export default function Sanctuary({ state, dispatch }) {
     state?.prestige?.totalEchoesEarned,
     tier25BossCleared,
     totalCargoQuantity,
+    hasClaimableDistilleryResearch,
+    hasRunningDistilleryResearch,
+    sanctuaryOnboardingLocked,
   ]);
   const nextStepTone = nextStepToneStyle(nextStep.tone);
   const readyNowRows = useMemo(() => {
@@ -1166,12 +1353,12 @@ export default function Sanctuary({ state, dispatch }) {
           </div>
           <button
             onClick={nextStep.action}
-            disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN}
+            disabled={Boolean(nextStep.disabled)}
             style={{
               ...stationButtonStyle({
                 tone: nextStepTone.accent,
                 surface: nextStepTone.surface,
-                disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
+                disabled: Boolean(nextStep.disabled),
               }),
               ...(isMobileViewport ? { width: "100%" } : null),
             }}

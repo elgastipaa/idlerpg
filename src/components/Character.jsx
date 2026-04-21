@@ -86,38 +86,7 @@ export default function Character({ player, dispatch, state }) {
   const specTutorialActive = onboardingStep === ONBOARDING_STEPS.CHOOSE_SPEC;
   const spotlightHeroOverview =
     onboardingStep === ONBOARDING_STEPS.HERO_INTRO && onboardingMode === "forced";
-
-  useEffect(() => {
-    if (!specTutorialActive || player.specialization) return undefined;
-
-    let frameId = null;
-    const scrollToSpec = () => {
-      const target = document.querySelector('[data-onboarding-target="choose-spec-card"]');
-      if (!target) return;
-      target.scrollIntoView({ behavior: "smooth", block: "center" });
-    };
-
-    frameId = requestAnimationFrame(scrollToSpec);
-    return () => {
-      if (frameId != null) cancelAnimationFrame(frameId);
-    };
-  }, [specTutorialActive, player.specialization, availableSpecs.length]);
-
-  useEffect(() => {
-    if (!spotlightHeroOverview) return undefined;
-
-    let frameId = null;
-    const scrollToOverview = () => {
-      const target = document.querySelector('[data-onboarding-target="hero-overview"]');
-      if (!target) return;
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-    };
-
-    frameId = requestAnimationFrame(scrollToOverview);
-    return () => {
-      if (frameId != null) cancelAnimationFrame(frameId);
-    };
-  }, [spotlightHeroOverview]);
+  const tutorialSpecId = specTutorialActive ? (availableSpecs[0]?.id || null) : null;
 
   if (!player.class) {
     return (
@@ -257,10 +226,11 @@ export default function Character({ player, dispatch, state }) {
               {availableSpecs.map(spec => {
                 const canUnlock = specTutorialActive || canUnlockSpec(spec, player, kills);
                 const reqText = getRequirementText(spec.unlockCondition);
+                const spotlightSpec = tutorialSpecId === spec.id;
                 return (
                   <div
                     key={spec.id}
-                    data-onboarding-target={specTutorialActive ? "choose-spec-card" : undefined}
+                    data-onboarding-target={spotlightSpec ? "choose-spec-card" : undefined}
                     style={{
                       background: canUnlock ? "var(--color-background-tertiary, #f8fafc)" : "var(--tone-warning-soft, #fff7ed)",
                       border: `1px solid ${canUnlock ? "var(--color-border-primary, #e2e8f0)" : "#fed7aa"}`,
@@ -270,10 +240,10 @@ export default function Character({ player, dispatch, state }) {
                       justifyContent: "space-between",
                       alignItems: "center",
                       gap: "8px",
-                      position: specTutorialActive ? "relative" : "static",
-                      zIndex: specTutorialActive ? 2 : 1,
-                      boxShadow: specTutorialActive ? "0 10px 24px rgba(83,74,183,0.14)" : "none",
-                      animation: specTutorialActive ? "chooseSpecPulse 1600ms ease-in-out infinite" : "none",
+                      position: spotlightSpec ? "relative" : "static",
+                      zIndex: spotlightSpec ? 2 : 1,
+                      boxShadow: spotlightSpec ? "0 10px 24px rgba(83,74,183,0.14)" : "none",
+                      animation: spotlightSpec ? "chooseSpecPulse 1600ms ease-in-out infinite" : "none",
                     }}
                   >
                     <div style={{ minWidth: 0 }}>
@@ -285,7 +255,7 @@ export default function Character({ player, dispatch, state }) {
                     </div>
                     <button
                       disabled={!canUnlock}
-                      data-onboarding-target={specTutorialActive ? "choose-spec" : undefined}
+                      data-onboarding-target={spotlightSpec ? "choose-spec" : undefined}
                       onClick={() => dispatch({ type: "SELECT_SPECIALIZATION", specId: spec.id })}
                       style={{
                         background: canUnlock ? "var(--tone-success, #1D9E75)" : "var(--color-background-tertiary, #f1f5f9)",
@@ -297,8 +267,8 @@ export default function Character({ player, dispatch, state }) {
                         fontWeight: "900",
                         cursor: canUnlock ? "pointer" : "not-allowed",
                         flexShrink: 0,
-                        position: specTutorialActive ? "relative" : "static",
-                        zIndex: specTutorialActive ? 3 : 1,
+                        position: spotlightSpec ? "relative" : "static",
+                        zIndex: spotlightSpec ? 3 : 1,
                       }}
                     >
                       Elegir

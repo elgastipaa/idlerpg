@@ -988,6 +988,7 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     !onboarding.flags.heroIntroSeen &&
     nextState?.player?.class &&
     bossPhaseUnlocked;
+  const alreadyInsideHeroFlow = ["character", "skills", "talents"].includes(nextState?.currentTab || "sanctuary");
   const claimedJob =
     action.type === "CLAIM_SANCTUARY_JOB"
       ? (Array.isArray(prevState?.sanctuary?.jobs)
@@ -1397,6 +1398,21 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     !onboarding.flags.heroTabUnlocked &&
     nextExpeditionPhase === "active"
   ) {
+    if (alreadyInsideHeroFlow) {
+      return withNextStep(
+        nextState,
+        {
+          ...onboarding,
+          bossHeroDelayTicks: 0,
+          flags: {
+            ...onboarding.flags,
+            heroTabUnlocked: true,
+          },
+        },
+        ONBOARDING_STEPS.HERO_INTRO,
+        { currentTab: "character" }
+      );
+    }
     return withNextStep(
       nextState,
       {
@@ -1420,6 +1436,21 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     currentCombatTier <= 4 &&
     nextDeaths === prevDeaths
   ) {
+    if (alreadyInsideHeroFlow) {
+      return withNextStep(
+        nextState,
+        {
+          ...onboarding,
+          bossHeroDelayTicks: 0,
+          flags: {
+            ...onboarding.flags,
+            heroTabUnlocked: true,
+          },
+        },
+        ONBOARDING_STEPS.HERO_INTRO,
+        { currentTab: "character" }
+      );
+    }
     return withNextStep(
       nextState,
       {
@@ -2059,6 +2090,7 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
 export function getOnboardingOverlayAnchor(step = null) {
   if (step === ONBOARDING_STEPS.EQUIP_INTRO) return "subnav";
   if (step === ONBOARDING_STEPS.HERO_INTRO) return "bottom";
+  if (step === ONBOARDING_STEPS.BUY_TALENT) return "top";
   if (
     step === ONBOARDING_STEPS.HERO_SKILLS_INTRO ||
     step === ONBOARDING_STEPS.HERO_TALENTS_INTRO ||
@@ -2160,7 +2192,10 @@ export function getOnboardingSpotlightSelectors(step = null, state = {}) {
     case ONBOARDING_STEPS.EQUIP_INTRO:
       return ['[data-onboarding-target="subview-inventory"]'];
     case ONBOARDING_STEPS.EQUIP_FIRST_ITEM:
-      return ['[data-onboarding-target="equip-item"]'];
+      return [
+        '[data-onboarding-target="tutorial-first-item"]',
+        '[data-onboarding-target="equip-item"]',
+      ];
     case ONBOARDING_STEPS.SPEND_ATTRIBUTE:
       return [
         '[data-onboarding-target="upgrade-attribute-card"]',
@@ -2196,7 +2231,10 @@ export function getOnboardingSpotlightSelectors(step = null, state = {}) {
       return ['[data-onboarding-target="combat-encounter"]'];
     case ONBOARDING_STEPS.TALENT_INTRO:
     case ONBOARDING_STEPS.BUY_TALENT:
-      return ['[data-onboarding-target="buy-talent"]'];
+      return [
+        '[data-onboarding-target="buy-talent-card"]',
+        '[data-onboarding-target="buy-talent"]',
+      ];
     default:
       return [];
   }

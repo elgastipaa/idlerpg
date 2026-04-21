@@ -134,30 +134,8 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
   useEffect(() => {
     if (!equipTutorialActive) return undefined;
     setDetailItemId(null);
-    let cancelled = false;
-    let attempt = 0;
-
-    const scrollToTutorialItem = () => {
-      if (cancelled) return;
-      const target =
-        document.querySelector('[data-onboarding-target="equip-item"]')
-        || document.querySelector('[data-onboarding-target="tutorial-first-item"]');
-      if (target) {
-        target.scrollIntoView({ behavior: "smooth", block: "center" });
-        return;
-      }
-      attempt += 1;
-      if (attempt < 8) {
-        window.setTimeout(scrollToTutorialItem, 80);
-      }
-    };
-
-    const timer = window.setTimeout(scrollToTutorialItem, 120);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [equipTutorialActive, sortedItems?.[0]?.id]);
+    return undefined;
+  }, [equipTutorialActive]);
 
   const detailItem = [...inventory, ...(equipment.weapon ? [equipment.weapon] : []), ...(equipment.armor ? [equipment.armor] : [])]
     .find(item => item.id === detailItemId) || null;
