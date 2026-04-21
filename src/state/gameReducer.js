@@ -702,7 +702,7 @@ function buildPrestigeResetState(state, { echoesGained, nextPrestigeLevel, nextP
 }
 
 function baseGameReducer(state, action) {
-  if (getBlockedOnboardingAction(state?.onboarding?.step, action)) {
+  if (getBlockedOnboardingAction(state?.onboarding?.step, action, state)) {
     return state;
   }
 
@@ -3406,7 +3406,7 @@ function withExpeditionState(prevState, nextState) {
   if (currentTab === "lab") {
     currentTab = nextPhase === "active" ? "combat" : "sanctuary";
   }
-  if (nextPhase !== "active" && (currentTab === "combat" || currentTab === "inventory" || currentTab === "crafting" || currentTab === "codex")) {
+  if (nextPhase === "sanctuary" && (currentTab === "combat" || currentTab === "inventory" || currentTab === "crafting" || currentTab === "codex")) {
     currentTab = "sanctuary";
   }
   if (

@@ -1,15 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Combat from "./Combat";
 import Inventory from "./Inventory";
-import Crafting from "./Crafting";
 import Codex from "./Codex";
+import Crafting from "./Crafting";
 import { isFieldForgeUnlocked, isHuntUnlocked, isInventorySubviewUnlocked, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 
 const SUBVIEW_META = {
   combat: { label: "Combate" },
   inventory: { label: "Mochila" },
-  crafting: { label: "Forja" },
-  codex: { label: "Caza" },
+  codex: { label: "Intel" },
 };
 
 function subnavButtonStyle({ active = false, disabled = false } = {}) {
@@ -64,8 +63,16 @@ export default function ExpeditionView({ state, dispatch }) {
     () => ["combat", ...(inventoryUnlocked ? ["inventory"] : []), ...(fieldForgeUnlocked ? ["crafting"] : []), ...(huntUnlocked ? ["codex"] : [])],
     [fieldForgeUnlocked, huntUnlocked, inventoryUnlocked]
   );
+  const visibleSubviews = useMemo(
+    () => availableSubviews.filter(viewId => viewId !== "crafting"),
+    [availableSubviews]
+  );
   const resolvedSubview = availableSubviews.includes(activeSubview) ? activeSubview : "combat";
   const isCombatSubview = resolvedSubview === "combat";
+  const inventoryUpgrades = (state?.player?.inventory || []).filter(item => {
+    const compare = item.type === "weapon" ? state?.player?.equipment?.weapon : state?.player?.equipment?.armor;
+    return (item?.rating || 0) > (compare?.rating || 0);
+  }).length;
 
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768);
@@ -102,7 +109,7 @@ export default function ExpeditionView({ state, dispatch }) {
           WebkitOverflowScrolling: "touch",
         }}
       >
-        {availableSubviews.map(viewId => {
+        {visibleSubviews.map(viewId => {
           const active = resolvedSubview === viewId;
           const tutorialLocked = tutorialSubviewTarget != null && viewId !== tutorialSubviewTarget;
           const disabled = (reforgeLocked && !active) || tutorialLocked;
@@ -131,7 +138,28 @@ export default function ExpeditionView({ state, dispatch }) {
                 animation: spotlight ? "expeditionSubviewSpotlightPulse 1600ms ease-in-out infinite" : "none",
               }}
             >
-              {SUBVIEW_META[viewId].label}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <span>{SUBVIEW_META[viewId].label}</span>
+                {viewId === "inventory" && inventoryUpgrades > 0 && (
+                  <span
+                    style={{
+                      minWidth: "18px",
+                      height: "18px",
+                      padding: "0 6px",
+                      borderRadius: "999px",
+                      background: "var(--tone-success, #10b981)",
+                      color: "#fff",
+                      fontSize: "0.62rem",
+                      fontWeight: "900",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {inventoryUpgrades > 9 ? "9+" : inventoryUpgrades}
+                  </span>
+                )}
+              </span>
             </button>
           );
         })}
@@ -139,7 +167,15 @@ export default function ExpeditionView({ state, dispatch }) {
 
       <div style={{ width: "100%", minWidth: 0 }}>
         {resolvedSubview === "combat" && <Combat state={state} dispatch={dispatch} />}
-        {resolvedSubview === "inventory" && <Inventory state={state} player={state.player} dispatch={dispatch} />}
+        {resolvedSubview === "inventory" && (
+          <Inventory
+            state={state}
+            player={state.player}
+            dispatch={dispatch}
+            canOpenCrafting={fieldForgeUnlocked}
+            onOpenCrafting={() => dispatch({ type: "SET_TAB", tab: "crafting" })}
+          />
+        )}
         {resolvedSubview === "crafting" && <Crafting state={state} dispatch={dispatch} />}
         {resolvedSubview === "codex" && <Codex state={state} dispatch={dispatch} mode="hunt" />}
       </div>

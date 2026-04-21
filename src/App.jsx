@@ -255,7 +255,7 @@ const PRIMARY_TAB_CONFIG = {
   character:    { label: "Heroe", icon: "⚔️" },
   combat:       { label: "Expedicion", icon: "🗡️" },
   prestige:     { label: "Ecos", icon: "🜂" },
-  registry:     { label: "Registro", icon: "🗂️" },
+  registry:     { label: "Mas", icon: "🗂️" },
 };
 
 export default function App() {
@@ -263,7 +263,7 @@ export default function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [showLegacySavePrompt, setShowLegacySavePrompt] = useState(false);
   const contentRef = useRef(null);
-  const prevPrimaryTabRef = useRef(null);
+  const prevTabRef = useRef(null);
   const offlineSummary = state.combat?.offlineSummary;
   const hasTalentPoints = (state.player?.talentPoints || 0) > 0;
   const reforgeLocked = !!state.combat?.reforgeSession;
@@ -334,14 +334,14 @@ export default function App() {
     Number(saveDiagnostics.legacyPromptShownCount || 0) < 3;
 
   useEffect(() => {
-    if (prevPrimaryTabRef.current !== currentPrimaryTab) {
+    if (prevTabRef.current !== state.currentTab) {
       window.scrollTo({ top: 0, behavior: "auto" });
       if (contentRef.current) {
         contentRef.current.scrollTo({ top: 0, behavior: "auto" });
       }
-      prevPrimaryTabRef.current = currentPrimaryTab;
+      prevTabRef.current = state.currentTab;
     }
-  }, [currentPrimaryTab]);
+  }, [state.currentTab]);
 
   useEffect(() => {
     if (!shouldOfferLegacyRepair) {
@@ -602,7 +602,7 @@ export default function App() {
               Save viejo para el sistema actual
             </div>
             <div style={{ fontSize: "0.78rem", lineHeight: 1.55, color: "var(--color-text-secondary, #475569)" }}>
-              Por favor reparalo en <strong>Registro &gt; Sistema &gt; Reparar save</strong>, o más recomendado, <strong>reiniciá tu progreso</strong>. Este aviso solo va a aparecer hasta <strong>3 veces</strong>.
+              Por favor reparalo en <strong>Mas &gt; Sistema &gt; Reparar save</strong>, o más recomendado, <strong>reiniciá tu progreso</strong>. Este aviso solo va a aparecer hasta <strong>3 veces</strong>.
             </div>
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <button
@@ -618,7 +618,7 @@ export default function App() {
                   cursor: "pointer",
                 }}
               >
-                Ir a Registro &gt; Sistema
+                Ir a Mas &gt; Sistema
               </button>
               <button
                 onClick={dismissLegacySavePrompt}

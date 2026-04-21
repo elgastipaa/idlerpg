@@ -4,7 +4,7 @@ import {
   getSanctuaryStationState,
   SANCTUARY_STATION_DEFAULTS,
 } from "../engine/sanctuary/laboratoryEngine";
-import { getOnboardingResearchTargetId, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
+import { getOnboardingResearchTargetId, getOnboardingStepInteractionMode, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 
 function panelStyle(accent = "var(--tone-accent, #4338ca)") {
   return {
@@ -120,7 +120,9 @@ function unlockOrderIndex(researchId = "") {
 export default function Laboratory({ state, dispatch }) {
   const [now, setNow] = useState(Date.now());
   const onboardingStep = state?.onboarding?.step || null;
-  const spotlightResearchId = getOnboardingResearchTargetId(onboardingStep);
+  const onboardingMode = getOnboardingStepInteractionMode(onboardingStep, state);
+  const spotlightResearchId =
+    onboardingMode === "forced" ? getOnboardingResearchTargetId(onboardingStep) : null;
   const spotlightDistilleryResearch = onboardingStep === ONBOARDING_STEPS.RESEARCH_DISTILLERY;
 
   useEffect(() => {

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { CLASSES } from "../data/classes";
 import { xpRequired } from "../engine/leveling";
 import { calcStats } from "../engine/combat/statEngine";
-import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
+import { getOnboardingStepInteractionMode, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
 import {
   formatItemNumber as formatNumber,
@@ -82,8 +82,10 @@ export default function Character({ player, dispatch, state }) {
   const buildTag = useMemo(() => (player.class ? getPlayerBuildTag(player) : null), [player]);
   const computedStats = useMemo(() => calcStats(player), [player]);
   const onboardingStep = state?.onboarding?.step || null;
+  const onboardingMode = getOnboardingStepInteractionMode(onboardingStep, state);
   const specTutorialActive = onboardingStep === ONBOARDING_STEPS.CHOOSE_SPEC;
-  const spotlightHeroOverview = onboardingStep === ONBOARDING_STEPS.HERO_INTRO;
+  const spotlightHeroOverview =
+    onboardingStep === ONBOARDING_STEPS.HERO_INTRO && onboardingMode === "forced";
 
   useEffect(() => {
     if (!specTutorialActive || player.specialization) return undefined;

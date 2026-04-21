@@ -323,11 +323,53 @@ export default function Codex({ state, dispatch, mode = "hunt" }) {
   return (
     <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
       <section style={panelStyle}>
-        <div style={titleStyle}>{isLibraryMode ? "Biblioteca" : "Caza"}</div>
+        <div style={titleStyle}>{isLibraryMode ? "Biblioteca" : "Intel"}</div>
         <div style={{ fontSize: "0.78rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>
           {isLibraryMode
             ? "La Biblioteca del Santuario concentra archivo, maestrias e investigacion: las kills y copias quedan registradas historicamente, pero los bonos permanentes se activan con tinta y progreso fresco."
             : "Panel tactico de hunt: solo muestra objetivos, bosses y powers utiles para esta expedicion, sin meter burocracia de investigacion."}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "8px", marginTop: "10px" }}>
+          <div
+            style={{
+              background: isLibraryMode ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-tertiary, #f8fafc)",
+              border: `1px solid ${isLibraryMode ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)"}`,
+              borderRadius: "12px",
+              padding: "10px 12px",
+              display: "grid",
+              gap: "4px",
+            }}
+          >
+            <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", color: isLibraryMode ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)" }}>
+              Biblioteca
+            </div>
+            <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>
+              Progreso persistente del Santuario
+            </div>
+            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
+              Tinta, hitos, investigaciones y bonus permanentes.
+            </div>
+          </div>
+          <div
+            style={{
+              background: isHuntMode ? "var(--tone-info-soft, #f0f9ff)" : "var(--color-background-tertiary, #f8fafc)",
+              border: `1px solid ${isHuntMode ? "var(--tone-info, #0369a1)" : "var(--color-border-primary, #e2e8f0)"}`,
+              borderRadius: "12px",
+              padding: "10px 12px",
+              display: "grid",
+              gap: "4px",
+            }}
+          >
+            <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", color: isHuntMode ? "var(--tone-info, #0369a1)" : "var(--color-text-tertiary, #94a3b8)" }}>
+              Intel
+            </div>
+            <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>
+              Lectura tactica para esta expedicion
+            </div>
+            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
+              Bosses en ruta, familias vistas y targets ya accesibles hoy.
+            </div>
+          </div>
         </div>
         {hasActiveRunSigilBias && (
           <div style={{ marginTop: "10px", padding: "8px 10px", borderRadius: "10px", background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4, fontWeight: "800" }}>
@@ -355,7 +397,10 @@ export default function Codex({ state, dispatch, mode = "hunt" }) {
                   <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45, maxWidth: "58ch" }}>
                     {expeditionPhase === "active"
                       ? "Pantalla de consulta rapida: objetivos ya revelados, bosses presentes en la seed actual y fuentes historicas que ya conoces."
-                      : "Caza queda lista antes de salir: te muestra solo informacion tactica y ya revelada, sin recomendar por vos."}
+                      : "Intel queda lista antes de salir: te muestra solo informacion tactica y ya revelada, sin recomendar por vos."}
+                  </div>
+                  <div style={{ fontSize: "0.68rem", color: "var(--tone-info, #0369a1)", fontWeight: "900", lineHeight: 1.4 }}>
+                    La investigacion permanente vive en Biblioteca. Intel no gasta tinta ni activa hitos.
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -402,6 +447,9 @@ export default function Codex({ state, dispatch, mode = "hunt" }) {
 
           <section style={panelStyle}>
             <div style={sectionStyle}>Objetivos revelados</div>
+            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45, marginBottom: "10px" }}>
+              Solo objetivos tacticos ya disponibles para tu frontera actual. La capa de progreso permanente no aparece aca.
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "10px" }}>
               <div style={cardStyle}>
                 <div style={huntPanelTitleStyle}>Powers ocultos accesibles ahora</div>
@@ -544,6 +592,13 @@ export default function Codex({ state, dispatch, mode = "hunt" }) {
               <div style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.45 }}>
                 {libraryNextStep}
               </div>
+            </div>
+          </section>
+
+          <section style={panelStyle}>
+            <div style={sectionStyle}>Rol de la Biblioteca</div>
+            <div style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+              Biblioteca convierte registro historico en progreso permanente. Si vienes buscando ruta, bosses de la seed o targets de esta run, eso vive en Intel dentro de Expedicion.
             </div>
           </section>
 

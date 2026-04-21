@@ -9,6 +9,7 @@ import { getRunSigil } from "../data/runSigils";
 import { CLASSES } from "../data/classes";
 import { getSanctuaryStationState } from "../engine/sanctuary/laboratoryEngine";
 import {
+  getOnboardingStepInteractionMode,
   getOnboardingTutorialDeepForgeProjectId,
   getOnboardingTutorialExtractedItemId,
   ONBOARDING_STEPS,
@@ -60,8 +61,9 @@ function actionButtonStyle({ primary = false, disabled = false } = {}) {
         ? "var(--tone-accent, #4338ca)"
         : "var(--color-text-primary, #1e293b)",
     borderRadius: "12px",
-    padding: "10px 14px",
-    fontSize: "0.72rem",
+    padding: "8px 12px",
+    fontSize: "0.7rem",
+    lineHeight: 1.15,
     fontWeight: "900",
     cursor: disabled ? "not-allowed" : "pointer",
     boxShadow: disabled ? "none" : "inset 0 0 0 1px rgba(255,255,255,0.02)",
@@ -79,8 +81,9 @@ function stationButtonStyle({
     background: disabled ? "var(--color-background-tertiary, #f8fafc)" : surface,
     color: disabled ? "var(--color-text-tertiary, #94a3b8)" : tone,
     borderRadius: "12px",
-    padding: "10px 14px",
-    fontSize: "0.72rem",
+    padding: "8px 12px",
+    fontSize: "0.7rem",
+    lineHeight: 1.15,
     fontWeight: "900",
     cursor: disabled ? "not-allowed" : "pointer",
     boxShadow: disabled ? "none" : "inset 0 0 0 1px rgba(255,255,255,0.02)",
@@ -194,6 +197,10 @@ function jobSummary(job = {}) {
   return "Trabajo persistente del Santuario.";
 }
 
+function sortJobsByEnding(left = {}, right = {}) {
+  return Number(left?.endsAt || 0) - Number(right?.endsAt || 0);
+}
+
 export default function Sanctuary({ state, dispatch }) {
   const [now, setNow] = useState(Date.now());
   const [showDistillery, setShowDistillery] = useState(false);
@@ -202,7 +209,10 @@ export default function Sanctuary({ state, dispatch }) {
   const [showSigilAltar, setShowSigilAltar] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [showLaboratory, setShowLaboratory] = useState(false);
-  const [isMobileViewport, setIsMobileViewport] = useState(window.innerWidth < 768);
+  const [showDetailedInfrastructure, setShowDetailedInfrastructure] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
+  const isMobileViewport = viewportWidth < 768;
+  const isNarrowViewport = viewportWidth < 420;
 
   function closeAllOverlays() {
     setShowDistillery(false);
@@ -219,7 +229,7 @@ export default function Sanctuary({ state, dispatch }) {
   }, []);
 
   useEffect(() => {
-    const handler = () => setIsMobileViewport(window.innerWidth < 768);
+    const handler = () => setViewportWidth(window.innerWidth);
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, []);
@@ -254,7 +264,6 @@ export default function Sanctuary({ state, dispatch }) {
     const selectorByStep = {
       [ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN]: '[data-onboarding-target="open-laboratory"]',
       [ONBOARDING_STEPS.DISTILLERY_READY]: '[data-onboarding-target="open-distillery"]',
-      [ONBOARDING_STEPS.BLUEPRINT_INTRO]: '[data-onboarding-target="blueprint-stash"]',
     };
     const selector = selectorByStep[state?.onboarding?.step];
     if (!selector) return undefined;
@@ -274,6 +283,7 @@ export default function Sanctuary({ state, dispatch }) {
 
   const expeditionPhase = state.expedition?.phase || "sanctuary";
   const onboardingStep = state?.onboarding?.step || null;
+  const onboardingMode = getOnboardingStepInteractionMode(onboardingStep, state);
   const hasClass = Boolean(state.player?.class);
   const hasSpec = Boolean(state.player?.specialization);
   const sanctuary = state.sanctuary || {};
@@ -309,6 +319,24 @@ export default function Sanctuary({ state, dispatch }) {
   const tier25BossCleared = Boolean(state?.abyss?.tier25BossCleared);
   const showingSanctuaryIntro = !hasClass && onboardingStep === ONBOARDING_STEPS.EXPEDITION_INTRO;
   const choosingClass = !hasClass && onboardingStep === ONBOARDING_STEPS.CHOOSE_CLASS;
+  const spotlightBlueprintIntro =
+    onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO && onboardingMode === "forced";
+  const spotlightDistilleryReady =
+    onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY && onboardingMode === "forced";
+  const forceDetailedInfrastructure = [
+    ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
+    ONBOARDING_STEPS.DISTILLERY_READY,
+    ONBOARDING_STEPS.FIRST_DISTILLERY_JOB,
+    ONBOARDING_STEPS.BLUEPRINT_INTRO,
+    ONBOARDING_STEPS.BLUEPRINT_DECISION,
+    ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE,
+  ].includes(onboardingStep);
+
+  useEffect(() => {
+    if (forceDetailedInfrastructure) {
+      setShowDetailedInfrastructure(true);
+    }
+  }, [forceDetailedInfrastructure]);
 
   function scrollToClassSelection() {
     const element = document.getElementById("onboarding-class-selector");
@@ -347,7 +375,7 @@ export default function Sanctuary({ state, dispatch }) {
     [jobs]
   );
   const runningJobs = useMemo(
-    () => jobs.filter(job => job?.status === "running").sort((left, right) => Number(left?.endsAt || 0) - Number(right?.endsAt || 0)),
+    () => jobs.filter(job => job?.status === "running").sort(sortJobsByEnding),
     [jobs]
   );
   const runningByStation = useMemo(() => {
@@ -569,8 +597,8 @@ export default function Sanctuary({ state, dispatch }) {
       return {
         tone: "warning",
         eyebrow: "Objetivo temprano",
-        title: "Empuja hasta Tier 5 para revelar el primer boss y Caza",
-        body: "El primer quiebre del juego llega cuando ves un boss real. Ahi se abre mejor la lectura de objetivos y empieza a sentirse la seed de la run.",
+        title: "Empuja hasta Tier 5 para revelar el primer boss e Intel",
+        body: "El primer quiebre del juego llega cuando ves un boss real. Ahi se abre mejor la lectura tactica de la run y empieza a sentirse la seed de la expedicion.",
         cta: expeditionPhase === "active" ? "Volver a Expedicion" : "Iniciar expedicion",
         action: () => (expeditionPhase === "active"
           ? dispatch({ type: "SET_TAB", tab: "combat" })
@@ -623,9 +651,9 @@ export default function Sanctuary({ state, dispatch }) {
       return {
         tone: "danger",
         eyebrow: "Decision clave",
-        title: "Convierte un item rescatado en blueprint o desguazalo",
+        title: "Decide que hacer con tu primera pieza del Taller",
         body: "El item rescatado no vuelve equipado. Elige si se transforma en plano persistente o si lo rompes para ganar cargas de afinidad.",
-        cta: "Revisar stash",
+        cta: "Abrir Taller",
         action: () => setShowDeepForge(true),
       };
     }
@@ -633,8 +661,8 @@ export default function Sanctuary({ state, dispatch }) {
       return {
         tone: "accent",
         eyebrow: "Proyecto persistente",
-        title: "Ya puedes investigar la Forja Profunda",
-        body: "Desde Prestige 3, el Laboratorio puede abrir la estacion donde se trabajan blueprints a largo plazo.",
+        title: "Ya puedes investigar el Taller",
+        body: "Desde Prestige 3, el Laboratorio puede abrir la estacion donde se trabajan blueprints y progreso persistente a largo plazo.",
         cta: "Ir al Laboratorio",
         action: () => openLaboratoryFromSanctuary("next-step"),
       };
@@ -712,7 +740,7 @@ export default function Sanctuary({ state, dispatch }) {
       eyebrow: "Santuario activo",
       title: "Ya tienes el loop principal funcionando",
       body: "Ahora el foco es refinar blueprints, mantener jobs corriendo y convertir una buena expedicion en mejor cuenta, no solo en mejor run.",
-      cta: "Abrir Forja Profunda",
+      cta: "Abrir Taller",
       action: () => setShowDeepForge(true),
     };
   }, [
@@ -743,6 +771,40 @@ export default function Sanctuary({ state, dispatch }) {
     totalCargoQuantity,
   ]);
   const nextStepTone = nextStepToneStyle(nextStep.tone);
+  const readyNowRows = useMemo(() => {
+    const rows = claimableJobs.slice(0, 3).map(job => ({
+      id: `claim-${job.id}`,
+      title: jobTitle(job),
+      detail: jobStationLabel(job.station),
+      chip: "Listo",
+      actionLabel: "Reclamar",
+      action: () => dispatch({ type: "CLAIM_SANCTUARY_JOB", jobId: job.id, now }),
+    }));
+    if (rows.length > 0) return rows;
+    return [{
+      id: "next-step",
+      title: nextStep.title,
+      detail: nextStep.eyebrow,
+      chip: "Siguiente",
+      actionLabel: nextStep.cta,
+      action: nextStep.action,
+    }];
+  }, [claimableJobs, dispatch, nextStep, now]);
+  const runningOverviewRows = useMemo(() => {
+    const rows = runningJobs.slice(0, 3).map(job => ({
+      id: `running-${job.id}`,
+      title: jobTitle(job),
+      detail: jobStationLabel(job.station),
+      chip: formatRemaining(Number(job.endsAt || 0) - now),
+    }));
+    if (rows.length > 0) return rows;
+    return [{
+      id: "idle",
+      title: "Sin trabajos corriendo",
+      detail: "Lanza una investigacion o un job para dejar valor cocinandose mientras juegas.",
+      chip: "Libre",
+    }];
+  }, [now, runningJobs]);
 
   const totalStoredSigilCharges = useMemo(
     () => Object.values(sigilInfusions).reduce((total, entry) => total + Math.max(0, Number(entry?.charges || 0)), 0),
@@ -773,9 +835,167 @@ export default function Sanctuary({ state, dispatch }) {
     }
     return "El Santuario tiene equipos disponibles. Asigna un encargo y volveran con recursos utiles.";
   }, [claimableErrandJobs.length, runningErrandJobs.length]);
+  const stationOverviewRows = useMemo(() => ([
+    {
+      id: "laboratory",
+      title: "Laboratorio",
+      status: laboratoryUnlocked ? `${laboratoryRunningCount} activo(s)` : "Bloqueado",
+      detail: laboratoryClaimableCount > 0 ? `${laboratoryClaimableCount} claim(s)` : "Infraestructura y unlocks",
+      tone: "var(--tone-accent, #4338ca)",
+      actionLabel: laboratoryUnlocked ? "Abrir" : "Cerrado",
+      action: laboratoryUnlocked ? () => openLaboratoryFromSanctuary("overview-laboratory") : null,
+    },
+    {
+      id: "distillery",
+      title: "Destileria",
+      status: distilleryUnlocked ? `${runningByStation.distillery || 0}/${distillerySlots}` : "Bloqueada",
+      detail: `${totalCargoQuantity} bundle(s)`,
+      tone: "var(--tone-violet, #7c3aed)",
+      actionLabel: distilleryUnlocked ? "Abrir" : "Laboratorio",
+      action: () => (distilleryUnlocked ? setShowDistillery(true) : openLaboratoryFromSanctuary("overview-distillery")),
+    },
+    {
+      id: "library",
+      title: "Biblioteca",
+      status: libraryStation.unlocked ? `${runningLibraryJobs.length}/${librarySlots}` : "Bloqueada",
+      detail: libraryStation.unlocked ? `${claimableLibraryJobs.length} claim(s)` : "Hitos e investigacion",
+      tone: "var(--tone-accent, #4338ca)",
+      actionLabel: libraryStation.unlocked ? "Abrir" : "Laboratorio",
+      action: () => (libraryStation.unlocked ? setShowLibrary(true) : openLaboratoryFromSanctuary("overview-library")),
+    },
+    {
+      id: "errands",
+      title: "Encargos",
+      status: errandStation.unlocked ? `${runningErrandJobs.length}/${errandSlots}` : "Bloqueados",
+      detail: errandStation.unlocked ? `${claimableErrandJobs.length} recompensa(s)` : "Equipos paralelos",
+      tone: "var(--tone-info, #0369a1)",
+      actionLabel: errandStation.unlocked ? "Abrir" : "Laboratorio",
+      action: () => (errandStation.unlocked ? setShowErrands(true) : openLaboratoryFromSanctuary("overview-errands")),
+    },
+    {
+      id: "sigils",
+      title: "Altar de Sigilos",
+      status: infusionStation.unlocked ? `${runningByStation.sigilInfusion || 0}/${infusionSlots}` : "Bloqueado",
+      detail: infusionStation.unlocked
+        ? `${Object.values(sigilInfusions).reduce((total, entry) => total + Math.max(0, Number(entry?.charges || 0)), 0)} carga(s)`
+        : "Preparacion de run",
+      tone: "var(--tone-success, #10b981)",
+      actionLabel: infusionStation.unlocked ? "Abrir" : "Laboratorio",
+      action: () => (infusionStation.unlocked ? setShowSigilAltar(true) : openLaboratoryFromSanctuary("overview-sigil")),
+    },
+    ...(blueprintDecisionUnlocked
+      ? [{
+          id: "deepforge",
+          title: "Taller",
+          status: deepForgeStation.unlocked ? `${runningByStation.deepForge || 0}/${deepForgeSlots}` : "Bloqueada",
+          detail: `${blueprintCount} blueprint(s)`,
+          tone: "var(--tone-danger, #D85A30)",
+          actionLabel: deepForgeStation.unlocked ? "Abrir" : "Laboratorio",
+          action: () => (deepForgeStation.unlocked ? setShowDeepForge(true) : openLaboratoryFromSanctuary("overview-forge")),
+        }]
+      : []),
+  ]), [
+    blueprintCount,
+    blueprintDecisionUnlocked,
+    claimableErrandJobs.length,
+    claimableLibraryJobs.length,
+    deepForgeSlots,
+    deepForgeStation.unlocked,
+    distillerySlots,
+    distilleryUnlocked,
+    errandSlots,
+    errandStation.unlocked,
+    infusionSlots,
+    infusionStation.unlocked,
+    laboratoryClaimableCount,
+    laboratoryRunningCount,
+    laboratoryUnlocked,
+    librarySlots,
+    libraryStation.unlocked,
+    runningByStation.deepForge,
+    runningByStation.distillery,
+    runningByStation.sigilInfusion,
+    runningErrandJobs.length,
+    runningLibraryJobs.length,
+    sigilInfusions,
+    totalCargoQuantity,
+  ]);
+  const summaryMetrics = useMemo(() => ([
+    {
+      id: "hero",
+      label: "Heroe de guardia",
+      value: expeditionLabel,
+    },
+    {
+      id: "workshop",
+      label: "Taller",
+      value: `${stashCount}/${Number(sanctuary?.extractionUpgrades?.extractedItemSlots || 3)} items`,
+    },
+    {
+      id: "blueprints",
+      label: "Blueprints",
+      value: `${blueprintCount} activos`,
+    },
+    {
+      id: "cargo",
+      label: "Cargo",
+      value: `${cargoInventory.length} bundles`,
+    },
+    {
+      id: "claims",
+      label: "Claims",
+      value: `${claimableJobs.length} listos`,
+    },
+  ]), [
+    blueprintCount,
+    cargoInventory.length,
+    claimableJobs.length,
+    expeditionLabel,
+    sanctuary?.extractionUpgrades?.extractedItemSlots,
+    stashCount,
+  ]);
+  const resourceSummaryRows = useMemo(
+    () => Object.entries(resources)
+      .filter(([, value]) => Math.floor(Number(value || 0)) > 0)
+      .sort((left, right) => Number(right[1] || 0) - Number(left[1] || 0)),
+    [resources]
+  );
+  const shouldShowClaimsSection = claimableJobs.length > (isMobileViewport ? 3 : 0);
+  const topCardPadding = isMobileViewport ? "12px" : "16px";
+  const compactMetricCard = {
+    ...metricCardStyle(),
+    padding: isMobileViewport ? "8px 10px" : "10px 12px",
+    gap: isMobileViewport ? "2px" : "4px",
+  };
+  const topSummaryGridStyle = {
+    display: "grid",
+    gridTemplateColumns: isNarrowViewport ? "1fr" : isMobileViewport ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fit, minmax(150px, 1fr))",
+    gap: isMobileViewport ? "8px" : "10px",
+  };
+  const stationOverviewGridStyle = {
+    display: "grid",
+    gridTemplateColumns: isNarrowViewport ? "1fr" : isMobileViewport ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fit, minmax(210px, 1fr))",
+    gap: "8px",
+  };
+  const bandSectionStyle = {
+    display: "grid",
+    gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))",
+    gap: "0.9rem",
+  };
+  const detailedInfrastructureGridStyle = {
+    display: "grid",
+    gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(auto-fit, minmax(300px, 1fr))",
+    gap: "1rem",
+  };
+  const mobileFullWidthButtonStyle = isMobileViewport ? { width: "100%", justifyContent: "center" } : null;
+  const compactStatsGridStyle = {
+    display: "grid",
+    gridTemplateColumns: isNarrowViewport ? "1fr" : "repeat(auto-fit, minmax(120px, 1fr))",
+    gap: "8px",
+  };
 
   return (
-    <div style={{ padding: "0.9rem", display: "grid", gap: "0.9rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+    <div style={{ padding: isMobileViewport ? "0.7rem" : "0.9rem", display: "grid", gap: "0.9rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
       <style>{`
         @keyframes sanctuarySpotlightPulse {
           0% { box-shadow: 0 0 0 0 rgba(3,105,161,0.24); }
@@ -783,8 +1003,8 @@ export default function Sanctuary({ state, dispatch }) {
           100% { box-shadow: 0 0 0 0 rgba(3,105,161,0); }
         }
       `}</style>
-      <section style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+      <section style={{ ...sectionCardStyle("var(--tone-accent, #4338ca)"), padding: topCardPadding, gap: isMobileViewport ? "10px" : "12px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: isMobileViewport ? "stretch" : "center" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
               Santuario
@@ -792,8 +1012,11 @@ export default function Sanctuary({ state, dispatch }) {
             <div style={{ fontSize: "1.08rem", fontWeight: "900", marginTop: "4px" }}>
               Hub persistente
             </div>
+            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.4 }}>
+              Reclama, prepara la proxima salida y deja valor cocinandose.
+            </div>
           </div>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", width: isMobileViewport ? "100%" : "auto", justifyContent: isMobileViewport ? "space-between" : "flex-end" }}>
             <div style={{ padding: "8px 10px", borderRadius: "999px", border: "1px solid rgba(99,102,241,0.18)", background: "var(--tone-accent-soft, #eef2ff)", color: "var(--tone-accent, #4338ca)", fontSize: "0.68rem", fontWeight: "900", whiteSpace: "nowrap" }}>
               {formatPhaseLabel(expeditionPhase)}
             </div>
@@ -801,6 +1024,7 @@ export default function Sanctuary({ state, dispatch }) {
               onClick={expeditionCta.action}
               style={{
                 ...actionButtonStyle({ primary: expeditionCta.primary }),
+                ...(isMobileViewport ? { flex: "1 1 180px" } : null),
                 boxShadow: showingSanctuaryIntro
                   ? "0 0 0 2px rgba(83,74,183,0.16), 0 12px 28px rgba(83,74,183,0.14)"
                   : undefined,
@@ -812,53 +1036,120 @@ export default function Sanctuary({ state, dispatch }) {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px" }}>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Heroe de guardia
-            </div>
-            <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>{expeditionLabel}</div>
-          </div>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Stash temporal
-            </div>
-            <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>{stashCount}/{Number(sanctuary?.extractionUpgrades?.extractedItemSlots || 3)} items</div>
-          </div>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Blueprints
-            </div>
-            <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>{blueprintCount} activos/persistidos</div>
-          </div>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Cargo persistente
-            </div>
-            <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>{cargoInventory.length} bundles</div>
-          </div>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Claims listos
-            </div>
-            <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>{claimableJobs.length}</div>
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
-          {Object.entries(resources).map(([key, value]) => (
-            <div key={key} style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                {resourceLabel(key)}
+        <div style={topSummaryGridStyle}>
+          {summaryMetrics.map(metric => (
+            <div key={metric.id} style={compactMetricCard}>
+              <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                {metric.label}
               </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>{Math.floor(Number(value || 0)).toLocaleString()}</div>
+              <div style={{ fontSize: isMobileViewport ? "0.82rem" : "0.9rem", fontWeight: "900" }}>{metric.value}</div>
             </div>
           ))}
+        </div>
+
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          {resourceSummaryRows.length > 0 ? resourceSummaryRows.map(([key, value]) => (
+            <div
+              key={key}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: isMobileViewport ? "7px 10px" : "8px 10px",
+                borderRadius: "999px",
+                background: "var(--color-background-tertiary, #f8fafc)",
+                border: "1px solid var(--color-border-primary, #e2e8f0)",
+                minWidth: 0,
+              }}
+            >
+              <span style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                {resourceLabel(key)}
+              </span>
+              <span style={{ fontSize: "0.78rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                {Math.floor(Number(value || 0)).toLocaleString()}
+              </span>
+            </div>
+          )) : (
+            <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
+              Todavia no hay recursos persistentes acumulados.
+            </div>
+          )}
         </div>
 
         <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
           <span style={{ fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{expeditionLabel}.</span>{" "}
             {expeditionCta.helper}
+        </div>
+      </section>
+
+      <section style={bandSectionStyle}>
+        <div style={sectionCardStyle("var(--tone-warning, #f59e0b)")}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
+                Listo ahora
+              </div>
+              <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+                Lo primero que conviene tocar
+              </div>
+            </div>
+            <div style={chipStyle("var(--tone-warning, #f59e0b)")}>
+              {claimableJobs.length > 0 ? `${claimableJobs.length} claims` : "Sin claims"}
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: "8px" }}>
+            {readyNowRows.map(row => (
+              <div key={row.id} style={compactMetricCard}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
+                  <div>
+                    <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>{row.title}</div>
+                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
+                      {row.detail}
+                    </div>
+                  </div>
+                  <span style={chipStyle("var(--tone-success, #10b981)")}>{row.chip}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: isMobileViewport ? "stretch" : "flex-end" }}>
+                  <button onClick={row.action} style={{ ...actionButtonStyle({ primary: true }), ...mobileFullWidthButtonStyle }}>
+                    {row.actionLabel}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={sectionCardStyle("var(--tone-info, #0369a1)")}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
+                Operacion en curso
+              </div>
+              <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+                Lo que el Santuario esta cocinando
+              </div>
+            </div>
+            <div style={chipStyle("var(--tone-info, #0369a1)")}>
+              {runningJobs.length} activos
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: "8px" }}>
+            {runningOverviewRows.map(row => (
+              <div key={row.id} style={compactMetricCard}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
+                  <div>
+                    <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>{row.title}</div>
+                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
+                      {row.detail}
+                    </div>
+                  </div>
+                  <span style={chipStyle("var(--tone-info, #0369a1)")}>{row.chip}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -876,18 +1167,75 @@ export default function Sanctuary({ state, dispatch }) {
           <button
             onClick={nextStep.action}
             disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN}
-            style={stationButtonStyle({
-              tone: nextStepTone.accent,
-              surface: nextStepTone.surface,
-              disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
-            })}
+            style={{
+              ...stationButtonStyle({
+                tone: nextStepTone.accent,
+                surface: nextStepTone.surface,
+                disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
+              }),
+              ...(isMobileViewport ? { width: "100%" } : null),
+            }}
           >
             {nextStep.cta}
           </button>
         </div>
       </section>
 
-      {claimableJobs.length > 0 && (
+      {infrastructureVisible && (
+        <section style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+                Estaciones
+              </div>
+              <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+                Accesos operativos del Santuario
+              </div>
+            </div>
+            <button
+              onClick={() => setShowDetailedInfrastructure(current => !current)}
+              disabled={forceDetailedInfrastructure}
+              style={actionButtonStyle({ primary: showDetailedInfrastructure || forceDetailedInfrastructure, disabled: forceDetailedInfrastructure })}
+            >
+              {showDetailedInfrastructure || forceDetailedInfrastructure ? "Detalle desplegado" : "Ver detalle"}
+            </button>
+          </div>
+
+          <div style={stationOverviewGridStyle}>
+            {stationOverviewRows.map(row => (
+              <div key={row.id} style={compactMetricCard}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>{row.title}</div>
+                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
+                      {row.detail}
+                    </div>
+                  </div>
+                  <span style={chipStyle(row.tone)}>{row.status}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: isMobileViewport ? "stretch" : "flex-end" }}>
+                  <button
+                    onClick={row.action || undefined}
+                    disabled={!row.action}
+                    style={{
+                      ...stationButtonStyle({
+                        tone: row.tone,
+                        surface: "var(--color-background-secondary, #ffffff)",
+                        disabled: !row.action,
+                      }),
+                      ...mobileFullWidthButtonStyle,
+                    }}
+                  >
+                    {row.actionLabel}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {shouldShowClaimsSection && (
       <section style={sectionCardStyle("var(--tone-warning, #f59e0b)")}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
           <div>
@@ -901,7 +1249,7 @@ export default function Sanctuary({ state, dispatch }) {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "10px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(auto-fit, minmax(240px, 1fr))", gap: "10px" }}>
           {claimableJobs.map(job => (
             <div key={job.id} style={metricCardStyle()}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
@@ -936,8 +1284,8 @@ export default function Sanctuary({ state, dispatch }) {
       </section>
       )}
 
-      {infrastructureVisible && (
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1rem" }}>
+      {infrastructureVisible && (showDetailedInfrastructure || forceDetailedInfrastructure) && (
+      <section style={detailedInfrastructureGridStyle}>
         <div style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div>
@@ -959,7 +1307,7 @@ export default function Sanctuary({ state, dispatch }) {
               : "Desbloqueala desde Laboratorio."}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
+          <div style={compactStatsGridStyle}>
             <div style={metricCardStyle()}>
               <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
                 Tinta
@@ -991,11 +1339,14 @@ export default function Sanctuary({ state, dispatch }) {
             <button
               onClick={() => (libraryStation.unlocked ? setShowLibrary(true) : openLaboratoryFromSanctuary("library-card"))}
               disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !libraryStation.unlocked}
-              style={stationButtonStyle({
-                tone: "var(--tone-accent, #4338ca)",
-                surface: "var(--tone-accent-soft, #eef2ff)",
-                disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !libraryStation.unlocked,
-              })}
+              style={{
+                ...stationButtonStyle({
+                  tone: "var(--tone-accent, #4338ca)",
+                  surface: "var(--tone-accent-soft, #eef2ff)",
+                  disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !libraryStation.unlocked,
+                }),
+                ...mobileFullWidthButtonStyle,
+              }}
             >
               {libraryStation.unlocked ? "Abrir Biblioteca" : "Investigar en Laboratorio"}
             </button>
@@ -1023,7 +1374,7 @@ export default function Sanctuary({ state, dispatch }) {
               : "Se activa desde el Laboratorio."}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
+          <div style={compactStatsGridStyle}>
             <div style={metricCardStyle()}>
               <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
                 Bundles
@@ -1061,7 +1412,7 @@ export default function Sanctuary({ state, dispatch }) {
               )}
               disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !distilleryUnlocked}
               data-onboarding-target={
-                onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                spotlightDistilleryReady || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
                   ? "open-distillery"
                   : undefined
               }
@@ -1071,20 +1422,21 @@ export default function Sanctuary({ state, dispatch }) {
                   surface: "var(--tone-violet-soft, #f3e8ff)",
                   disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !distilleryUnlocked,
                 }),
+                ...mobileFullWidthButtonStyle,
                 position:
-                  onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                  spotlightDistilleryReady || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
                     ? "relative"
                     : "static",
                 zIndex:
-                  onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                  spotlightDistilleryReady || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
                     ? 2
                     : 1,
                 boxShadow:
-                  onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                  spotlightDistilleryReady || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
                     ? "0 0 0 2px rgba(124,58,237,0.18), 0 12px 28px rgba(124,58,237,0.14)"
                     : "none",
                 animation:
-                  onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                  spotlightDistilleryReady || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
                     ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite"
                     : "none",
               }}
@@ -1115,7 +1467,7 @@ export default function Sanctuary({ state, dispatch }) {
               : "Desbloquealos desde Laboratorio."}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
+          <div style={compactStatsGridStyle}>
             <div style={metricCardStyle()}>
               <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
                 Disponibles
@@ -1147,11 +1499,14 @@ export default function Sanctuary({ state, dispatch }) {
             <button
               onClick={() => (errandStation.unlocked ? setShowErrands(true) : openLaboratoryFromSanctuary("errands-card"))}
               disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !errandStation.unlocked}
-              style={stationButtonStyle({
-                tone: "var(--tone-info, #0369a1)",
-                surface: "var(--tone-info-soft, #f0f9ff)",
-                disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !errandStation.unlocked,
-              })}
+              style={{
+                ...stationButtonStyle({
+                  tone: "var(--tone-info, #0369a1)",
+                  surface: "var(--tone-info-soft, #f0f9ff)",
+                  disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !errandStation.unlocked,
+                }),
+                ...mobileFullWidthButtonStyle,
+              }}
             >
               {errandStation.unlocked ? "Abrir Encargos" : "Investigar en Laboratorio"}
             </button>
@@ -1179,7 +1534,7 @@ export default function Sanctuary({ state, dispatch }) {
               : "Desbloquealo desde Laboratorio."}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
+          <div style={compactStatsGridStyle}>
             <div style={metricCardStyle()}>
               <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
                 Flux
@@ -1211,11 +1566,14 @@ export default function Sanctuary({ state, dispatch }) {
             <button
               onClick={() => (infusionStation.unlocked ? setShowSigilAltar(true) : openLaboratoryFromSanctuary("sigil-card"))}
               disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !infusionStation.unlocked}
-              style={stationButtonStyle({
-                tone: "var(--tone-success, #10b981)",
-                surface: "var(--tone-success-soft, #ecfdf5)",
-                disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !infusionStation.unlocked,
-              })}
+              style={{
+                ...stationButtonStyle({
+                  tone: "var(--tone-success, #10b981)",
+                  surface: "var(--tone-success-soft, #ecfdf5)",
+                  disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !infusionStation.unlocked,
+                }),
+                ...mobileFullWidthButtonStyle,
+              }}
             >
               {infusionStation.unlocked ? "Abrir Altar de Sigilos" : "Investigar en Laboratorio"}
             </button>
@@ -1224,34 +1582,34 @@ export default function Sanctuary({ state, dispatch }) {
       </section>
       )}
 
-      {infrastructureVisible && (
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1rem" }}>
+      {infrastructureVisible && (showDetailedInfrastructure || forceDetailedInfrastructure) && (
+      <section style={detailedInfrastructureGridStyle}>
         {blueprintDecisionUnlocked && (
         <div
-          data-onboarding-target={onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO ? "blueprint-stash" : undefined}
+          data-onboarding-target={spotlightBlueprintIntro ? "blueprint-stash" : undefined}
           onClick={() => acknowledgeTutorialStep(ONBOARDING_STEPS.BLUEPRINT_INTRO)}
           style={{
             ...sectionCardStyle("var(--tone-danger, #D85A30)"),
-            position: onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO ? "relative" : "static",
-            zIndex: onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO ? 2 : 1,
+            position: spotlightBlueprintIntro ? "relative" : "static",
+            zIndex: spotlightBlueprintIntro ? 2 : 1,
             boxShadow:
-              onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO
+              spotlightBlueprintIntro
                 ? "0 0 0 2px rgba(216,90,48,0.18), 0 12px 28px rgba(216,90,48,0.14)"
                 : "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
             animation:
-              onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO
+              spotlightBlueprintIntro
                 ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite"
                 : "none",
-            cursor: onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO ? "pointer" : "default",
+            cursor: spotlightBlueprintIntro ? "pointer" : "default",
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div>
               <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
-                Stash temporal
+                Taller
               </div>
               <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-                Items rescatados desde extraccion
+                Stash, decisiones y proyectos rescatados
               </div>
             </div>
             <div style={chipStyle("var(--tone-danger, #D85A30)")}>
@@ -1261,7 +1619,7 @@ export default function Sanctuary({ state, dispatch }) {
 
           {extractedItems.length === 0 ? (
             <div style={{ fontSize: "0.69rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
-              Extrae una pieza y luego decidí si convertirla en blueprint o desguazarla.
+              Extrae una pieza y luego decidí si guardarla como blueprint o romperla por cargas del Taller.
             </div>
           ) : (
             <div style={{ display: "grid", gap: "8px" }}>
@@ -1282,8 +1640,8 @@ export default function Sanctuary({ state, dispatch }) {
                     </div>
 
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center" }}>
-                      <div style={{ fontSize: "0.64rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>Blueprint ahora o desguace con retorno mayor.</div>
-                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <div style={{ fontSize: "0.64rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>Guardala como blueprint o desguazala para cargar el Taller.</div>
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", width: isMobileViewport ? "100%" : "auto" }}>
                         <button
                           disabled={
                             onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
@@ -1297,17 +1655,20 @@ export default function Sanctuary({ state, dispatch }) {
                               ? "tutorial-blueprint-action"
                               : undefined
                           }
-                          style={actionButtonStyle({
-                            primary: !(
-                              onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
-                              (state?.onboarding?.flags?.blueprintConverted || item.id !== tutorialBlueprintItemId)
-                            ),
-                            disabled:
-                              onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
-                              (state?.onboarding?.flags?.blueprintConverted || item.id !== tutorialBlueprintItemId),
-                          })}
+                          style={{
+                            ...actionButtonStyle({
+                              primary: !(
+                                onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
+                                (state?.onboarding?.flags?.blueprintConverted || item.id !== tutorialBlueprintItemId)
+                              ),
+                              disabled:
+                                onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
+                                (state?.onboarding?.flags?.blueprintConverted || item.id !== tutorialBlueprintItemId),
+                            }),
+                            ...(isMobileViewport ? { flex: "1 1 100%" } : null),
+                          }}
                         >
-                          Convertir a blueprint
+                          Guardar como blueprint
                         </button>
                         <button
                           onClick={() => dispatch({ type: "START_SCRAP_EXTRACTED_ITEM_JOB", extractedItemId: item.id, now })}
@@ -1323,12 +1684,15 @@ export default function Sanctuary({ state, dispatch }) {
                             (onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
                               (state?.onboarding?.flags?.blueprintScrapped || item.id !== tutorialBlueprintItemId))
                           }
-                          style={actionButtonStyle({
-                            disabled:
-                              scrapBlocked ||
-                              (onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
-                                (state?.onboarding?.flags?.blueprintScrapped || item.id !== tutorialBlueprintItemId)),
-                          })}
+                          style={{
+                            ...actionButtonStyle({
+                              disabled:
+                                scrapBlocked ||
+                                (onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
+                                  (state?.onboarding?.flags?.blueprintScrapped || item.id !== tutorialBlueprintItemId)),
+                            }),
+                            ...(isMobileViewport ? { flex: "1 1 100%" } : null),
+                          }}
                         >
                           Desguazar
                         </button>
@@ -1402,7 +1766,7 @@ export default function Sanctuary({ state, dispatch }) {
             Desbloquea estaciones, slots y tiempos.
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
+          <div style={compactStatsGridStyle}>
             <div style={metricCardStyle()}>
               <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
                 Estudios
@@ -1439,6 +1803,7 @@ export default function Sanctuary({ state, dispatch }) {
                   surface: "var(--tone-accent-soft, #eef2ff)",
                   disabled: !laboratoryUnlocked,
                 }),
+                ...mobileFullWidthButtonStyle,
                 position: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN ? "relative" : "static",
                 zIndex: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN ? 2 : 1,
                 boxShadow:
@@ -1461,10 +1826,10 @@ export default function Sanctuary({ state, dispatch }) {
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div>
               <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
-                Forja Profunda
+                Taller
               </div>
               <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-                Estacion separada para blueprints persistentes
+                Blueprints, cargas y acabado persistente
               </div>
             </div>
             <div style={chipStyle("var(--tone-danger, #D85A30)")}>
@@ -1478,7 +1843,7 @@ export default function Sanctuary({ state, dispatch }) {
               : "Desbloqueala desde Laboratorio."}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
+          <div style={compactStatsGridStyle}>
             <div style={metricCardStyle()}>
               <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
                 Blueprints
@@ -1517,16 +1882,19 @@ export default function Sanctuary({ state, dispatch }) {
                   : onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN
               }
               data-onboarding-target={onboardingStep === ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE ? "open-deep-forge" : undefined}
-              style={stationButtonStyle({
-                tone: "var(--tone-danger, #D85A30)",
-                surface: "var(--tone-danger-soft, #fff1f2)",
-                disabled:
-                  deepForgeStation.unlocked
-                    ? (Array.isArray(sanctuary?.stash) ? sanctuary.stash.length : 0) <= 0
-                    : onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
-              })}
+              style={{
+                ...stationButtonStyle({
+                  tone: "var(--tone-danger, #D85A30)",
+                  surface: "var(--tone-danger-soft, #fff1f2)",
+                  disabled:
+                    deepForgeStation.unlocked
+                      ? (Array.isArray(sanctuary?.stash) ? sanctuary.stash.length : 0) <= 0
+                      : onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
+                }),
+                ...mobileFullWidthButtonStyle,
+              }}
             >
-              {deepForgeStation.unlocked ? "Abrir Forja Profunda" : "Investigar en Laboratorio"}
+              {deepForgeStation.unlocked ? "Abrir Taller" : "Investigar en Laboratorio"}
             </button>
           </div>
         </div>

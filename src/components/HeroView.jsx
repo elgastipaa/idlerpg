@@ -59,6 +59,7 @@ export default function HeroView({ state, dispatch }) {
   const reforgeLocked = !!state?.combat?.reforgeSession;
   const showSubviewButtons = allowTutorialSubviews;
   const onboardingStep = state?.onboarding?.step || null;
+  const talentPoints = Math.max(0, Number(state?.player?.talentPoints || 0));
 
   return (
     <div style={{ display: "grid", gap: "10px", padding: "10px" }}>
@@ -102,7 +103,28 @@ export default function HeroView({ state, dispatch }) {
                   animation: spotlight ? "heroSubviewSpotlightPulse 1600ms ease-in-out infinite" : "none",
                 }}
               >
-                {meta.label}
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                  <span>{meta.label}</span>
+                  {viewId === "talents" && talentPoints > 0 && (
+                    <span
+                      style={{
+                        minWidth: "18px",
+                        height: "18px",
+                        padding: "0 6px",
+                        borderRadius: "999px",
+                        background: "var(--tone-danger, #ef4444)",
+                        color: "#fff",
+                        fontSize: "0.62rem",
+                        fontWeight: "900",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {talentPoints > 9 ? "9+" : talentPoints}
+                    </span>
+                  )}
+                </span>
               </button>
             );
           })}

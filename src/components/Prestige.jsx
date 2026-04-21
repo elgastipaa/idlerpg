@@ -11,7 +11,7 @@ import {
   isPrestigeBranchUnlocked,
 } from "../engine/progression/prestigeEngine";
 import { getAbyssUnlockEntries } from "../engine/progression/abyssProgression";
-import { getOnboardingFirstEchoNodeId, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
+import { getOnboardingFirstEchoNodeId, getOnboardingStepInteractionMode, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 
 const PERCENT_KEYS = new Set([
   "damagePct",
@@ -192,7 +192,9 @@ export default function Prestige({ state, dispatch }) {
   const purchasableNodes = PRESTIGE_TREE_NODES.filter(node => canPurchasePrestigeNode(state, node).ok);
   const recommendedNode = purchasableNodes[0] || null;
   const onboardingStep = state?.onboarding?.step || null;
-  const spotlightFirstEchoes = onboardingStep === ONBOARDING_STEPS.FIRST_ECHOES;
+  const onboardingMode = getOnboardingStepInteractionMode(onboardingStep, state);
+  const spotlightFirstEchoes =
+    onboardingStep === ONBOARDING_STEPS.FIRST_ECHOES && onboardingMode === "forced";
   const spotlightFirstEchoNode = onboardingStep === ONBOARDING_STEPS.BUY_FIRST_ECHO_NODE;
   const tutorialEchoNodeId = spotlightFirstEchoNode
     ? (getOnboardingFirstEchoNodeId(state) || recommendedNode?.id || null)

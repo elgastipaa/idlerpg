@@ -9,7 +9,7 @@ import { calcStats } from "../engine/combat/statEngine";
 import { computeEffectModifiers } from "../engine/effects/effectEngine";
 import { ITEM_STAT_LABELS as STAT_LABELS } from "../utils/itemPresentation";
 import { getLegendaryStaticBonuses, getTargetedLegendaryDropsForEnemy } from "../utils/legendaryPowers";
-import { isAutoAdvanceUnlocked, isExtractionUnlocked, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
+import { getOnboardingStepInteractionMode, isAutoAdvanceUnlocked, isExtractionUnlocked, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 import CombatGuidanceStrip from "./combat/CombatGuidanceStrip";
 
 const COLORS = {
@@ -348,10 +348,12 @@ export default function Combat({ state, dispatch }) {
   const autoAdvanceUnlocked = isAutoAdvanceUnlocked(state);
   const extractionUnlocked = isExtractionUnlocked(state);
   const onboardingStep = state?.onboarding?.step || null;
+  const onboardingMode = getOnboardingStepInteractionMode(onboardingStep, state);
   const spotlightAutoAdvance = onboardingStep === ONBOARDING_STEPS.AUTO_ADVANCE;
-  const spotlightLives = onboardingStep === ONBOARDING_STEPS.FIRST_DEATH;
+  const spotlightLives =
+    onboardingStep === ONBOARDING_STEPS.FIRST_DEATH && onboardingMode === "forced";
   const spotlightExtraction = onboardingStep === ONBOARDING_STEPS.EXTRACTION_READY;
-  const spotlightCombatEncounter = [
+  const spotlightCombatEncounter = onboardingMode === "forced" && [
     ONBOARDING_STEPS.COMBAT_INTRO,
     ONBOARDING_STEPS.COMBAT_AFTER_TALENT,
     ONBOARDING_STEPS.FIRST_BOSS,

@@ -10,7 +10,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
   const step = state?.onboarding?.step || null;
   const meta = getOnboardingStepMeta(step, state);
   const anchor = getOnboardingOverlayAnchor(step);
-  const infoOnly = isInfoOnlyOnboardingStep(step);
+  const infoOnly = isInfoOnlyOnboardingStep(step, state);
   const backdrop = infoOnly ? "rgba(2,6,23,0.46)" : "rgba(2,6,23,0.24)";
   const [spotlightRects, setSpotlightRects] = useState([]);
   const [cardRect, setCardRect] = useState(null);
@@ -70,23 +70,55 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
     if (!selectors.length) return undefined;
 
     let frameId = null;
+    let timeoutId = null;
+    let attempts = 0;
     const scrollTargetIntoView = () => {
       const target = selectors
         .flatMap(selector => [...document.querySelectorAll(selector)])
         .find(node => node instanceof HTMLElement && node.offsetParent !== null);
       if (!target) return;
-      target.scrollIntoView({
-        behavior: "smooth",
-        block: anchor === "subnav" ? "start" : "center",
-        inline: "nearest",
-      });
+
+      const targetRect = target.getBoundingClientRect();
+      const headerOffset = anchor === "subnav"
+        ? (isMobile ? 72 : 80)
+        : (isMobile ? 68 : 76);
+      const navOffset = isMobile ? 86 : 24;
+      const cardHeight = Math.max(0, Number(cardRect?.height || 0));
+      const safeTop = anchor === "bottom"
+        ? headerOffset + 12
+        : headerOffset + (cardHeight > 0 ? Math.min(cardHeight + 22, Math.round(window.innerHeight * 0.42)) : 160);
+      const safeBottom = anchor === "bottom"
+        ? navOffset + (cardHeight > 0 ? cardHeight + 28 : 180)
+        : navOffset + 12;
+      const visibleTop = Math.max(12, safeTop);
+      const visibleBottom = Math.max(visibleTop + 48, window.innerHeight - safeBottom);
+
+      if (targetRect.top < visibleTop) {
+        window.scrollBy({
+          top: targetRect.top - visibleTop,
+          behavior: attempts === 0 ? "auto" : "smooth",
+        });
+      } else if (targetRect.bottom > visibleBottom) {
+        window.scrollBy({
+          top: targetRect.bottom - visibleBottom,
+          behavior: attempts === 0 ? "auto" : "smooth",
+        });
+      }
+
+      attempts += 1;
+      if (attempts < 8) {
+        timeoutId = window.setTimeout(() => {
+          frameId = requestAnimationFrame(scrollTargetIntoView);
+        }, 90);
+      }
     };
 
     frameId = requestAnimationFrame(scrollTargetIntoView);
     return () => {
       if (frameId != null) cancelAnimationFrame(frameId);
+      if (timeoutId != null) window.clearTimeout(timeoutId);
     };
-  }, [anchor, state, step]);
+  }, [anchor, cardRect?.height, isMobile, state, step]);
 
   const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
   const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
@@ -132,29 +164,6 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
     };
   }, [step, meta?.title, meta?.body, meta?.actionLabel, isMobile]);
 
-  useEffect(() => {
-    if (!step) return undefined;
-
-    const body = document.body;
-    const root = document.documentElement;
-    const previousBodyOverflow = body.style.overflow;
-    const previousBodyTouchAction = body.style.touchAction;
-    const previousRootOverflow = root.style.overflow;
-    const previousRootOverscroll = root.style.overscrollBehavior;
-
-    body.style.overflow = "hidden";
-    body.style.touchAction = "none";
-    root.style.overflow = "hidden";
-    root.style.overscrollBehavior = "none";
-
-    return () => {
-      body.style.overflow = previousBodyOverflow;
-      body.style.touchAction = previousBodyTouchAction;
-      root.style.overflow = previousRootOverflow;
-      root.style.overscrollBehavior = previousRootOverscroll;
-    };
-  }, [step]);
-
   if (!step || !meta) return null;
 
   const cardWidth = Math.min(560, Math.max(0, viewportWidth - (isMobile ? 24 : 40)));
@@ -196,7 +205,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9800, pointerEvents: "none" }}>
-      {spotlightRect ? (
+      {spotlightRect && !infoOnly ? (
         <>
           <div
             style={{
@@ -206,6 +215,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               width: "100%",
               height: `${Math.max(0, spotlightRect.y)}px`,
               background: backdrop,
+              pointerEvents: "auto",
             }}
           />
           <div
@@ -216,6 +226,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               width: `${Math.max(0, spotlightRect.x)}px`,
               height: `${Math.max(0, spotlightRect.height)}px`,
               background: backdrop,
+              pointerEvents: "auto",
             }}
           />
           <div
@@ -226,6 +237,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               right: 0,
               height: `${Math.max(0, spotlightRect.height)}px`,
               background: backdrop,
+              pointerEvents: "auto",
             }}
           />
           <div
@@ -236,6 +248,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               width: "100%",
               bottom: 0,
               background: backdrop,
+              pointerEvents: "auto",
             }}
           />
         </>
@@ -245,6 +258,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
             position: "fixed",
             inset: 0,
             background: backdrop,
+            pointerEvents: "auto",
           }}
         />
       )}
@@ -275,7 +289,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
         <div style={{ fontSize: "0.78rem", lineHeight: 1.45, color: "var(--color-text-secondary, #475569)" }}>
           {meta.body}
         </div>
-        {infoOnly && meta.actionLabel && (
+        {infoOnly && (
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button
               onClick={() => dispatch({ type: "ACK_ONBOARDING_STEP" })}
@@ -290,7 +304,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
                 cursor: "pointer",
               }}
             >
-              {meta.actionLabel}
+              {meta.actionLabel || "Seguir"}
             </button>
           </div>
         )}

@@ -59,7 +59,7 @@ function buildLootRuleUpdateForRarity(lootRules = {}, rarity, nextAction) {
   };
 }
 
-export default function Inventory({ state, player, dispatch }) {
+export default function Inventory({ state, player, dispatch, canOpenCrafting = false, onOpenCrafting = null }) {
   const [pendingBulkSell, setPendingBulkSell] = useState(null);
   const [pendingSellId, setPendingSellId] = useState(null);
   const [detailItemId, setDetailItemId] = useState(null);
@@ -191,6 +191,26 @@ export default function Inventory({ state, player, dispatch }) {
               {upgradeCount > 0 ? `${upgradeCount} upgrades potenciales · ordenado por poder` : "Ordenado por poder · toca un item para verlo completo"}
             </div>
           </div>
+          {canOpenCrafting && typeof onOpenCrafting === "function" && (
+            <button
+              onClick={onOpenCrafting}
+              disabled={lockInventorySideActions}
+              style={{
+                border: "1px solid var(--tone-accent, #4338ca)",
+                background: "var(--tone-accent-soft, #eef2ff)",
+                color: "var(--tone-accent, #4338ca)",
+                borderRadius: "999px",
+                padding: "8px 12px",
+                fontSize: "0.68rem",
+                fontWeight: "900",
+                cursor: lockInventorySideActions ? "not-allowed" : "pointer",
+                opacity: lockInventorySideActions ? 0.55 : 1,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Abrir Forja
+            </button>
+          )}
         </div>
       </header>
 

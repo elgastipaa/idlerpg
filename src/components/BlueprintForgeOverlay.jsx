@@ -148,13 +148,13 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
         <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "start" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
-              Forja Profunda
+              Taller
             </div>
             <div style={{ fontSize: isMobile ? "1.08rem" : "1.18rem", fontWeight: "900", marginTop: "4px" }}>
-              Blueprints y afinidad de materializacion
+              Blueprints, afinidad y loadout persistente
             </div>
             <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.45, maxWidth: "70ch" }}>
-              Un blueprint no guarda el item exacto. Guarda su base, su implicit, su rareza y una direccion de roll. Cada expedicion materializa una version nueva sesgada por sus afinidades.
+              Aqui se ordena todo lo rescatado para largo plazo. Un blueprint no guarda el item exacto: guarda su base, su implicit, su rareza y una direccion de roll para futuras materializaciones.
             </div>
           </div>
           <div style={{ display: "grid", gap: "8px", justifyItems: isMobile ? "stretch" : "end" }}>
