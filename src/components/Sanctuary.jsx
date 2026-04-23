@@ -243,17 +243,69 @@ export default function Sanctuary({ state, dispatch }) {
     if (!selector) return undefined;
 
     let frameId = null;
+    let timeoutId = null;
+    let attempts = 0;
+
+    const isVisibleTarget = node => {
+      if (!(node instanceof HTMLElement)) return false;
+      const rect = node.getBoundingClientRect();
+      if (!(rect.width > 0 && rect.height > 0)) return false;
+      const style = window.getComputedStyle(node);
+      if (style.display === "none" || style.visibility === "hidden") return false;
+      if (Number(style.opacity || 1) <= 0) return false;
+      return true;
+    };
+
     const scrollToTarget = () => {
-      const target = document.querySelector(selector);
-      if (!target) return;
-      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      const target = [...document.querySelectorAll(selector)].find(isVisibleTarget);
+      if (!(target instanceof HTMLElement)) {
+        attempts += 1;
+        if (attempts < 10) {
+          timeoutId = window.setTimeout(() => {
+            frameId = window.requestAnimationFrame(scrollToTarget);
+          }, 90);
+        }
+        return;
+      }
+
+      const topSafe = isMobileViewport ? 124 : 112;
+      const bottomSafe = isMobileViewport ? 96 : 28;
+      const visibleBottom = Math.max(topSafe + 48, window.innerHeight - bottomSafe);
+      const behavior = attempts === 0 ? "auto" : "smooth";
+
+      target.scrollIntoView({
+        block: isMobileViewport ? "center" : "start",
+        inline: "nearest",
+        behavior,
+      });
+
+      const rect = target.getBoundingClientRect();
+      if (rect.top < topSafe) {
+        window.scrollBy({
+          top: rect.top - topSafe - 10,
+          behavior,
+        });
+      } else if (rect.bottom > visibleBottom) {
+        window.scrollBy({
+          top: rect.bottom - visibleBottom + 10,
+          behavior,
+        });
+      }
+
+      attempts += 1;
+      if (attempts < 5) {
+        timeoutId = window.setTimeout(() => {
+          frameId = window.requestAnimationFrame(scrollToTarget);
+        }, 90);
+      }
     };
 
     frameId = requestAnimationFrame(scrollToTarget);
     return () => {
       if (frameId != null) cancelAnimationFrame(frameId);
+      if (timeoutId != null) window.clearTimeout(timeoutId);
     };
-  }, [onboardingStep, showLaboratory]);
+  }, [isMobileViewport, onboardingStep, showLaboratory]);
 
   const expeditionPhase = state.expedition?.phase || "sanctuary";
   const onboardingMode = getOnboardingStepInteractionMode(onboardingStep, {
@@ -1206,7 +1258,16 @@ export default function Sanctuary({ state, dispatch }) {
       detail: `${totalCargoQuantity} bundle(s).`,
       tone: "var(--tone-violet, #7c3aed)",
       actionLabel: distilleryUnlocked ? "Abrir" : "Laboratorio",
-      action: () => (distilleryUnlocked ? setShowDistillery(true) : openLaboratoryFromSanctuary("overview-distillery")),
+      action: () => {
+        if (!distilleryUnlocked) {
+          openLaboratoryFromSanctuary("overview-distillery");
+          return;
+        }
+        setShowDistillery(true);
+        if (onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY) {
+          dispatch({ type: "OPEN_DISTILLERY" });
+        }
+      },
       onboardingTarget:
         onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY
           ? "open-distillery"
@@ -1269,6 +1330,7 @@ export default function Sanctuary({ state, dispatch }) {
     librarySlots,
     libraryStation.unlocked,
     onboardingStep,
+    dispatch,
     runningByStation.deepForge,
     runningByStation.distillery,
     runningByStation.sigilInfusion,

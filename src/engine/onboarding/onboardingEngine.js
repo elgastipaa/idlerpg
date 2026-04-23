@@ -2602,7 +2602,8 @@ export function getOnboardingSpotlightSelectors(step = null, state = {}) {
     const distilleryResearchPhase = getDistilleryResearchOnboardingPhase(state);
     if (distilleryResearchPhase === "claimable") {
       return [
-        '[data-onboarding-target="claim-distillery-research-card"], [data-onboarding-target="claim-distillery-research"]',
+        '[data-onboarding-target="claim-distillery-research"]',
+        '[data-onboarding-target="claim-distillery-research-card"]',
         '[data-onboarding-target="open-laboratory"]',
       ];
     }
@@ -2627,8 +2628,8 @@ export function getOnboardingSpotlightSelectors(step = null, state = {}) {
   }
   if (step === ONBOARDING_STEPS.RETURN_TO_SANCTUARY) {
     return [
-      '[data-onboarding-target="close-laboratory"]',
       '[data-onboarding-target="primary-sanctuary-tab"]',
+      '[data-onboarding-target="close-laboratory"]',
     ];
   }
   if (step === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB) {

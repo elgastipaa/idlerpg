@@ -17,6 +17,7 @@ import {
 import { getMaxRunSigilSlots } from "./engine/progression/abyssProgression";
 import {
   canOpenExpedition,
+  getEffectiveOnboardingStep,
   getOnboardingRequiredTab,
   isSanctuaryLockedDuringExpeditionTutorial,
   isOnboardingTabAllowed,
@@ -385,6 +386,7 @@ export default function App() {
   const NAV_HEIGHT_MOBILE = 72;
   const DESKTOP_MAX_WIDTH = 1180;
   const onboardingStep = state?.onboarding?.step || null;
+  const effectiveOnboardingStep = getEffectiveOnboardingStep(onboardingStep, state);
   const currentPrimaryTab = getVisiblePrimaryTab(state.currentTab, state);
   const prestigeTabUnlocked = isPrestigeTabUnlocked(state);
   const expeditionUnlocked = canOpenExpedition(state);
@@ -697,9 +699,15 @@ export default function App() {
                     (reforgeLocked && currentPrimaryTab !== t) ||
                     (t === "combat" && !expeditionUnlocked) ||
                     !isPrimaryTabAllowed(t, onboardingStep, state);
-                  const spotlightHeroPrimary = onboardingStep === ONBOARDING_STEPS.OPEN_HERO && t === "character";
-                  const spotlightPrestigePrimary = onboardingStep === ONBOARDING_STEPS.FIRST_ECHOES && t === "prestige";
-                  const spotlightSanctuaryPrimary = onboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY && t === "sanctuary";
+                  const spotlightHeroPrimary =
+                    (onboardingStep === ONBOARDING_STEPS.OPEN_HERO || effectiveOnboardingStep === ONBOARDING_STEPS.OPEN_HERO) &&
+                    t === "character";
+                  const spotlightPrestigePrimary =
+                    (onboardingStep === ONBOARDING_STEPS.FIRST_ECHOES || effectiveOnboardingStep === ONBOARDING_STEPS.FIRST_ECHOES) &&
+                    t === "prestige";
+                  const spotlightSanctuaryPrimary =
+                    (onboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY || effectiveOnboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY) &&
+                    t === "sanctuary";
                   return (
                     <button
                       key={t}
@@ -951,9 +959,15 @@ export default function App() {
                 (reforgeLocked && !isActive) ||
                 (t === "combat" && !expeditionUnlocked) ||
                 !isPrimaryTabAllowed(t, onboardingStep, state);
-              const spotlightHeroPrimary = onboardingStep === ONBOARDING_STEPS.OPEN_HERO && t === "character";
-              const spotlightPrestigePrimary = onboardingStep === ONBOARDING_STEPS.FIRST_ECHOES && t === "prestige";
-              const spotlightSanctuaryPrimary = onboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY && t === "sanctuary";
+              const spotlightHeroPrimary =
+                (onboardingStep === ONBOARDING_STEPS.OPEN_HERO || effectiveOnboardingStep === ONBOARDING_STEPS.OPEN_HERO) &&
+                t === "character";
+              const spotlightPrestigePrimary =
+                (onboardingStep === ONBOARDING_STEPS.FIRST_ECHOES || effectiveOnboardingStep === ONBOARDING_STEPS.FIRST_ECHOES) &&
+                t === "prestige";
+              const spotlightSanctuaryPrimary =
+                (onboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY || effectiveOnboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY) &&
+                t === "sanctuary";
               return (
                 <button
                   key={t}

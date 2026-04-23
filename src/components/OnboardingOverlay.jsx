@@ -114,6 +114,65 @@ function revealTargetInScrollContainers(target, { minViewportTop = 0, maxViewpor
   return adjusted;
 }
 
+function isVisibleOnboardingTarget(node, { requireViewportIntersection = false } = {}) {
+  if (!(node instanceof HTMLElement)) return false;
+  const rect = node.getBoundingClientRect();
+  if (!(rect.width > 0 && rect.height > 0)) return false;
+  const style = window.getComputedStyle(node);
+  if (style.display === "none" || style.visibility === "hidden") return false;
+  if (Number(style.opacity || 1) <= 0) return false;
+  if (requireViewportIntersection) {
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+    if (
+      rect.bottom <= 0 ||
+      rect.top >= viewportHeight ||
+      rect.right <= 0 ||
+      rect.left >= viewportWidth
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function getFirstVisibleTargetForSelectors(selectors = [], options = {}) {
+  return selectors
+    .flatMap(selector => [...document.querySelectorAll(selector)])
+    .find(node => isVisibleOnboardingTarget(node, options));
+}
+
+function resolveSanctuaryCorridorTarget(step, selectors = [], { preferViewport = false } = {}) {
+  const visibilityOptions = preferViewport ? { requireViewportIntersection: true } : {};
+  if (step === ONBOARDING_STEPS.RETURN_TO_SANCTUARY) {
+    return (
+      getFirstVisibleTargetForSelectors(['[data-onboarding-target="primary-sanctuary-tab"]'], visibilityOptions) ||
+      getFirstVisibleTargetForSelectors(['[data-onboarding-target="close-laboratory"]'], visibilityOptions) ||
+      getFirstVisibleTargetForSelectors(selectors, visibilityOptions)
+    );
+  }
+
+  if (step === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB) {
+    return (
+      getFirstVisibleTargetForSelectors(['[data-onboarding-target="tutorial-distillery-bundle"]'], visibilityOptions) ||
+      getFirstVisibleTargetForSelectors(['[data-onboarding-target="tutorial-distillery-start"]'], visibilityOptions) ||
+      getFirstVisibleTargetForSelectors(selectors, visibilityOptions)
+    );
+  }
+
+  return getFirstVisibleTargetForSelectors(selectors, visibilityOptions);
+}
+
+function getCorridorRetryConfig(step) {
+  if (step === ONBOARDING_STEPS.RETURN_TO_SANCTUARY) {
+    return { maxAttempts: 30, retryDelayMs: 75 };
+  }
+  if (step === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB) {
+    return { maxAttempts: 56, retryDelayMs: 75 };
+  }
+  return { maxAttempts: 56, retryDelayMs: 80 };
+}
+
 export default function OnboardingOverlay({ state, dispatch, isMobile = false }) {
   const rawStep = state?.onboarding?.step || null;
   const [liveNow, setLiveNow] = useState(Date.now());
@@ -220,10 +279,20 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
     }
 
     let frameId = null;
+    let mutationObserver = null;
     const measure = () => {
-      const rects = spotlightSelectors.flatMap(selector =>
-        [...document.querySelectorAll(selector)].map(node => node.getBoundingClientRect())
-      )
+      let rawRects = [];
+      if (sanctuaryCorridorClickThrough) {
+        const target =
+          resolveSanctuaryCorridorTarget(step, spotlightSelectors, { preferViewport: true }) ||
+          resolveSanctuaryCorridorTarget(step, spotlightSelectors);
+        rawRects = target ? [target.getBoundingClientRect()] : [];
+      } else {
+        rawRects = spotlightSelectors.flatMap(selector =>
+          [...document.querySelectorAll(selector)].map(node => node.getBoundingClientRect())
+        );
+      }
+      const rects = rawRects
         .filter(rect => rect && rect.width > 0 && rect.height > 0)
         .map(rect => ({
           x: Math.max(0, rect.left - 10),
@@ -243,12 +312,24 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
     scheduleMeasure();
     window.addEventListener("resize", scheduleMeasure);
     window.addEventListener("scroll", scheduleMeasure, true);
+    if (typeof MutationObserver !== "undefined" && document?.body) {
+      mutationObserver = new MutationObserver(() => {
+        scheduleMeasure();
+      });
+      mutationObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["style", "class", "data-onboarding-target"],
+      });
+    }
     return () => {
       if (frameId != null) cancelAnimationFrame(frameId);
+      if (mutationObserver) mutationObserver.disconnect();
       window.removeEventListener("resize", scheduleMeasure);
       window.removeEventListener("scroll", scheduleMeasure, true);
     };
-  }, [currentTab, infoOnly, infoSpotlightAllowed, spotlightReady, spotlightSelectorsKey, step]);
+  }, [currentTab, infoOnly, infoSpotlightAllowed, sanctuaryCorridorClickThrough, spotlightReady, spotlightSelectorsKey, step]);
 
   useEffect(() => {
     if (!step) {
@@ -269,21 +350,33 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
     let frameId = null;
     let timeoutId = null;
     let attempts = 0;
-    const maxAttempts = sanctuaryCorridorClickThrough ? 240 : 8;
+    const corridorRetryConfig = getCorridorRetryConfig(step);
+    const maxAttempts = sanctuaryCorridorClickThrough
+      ? corridorRetryConfig.maxAttempts
+      : 8;
+    const retryDelayMs = sanctuaryCorridorClickThrough
+      ? corridorRetryConfig.retryDelayMs
+      : 90;
     setSpotlightReady(false);
     const scrollTargetIntoView = () => {
-      const target = [...spotlightSelectors]
-        .flatMap(selector => [...document.querySelectorAll(selector)])
-        .find(node => node instanceof HTMLElement && node.offsetParent !== null);
+      const target = sanctuaryCorridorClickThrough
+        ? resolveSanctuaryCorridorTarget(step, spotlightSelectors)
+        : getFirstVisibleTargetForSelectors(spotlightSelectors);
       if (!target) {
         attempts += 1;
         if (attempts < maxAttempts) {
           timeoutId = window.setTimeout(() => {
             frameId = requestAnimationFrame(scrollTargetIntoView);
-          }, 90);
+          }, retryDelayMs);
         } else {
           setSpotlightReady(true);
         }
+        return;
+      }
+
+      const targetStyle = window.getComputedStyle(target);
+      if (targetStyle.position === "fixed") {
+        setSpotlightReady(true);
         return;
       }
 
@@ -354,7 +447,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       if (attempts < maxAttempts) {
         timeoutId = window.setTimeout(() => {
           frameId = requestAnimationFrame(scrollTargetIntoView);
-        }, 90);
+        }, retryDelayMs);
       } else {
         setSpotlightReady(true);
       }
