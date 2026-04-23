@@ -1192,6 +1192,12 @@ export default function Sanctuary({ state, dispatch }) {
       tone: "var(--tone-accent, #4338ca)",
       actionLabel: laboratoryUnlocked ? "Abrir" : "Cerrado",
       action: laboratoryUnlocked ? () => openLaboratoryFromSanctuary("overview-laboratory") : null,
+      onboardingTarget:
+        onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY
+          ? "open-laboratory"
+          : onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY
+            ? "open-laboratory"
+            : null,
     },
     {
       id: "distillery",
@@ -1201,6 +1207,10 @@ export default function Sanctuary({ state, dispatch }) {
       tone: "var(--tone-violet, #7c3aed)",
       actionLabel: distilleryUnlocked ? "Abrir" : "Laboratorio",
       action: () => (distilleryUnlocked ? setShowDistillery(true) : openLaboratoryFromSanctuary("overview-distillery")),
+      onboardingTarget:
+        onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY
+          ? "open-distillery"
+          : null,
     },
     {
       id: "library",
@@ -1258,6 +1268,7 @@ export default function Sanctuary({ state, dispatch }) {
     laboratoryUnlocked,
     librarySlots,
     libraryStation.unlocked,
+    onboardingStep,
     runningByStation.deepForge,
     runningByStation.distillery,
     runningByStation.sigilInfusion,
@@ -1472,6 +1483,7 @@ export default function Sanctuary({ state, dispatch }) {
                   <button
                     onClick={row.action || undefined}
                     disabled={!row.action}
+                    data-onboarding-target={row.onboardingTarget || undefined}
                     style={{
                       ...stationButtonStyle({
                         tone: row.tone,
@@ -1479,6 +1491,14 @@ export default function Sanctuary({ state, dispatch }) {
                         disabled: !row.action,
                       }),
                       ...mobileFullWidthButtonStyle,
+                      position: row.onboardingTarget ? "relative" : "static",
+                      zIndex: row.onboardingTarget ? 2 : 1,
+                      boxShadow: row.onboardingTarget
+                        ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 28px rgba(83,74,183,0.14)"
+                        : "none",
+                      animation: row.onboardingTarget
+                        ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite"
+                        : "none",
                     }}
                   >
                     {row.actionLabel}
