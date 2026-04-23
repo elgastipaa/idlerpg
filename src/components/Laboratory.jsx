@@ -408,7 +408,7 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
                   {job.output?.summary || "El Laboratorio termino una mejora de infraestructura."}
                 </div>
                 <button
-                  onClick={() => dispatch({ type: "CLAIM_SANCTUARY_JOB", jobId: job.id, now })}
+                  onClick={() => dispatch({ type: "CLAIM_SANCTUARY_JOB", jobId: job.id, now, source: "laboratory" })}
                   data-onboarding-target={
                     forceDistilleryReadyVisuals &&
                     job?.input?.researchId === "unlock_distillery"

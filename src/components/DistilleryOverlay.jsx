@@ -169,21 +169,73 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
 
   useEffect(() => {
     if (onboardingStep !== ONBOARDING_STEPS.FIRST_DISTILLERY_JOB) return undefined;
+    setExpandedSections(current => (
+      current?.cargo
+        ? current
+        : { ...current, cargo: true }
+    ));
+    return undefined;
+  }, [onboardingStep]);
+
+  useEffect(() => {
+    if (onboardingStep !== ONBOARDING_STEPS.FIRST_DISTILLERY_JOB) return undefined;
 
     let frameId = null;
+    let timeoutId = null;
+    let attempts = 0;
+
     const scrollToTutorialBundle = () => {
       const target =
         document.querySelector('[data-onboarding-target="tutorial-distillery-start"]') ||
         document.querySelector('[data-onboarding-target="tutorial-distillery-bundle"]');
-      if (!target) return;
-      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (!(target instanceof HTMLElement)) {
+        attempts += 1;
+        if (attempts < 12) {
+          timeoutId = window.setTimeout(() => {
+            frameId = window.requestAnimationFrame(scrollToTutorialBundle);
+          }, 90);
+        }
+        return;
+      }
+
+      const topSafe = isMobile ? 120 : 112;
+      const bottomSafe = isMobile ? 92 : 28;
+      const visibleBottom = Math.max(topSafe + 48, window.innerHeight - bottomSafe);
+      const behavior = attempts === 0 ? "auto" : "smooth";
+
+      target.scrollIntoView({
+        block: isMobile ? "center" : "start",
+        inline: "nearest",
+        behavior,
+      });
+
+      const rect = target.getBoundingClientRect();
+      if (rect.top < topSafe) {
+        window.scrollBy({
+          top: rect.top - topSafe - 10,
+          behavior,
+        });
+      } else if (rect.bottom > visibleBottom) {
+        window.scrollBy({
+          top: rect.bottom - visibleBottom + 10,
+          behavior,
+        });
+      }
+
+      attempts += 1;
+      if (attempts < 6) {
+        timeoutId = window.setTimeout(() => {
+          frameId = window.requestAnimationFrame(scrollToTutorialBundle);
+        }, 90);
+      }
     };
 
     frameId = requestAnimationFrame(scrollToTutorialBundle);
     return () => {
       if (frameId != null) cancelAnimationFrame(frameId);
+      if (timeoutId != null) window.clearTimeout(timeoutId);
     };
-  }, [cargoInventory.length, onboardingStep]);
+  }, [cargoInventory.length, expandedSections?.cargo, isMobile, onboardingStep]);
 
   return (
     <OverlayShell isMobile={isMobile}>

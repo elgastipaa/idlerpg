@@ -265,17 +265,6 @@ export function getEffectiveOnboardingStep(step = null, state = {}) {
   ) {
     return ONBOARDING_STEPS.DISTILLERY_READY;
   }
-  if (
-    distilleryUnlocked &&
-    !state?.onboarding?.flags?.distilleryJobStarted &&
-    [
-      ONBOARDING_STEPS.DISTILLERY_READY,
-      ONBOARDING_STEPS.RETURN_TO_SANCTUARY,
-      ONBOARDING_STEPS.OPEN_DISTILLERY,
-    ].includes(step)
-  ) {
-    return ONBOARDING_STEPS.FIRST_DISTILLERY_JOB;
-  }
   return step;
 }
 
@@ -2213,6 +2202,10 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     claimedJob?.input?.researchId === "unlock_distillery" &&
     !onboarding.flags.distilleryUnlocked
   ) {
+    const nextStepAfterClaim =
+      action?.source === "laboratory"
+        ? ONBOARDING_STEPS.RETURN_TO_SANCTUARY
+        : ONBOARDING_STEPS.OPEN_DISTILLERY;
     return withNextStep(
       ensureTutorialCargoBundle(nextState),
       {
@@ -2222,7 +2215,7 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
           distilleryUnlocked: true,
         },
       },
-      ONBOARDING_STEPS.FIRST_DISTILLERY_JOB,
+      nextStepAfterClaim,
       { currentTab: "sanctuary" }
     );
   }
@@ -2607,12 +2600,21 @@ export function getOnboardingOverlayAnchor(step = null, state = {}) {
 export function getOnboardingSpotlightSelectors(step = null, state = {}) {
   if (step === ONBOARDING_STEPS.DISTILLERY_READY) {
     const distilleryResearchPhase = getDistilleryResearchOnboardingPhase(state);
+    if (distilleryResearchPhase === "claimable") {
+      return [
+        '[data-onboarding-target="claim-distillery-research-card"], [data-onboarding-target="claim-distillery-research"]',
+        '[data-onboarding-target="open-laboratory"]',
+      ];
+    }
+    if (distilleryResearchPhase === "running") {
+      return [
+        '[data-onboarding-target="running-distillery-research"]',
+        '[data-onboarding-target="open-laboratory"]',
+      ];
+    }
     return [
-      distilleryResearchPhase === "claimable"
-        ? '[data-onboarding-target="claim-distillery-research-card"], [data-onboarding-target="claim-distillery-research"]'
-        : distilleryResearchPhase === "running"
-          ? '[data-onboarding-target="running-distillery-research"]'
-          : '[data-onboarding-target="open-distillery"]',
+      '[data-onboarding-target="open-distillery"]',
+      '[data-onboarding-target="open-laboratory"]',
     ];
   }
 
@@ -2624,7 +2626,10 @@ export function getOnboardingSpotlightSelectors(step = null, state = {}) {
     return ['[data-onboarding-target="open-distillery"]'];
   }
   if (step === ONBOARDING_STEPS.RETURN_TO_SANCTUARY) {
-    return ['[data-onboarding-target="primary-sanctuary-tab"]'];
+    return [
+      '[data-onboarding-target="close-laboratory"]',
+      '[data-onboarding-target="primary-sanctuary-tab"]',
+    ];
   }
   if (step === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB) {
     return [

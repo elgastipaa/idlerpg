@@ -269,6 +269,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
     let frameId = null;
     let timeoutId = null;
     let attempts = 0;
+    const maxAttempts = sanctuaryCorridorClickThrough ? 240 : 8;
     setSpotlightReady(false);
     const scrollTargetIntoView = () => {
       const target = [...spotlightSelectors]
@@ -276,7 +277,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
         .find(node => node instanceof HTMLElement && node.offsetParent !== null);
       if (!target) {
         attempts += 1;
-        if (attempts < 8) {
+        if (attempts < maxAttempts) {
           timeoutId = window.setTimeout(() => {
             frameId = requestAnimationFrame(scrollTargetIntoView);
           }, 90);
@@ -350,7 +351,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       }
 
       attempts += 1;
-      if (attempts < 8) {
+      if (attempts < maxAttempts) {
         timeoutId = window.setTimeout(() => {
           frameId = requestAnimationFrame(scrollTargetIntoView);
         }, 90);
@@ -364,7 +365,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       if (frameId != null) cancelAnimationFrame(frameId);
       if (timeoutId != null) window.clearTimeout(timeoutId);
     };
-  }, [anchor, cardRect?.height, currentTab, infoOnly, infoSpotlightAllowed, isMobile, spotlightSelectorsKey, step]);
+  }, [anchor, cardRect?.height, currentTab, infoOnly, infoSpotlightAllowed, isMobile, sanctuaryCorridorClickThrough, spotlightSelectorsKey, step]);
 
   const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
   const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
