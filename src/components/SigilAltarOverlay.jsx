@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import OverlayShell from "./OverlayShell";
+import JobProgressBar from "./JobProgressBar";
 import { RUN_SIGILS, getRunSigil } from "../data/runSigils";
 import { getSigilInfusionRecipe } from "../engine/sanctuary/jobEngine";
 
@@ -316,13 +317,18 @@ export default function SigilAltarOverlay({ state, dispatch, isMobile = false, o
                       </div>
                       <div style={{ display: "grid", gap: "8px" }}>
                         {runningInfusionJobs.map(job => (
-                          <div key={job.id} style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                          <div key={job.id} style={{ display: "grid", gap: "6px" }}>
                             <div style={{ fontSize: "0.72rem", fontWeight: "900" }}>
-                              {getRunSigil(job.output?.sigilId || "free").name}
+                              {getRunSigil(job?.output?.sigilId || "free").name}
                             </div>
-                            <span style={chipLabelStyle("var(--tone-info, #0369a1)")}>
-                              {formatRemaining(Number(job.endsAt || 0) - now)}
-                            </span>
+                            <JobProgressBar
+                              startedAt={job?.startedAt}
+                              endsAt={job?.endsAt}
+                              now={now}
+                              tone="var(--tone-info, #0369a1)"
+                              rightLabel={formatRemaining(Number(job?.endsAt || 0) - now)}
+                              compact
+                            />
                           </div>
                         ))}
                       </div>

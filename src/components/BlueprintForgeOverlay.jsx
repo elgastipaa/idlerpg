@@ -137,15 +137,26 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
   const blueprints = Array.isArray(sanctuary?.blueprints) ? sanctuary.blueprints : [];
   const activeBlueprints = sanctuary?.activeBlueprints || {};
   const familyCharges = sanctuary?.familyCharges || {};
+  const totalCharges = Object.values(familyCharges || {}).reduce(
+    (total, value) => total + Math.max(0, Number(value || 0)),
+    0
+  );
+  const extractedItems = Array.isArray(sanctuary?.extractedItems) ? sanctuary.extractedItems : [];
+  const extractedItemSlots = Math.max(1, Number(sanctuary?.extractionUpgrades?.extractedItemSlots || 3));
+  const deepForgeSlots = Math.max(1, Number(sanctuary?.stations?.deepForge?.slots || 1));
+  const deepForgeJobs = Array.isArray(sanctuary?.jobs) ? sanctuary.jobs : [];
+  const deepForgeRunningJobs = deepForgeJobs.filter(job => job?.station === "deepForge" && job?.status === "running");
+  const deepForgeClaimableJobs = deepForgeJobs.filter(job => job?.station === "deepForge" && job?.status === "claimable");
   const resources = sanctuary?.resources || {};
   const relicDustAvailable = Math.max(0, Number(resources?.relicDust || 0));
   const essenceAvailable = Math.max(0, Number(state?.player?.essence || 0));
   const [selectedBlueprintId, setSelectedBlueprintId] = useState(() => blueprints[0]?.id || null);
-  const [expandedSections, setExpandedSections] = useState({
+  const [expandedSections, setExpandedSections] = useState(() => ({
+    stash: extractedItems.length > 0,
     blueprints: false,
     details: false,
     bank: false,
-  });
+  }));
 
   useEffect(() => {
     if (!blueprints.some(blueprint => blueprint?.id === selectedBlueprintId)) {
@@ -212,7 +223,10 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                 {blueprints.length} plano{blueprints.length !== 1 ? "s" : ""}
               </span>
               <span style={chipLabelStyle("var(--tone-accent, #4338ca)")}>
-                {Object.values(familyCharges || {}).reduce((total, value) => total + Math.max(0, Number(value || 0)), 0)} cargas
+                {totalCharges} cargas
+              </span>
+              <span style={chipLabelStyle("var(--tone-warning, #f59e0b)")}>
+                {extractedItems.length} rescatado{extractedItems.length === 1 ? "" : "s"}
               </span>
             </div>
 
@@ -223,7 +237,7 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
               </div>
               <div style={metricCardStyle()}>
                 <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Cargas</div>
-                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{Object.values(familyCharges || {}).reduce((total, value) => total + Math.max(0, Number(value || 0)), 0)}</div>
+                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{totalCharges}</div>
               </div>
               <div style={metricCardStyle()}>
                 <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Polvo</div>
@@ -233,7 +247,103 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                 <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Esencia</div>
                 <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{Math.floor(essenceAvailable)}</div>
               </div>
+              <div style={metricCardStyle()}>
+                <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Stash</div>
+                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>
+                  {extractedItems.length} / {extractedItemSlots}
+                </div>
+              </div>
             </div>
+          </section>
+
+          <section style={sectionPanelStyle("var(--tone-warning, #f59e0b)")}>
+            <div
+              onClick={() => toggleSection("stash")}
+              style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" }}
+            >
+              <div>
+                <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
+                  Piezas rescatadas
+                </div>
+                <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+                  Convierte en plano o desguaza para ganar cargas
+                </div>
+                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 }}>
+                  Stash {extractedItems.length}/{extractedItemSlots} · jobs {deepForgeRunningJobs.length}/{deepForgeSlots} · {deepForgeClaimableJobs.length} listo{deepForgeClaimableJobs.length === 1 ? "" : "s"}.
+                </div>
+              </div>
+              <button
+                onClick={event => {
+                  event.stopPropagation();
+                  toggleSection("stash");
+                }}
+                style={{ ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
+              >
+                {expandedSections?.stash ? "-" : "+"}
+              </button>
+            </div>
+
+            {expandedSections?.stash && (
+              <>
+                {extractedItems.length === 0 ? (
+                  <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                    Todavia no hay piezas rescatadas en stash. Al extraer un item desde expedicion, aparecera aqui para decidir si guardarlo como plano o desguazarlo.
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gap: "8px" }}>
+                    {extractedItems.map(item => {
+                      const affixCount = Array.isArray(item?.affixes) ? item.affixes.length : 0;
+                      const scrapBlocked = deepForgeRunningJobs.length >= deepForgeSlots;
+                      return (
+                        <div key={item.id} style={panelStyle()}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
+                            <div>
+                              <div style={{ fontSize: "0.8rem", fontWeight: "900", color: getRarityColor(item?.rarity || "rare") }}>
+                                {item?.name || "Pieza rescatada"}
+                              </div>
+                              <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
+                                {item?.rarity || "rare"} · {item?.type || "weapon"} · rating {Math.round(Number(item?.rating || 0))} · {affixCount} afijo{affixCount === 1 ? "" : "s"}
+                              </div>
+                            </div>
+                            <span style={chipLabelStyle(item?.legendaryPowerId ? "var(--tone-warning, #f59e0b)" : "var(--tone-info, #0369a1)")}>
+                              {item?.legendaryPowerId ? "Legendario" : "Rescatado"}
+                            </span>
+                          </div>
+
+                          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
+                              Guarda la direccion como blueprint o desguaza para sumar cargas.
+                              {scrapBlocked ? ` Cupo de jobs lleno (${deepForgeRunningJobs.length}/${deepForgeSlots}).` : ""}
+                            </div>
+                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", width: isMobile ? "100%" : "auto" }}>
+                              <button
+                                onClick={() => dispatch({ type: "CONVERT_EXTRACTED_ITEM_TO_BLUEPRINT", extractedItemId: item.id, now: Date.now() })}
+                                style={{
+                                  ...actionButtonStyle({ primary: true, compact: true }),
+                                  ...(isMobile ? { flex: "1 1 100%" } : null),
+                                }}
+                              >
+                                Convertir en plano
+                              </button>
+                              <button
+                                onClick={() => dispatch({ type: "START_SCRAP_EXTRACTED_ITEM_JOB", extractedItemId: item.id, now: Date.now() })}
+                                disabled={scrapBlocked}
+                                style={{
+                                  ...actionButtonStyle({ compact: true, disabled: scrapBlocked }),
+                                  ...(isMobile ? { flex: "1 1 100%" } : null),
+                                }}
+                              >
+                                Desguazar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
           </section>
 
           <section style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "0.95fr 1.05fr", gap: "12px" }}>

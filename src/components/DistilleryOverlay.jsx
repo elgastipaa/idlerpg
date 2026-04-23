@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import OverlayShell from "./OverlayShell";
+import JobProgressBar from "./JobProgressBar";
 import {
   getEffectiveOnboardingStep,
   getOnboardingTutorialBundleId,
@@ -445,9 +446,16 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                           {job.output?.amount || 0} en proceso
                         </div>
                       </div>
-                      <span style={chipLabelStyle("var(--tone-info, #0369a1)")}>
-                        {formatRemaining(Number(job.endsAt || 0) - now)}
-                      </span>
+                      <div style={{ width: isMobile ? "100%" : "min(260px, 44vw)", minWidth: isMobile ? 0 : "200px" }}>
+                        <JobProgressBar
+                          startedAt={job?.startedAt}
+                          endsAt={job?.endsAt}
+                          now={now}
+                          tone="var(--tone-info, #0369a1)"
+                          rightLabel={formatRemaining(Number(job?.endsAt || 0) - now)}
+                          compact
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import JobProgressBar from "./JobProgressBar";
 import {
   getLaboratoryCatalog,
   getSanctuaryStationState,
@@ -166,6 +167,21 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
       Object.fromEntries(
         runningJobs
           .map(job => [job?.input?.researchId, Number(job?.endsAt || 0)])
+          .filter(([researchId]) => Boolean(researchId))
+      ),
+    [runningJobs]
+  );
+  const runningResearchTimingById = useMemo(
+    () =>
+      Object.fromEntries(
+        runningJobs
+          .map(job => [
+            job?.input?.researchId,
+            {
+              startedAt: Number(job?.startedAt || 0),
+              endsAt: Number(job?.endsAt || 0),
+            },
+          ])
           .filter(([researchId]) => Boolean(researchId))
       ),
     [runningJobs]
@@ -402,9 +418,14 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
                 <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
                   {job.output?.summary || "Mejora estructural en curso."}
                 </div>
-                <div style={{ fontSize: "0.66rem", fontWeight: "900", color: "var(--tone-info, #0369a1)" }}>
-                  Termina en {formatRemaining(Number(job.endsAt || 0) - now)}
-                </div>
+                <JobProgressBar
+                  startedAt={job?.startedAt}
+                  endsAt={job?.endsAt}
+                  now={now}
+                  tone="var(--tone-info, #0369a1)"
+                  rightLabel={formatRemaining(Number(job?.endsAt || 0) - now)}
+                  compact
+                />
               </div>
             ))}
           </div>
@@ -506,8 +527,18 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
                   <div style={{ minWidth: 0, paddingRight: isCollapsibleResearch ? "88px" : "78px" }}>
                     <div style={{ fontSize: "0.82rem", fontWeight: "900" }}>{entry.label}</div>
                     {entry.running && (
-                      <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.3 }}>
-                        Termina en {formatRemaining(Number(runningResearchEndsAt?.[entry.id] || 0) - now)}
+                      <div style={{ display: "grid", gap: "4px", marginTop: "4px" }}>
+                        <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.3 }}>
+                          Termina en {formatRemaining(Number(runningResearchEndsAt?.[entry.id] || 0) - now)}
+                        </div>
+                        <JobProgressBar
+                          startedAt={runningResearchTimingById?.[entry.id]?.startedAt}
+                          endsAt={runningResearchTimingById?.[entry.id]?.endsAt}
+                          now={now}
+                          tone="var(--tone-info, #0369a1)"
+                          rightLabel={formatRemaining(Number(runningResearchEndsAt?.[entry.id] || 0) - now)}
+                          compact
+                        />
                       </div>
                     )}
                     {!collapsedResearchCard && !entry.running && (

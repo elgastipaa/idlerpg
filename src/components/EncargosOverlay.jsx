@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import OverlayShell from "./OverlayShell";
+import JobProgressBar from "./JobProgressBar";
 import { getSanctuaryErrandCatalog } from "../engine/sanctuary/jobEngine";
 
 function panelStyle(accent = "var(--tone-info, #0369a1)") {
@@ -399,10 +400,15 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                                 {job.output?.summary}
                               </div>
                             </div>
-                            <span style={chipLabelStyle("var(--tone-info, #0369a1)")}>
-                              {formatRemaining(Number(job.endsAt || 0) - now)}
-                            </span>
                           </div>
+                          <JobProgressBar
+                            startedAt={job?.startedAt}
+                            endsAt={job?.endsAt}
+                            now={now}
+                            tone="var(--tone-info, #0369a1)"
+                            rightLabel={formatRemaining(Number(job?.endsAt || 0) - now)}
+                            compact
+                          />
                           <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                             <div style={{ fontSize: "0.64rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
                               {job.input?.durationLabel || ""} · {job.output?.rewardLabel || "Recurso util"}

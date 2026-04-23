@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import OverlayShell from "./OverlayShell";
+import JobProgressBar from "./JobProgressBar";
 import { getRunSigil } from "../data/runSigils";
 import { CLASSES } from "../data/classes";
 import { getSanctuaryStationState } from "../engine/sanctuary/laboratoryEngine";
@@ -1085,6 +1086,8 @@ export default function Sanctuary({ state, dispatch }) {
       title: jobTitle(job),
       detail: jobStationLabel(job.station),
       chip: formatRemaining(Number(job.endsAt || 0) - now),
+      startedAt: Number(job?.startedAt || 0),
+      endsAt: Number(job?.endsAt || 0),
     }));
     if (rows.length > 0) return rows;
     return [{
@@ -1421,8 +1424,19 @@ export default function Sanctuary({ state, dispatch }) {
                       {row.detail}
                     </div>
                   </div>
-                  <span style={chipStyle("var(--tone-info, #0369a1)")}>{row.chip}</span>
                 </div>
+                {row?.endsAt > 0 ? (
+                  <JobProgressBar
+                    startedAt={row?.startedAt}
+                    endsAt={row?.endsAt}
+                    now={now}
+                    tone="var(--tone-info, #0369a1)"
+                    rightLabel={row.chip}
+                    compact
+                  />
+                ) : (
+                  <span style={{ ...chipStyle("var(--tone-info, #0369a1)"), justifySelf: "start" }}>{row.chip}</span>
+                )}
               </div>
             ))}
           </div>

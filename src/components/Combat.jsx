@@ -21,6 +21,10 @@ const COLORS = {
   dark: "var(--color-text-primary, #1e293b)",
 };
 const RARITY_RANK = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
+const ENEMY_FINISH_ZONE_PCT = 20;
+const CRIT_STREAK_TIMEOUT_MS = 2600;
+const BOSS_PHASE_THRESHOLDS = [75, 50, 25];
+const LEVEL_UP_TOAST_VISIBLE_MS = 3200;
 const COMBAT_ANIMATION_STYLES = `
 @keyframes lootOverlayEnter {
   0% { opacity: 0; transform: translateY(26px) scale(0.98); }
@@ -38,6 +42,27 @@ const COMBAT_ANIMATION_STYLES = `
   0% { opacity: 0; transform: translate(-50%, 12px) scale(0.86); }
   15% { opacity: 1; transform: translate(-50%, 0) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -30px) scale(1.04); }
+}
+@keyframes levelUpDingBadge {
+  0% { opacity: 0; transform: translateY(4px) scale(0.92); }
+  22% { opacity: 1; transform: translateY(0) scale(1.06); }
+  100% { opacity: 0.9; transform: translateY(0) scale(1); }
+}
+@keyframes levelUpDingRing {
+  0% { opacity: 0.82; transform: translate(-50%, -50%) scale(0.58); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.9); }
+}
+@keyframes levelUpToastEnter {
+  0% { opacity: 0; transform: translateY(26px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes levelUpToastPulse {
+  0%, 100% { box-shadow: 0 12px 26px rgba(79,70,229,0.16); filter: brightness(1); }
+  50% { box-shadow: 0 16px 34px rgba(79,70,229,0.23); filter: brightness(1.03); }
+}
+@keyframes levelUpToastExit {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(20px) scale(0.97); }
 }
 @keyframes combatFloatDamage {
   0% { opacity: 0; transform: translate(-50%, 8px) scale(0.92); }
@@ -63,6 +88,25 @@ const COMBAT_ANIMATION_STYLES = `
   0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.26); }
   70% { box-shadow: 0 0 0 10px rgba(99,102,241,0); }
   100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+}
+@keyframes combatCritStreakPop {
+  0% { transform: translateY(3px) scale(0.92); opacity: 0; }
+  30% { transform: translateY(0) scale(1.06); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes combatFinishZonePulse {
+  0%, 100% { box-shadow: inset 0 0 0 0 rgba(245,158,11,0); filter: brightness(1); }
+  50% { box-shadow: inset 0 0 8px 1px rgba(245,158,11,0.24); filter: brightness(1.03); }
+}
+@keyframes combatBossThresholdPop {
+  0% { transform: translateY(-4px) scale(0.9); opacity: 0; }
+  20% { transform: translateY(0) scale(1.08); opacity: 1; }
+  75% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(0) scale(0.98); opacity: 0; }
+}
+@keyframes combatStatusPillPulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 1px 2px rgba(15,23,42,0.03); filter: brightness(1); }
+  50% { box-shadow: 0 0 0 1px rgba(255,255,255,0.22), 0 0 7px rgba(15,23,42,0.09); filter: brightness(1.04); }
 }
 `;
 
@@ -287,8 +331,21 @@ export default function Combat({ state, dispatch }) {
     log: true,
   });
   const [levelUpFlash, setLevelUpFlash] = useState(null);
+  const [critStreak, setCritStreak] = useState({
+    count: 0,
+    lastCritAt: 0,
+    pulseAt: 0,
+  });
+  const [bossPhasePingQueue, setBossPhasePingQueue] = useState([]);
   const logRef = useRef(null);
   const prevLevelRef = useRef(player.level || 1);
+  const lastProcessedFloatIdRef = useRef(null);
+  const bossPhaseSeenRef = useRef({ enemyKey: null, seen: {} });
+
+  const enemyEncounterKey = useMemo(
+    () => `${enemy?.id || enemy?.name || "enemy"}:${Math.max(1, Number(enemy?.maxHp || 1))}:${currentTier}:${enemy?.isBoss ? "boss" : "mob"}`,
+    [currentTier, enemy?.id, enemy?.isBoss, enemy?.maxHp, enemy?.name]
+  );
 
   const replacedTalentIds = new Set(
     TALENTS
@@ -312,9 +369,17 @@ export default function Combat({ state, dispatch }) {
   const activeTalentEffects = useMemo(() => buildActiveTalentEffects(effects), [effects]);
   const activeGoals = useMemo(() => getActiveGoals(state, 3), [state]);
   const sessionGoals = activeGoals.slice(0, 3);
+  const primarySessionGoal = sessionGoals[0] || null;
+  const secondarySessionGoals = sessionGoals.slice(1, 3);
+  const showSessionFraming = Boolean(
+    state?.onboarding?.completed ||
+    state?.onboarding?.flags?.firstExtractionCompleted
+  );
   const latestLootEvent = combat.latestLootEvent || null;
   const [visibleLootEvent, setVisibleLootEvent] = useState(latestLootEvent);
   const [lootClosing, setLootClosing] = useState(false);
+  const [visibleLevelUpToast, setVisibleLevelUpToast] = useState(null);
+  const [levelUpToastClosing, setLevelUpToastClosing] = useState(false);
   const isDarkMode = state.settings?.theme === "dark";
   const baseStats = useMemo(() => calcStats(player), [player]);
   const legendaryBonuses = useMemo(
@@ -420,6 +485,118 @@ export default function Combat({ state, dispatch }) {
   }, [combat.log]);
 
   useEffect(() => {
+    const events = Array.isArray(combat.floatEvents) ? combat.floatEvents : [];
+    if (events.length === 0) {
+      lastProcessedFloatIdRef.current = null;
+      return;
+    }
+
+    let startIndex = 0;
+    if (lastProcessedFloatIdRef.current) {
+      const previousIndex = events.findIndex(event => event?.id === lastProcessedFloatIdRef.current);
+      startIndex = previousIndex >= 0 ? previousIndex + 1 : 0;
+    }
+    const incoming = events.slice(startIndex);
+    if (incoming.length === 0) return;
+
+    setCritStreak(current => {
+      let nextCount = Number(current?.count || 0);
+      let nextLastCritAt = Number(current?.lastCritAt || 0);
+      let nextPulseAt = Number(current?.pulseAt || 0);
+
+      incoming.forEach(event => {
+        const isPrimaryHit = event?.kind === "damage" && (event?.source == null || event?.source === "player");
+        if (!isPrimaryHit) return;
+
+        if (event?.crit) {
+          nextCount = Math.min(99, Math.max(0, nextCount) + 1);
+          nextLastCritAt = Number(event?.at || Date.now());
+          nextPulseAt = Date.now();
+        } else {
+          nextCount = 0;
+        }
+      });
+
+      if (
+        nextCount === Number(current?.count || 0) &&
+        nextLastCritAt === Number(current?.lastCritAt || 0) &&
+        nextPulseAt === Number(current?.pulseAt || 0)
+      ) {
+        return current;
+      }
+      return {
+        count: nextCount,
+        lastCritAt: nextLastCritAt,
+        pulseAt: nextPulseAt,
+      };
+    });
+
+    lastProcessedFloatIdRef.current = incoming[incoming.length - 1]?.id || lastProcessedFloatIdRef.current;
+  }, [combat.floatEvents]);
+
+  useEffect(() => {
+    if (critStreak.count <= 0) return undefined;
+    const elapsed = Date.now() - Number(critStreak.lastCritAt || 0);
+    const remaining = CRIT_STREAK_TIMEOUT_MS - elapsed;
+    if (remaining <= 0) {
+      setCritStreak(current => (current.count > 0 ? { ...current, count: 0 } : current));
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      setCritStreak(current => (
+        current.count > 0 && Date.now() - Number(current.lastCritAt || 0) >= CRIT_STREAK_TIMEOUT_MS
+          ? { ...current, count: 0 }
+          : current
+      ));
+    }, remaining + 20);
+    return () => clearTimeout(timer);
+  }, [critStreak.count, critStreak.lastCritAt]);
+
+  useEffect(() => {
+    if (!enemy?.isBoss) {
+      bossPhaseSeenRef.current = { enemyKey: null, seen: {} };
+      setBossPhasePingQueue([]);
+      return;
+    }
+
+    if (bossPhaseSeenRef.current.enemyKey !== enemyEncounterKey) {
+      bossPhaseSeenRef.current = { enemyKey: enemyEncounterKey, seen: {} };
+      setBossPhasePingQueue([]);
+    }
+
+    const hpPct =
+      (Math.max(0, Number(enemy?.hp || 0)) / Math.max(1, Number(enemy?.maxHp || 1))) * 100;
+    const crossed = BOSS_PHASE_THRESHOLDS.filter(
+      threshold => hpPct <= threshold && !bossPhaseSeenRef.current.seen[threshold]
+    );
+    if (crossed.length <= 0) return;
+
+    crossed.forEach(threshold => {
+      bossPhaseSeenRef.current.seen[threshold] = true;
+    });
+
+    const stamp = Date.now();
+    setBossPhasePingQueue(current => [
+      ...current,
+      ...crossed.map((threshold, index) => ({
+        id: `${enemyEncounterKey}-${threshold}-${stamp}-${index}`,
+        enemyKey: enemyEncounterKey,
+        threshold,
+        at: stamp + index,
+      })),
+    ]);
+  }, [enemy?.hp, enemy?.isBoss, enemy?.maxHp, enemyEncounterKey]);
+
+  useEffect(() => {
+    if (!bossPhasePingQueue.length) return undefined;
+    const timer = setTimeout(() => {
+      setBossPhasePingQueue(current => current.slice(1));
+    }, 1250);
+    return () => clearTimeout(timer);
+  }, [bossPhasePingQueue[0]?.id, bossPhasePingQueue.length]);
+
+  useEffect(() => {
     if (!latestLootEvent) return undefined;
     if (!latestLootEvent.highlight) return undefined;
     setLootClosing(false);
@@ -446,7 +623,10 @@ export default function Combat({ state, dispatch }) {
     const previous = prevLevelRef.current || 1;
     const current = player.level || 1;
     if (current > previous) {
-      setLevelUpFlash({ from: previous, to: current, at: Date.now() });
+      const eventAt = Date.now();
+      setLevelUpFlash({ from: previous, to: current, at: eventAt });
+      setLevelUpToastClosing(false);
+      setVisibleLevelUpToast({ from: previous, to: current, at: eventAt });
       const timer = setTimeout(() => setLevelUpFlash(null), 2000);
       prevLevelRef.current = current;
       return () => clearTimeout(timer);
@@ -454,6 +634,21 @@ export default function Combat({ state, dispatch }) {
     prevLevelRef.current = current;
     return undefined;
   }, [player.level]);
+
+  useEffect(() => {
+    if (!visibleLevelUpToast) return undefined;
+    const timer = setTimeout(() => setLevelUpToastClosing(true), LEVEL_UP_TOAST_VISIBLE_MS);
+    return () => clearTimeout(timer);
+  }, [visibleLevelUpToast?.at]);
+
+  useEffect(() => {
+    if (!levelUpToastClosing) return undefined;
+    const timer = setTimeout(() => {
+      setVisibleLevelUpToast(null);
+      setLevelUpToastClosing(false);
+    }, 240);
+    return () => clearTimeout(timer);
+  }, [levelUpToastClosing]);
 
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768);
@@ -808,6 +1003,19 @@ export default function Combat({ state, dispatch }) {
 
   const enemyHpPct = Math.max(0, (enemy.hp / enemy.maxHp) * 100);
   const playerHpPct = Math.max(0, (player.hp / player.maxHp) * 100);
+  const inEnemyFinishZone = enemyHpPct <= ENEMY_FINISH_ZONE_PCT;
+  const critStreakAgeMs = Date.now() - Number(critStreak.lastCritAt || 0);
+  const critStreakFade = Math.max(0, Math.min(1, 1 - (critStreakAgeMs / CRIT_STREAK_TIMEOUT_MS)));
+  const showCritStreak = critStreak.count >= 2 && critStreakFade > 0;
+  const activeBossPhasePing =
+    bossPhasePingQueue[0]?.enemyKey === enemyEncounterKey ? bossPhasePingQueue[0] : null;
+  const levelUpToastBottom = visibleLootEvent
+    ? (isMobile
+      ? "calc(var(--app-bottom-nav-offset, 0px) + env(safe-area-inset-bottom, 0px) + 92px)"
+      : 108)
+    : (isMobile
+      ? "calc(var(--app-bottom-nav-offset, 0px) + env(safe-area-inset-bottom, 0px) + 16px)"
+      : 24);
 
   const xpNeeded = xpRequired(player.level);
   const xpPct = Math.min(100, (player.xp / xpNeeded) * 100);
@@ -1247,6 +1455,64 @@ export default function Combat({ state, dispatch }) {
         </div>
       )}
 
+      {visibleLevelUpToast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: levelUpToastBottom,
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: isMobile ? "calc(100% - 34px)" : "min(420px, calc(100% - 56px))",
+            zIndex: 4990,
+            pointerEvents: "none",
+          }}
+        >
+          <section
+            style={{
+              background: isDarkMode
+                ? "linear-gradient(145deg, #1f2c46 0%, #25365b 100%)"
+                : "linear-gradient(145deg, #eef2ff 0%, #dbe4ff 100%)",
+              border: isDarkMode ? "2px solid rgba(129,140,248,0.42)" : "2px solid rgba(99,102,241,0.38)",
+              borderRadius: "14px",
+              padding: isMobile ? "9px 12px" : "10px 14px",
+              boxShadow: isDarkMode ? "0 10px 24px rgba(15,23,42,0.34)" : "0 12px 28px rgba(79,70,229,0.16)",
+              animation: levelUpToastClosing
+                ? "levelUpToastExit 240ms ease-in forwards"
+                : "levelUpToastEnter 320ms cubic-bezier(0.2,0.9,0.3,1) forwards, levelUpToastPulse 1900ms ease-in-out 360ms infinite",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: "0.52rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)", marginBottom: "2px" }}>
+                  Progreso
+                </div>
+                <div style={{ fontSize: isMobile ? "0.84rem" : "0.9rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.1 }}>
+                  ¡Subiste de nivel!
+                </div>
+              </div>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  borderRadius: "999px",
+                  padding: "3px 8px",
+                  border: isDarkMode ? "1px solid rgba(129,140,248,0.48)" : "1px solid rgba(99,102,241,0.28)",
+                  background: isDarkMode ? "var(--color-background-tertiary, #162237)" : "var(--color-background-secondary, #ffffff)",
+                  color: isDarkMode ? "var(--tone-accent-soft, #c7d2fe)" : "var(--tone-accent, #4338ca)",
+                  fontSize: "0.62rem",
+                  fontWeight: "900",
+                }}
+              >
+                Nivel {visibleLevelUpToast.to}
+              </div>
+            </div>
+            <div style={{ marginTop: "6px", fontSize: "0.62rem", fontWeight: "800", color: "var(--color-text-secondary, #475569)" }}>
+              {visibleLevelUpToast.from} → {visibleLevelUpToast.to}
+            </div>
+          </section>
+        </div>
+      )}
+
       <section
         style={{
           display: "flex",
@@ -1262,11 +1528,103 @@ export default function Combat({ state, dispatch }) {
       >
         <div>
           <div style={hpLabelStyle}>
-            <span>ENEMIGO</span>
-            <span>{Math.ceil(enemy.hp).toLocaleString()} HP</span>
+            <span style={{ display: "inline-flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+              <span>ENEMIGO</span>
+              {inEnemyFinishZone && (
+                <span
+                  style={{
+                    fontSize: "0.56rem",
+                    fontWeight: "900",
+                    borderRadius: "999px",
+                    padding: "2px 7px",
+                    background: "var(--tone-warning-soft, #fff7ed)",
+                    color: "var(--tone-warning-strong, #c2410c)",
+                    border: "1px solid rgba(245,158,11,0.26)",
+                    animation: "combatFinishZonePulse 1900ms ease-in-out infinite",
+                  }}
+                >
+                  Zona de cierre
+                </span>
+              )}
+              {showCritStreak && (
+                <span
+                  key={`crit-streak-${critStreak.pulseAt}`}
+                  style={{
+                    fontSize: "0.56rem",
+                    fontWeight: "900",
+                    borderRadius: "999px",
+                    padding: "2px 7px",
+                    background: "var(--tone-warning-soft, #fff7ed)",
+                    color: "var(--tone-warning-strong, #c2410c)",
+                    border: "1px solid rgba(245,158,11,0.26)",
+                    boxShadow: "0 0 10px rgba(245,158,11,0.2)",
+                    opacity: 0.45 + (0.55 * critStreakFade),
+                    animation: "combatCritStreakPop 420ms ease-out",
+                  }}
+                >
+                  Racha critica x{critStreak.count}
+                </span>
+              )}
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+              {activeBossPhasePing && (
+                <span
+                  key={`boss-phase-${activeBossPhasePing.threshold}-${activeBossPhasePing.at}`}
+                  style={{
+                    fontSize: "0.56rem",
+                    fontWeight: "900",
+                    borderRadius: "999px",
+                    padding: "2px 7px",
+                    background: "var(--tone-violet-soft, #f3e8ff)",
+                    color: "var(--tone-violet, #6d28d9)",
+                    border: "1px solid rgba(124,58,237,0.22)",
+                    animation: "combatBossThresholdPop 1250ms ease-out forwards",
+                  }}
+                >
+                  {activeBossPhasePing.threshold}%
+                </span>
+              )}
+              <span>{Math.ceil(enemy.hp).toLocaleString()} HP</span>
+            </span>
           </div>
-          <div style={barContainerStyle}>
-            <div style={{ width: `${enemyHpPct}%`, height: "100%", background: "var(--tone-danger, #ef4444)", transition: "width 0.2s ease-out" }} />
+          <div style={{ ...barContainerStyle, position: "relative" }}>
+            <div
+              style={{
+                position: "absolute",
+                left: `${ENEMY_FINISH_ZONE_PCT}%`,
+                top: 0,
+                bottom: 0,
+                width: "1px",
+                background: "rgba(245,158,11,0.4)",
+                zIndex: 1,
+                pointerEvents: "none",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: `${ENEMY_FINISH_ZONE_PCT}%`,
+                background: "linear-gradient(90deg, rgba(245,158,11,0.22) 0%, rgba(245,158,11,0.06) 100%)",
+                opacity: inEnemyFinishZone ? 0.74 : 0.22,
+                transition: "opacity 220ms ease-out",
+                pointerEvents: "none",
+              }}
+            />
+            <div
+              style={{
+                width: `${enemyHpPct}%`,
+                height: "100%",
+                background: "var(--tone-danger, #ef4444)",
+                transition: "width 0.2s ease-out",
+                boxShadow: inEnemyFinishZone ? "0 0 8px rgba(239,68,68,0.2)" : "none",
+                animation: inEnemyFinishZone ? "combatFinishZonePulse 1900ms ease-in-out infinite" : "none",
+                position: "relative",
+                zIndex: 2,
+              }}
+            />
           </div>
           <InlineStatusTray statuses={enemyStatusPills} emptyLabel="Sin estados" isMobile={isMobile} />
         </div>
@@ -1386,6 +1744,24 @@ export default function Combat({ state, dispatch }) {
             >
               <div style={{ width: `${xpPct}%`, height: "100%", background: "var(--tone-accent, #534AB7)", transition: "width 0.5s ease-out" }} />
             </div>
+            {levelUpFlash && (
+              <span
+                key={`ding-ring-${levelUpFlash.at}`}
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  top: "50%",
+                  width: "14px",
+                  height: "14px",
+                  borderRadius: "999px",
+                  border: isDarkMode ? "2px solid rgba(167,139,250,0.72)" : "2px solid rgba(99,102,241,0.58)",
+                  pointerEvents: "none",
+                  transform: "translate(-50%, -50%)",
+                  animation: "levelUpDingRing 860ms ease-out 1",
+                }}
+              />
+            )}
             {combatXpFloatEvents.length > 0 && (
               <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible", zIndex: 9 }}>
                 {combatXpFloatEvents.map((event, index) => (
@@ -1445,6 +1821,118 @@ export default function Combat({ state, dispatch }) {
           hint={effectiveAttackSpeedInCombat !== baseStats.attackSpeed ? `Base ${Math.round(baseStats.attackSpeed * 100)}%` : null}
         />
       </section>
+
+      {showSessionFraming && primarySessionGoal && (
+        <section
+          style={{
+            background: "var(--color-background-secondary, #ffffff)",
+            border: "1px solid var(--color-border-primary, #e2e8f0)",
+            borderRadius: "14px",
+            padding: isMobile ? "10px" : "12px",
+            display: "grid",
+            gap: "8px",
+            boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+                Sesion actual
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
+                <span
+                  style={{
+                    fontSize: "0.5rem",
+                    fontWeight: "900",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    color: "var(--tone-accent, #4338ca)",
+                    background: "var(--tone-accent-soft, #eef2ff)",
+                    border: "1px solid rgba(99,102,241,0.18)",
+                    borderRadius: "999px",
+                    padding: "3px 7px",
+                  }}
+                >
+                  {primarySessionGoal.sessionArc}
+                </span>
+                <span style={{ fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                  {primarySessionGoal.name}
+                </span>
+              </div>
+            </div>
+            {primarySessionGoal.completed ? (
+              <button
+                onClick={() => dispatch({ type: "CLAIM_GOAL", goalId: primarySessionGoal.id })}
+                style={{
+                  border: "none",
+                  background: "var(--tone-success, #10b981)",
+                  color: "#fff",
+                  borderRadius: "999px",
+                  padding: "7px 10px",
+                  fontSize: "0.62rem",
+                  fontWeight: "900",
+                  cursor: "pointer",
+                }}
+              >
+                Reclamar
+              </button>
+            ) : (
+              <span
+                style={{
+                  fontSize: "0.62rem",
+                  fontWeight: "900",
+                  color: "var(--color-text-secondary, #64748b)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {primarySessionGoal.progress}/{primarySessionGoal.targetValue}
+              </span>
+            )}
+          </div>
+
+          <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4 }}>
+            {primarySessionGoal.hint || primarySessionGoal.description}
+          </div>
+
+          <div style={{ height: "6px", borderRadius: "999px", overflow: "hidden", background: "var(--color-background-tertiary, #f1f5f9)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
+            <div
+              style={{
+                width: `${primarySessionGoal.percent}%`,
+                height: "100%",
+                background: primarySessionGoal.completed ? "var(--tone-success, #10b981)" : "var(--tone-accent, #4338ca)",
+              }}
+            />
+          </div>
+
+          {secondarySessionGoals.length > 0 && (
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              {secondarySessionGoals.map(goal => (
+                <div
+                  key={goal.id}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "5px 8px",
+                    borderRadius: "999px",
+                    background: "var(--color-background-tertiary, #f8fafc)",
+                    border: "1px solid var(--color-border-primary, #e2e8f0)",
+                    color: "var(--color-text-secondary, #475569)",
+                    fontSize: "0.58rem",
+                    fontWeight: "900",
+                  }}
+                >
+                  <span style={{ color: "var(--tone-accent, #4338ca)" }}>{goal.sessionArc}</span>
+                  <span>{goal.name}</span>
+                  <span style={{ color: "var(--color-text-tertiary, #94a3b8)" }}>
+                    {goal.completed ? "Listo" : `${goal.progress}/${goal.targetValue}`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <CombatGuidanceStrip
         sessionGoals={sessionGoals}
@@ -1866,6 +2354,9 @@ function StatusPill({ label, value, tone = "common", detail = "", description = 
     },
   };
   const palette = toneMap[tone] || toneMap.common;
+  const pulseEnabled = tone !== "common";
+  const animationOffsetMs = Array.from(String(label || ""))
+    .reduce((sum, character) => sum + character.charCodeAt(0), 0) % 9 * 140;
   return (
     <span
       title={description ? `${label}: ${description}${detail ? `\n${detail}` : ""}` : label}
@@ -1885,6 +2376,11 @@ function StatusPill({ label, value, tone = "common", detail = "", description = 
         padding: "4px 8px",
         cursor: description ? "help" : "default",
         whiteSpace: "nowrap",
+        boxShadow: pulseEnabled
+          ? "0 0 0 1px rgba(255,255,255,0.12), 0 1px 2px rgba(15,23,42,0.03)"
+          : "none",
+        animation: pulseEnabled ? "combatStatusPillPulse 3600ms ease-in-out infinite" : "none",
+        animationDelay: pulseEnabled ? `${animationOffsetMs}ms` : undefined,
       }}
     >
       <span>{label}</span>
