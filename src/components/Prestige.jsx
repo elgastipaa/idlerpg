@@ -12,6 +12,7 @@ import {
 } from "../engine/progression/prestigeEngine";
 import { getAbyssUnlockEntries } from "../engine/progression/abyssProgression";
 import { getOnboardingFirstEchoNodeId, getOnboardingStepInteractionMode, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
+import { buildRunOutcomeSummary } from "../utils/runOutcomeSummary";
 
 const PERCENT_KEYS = new Set([
   "damagePct",
@@ -106,6 +107,12 @@ const BONUS_LABELS = {
   abyssMutatorOffensePct: "Ofensiva por anomalia",
 };
 
+const PRESTIGE_NODE_FILTERS = [
+  { id: "comprables", label: "Comprables" },
+  { id: "activos", label: "Activos" },
+  { id: "todos", label: "Todos" },
+];
+
 function formatNumber(value) {
   if (typeof value !== "number") return value;
   if (Number.isInteger(value)) return value.toLocaleString();
@@ -152,6 +159,8 @@ export default function Prestige({ state, dispatch }) {
   const { player, prestige } = state;
   const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < 768 : false);
   const [activeBranchId, setActiveBranchId] = useState(PRESTIGE_BRANCHES[0]?.id || null);
+  const [nodeVisibilityFilter, setNodeVisibilityFilter] = useState("comprables");
+  const [showAbyssMilestones, setShowAbyssMilestones] = useState(false);
   const [canScrollBranchesLeft, setCanScrollBranchesLeft] = useState(false);
   const [canScrollBranchesRight, setCanScrollBranchesRight] = useState(false);
   const branchScrollerRef = useRef(null);
@@ -244,6 +253,34 @@ export default function Prestige({ state, dispatch }) {
       .map(([tier, nodes]) => ({ tier: Number(tier), nodes }))
       .sort((a, b) => a.tier - b.tier);
   }, [activeBranchNodes]);
+  const filteredActiveBranchTierGroups = useMemo(() => {
+    const shouldShowNode = node => {
+      const level = getPrestigeNodeLevel(prestige, node.id);
+      const purchase = canPurchasePrestigeNode(state, node);
+      if (tutorialEchoNodeId != null && node.id === tutorialEchoNodeId) return true;
+      if (nodeVisibilityFilter === "activos") return level > 0;
+      if (nodeVisibilityFilter === "comprables") return level > 0 || purchase.ok;
+      return true;
+    };
+
+    return activeBranchTierGroups
+      .map(group => ({
+        ...group,
+        nodes: group.nodes.filter(shouldShowNode),
+        totalNodes: group.nodes.length,
+      }))
+      .filter(group => group.nodes.length > 0);
+  }, [activeBranchTierGroups, nodeVisibilityFilter, prestige, state, tutorialEchoNodeId]);
+  const prestigeOutcomeSummary = useMemo(
+    () =>
+      buildRunOutcomeSummary(state, {
+        prestigeMode: "echoes",
+        exitReason: "retire",
+        echoes: Number(echoesOnNext || 0),
+        source: "prestige",
+      }),
+    [echoesOnNext, state]
+  );
 
   useEffect(() => {
     if (!tutorialEchoNodeId) return;
@@ -303,26 +340,13 @@ export default function Prestige({ state, dispatch }) {
             </div>
             <div style={{ ...smallCopyStyle, marginTop: "6px", color: "#cbd5e1" }}>
               {prestigeCheck.ok
-                ? `${prestigeMomentum.label} · ${formatMultiplier(prestigeMomentum.multiplier)} sobre ${formatNumber(prestigeMomentum.baseEchoes || 0)} ecos base.`
-                : "Segui empujando tier y nivel; el momentum premia acercarte o superar tu mejor run historica."}
+                ? `${prestigeMomentum.label} · ${formatMultiplier(prestigeMomentum.multiplier)} de momentum.`
+                : "Empuja tier y nivel para volver rentable la proxima extraccion."}
             </div>
           </div>
-          <div
-            style={{
-              border: "1px solid rgba(148,163,184,0.28)",
-              borderRadius: "14px",
-              padding: "10px 12px",
-              background: "rgba(15,23,42,0.22)",
-              width: isMobile ? "100%" : "auto",
-              minWidth: isMobile ? undefined : "220px",
-            }}
-          >
-            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "#cbd5e1" }}>
-              Salida de expedicion
-            </div>
-            <div style={{ fontSize: "0.74rem", color: "#e2e8f0", marginTop: "4px", lineHeight: 1.45, maxWidth: "28ch" }}>
-              La conversion a ecos ocurre desde <strong>Extraer al Santuario</strong>. Esta tab queda para resonancia, arbol y pacing meta.
-            </div>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: isMobile ? "stretch" : "flex-end" }}>
+            <div style={summaryBadgeStyle}>{formatNumber(prestige.echoes || 0)} disponibles</div>
+            <div style={summaryBadgeStyle}>{formatMultiplier(prestigeMomentum.multiplier)} momentum</div>
           </div>
         </div>
 
@@ -336,27 +360,16 @@ export default function Prestige({ state, dispatch }) {
           )) : (
             <span style={{ ...compactChipStyle, color: "#94a3b8" }}>{prestigePreview.minimumRunLabel || "Minimo: Tier 3, Nivel 10 o 50 bajas"}</span>
           )}
-          {recommendedNode && (
-            <span style={{ ...compactChipStyle, borderColor: "rgba(99,102,241,0.25)", color: "#c7d2fe" }}>
-              Compra util: {recommendedNode.name}
-            </span>
-          )}
         </div>
 
         <div style={{ ...smallCopyStyle, marginTop: "10px", color: "#94a3b8" }}>
-          Conservas ecos y tablero. La resonancia escala con todos los ecos ganados aunque los gastes. Reinicias oro, equipo, talentos y la corrida, y vuelves a elegir clase, spec y sigilo.
+          Reinicias la run, pero conservas ecos, tablero y resonancia de cuenta.
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))", gap: "8px", marginTop: "12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, minmax(0, 1fr))", gap: "8px", marginTop: "12px" }}>
           <div style={resetMetricCardStyle}>
             <div style={resetMetricLabelStyle}>Tier actual</div>
             <div style={resetMetricValueStyle}>{formatNumber(prestigeMomentum.currentTier || prestigePreview.progress?.maxTier || 1)}</div>
-          </div>
-          <div style={resetMetricCardStyle}>
-            <div style={resetMetricLabelStyle}>Record historico</div>
-            <div style={resetMetricValueStyle}>
-              {prestigeMomentum.historicBestTier > 0 ? formatNumber(prestigeMomentum.historicBestTier) : "Sin record"}
-            </div>
           </div>
           <div style={resetMetricCardStyle}>
             <div style={resetMetricLabelStyle}>Momentum</div>
@@ -377,98 +390,131 @@ export default function Prestige({ state, dispatch }) {
         </div>
       </section>
 
-      <section style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "280px minmax(0, 1fr)", gap: "10px" }}>
-        <div style={summaryPanelStyle}>
-          <div style={sectionTitleStyle}>Ecos</div>
-          <div style={{ fontSize: "1.08rem", color: "#f8fafc", fontWeight: 900, marginTop: "6px" }}>{formatNumber(prestige.echoes || 0)}</div>
-          <div style={subtleStyle}>Disponibles ahora</div>
-          <div style={{ ...miniRowStyle, marginTop: "10px" }}>
-            <span style={smallCopyStyle}>Gastados</span>
-            <strong style={{ color: "#e2e8f0" }}>{formatNumber(prestige.spentEchoes || 0)}</strong>
+      <section style={summaryPanelStyle}>
+        <div style={{ display: "grid", gap: "4px" }}>
+          <div style={sectionTitleStyle}>Reset de prestige</div>
+          <div style={{ fontSize: "0.96rem", color: "#f8fafc", fontWeight: 900 }}>
+            {prestigeOutcomeSummary.title}
           </div>
-          <div style={miniRowStyle}>
-            <span style={smallCopyStyle}>Totales</span>
-            <strong style={{ color: "#e2e8f0" }}>{formatNumber(prestige.totalEchoesEarned || 0)}</strong>
+          <div style={{ ...smallCopyStyle, color: "#94a3b8" }}>
+            Lectura corta de lo que realmente pasa cuando esa extraccion ya convierte a ecos.
           </div>
-          <div style={{ ...smallCopyStyle, marginTop: "10px", color: "#94a3b8", lineHeight: 1.45 }}>
-            Resonancia continua: cada eco total ganado suma stats meta aunque ya lo hayas invertido.
-          </div>
-          {resonanceSummary.nextEchoRows.length > 0 && (
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" }}>
-              {resonanceSummary.nextEchoRows.slice(0, 3).map(([key, value]) => (
-                <span key={key} style={compactChipStyle}>
-                  Prox eco: {BONUS_LABELS[key] || key} {formatBonus(key, value)}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
-        <div style={summaryPanelStyle}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-            <div>
-              <div style={sectionTitleStyle}>Bonos Activos</div>
-              <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "4px" }}>Lectura corta de lo que hoy ya esta pegando en la cuenta.</div>
-            </div>
-            <div style={summaryBadgeStyle}>{activePrestigeNodes} nodos activos</div>
-          </div>
-
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
-            {highlightedBonuses.length > 0 ? highlightedBonuses.map(([key, value]) => (
-              <div key={key} style={bonusChipStyle}>
-                <span style={{ color: "#94a3b8", textTransform: "uppercase", fontWeight: 900 }}>{BONUS_LABELS[key] || key}</span>
-                <strong style={{ color: "#f8fafc" }}>{formatBonus(key, value)}</strong>
-              </div>
-            )) : (
-              <div style={{ ...bonusChipStyle, color: "#cbd5e1" }}>Todavia no invertiste ecos. El primer prestigio ya vale la pena por abrir este tablero.</div>
-            )}
-          </div>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "10px", marginTop: "12px" }}>
+          {prestigeOutcomeSummary.groups.map(group => (
+            <OutcomeSummaryCard key={group.id} group={group} />
+          ))}
         </div>
       </section>
 
       <section style={summaryPanelStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
           <div>
-            <div style={sectionTitleStyle}>Hitos de Abismo</div>
+            <div style={sectionTitleStyle}>Ecos disponibles</div>
             <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "4px" }}>
-              Progreso historico de cuenta. No se reinicia al prestigiar.
+              Lectura corta del meta actual y de lo que ya impacta en la cuenta.
             </div>
           </div>
-          <div style={summaryBadgeStyle}>
-            {highestAbyssDepth > 0 ? `Abismo ${highestAbyssDepth}` : "Mundo base"}
+          <div style={summaryBadgeStyle}>{activePrestigeNodes} nodos activos</div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: "8px", marginTop: "12px" }}>
+          <div style={resetMetricCardStyle}>
+            <div style={resetMetricLabelStyle}>Disponibles</div>
+            <div style={resetMetricValueStyle}>{formatNumber(prestige.echoes || 0)}</div>
+          </div>
+          <div style={resetMetricCardStyle}>
+            <div style={resetMetricLabelStyle}>Gastados</div>
+            <div style={resetMetricValueStyle}>{formatNumber(prestige.spentEchoes || 0)}</div>
+          </div>
+          <div style={resetMetricCardStyle}>
+            <div style={resetMetricLabelStyle}>Totales</div>
+            <div style={resetMetricValueStyle}>{formatNumber(prestige.totalEchoesEarned || 0)}</div>
+          </div>
+          <div style={resetMetricCardStyle}>
+            <div style={resetMetricLabelStyle}>Resonancia</div>
+            <div style={resetMetricValueStyle}>{formatNumber(resonanceSummary.totalEchoesEarned || prestige.totalEchoesEarned || 0)}</div>
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: "8px", marginTop: "12px" }}>
-          {abyssUnlocks.map(unlock => (
-            <div
-              key={unlock.id}
-              style={{
-                borderRadius: "12px",
-                border: "1px solid",
-                borderColor: unlock.unlocked ? "rgba(99,102,241,0.24)" : "rgba(148,163,184,0.18)",
-                background: unlock.unlocked ? "rgba(79,70,229,0.12)" : "rgba(255,255,255,0.04)",
-                padding: "10px",
-                display: "grid",
-                gap: "4px",
-              }}
-            >
-              <div style={{ fontSize: "0.62rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: unlock.unlocked ? "#c7d2fe" : "#94a3b8" }}>
-                {unlock.name}
-              </div>
-              <div style={{ fontSize: "0.78rem", fontWeight: 900, color: unlock.unlocked ? "#f8fafc" : "#e2e8f0" }}>
-                {unlock.reward}
-              </div>
-              <div style={{ fontSize: "0.64rem", color: unlock.unlocked ? "#cbd5e1" : "#94a3b8" }}>
-                {unlock.unlocked ? "Registrado" : `Llega al Tier ${unlock.minTier}`}
-              </div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+          {highlightedBonuses.length > 0 ? highlightedBonuses.map(([key, value]) => (
+            <div key={key} style={bonusChipStyle}>
+              <span style={{ color: "#94a3b8", textTransform: "uppercase", fontWeight: 900 }}>{BONUS_LABELS[key] || key}</span>
+              <strong style={{ color: "#f8fafc" }}>{formatBonus(key, value)}</strong>
             </div>
-          ))}
+          )) : (
+            <div style={{ ...bonusChipStyle, color: "#cbd5e1" }}>Todavia no invertiste ecos. El primer prestigio abre el tablero meta.</div>
+          )}
         </div>
 
-        <div style={{ ...smallCopyStyle, marginTop: "10px", color: "#94a3b8" }}>
-          Pico historico: Tier {formatNumber(highestAbyssTier)}.
-        </div>
+        {resonanceSummary.nextEchoRows.length > 0 && (
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" }}>
+            {resonanceSummary.nextEchoRows.slice(0, 3).map(([key, value]) => (
+              <span key={key} style={compactChipStyle}>
+                Prox eco: {BONUS_LABELS[key] || key} {formatBonus(key, value)}
+              </span>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section style={summaryPanelStyle}>
+        <button
+          onClick={() => setShowAbyssMilestones(current => !current)}
+          style={{ width: "100%", background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            <div>
+              <div style={sectionTitleStyle}>Hitos de Abismo</div>
+              <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "4px" }}>
+                Progreso historico de cuenta. {showAbyssMilestones ? "Detalle expandido." : "Abre solo cuando quieras revisar milestones."}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              <div style={summaryBadgeStyle}>
+                {highestAbyssDepth > 0 ? `Abismo ${highestAbyssDepth}` : "Mundo base"}
+              </div>
+              <span style={{ ...compactChipStyle, color: "#e2e8f0" }}>{showAbyssMilestones ? "Ocultar" : "Ver"}</span>
+            </div>
+          </div>
+        </button>
+
+        {showAbyssMilestones && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: "8px", marginTop: "12px" }}>
+              {abyssUnlocks.map(unlock => (
+                <div
+                  key={unlock.id}
+                  style={{
+                    borderRadius: "12px",
+                    border: "1px solid",
+                    borderColor: unlock.unlocked ? "rgba(99,102,241,0.24)" : "rgba(148,163,184,0.18)",
+                    background: unlock.unlocked ? "rgba(79,70,229,0.12)" : "rgba(255,255,255,0.04)",
+                    padding: "10px",
+                    display: "grid",
+                    gap: "4px",
+                  }}
+                >
+                  <div style={{ fontSize: "0.62rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: unlock.unlocked ? "#c7d2fe" : "#94a3b8" }}>
+                    {unlock.name}
+                  </div>
+                  <div style={{ fontSize: "0.78rem", fontWeight: 900, color: unlock.unlocked ? "#f8fafc" : "#e2e8f0" }}>
+                    {unlock.reward}
+                  </div>
+                  <div style={{ fontSize: "0.64rem", color: unlock.unlocked ? "#cbd5e1" : "#94a3b8" }}>
+                    {unlock.unlocked ? "Registrado" : `Llega al Tier ${unlock.minTier}`}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ ...smallCopyStyle, marginTop: "10px", color: "#94a3b8" }}>
+              Pico historico: Tier {formatNumber(highestAbyssTier)}.
+            </div>
+          </>
+        )}
       </section>
 
       <section style={summaryPanelStyle}>
@@ -550,10 +596,37 @@ export default function Prestige({ state, dispatch }) {
 
       {activeBranch && (
         <section style={{ ...summaryPanelStyle, borderColor: `${activeBranch.color}33` }}>
-          <div>
-            <div style={{ ...sectionTitleStyle, color: activeBranch.color }}>{activeBranch.name}</div>
-            <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "4px", lineHeight: 1.4 }}>{activeBranch.description}</div>
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", flexWrap: "wrap" }}>
+            <div>
+              <div style={{ ...sectionTitleStyle, color: activeBranch.color }}>{activeBranch.name}</div>
+              <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "4px", lineHeight: 1.4 }}>{activeBranch.description}</div>
+            </div>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+              {PRESTIGE_NODE_FILTERS.map(filter => {
+                const active = nodeVisibilityFilter === filter.id;
+                return (
+                  <button
+                    key={filter.id}
+                    onClick={() => setNodeVisibilityFilter(filter.id)}
+                    style={{
+                      border: "1px solid",
+                      borderColor: active ? activeBranch.color : "rgba(148,163,184,0.22)",
+                      background: active ? `${activeBranch.color}22` : "rgba(255,255,255,0.04)",
+                      color: active ? activeBranch.color : "#cbd5e1",
+                      borderRadius: "999px",
+                      padding: "4px 8px",
+                      fontSize: "0.58rem",
+                      fontWeight: "900",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {filter.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" }}>
               <span style={metaChipStyle}>{branchSummaries[activeBranch.id]?.activeNodes || 0}/{branchSummaries[activeBranch.id]?.totalNodes || activeBranchNodes.length} nodos</span>
               <span style={metaChipStyle}>{branchSummaries[activeBranch.id]?.investedLevels || 0} niveles</span>
               {!activeBranchUnlocked && (
@@ -567,14 +640,13 @@ export default function Prestige({ state, dispatch }) {
                 </span>
               )}
             </div>
-          </div>
 
           <div style={{ display: "grid", gap: "12px", marginTop: "14px" }}>
-            {activeBranchTierGroups.map(group => (
+            {filteredActiveBranchTierGroups.length > 0 ? filteredActiveBranchTierGroups.map(group => (
               <div key={`tier-group-${group.tier}`} style={{ display: "grid", gap: "8px" }}>
                 <div style={tierHeaderStyle}>
                   <span>Tier {group.tier}</span>
-                  <span>{group.nodes.length} nodo{group.nodes.length === 1 ? "" : "s"}</span>
+                  <span>{group.nodes.length}/{group.totalNodes} nodo{group.totalNodes === 1 ? "" : "s"}</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
                   {group.nodes.map(node => {
@@ -614,28 +686,35 @@ export default function Prestige({ state, dispatch }) {
                               }).boxShadow,
                           animation: spotlightNode ? "prestigeSpotlightPulse 1600ms ease-in-out infinite" : "none",
                         }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" }}>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                              <span style={{ fontSize: "0.76rem", color: "#f8fafc", fontWeight: 900 }}>{node.name}</span>
-                              {node.capstone && <span style={{ ...metaChipStyle, borderColor: "#f59e0b55", color: "#f59e0b" }}>Capstone</span>}
-                              {node.requiresSpecialization && <span style={{ ...metaChipStyle, borderColor: "#a855f755", color: "#c4b5fd" }}>{node.requiresSpecialization}</span>}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                                <span style={{ fontSize: "0.76rem", color: "#f8fafc", fontWeight: 900 }}>{node.name}</span>
+                                {node.capstone && <span style={{ ...metaChipStyle, borderColor: "#f59e0b55", color: "#f59e0b" }}>Capstone</span>}
+                                {node.requiresSpecialization && <span style={{ ...metaChipStyle, borderColor: "#a855f755", color: "#c4b5fd" }}>{node.requiresSpecialization}</span>}
+                              </div>
                             </div>
-                            <div style={{ ...nodeDescriptionStyle, marginTop: "4px" }}>{node.description}</div>
-                          </div>
                           <span style={levelBadgeStyle(level > 0, activeBranch.color)}>{level}/{node.maxLevel}</span>
                         </div>
 
                         <div style={{ fontSize: "0.64rem", color: "#cbd5e1", fontWeight: 800, marginTop: "10px", lineHeight: 1.4 }}>
                           Actual: <span style={{ color: "#f8fafc" }}>{currentSummary}</span>
                         </div>
+                        {!buttonEnabled && purchase.cost != null && level < node.maxLevel && (
+                          <div style={{ fontSize: "0.6rem", color: "#94a3b8", marginTop: "4px", lineHeight: 1.35 }}>
+                            Costo: {purchase.cost} ecos
+                          </div>
+                        )}
 
                         {requirementNames.length > 0 && (
                           <div style={{ fontSize: "0.6rem", color: purchase.reason === "requires" ? "#fca5a5" : "#94a3b8", marginTop: "6px", lineHeight: 1.35 }}>
                             Req: {requirementNames.join(" · ")}
                           </div>
                         )}
+                        <div style={{ ...nodeDescriptionStyle, marginTop: "4px", fontSize: "0.62rem", color: "#94a3b8" }}>
+                          {node.description}
+                        </div>
 
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
                           <span style={nodeStatusPillStyle(buttonEnabled, tone, activeBranch.color)}>
@@ -675,7 +754,13 @@ export default function Prestige({ state, dispatch }) {
                   })}
                 </div>
               </div>
-            ))}
+            )) : (
+              <div style={{ fontSize: "0.72rem", color: "#94a3b8", lineHeight: 1.45 }}>
+                {nodeVisibilityFilter === "activos"
+                  ? "Todavia no hay nodos activos en esta rama."
+                  : "Ahora mismo esta rama no tiene compras inmediatas. Cambia a `Todos` para revisar tiers futuros."}
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -901,4 +986,29 @@ const branchScrollHintStyle = (side = "right") => ({
   pointerEvents: "none",
   boxShadow: "0 6px 18px rgba(2,6,23,0.22)",
 });
+
+function OutcomeSummaryCard({ group }) {
+  return (
+    <div
+      style={{
+        borderRadius: "12px",
+        border: "1px solid rgba(148,163,184,0.18)",
+        background: "rgba(255,255,255,0.04)",
+        padding: "10px",
+        display: "grid",
+        gap: "8px",
+        alignContent: "start",
+      }}
+    >
+      <div style={{ fontSize: "0.62rem", color: "#cbd5e1", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        {group.label}
+      </div>
+      <ul style={{ margin: 0, paddingLeft: "16px", display: "grid", gap: "6px", color: "#94a3b8", fontSize: "0.68rem", lineHeight: 1.45 }}>
+        {group.items.map(item => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 

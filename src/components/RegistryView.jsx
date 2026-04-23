@@ -1,8 +1,15 @@
-import React from "react";
+import React, { useRef } from "react";
+import AccountProgressView from "./AccountProgressView";
 import Achievements from "./Achievements";
 import Stats from "./Stats";
 
 const SUBVIEW_META = {
+  account: {
+    label: "Cuenta",
+    description: "Vista unificada de Prestige, Biblioteca, Abismo y Blueprints.",
+    eyebrow: "Maestria",
+    summary: "Lectura corta de la cuenta y del siguiente empuje largo.",
+  },
   achievements: {
     label: "Logros",
     description: "Coleccion, hitos y objetivos opcionales de cuenta.",
@@ -91,13 +98,14 @@ function chipStyle({
 }
 
 function getRegistrySubview(tab = "registry") {
-  if (tab === "registry") return "achievements";
-  if (tab === "achievements" || tab === "stats") return tab;
+  if (tab === "registry") return "account";
+  if (tab === "account" || tab === "achievements" || tab === "stats") return tab;
   if (tab === "system") return "system";
-  return "achievements";
+  return "account";
 }
 
 export default function RegistryView({ state, dispatch }) {
+  const accountDevGestureRef = useRef({ count: 0, lastClickAt: 0 });
   const activeSubview = getRegistrySubview(state?.currentTab || "registry");
   const reforgeLocked = !!state?.combat?.reforgeSession;
   const sessionTicks = Number(state?.combat?.analytics?.ticks || 0);
@@ -105,6 +113,27 @@ export default function RegistryView({ state, dispatch }) {
   const replayEntries = Array.isArray(state?.replayLibrary?.entries) ? state.replayLibrary.entries.filter(entry => entry?.isActive !== false).length : 0;
   const currentTier = Math.max(1, Number(state?.combat?.currentTier || 1));
   const telemetryKills = Math.max(0, Number(state?.combat?.analytics?.kills || 0));
+  const DEV_GESTURE_WINDOW_MS = 900;
+
+  function handleSubviewPress(viewId) {
+    if (viewId === "account") {
+      const now = Date.now();
+      const gesture = accountDevGestureRef.current;
+      if (now - Number(gesture.lastClickAt || 0) <= DEV_GESTURE_WINDOW_MS) {
+        gesture.count = Number(gesture.count || 0) + 1;
+      } else {
+        gesture.count = 1;
+      }
+      gesture.lastClickAt = now;
+      if (gesture.count >= 3) {
+        gesture.count = 0;
+        dispatch({ type: "DEV_UNLOCK_ALL_SANCTUARY_STATIONS" });
+      }
+    } else {
+      accountDevGestureRef.current = { count: 0, lastClickAt: 0 };
+    }
+    dispatch({ type: "SET_TAB", tab: viewId });
+  }
 
   return (
     <div style={{ display: "grid", gap: "10px", padding: "10px" }}>
@@ -146,7 +175,7 @@ export default function RegistryView({ state, dispatch }) {
             return (
               <button
                 key={`summary-${viewId}`}
-                onClick={() => dispatch({ type: "SET_TAB", tab: viewId })}
+                onClick={() => handleSubviewPress(viewId)}
                 disabled={disabled}
                 style={{
                   ...panelStyle(),
@@ -214,7 +243,7 @@ export default function RegistryView({ state, dispatch }) {
             return (
               <button
                 key={viewId}
-                onClick={() => dispatch({ type: "SET_TAB", tab: viewId })}
+                onClick={() => handleSubviewPress(viewId)}
                 disabled={disabled}
                 style={buttonStyle({ active, disabled })}
                 title={meta.description}
@@ -228,16 +257,19 @@ export default function RegistryView({ state, dispatch }) {
         {activeSubview !== "system" && (
           <div style={{ ...panelStyle(), gap: "6px", padding: "10px 12px", background: "var(--color-background-tertiary, #f8fafc)" }}>
             <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
-              `Sistema` queda separado a proposito
+              {activeSubview === "account" ? "`Sistema` y `Metricas` quedan separados a proposito" : "`Sistema` queda separado a proposito"}
             </div>
             <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
-              Save tools, replay y debugging viven aca, pero no deberian contaminar la lectura principal de progreso del jugador.
+              {activeSubview === "account"
+                ? "Esta vista junta progreso largo de cuenta. Save tools, replay y telemetria cruda viven aparte para no romper esa lectura."
+                : "Save tools, replay y debugging viven aca, pero no deberian contaminar la lectura principal de progreso del jugador."}
             </div>
           </div>
         )}
       </section>
 
       <div>
+        {activeSubview === "account" && <AccountProgressView state={state} dispatch={dispatch} />}
         {activeSubview === "achievements" && <Achievements state={state} />}
         {activeSubview === "stats" && <Stats state={state} dispatch={dispatch} mode="stats" />}
         {activeSubview === "system" && <Stats state={state} dispatch={dispatch} mode="lab" />}

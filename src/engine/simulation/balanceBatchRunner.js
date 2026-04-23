@@ -1,4 +1,5 @@
-import { createFreshState } from "../stateInitializer";
+import { createSimulationSeedState } from "../stateInitializer";
+import { gameReducer } from "../../state/gameReducer";
 import { runBalanceBotSimulation } from "./balanceBot";
 
 const PROFILE_OPTIONS = [
@@ -144,6 +145,31 @@ function buildProfileSummary(profile, results = []) {
   };
 }
 
+function buildSimulationProfileSeed(profile) {
+  const selectedClassState = gameReducer(createSimulationSeedState(), {
+    type: "SELECT_CLASS",
+    classId: profile.preferredClass,
+    meta: { source: "simulation" },
+  });
+
+  return {
+    ...selectedClassState,
+    currentTab: "combat",
+    expedition: {
+      ...(selectedClassState.expedition || {}),
+      phase: "setup",
+    },
+    combat: {
+      ...selectedClassState.combat,
+      pendingRunSetup: true,
+      pendingRunSigilId: "free",
+      pendingRunSigilIds: ["free"],
+      activeRunSigilId: "free",
+      activeRunSigilIds: ["free"],
+    },
+  };
+}
+
 export function runBalanceBatch(options = {}) {
   const runs = Math.max(1, Math.min(Number(options.runs || 5), 50));
   const ticks = Math.max(300, Math.min(Number(options.ticks || 3600), 21600));
@@ -153,7 +179,7 @@ export function runBalanceBatch(options = {}) {
   const profileReports = profiles.map(profile => {
     const results = [];
     for (let run = 0; run < runs; run += 1) {
-      const baseState = createFreshState();
+      const baseState = buildSimulationProfileSeed(profile);
       results.push(
         runBalanceBotSimulation(baseState, {
           ticks,

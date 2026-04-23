@@ -30,6 +30,26 @@ const LOOT_ACTION_OPTIONS = [
   { id: "sell", label: "Vender" },
   { id: "extract", label: "Extraer" },
 ];
+const BASIC_LOOT_FILTER_PRESETS = [
+  {
+    id: "keep_all",
+    label: "Guardar todo",
+    summary: "No vende ni extrae nada automaticamente.",
+    lootRules: { autoSellRarities: [], autoExtractRarities: [] },
+  },
+  {
+    id: "sell_low",
+    label: "Vender C/M",
+    summary: "Limpia common y magic. Rare+ queda manual.",
+    lootRules: { autoSellRarities: ["common", "magic"], autoExtractRarities: [] },
+  },
+  {
+    id: "extract_low",
+    label: "Extraer C/M",
+    summary: "Convierte common y magic en esencia. Rare+ queda manual.",
+    lootRules: { autoSellRarities: [], autoExtractRarities: ["common", "magic"] },
+  },
+];
 function getCardHighlights(highlights = []) {
   return [];
 }
@@ -38,6 +58,12 @@ function sameWishlist(left = [], right = []) {
   if (left.length !== right.length) return false;
   const leftSet = new Set(left);
   return right.every(stat => leftSet.has(stat));
+}
+
+function sameRarityList(left = [], right = []) {
+  if (left.length !== right.length) return false;
+  const leftSet = new Set(left);
+  return right.every(rarity => leftSet.has(rarity));
 }
 
 function getLootAction(lootRules = {}, rarity) {
@@ -66,6 +92,7 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
   const [showLootFilterModal, setShowLootFilterModal] = useState(false);
   const [showOnlyUpgrades, setShowOnlyUpgrades] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [dismissedOverflowEventId, setDismissedOverflowEventId] = useState(null);
   const isDarkMode = state?.settings?.theme === "dark";
 
   useEffect(() => {
@@ -114,6 +141,17 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
     lootRules.protectHuntedDrops !== false && "Protege caza",
     lootRules.protectUpgradeDrops !== false && "Protege upgrades",
   ].filter(Boolean);
+  const overflowEvent = state?.combat?.inventoryOverflowEvent || null;
+  const activeBasicPreset = useMemo(
+    () => BASIC_LOOT_FILTER_PRESETS.find(preset => (
+      sameRarityList(lootRules.autoSellRarities || [], preset.lootRules.autoSellRarities || []) &&
+      sameRarityList(lootRules.autoExtractRarities || [], preset.lootRules.autoExtractRarities || [])
+    )) || null,
+    [lootRules]
+  );
+  const visibleOverflowEvent = overflowEvent?.id && overflowEvent.id !== dismissedOverflowEventId
+    ? overflowEvent
+    : null;
 
   const sortedItems = useMemo(() => {
     const filteredItems = inventory.filter(item => {
@@ -136,6 +174,70 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
     setDetailItemId(null);
     return undefined;
   }, [equipTutorialActive]);
+
+  useEffect(() => {
+    if (!overflowEvent?.id) return;
+    if (overflowEvent.id === dismissedOverflowEventId) return;
+    setDismissedOverflowEventId(null);
+  }, [dismissedOverflowEventId, overflowEvent]);
+
+  useEffect(() => {
+    if (!equipTutorialActive || sortedItems.length === 0) return undefined;
+
+    let frameId = null;
+    let timeoutId = null;
+    let attempts = 0;
+
+    const scrollTutorialItemIntoView = () => {
+      const target = document.querySelector('[data-onboarding-target="tutorial-first-item"]');
+      if (!(target instanceof HTMLElement)) {
+        attempts += 1;
+        if (attempts < 8) {
+          timeoutId = window.setTimeout(() => {
+            frameId = window.requestAnimationFrame(scrollTutorialItemIntoView);
+          }, 90);
+        }
+        return;
+      }
+
+      const behavior = attempts === 0 ? "auto" : "smooth";
+      const topSafe = isMobile ? 120 : 112;
+      const bottomSafe = isMobile ? 92 : 28;
+      const visibleBottom = Math.max(topSafe + 48, window.innerHeight - bottomSafe);
+
+      target.scrollIntoView({
+        behavior,
+        block: "center",
+        inline: "nearest",
+      });
+
+      const rect = target.getBoundingClientRect();
+      if (rect.top < topSafe) {
+        window.scrollBy({
+          top: rect.top - topSafe - 10,
+          behavior,
+        });
+      } else if (rect.bottom > visibleBottom) {
+        window.scrollBy({
+          top: rect.bottom - visibleBottom + 10,
+          behavior,
+        });
+      }
+
+      attempts += 1;
+      if (attempts < 3) {
+        timeoutId = window.setTimeout(() => {
+          frameId = window.requestAnimationFrame(scrollTutorialItemIntoView);
+        }, 120);
+      }
+    };
+
+    frameId = window.requestAnimationFrame(scrollTutorialItemIntoView);
+    return () => {
+      if (frameId != null) window.cancelAnimationFrame(frameId);
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+    };
+  }, [equipTutorialActive, isMobile, sortedItems]);
 
   const detailItem = [...inventory, ...(equipment.weapon ? [equipment.weapon] : []), ...(equipment.armor ? [equipment.armor] : [])]
     .find(item => item.id === detailItemId) || null;
@@ -195,6 +297,72 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
         </div>
       </header>
 
+      {visibleOverflowEvent && (
+        <section
+          style={{
+            background: isDarkMode ? "rgba(245,158,11,0.12)" : "#fff7ed",
+            border: "1px solid rgba(245,158,11,0.24)",
+            borderRadius: "14px",
+            padding: "12px",
+            display: "grid",
+            gap: "8px",
+            boxShadow: "0 8px 20px rgba(15,23,42,0.08)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
+                Mochila llena
+              </div>
+              <div style={{ fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", marginTop: "4px" }}>
+                {visibleOverflowEvent.incomingItemKept
+                  ? `${visibleOverflowEvent.incomingItemName} entro y desplazó ${visibleOverflowEvent.droppedItemName}.`
+                  : `${visibleOverflowEvent.incomingItemName} no entró y se perdió.`}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              <span style={summaryPillStyle("warning", isDarkMode)}>
+                Entra {getCompactRarityLabel(visibleOverflowEvent.incomingItemRarity)} · P {formatNumber(visibleOverflowEvent.incomingItemRating || 0)}
+              </span>
+              <span style={summaryPillStyle("muted", isDarkMode)}>
+                Sale {getCompactRarityLabel(visibleOverflowEvent.droppedItemRarity)} · P {formatNumber(visibleOverflowEvent.droppedItemRating || 0)}
+              </span>
+            </div>
+          </div>
+          <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+            Si esto se repite, usa un preset rapido del filtro para vender o extraer rarezas bajas antes de llegar al cap.
+          </div>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: isMobile ? "stretch" : "flex-end" }}>
+            <button
+              onClick={() => setShowLootFilterModal(true)}
+              style={{
+                ...lootActionButtonStyle(true, "extract", isDarkMode),
+                padding: "8px 12px",
+                minWidth: isMobile ? "100%" : "auto",
+              }}
+            >
+              Abrir filtro
+            </button>
+            <button
+              onClick={() => setDismissedOverflowEventId(visibleOverflowEvent.id)}
+              style={{
+                border: "1px solid var(--color-border-primary, #e2e8f0)",
+                background: "var(--color-background-secondary, #fff)",
+                color: "var(--color-text-secondary, #64748b)",
+                borderRadius: "10px",
+                padding: "8px 12px",
+                fontSize: "0.66rem",
+                fontWeight: "900",
+                cursor: "pointer",
+                minWidth: isMobile ? "100%" : "auto",
+              }}
+            >
+              Cerrar
+            </button>
+          </div>
+        </section>
+      )}
+
       <section>
         <div style={{ ...sectionTitleStyle, marginBottom: "0.7rem" }}>Equipado</div>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
@@ -225,9 +393,34 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
             <span style={summaryPillStyle(hasActiveHunt ? "warning" : "muted", isDarkMode)}>
               {hasActiveHunt ? "Caza activa" : "Sin caza activa"}
             </span>
+            <span style={summaryPillStyle(activeBasicPreset ? "accent" : "muted", isDarkMode)}>
+              {activeBasicPreset ? activeBasicPreset.label : "Modo custom"}
+            </span>
             {protectionSummary.length > 0 ? protectionSummary.map(label => (
               <span key={label} style={summaryPillStyle("success", isDarkMode)}>{label}</span>
             )) : <span style={summaryPillStyle("muted", isDarkMode)}>Sin protecciones</span>}
+          </div>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            {BASIC_LOOT_FILTER_PRESETS.map(preset => {
+              const active = activeBasicPreset?.id === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  onClick={() => dispatch({
+                    type: "UPDATE_LOOT_RULES",
+                    lootRules: preset.lootRules,
+                  })}
+                  disabled={lockInventorySideActions}
+                  style={modalOptionPillStyle(active, isDarkMode)}
+                  title={preset.summary}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.35 }}>
+            {activeBasicPreset?.summary || "Ya estas usando una combinacion custom por rareza."}
           </div>
           <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "2px" }}>
             {AUTO_LOOT_RARITIES.map(rarity => (

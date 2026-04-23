@@ -4,11 +4,47 @@ import { initialState } from "../engine/stateInitializer";
 import { buildRecoveryExitUrl, clearGame, getSaveMode, isRecoveryMode, saveGame } from "../utils/storage";
 import { TICK_MS } from "../constants";
 import { getLifetimeXp } from "../engine/leveling";
+import { shouldSyncSanctuaryJobsDuringOnboarding } from "../engine/onboarding/onboardingEngine";
 
 const OFFLINE_MIN_SECONDS = 60;
 const OFFLINE_CHUNK_SIZE = 120;
-const SAVE_THROTTLE_MS = import.meta.env.DEV ? 600 : 1800;
+const SAVE_THROTTLE_MS = import.meta.env.DEV ? 800 : 2200;
+const SAVE_IDLE_TIMEOUT_MS = 1400;
 const ACCOUNT_TICK_MS = 5000;
+
+function scheduleIdleWork(callback, timeout = SAVE_IDLE_TIMEOUT_MS) {
+  if (typeof window === "undefined") return null;
+  if (typeof window.requestIdleCallback === "function") {
+    return {
+      type: "idle",
+      id: window.requestIdleCallback(callback, { timeout }),
+    };
+  }
+  return {
+    type: "timeout",
+    id: window.setTimeout(callback, 0),
+  };
+}
+
+function cancelIdleWork(handle) {
+  if (!handle || typeof window === "undefined") return;
+  if (handle.type === "idle" && typeof window.cancelIdleCallback === "function") {
+    window.cancelIdleCallback(handle.id);
+    return;
+  }
+  window.clearTimeout(handle.id);
+}
+
+function cloneActionForDebug(action = {}) {
+  try {
+    return JSON.parse(JSON.stringify(action));
+  } catch {
+    return {
+      type: action?.type || "UNKNOWN_ACTION",
+      meta: action?.meta || {},
+    };
+  }
+}
 
 function buildOfflineSnapshot(state = {}) {
   return {
@@ -56,40 +92,23 @@ export const useGame = () => {
   const hiddenAtRef = useRef(null);
   const latestStateRef = useRef(state);
   const saveTimerRef = useRef(null);
+  const saveCommitRef = useRef(null);
   const offlineJobRef = useRef(null);
   const accountSessionStartedRef = useRef(false);
   const lastAccountTrackedAtRef = useRef(null);
+  const recentActionsRef = useRef([]);
   const saveMode = getSaveMode();
   const recoveryMode = isRecoveryMode();
-  const dispatch = useCallback((action) => {
+
+  const prepareAction = useCallback((action) => {
     if (action?.type === "RESET_ALL_PROGRESS") {
-      const now = Date.now();
-      if (saveTimerRef.current) {
-        window.clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
-      offlineJobRef.current = null;
-      hiddenAtRef.current = null;
-      accountSessionStartedRef.current = true;
-      lastAccountTrackedAtRef.current = now;
-      clearGame();
-      rawDispatch({
-        type: "RESET_ALL_PROGRESS",
+      return {
+        ...action,
         meta: {
           ...(action?.meta || {}),
           source: "ui",
         },
-      });
-      rawDispatch({
-        type: "START_ACCOUNT_SESSION",
-        now,
-        reset: true,
-        meta: {
-          ...(action?.meta || {}),
-          source: "system",
-        },
-      });
-      return;
+      };
     }
 
     const inferredSource =
@@ -100,14 +119,84 @@ export const useGame = () => {
           ? (action?.source === "offline" ? "offline" : "system")
           : "ui");
 
-    rawDispatch({
+    return {
       ...action,
       meta: {
         ...(action?.meta || {}),
         source: inferredSource,
       },
-    });
+    };
   }, []);
+
+  const cancelScheduledSave = useCallback(() => {
+    if (saveTimerRef.current) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    if (saveCommitRef.current) {
+      cancelIdleWork(saveCommitRef.current);
+      saveCommitRef.current = null;
+    }
+  }, []);
+
+  const projectDispatch = useCallback((action, { persist = false } = {}) => {
+    const preparedAction = prepareAction(action);
+    recentActionsRef.current = [
+      ...recentActionsRef.current,
+      { capturedAt: new Date().toISOString(), action: cloneActionForDebug(preparedAction) },
+    ].slice(-20);
+    const projectedState = gameReducer(latestStateRef.current, preparedAction);
+    latestStateRef.current = projectedState;
+    rawDispatch(preparedAction);
+    if (persist && !recoveryMode) {
+      cancelScheduledSave();
+      saveGame(projectedState);
+    }
+    return projectedState;
+  }, [cancelScheduledSave, prepareAction, recoveryMode]);
+
+  const dispatch = useCallback((action) => {
+    if (action?.type === "RESET_ALL_PROGRESS") {
+      const now = Date.now();
+      cancelScheduledSave();
+      offlineJobRef.current = null;
+      hiddenAtRef.current = null;
+      accountSessionStartedRef.current = true;
+      lastAccountTrackedAtRef.current = now;
+      clearGame();
+      const resetAction = prepareAction({
+        type: "RESET_ALL_PROGRESS",
+        meta: action?.meta,
+      });
+      recentActionsRef.current = [
+        ...recentActionsRef.current,
+        { capturedAt: new Date().toISOString(), action: cloneActionForDebug(resetAction) },
+      ].slice(-20);
+      rawDispatch(resetAction);
+      const sessionAction = prepareAction({
+        type: "START_ACCOUNT_SESSION",
+        now,
+        reset: true,
+        meta: {
+          ...(action?.meta || {}),
+          source: "system",
+        },
+      });
+      recentActionsRef.current = [
+        ...recentActionsRef.current,
+        { capturedAt: new Date().toISOString(), action: cloneActionForDebug(sessionAction) },
+      ].slice(-20);
+      rawDispatch(sessionAction);
+      return;
+    }
+
+    const preparedAction = prepareAction(action);
+    recentActionsRef.current = [
+      ...recentActionsRef.current,
+      { capturedAt: new Date().toISOString(), action: cloneActionForDebug(preparedAction) },
+    ].slice(-20);
+    rawDispatch(preparedAction);
+  }, [cancelScheduledSave, prepareAction]);
 
   useEffect(() => {
     if (!saveMode.wipe) return;
@@ -121,9 +210,9 @@ export const useGame = () => {
     latestStateRef.current = state;
   }, [state]);
 
-  const flushAccountTime = useCallback((now = Date.now()) => {
+  const flushAccountTime = useCallback((now = Date.now(), { persist = false, allowHidden = false } = {}) => {
     if (recoveryMode) return;
-    if (document.hidden) return;
+    if (document.hidden && !allowHidden) return;
     if (!accountSessionStartedRef.current) return;
     if (!lastAccountTrackedAtRef.current) {
       lastAccountTrackedAtRef.current = now;
@@ -132,14 +221,19 @@ export const useGame = () => {
     const elapsedSeconds = Math.max(0, Math.floor((now - lastAccountTrackedAtRef.current) / 1000));
     if (elapsedSeconds <= 0) return;
     lastAccountTrackedAtRef.current = now;
-    dispatch({
+    const accountTimeAction = {
       type: "TRACK_ACCOUNT_TIME",
       seconds: elapsedSeconds,
       phase: latestStateRef.current?.expedition?.phase || "sanctuary",
       now,
       meta: { replay: false },
-    });
-  }, [dispatch, recoveryMode]);
+    };
+    if (persist) {
+      projectDispatch(accountTimeAction, { persist: true });
+      return;
+    }
+    dispatch(accountTimeAction);
+  }, [dispatch, projectDispatch, recoveryMode]);
 
   useEffect(() => {
     if (recoveryMode) return;
@@ -152,17 +246,15 @@ export const useGame = () => {
 
   useEffect(() => {
     if (recoveryMode) return;
+    if (!shouldSyncSanctuaryJobsDuringOnboarding(latestStateRef.current)) return;
     dispatch({ type: "SYNC_SANCTUARY_JOBS", now: Date.now() });
   }, [dispatch, recoveryMode]);
 
   const flushSave = useCallback(() => {
     if (recoveryMode) return;
-    if (saveTimerRef.current) {
-      window.clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
+    cancelScheduledSave();
     saveGame(latestStateRef.current);
-  }, [recoveryMode]);
+  }, [cancelScheduledSave, recoveryMode]);
 
   const startOfflineProgress = useCallback((offlineTicks) => {
     if (recoveryMode) return;
@@ -226,7 +318,7 @@ export const useGame = () => {
       if (document.hidden) return;
       if (offlineJobRef.current) return;
       if (latestStateRef.current?.expedition?.phase !== "active") return;
-      if (latestStateRef.current?.onboarding?.step) return;
+      if (latestStateRef.current?.onboarding?.step === "hunt_intro") return;
       dispatch({ type: "TICK" });
     }, TICK_MS);
     return () => clearInterval(id);
@@ -235,6 +327,7 @@ export const useGame = () => {
   useEffect(() => {
     if (recoveryMode) return undefined;
     const id = setInterval(() => {
+      if (!shouldSyncSanctuaryJobsDuringOnboarding(latestStateRef.current)) return;
       const jobs = latestStateRef.current?.sanctuary?.jobs || [];
       if (!jobs.some(job => job?.status === "running")) return;
       dispatch({ type: "SYNC_SANCTUARY_JOBS", now: Date.now() });
@@ -267,14 +360,16 @@ export const useGame = () => {
     if (recoveryMode) return;
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        flushAccountTime(Date.now());
+        flushAccountTime(Date.now(), { persist: true, allowHidden: true });
         hiddenAtRef.current = Date.now();
         flushSave();
         return;
       }
 
       const restoreAt = Date.now();
-      dispatch({ type: "SYNC_SANCTUARY_JOBS", now: Date.now() });
+      if (shouldSyncSanctuaryJobsDuringOnboarding(latestStateRef.current)) {
+        dispatch({ type: "SYNC_SANCTUARY_JOBS", now: Date.now() });
+      }
 
       if (!hiddenAtRef.current) return;
       const elapsedMs = Math.max(0, restoreAt - hiddenAtRef.current);
@@ -300,11 +395,11 @@ export const useGame = () => {
     if (recoveryMode) return undefined;
 
     const handlePageHide = () => {
-      flushAccountTime(Date.now());
+      flushAccountTime(Date.now(), { persist: true, allowHidden: true });
       flushSave();
     };
     const handleBeforeUnload = () => {
-      flushAccountTime(Date.now());
+      flushAccountTime(Date.now(), { persist: true, allowHidden: true });
       flushSave();
     };
 
@@ -319,27 +414,30 @@ export const useGame = () => {
 
   useEffect(() => {
     if (recoveryMode) return;
-    if (saveTimerRef.current) return;
+    if (saveTimerRef.current || saveCommitRef.current) return;
     saveTimerRef.current = window.setTimeout(() => {
       saveTimerRef.current = null;
-      saveGame(latestStateRef.current);
+      saveCommitRef.current = scheduleIdleWork(() => {
+        saveCommitRef.current = null;
+        saveGame(latestStateRef.current);
+      });
     }, SAVE_THROTTLE_MS);
   }, [recoveryMode, state]);
 
   useEffect(() => () => {
-    flushAccountTime(Date.now());
+    flushAccountTime(Date.now(), { persist: true, allowHidden: true });
     flushSave();
   }, [flushAccountTime, flushSave]);
 
   useEffect(() => {
     if (!import.meta.hot || recoveryMode) return undefined;
     const dispose = () => {
-      flushAccountTime(Date.now());
+      flushAccountTime(Date.now(), { persist: true, allowHidden: true });
       flushSave();
     };
     import.meta.hot.dispose(dispose);
     return () => {};
   }, [flushAccountTime, flushSave, recoveryMode]);
 
-  return { state, dispatch };
+  return { state, dispatch, getRecentActions: () => recentActionsRef.current };
 };

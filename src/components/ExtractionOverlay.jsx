@@ -1,6 +1,8 @@
 import React, { useEffect } from "react";
+import OverlayShell from "./OverlayShell";
 import { getRarityColor } from "../constants/rarity";
 import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
+import { buildRunOutcomeSummary } from "../utils/runOutcomeSummary";
 
 function panelStyle() {
   return {
@@ -120,6 +122,14 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
             : "Esta salida vuelve al Santuario sin convertir a Ecos todavia.",
     },
   ];
+  const outcomeSummary = buildRunOutcomeSummary(state, {
+    prestigeMode: preview.prestige?.mode || "none",
+    exitReason: expedition.exitReason === "death" ? "death" : "retire",
+    selectedCargoCount: selectedCargoIds.size,
+    hasRetainedItem: Boolean(selectedProject),
+    echoes: Number(preview.prestige?.echoes || 0),
+    source: "extraction",
+  });
 
   useEffect(() => {
     if (!extractionTutorialActive) return undefined;
@@ -154,8 +164,8 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
   }, [extractionTutorialActive, onboardingStep, cargoOptions.length, projectOptions.length]);
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,0.72)", zIndex: 9200, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", padding: isMobile ? "0" : "24px" }}>
-      <div style={{ width: "100%", maxWidth: "980px", maxHeight: "100vh", overflow: "auto", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", borderRadius: isMobile ? "0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", display: "grid", gap: "12px", padding: isMobile ? "18px 16px 20px" : "20px 22px 22px" }}>
+    <OverlayShell isMobile={isMobile} zIndex={9200}>
+      <div style={{ width: "100%", maxWidth: "980px", maxHeight: "100%", overflow: "auto", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", borderRadius: isMobile ? "16px 16px 0 0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", display: "grid", gap: "12px", padding: isMobile ? "18px 16px 20px" : "20px 22px 22px" }}>
         <style>{`
           @keyframes extractionSpotlightPulse {
             0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
@@ -208,6 +218,22 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                   {step.body}
                 </div>
               </div>
+            ))}
+          </div>
+        </section>
+
+        <section style={panelStyle()}>
+          <div style={{ display: "grid", gap: "4px" }}>
+            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" }}>
+              Resumen de salida
+            </div>
+            <div style={{ fontSize: "0.94rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+              {outcomeSummary.title}
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "10px" }}>
+            {outcomeSummary.groups.map(group => (
+              <OutcomeGroup key={group.id} group={group} />
             ))}
           </div>
         </section>
@@ -378,7 +404,7 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
           </div>
         </div>
       </div>
-    </div>
+    </OverlayShell>
   );
 }
 
@@ -389,6 +415,31 @@ function Metric({ label, value }) {
         {label}
       </div>
       <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>{value}</div>
+    </div>
+  );
+}
+
+function OutcomeGroup({ group }) {
+  return (
+    <div
+      style={{
+        background: "var(--color-background-tertiary, #f8fafc)",
+        border: "1px solid var(--color-border-primary, #e2e8f0)",
+        borderRadius: "12px",
+        padding: "10px",
+        display: "grid",
+        gap: "8px",
+        alignContent: "start",
+      }}
+    >
+      <div style={{ fontSize: "0.7rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        {group.label}
+      </div>
+      <ul style={{ margin: 0, paddingLeft: "16px", display: "grid", gap: "6px", color: "var(--color-text-secondary, #64748b)", fontSize: "0.68rem", lineHeight: 1.45 }}>
+        {group.items.map(item => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
     </div>
   );
 }

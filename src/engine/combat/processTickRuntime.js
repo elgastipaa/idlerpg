@@ -1569,6 +1569,8 @@ export function processTick(state) {
   let bestDropScore = previousRunStats.bestDropScore || 0;
   let lootStatsPatch = {};
   let latestLootEvent = null;
+  let inventoryOverflowEvent = state.combat?.inventoryOverflowEvent || null;
+  let inventoryOverflowLogLine = null;
   let newlyUnlockedLegendaryPower = null;
   let legendaryPowerUnlocks = 0;
   let legendaryPowerDuplicates = 0;
@@ -1626,6 +1628,24 @@ export function processTick(state) {
       newPlayer.inventory = result.inventory;
       lootText = ` - Encontraste: ${loot.name}`;
       if (result.droppedName) droppedText = ` (descartado: ${result.droppedName})`;
+      if (result.droppedItem) {
+        inventoryOverflowEvent = {
+          id: `overflow_${Date.now()}_${result.droppedItem.id || result.incomingItem?.id || "item"}`,
+          incomingItemId: result.incomingItem?.id || loot.id || null,
+          incomingItemName: result.incomingItem?.name || loot.name || "Item",
+          incomingItemRarity: result.incomingItem?.rarity || loot.rarity || "common",
+          incomingItemRating: Math.round(Number(result.incomingItem?.rating || loot.rating || 0)),
+          droppedItemId: result.droppedItem?.id || null,
+          droppedItemName: result.droppedItem?.name || result.droppedName || "Item",
+          droppedItemRarity: result.droppedItem?.rarity || "common",
+          droppedItemRating: Math.round(Number(result.droppedItem?.rating || 0)),
+          incomingItemKept: result.incomingItemKept !== false,
+          timestamp: Date.now(),
+        };
+        inventoryOverflowLogLine = inventoryOverflowEvent.incomingItemKept
+          ? `MOCHILA LLENA: entra ${inventoryOverflowEvent.incomingItemName} y sale ${inventoryOverflowEvent.droppedItemName}.`
+          : `MOCHILA LLENA: ${inventoryOverflowEvent.incomingItemName} no entra y se pierde.`;
+      }
     }
 
     const candidateDropScore = Number(latestLootEvent?.score || 0);
@@ -1874,10 +1894,12 @@ export function processTick(state) {
       maxTier: newMaxTier,
       autoAdvance,
       latestLootEvent,
+      inventoryOverflowEvent,
       log: [
         ...state.combat.log,
         ...(survivalLog ? [survivalLog] : []),
         `${enemy.isBoss ? "Boss abatido" : "Victoria"} contra ${enemy.name}! +${goldGained} oro, +${xpGained} XP, +${essenceGained} esencia${lootText}${droppedText}${autoLootLog}${thornsText}${reflectText}${latestLootEvent?.highlight ? ` [${latestLootEvent.highlight.label.toUpperCase()}]` : ""}`,
+        ...(inventoryOverflowLogLine ? [inventoryOverflowLogLine] : []),
         ...(newlyUnlockedLegendaryPower ? [`CODEX: desbloqueaste ${newlyUnlockedLegendaryPower.name}. Ya podes injertarlo al ascender a legendario.`] : []),
         ...achievementLogs,
         ...preTriggerLogs,

@@ -21,7 +21,6 @@ const COLORS = {
   dark: "var(--color-text-primary, #1e293b)",
 };
 const RARITY_RANK = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
-const FLOAT_EVENT_TTL_MS = 1200;
 const COMBAT_ANIMATION_STYLES = `
 @keyframes lootOverlayEnter {
   0% { opacity: 0; transform: translateY(26px) scale(0.98); }
@@ -288,7 +287,6 @@ export default function Combat({ state, dispatch }) {
     log: true,
   });
   const [levelUpFlash, setLevelUpFlash] = useState(null);
-  const [combatFxNow, setCombatFxNow] = useState(Date.now());
   const logRef = useRef(null);
   const prevLevelRef = useRef(player.level || 1);
 
@@ -358,7 +356,7 @@ export default function Combat({ state, dispatch }) {
     ONBOARDING_STEPS.COMBAT_AFTER_TALENT,
     ONBOARDING_STEPS.FIRST_BOSS,
   ].includes(onboardingStep);
-  const lockFirstBossRetreat = enemy.isBoss && !state?.onboarding?.flags?.firstDeathSeen;
+  const lockFirstBossRetreat = Boolean(enemy?.isBoss && !state?.onboarding?.flags?.firstDeathSeen);
   const combatTips = useMemo(() => ([
     {
       title: "Arma primero",
@@ -480,13 +478,6 @@ export default function Combat({ state, dispatch }) {
   }, [combatTips]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCombatFxNow(Date.now());
-    }, 120);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
     if (!spotlightAutoAdvance) return undefined;
 
     let frameId = null;
@@ -536,55 +527,15 @@ export default function Combat({ state, dispatch }) {
     };
   }, [isMobile, spotlightAutoAdvance]);
 
-  if (!enemy) return null;
-
-  const enemyHpPct = Math.max(0, (enemy.hp / enemy.maxHp) * 100);
-  const playerHpPct = Math.max(0, (player.hp / player.maxHp) * 100);
-
-  const xpNeeded = xpRequired(player.level);
-  const xpPct = Math.min(100, (player.xp / xpNeeded) * 100);
-
-  const getHpColor = pct => {
-    if (pct > 60) return COLORS.success;
-    if (pct > 30) return COLORS.warning;
-    return COLORS.danger;
-  };
-
-  const getLogEntryStyle = entry => {
-    const text = entry.toLowerCase();
-    if (text.includes("logro:")) return { color: "var(--tone-warning, #fde68a)", fontWeight: "900" };
-    if (text.includes("objetivo:")) return { color: "var(--tone-info, #93c5fd)", fontWeight: "900" };
-    if (text.includes("boss abatido")) return { color: "var(--tone-violet, #c4b5fd)", fontWeight: "900" };
-    if (text.includes("victoria")) return { color: COLORS.success, fontWeight: "900" };
-    if (text.includes("cayo frente")) return { color: "var(--tone-danger, #fca5a5)", fontWeight: "900" };
-    if (text.includes("critico")) return { color: COLORS.warning, fontWeight: "900" };
-    if (text.includes("derrotado") || text.includes("obtienes")) return { color: COLORS.success, fontWeight: "bold" };
-    if (text.includes("mueres") || text.includes("recibes")) return { color: "var(--tone-danger, #ef4444)" };
-    if (text.includes("nivel")) return { color: "var(--tone-violet, #a855f7)", fontWeight: "bold" };
-    return { color: "var(--color-text-tertiary, #94a3b8)" };
-  };
-  const rotatingTip = combatTips[tipIndex % Math.max(1, combatTips.length)] || null;
-  const floatingCombatEvents = (combat.floatEvents || [])
-    .filter(event => combatFxNow - (event?.at || combatFxNow) < FLOAT_EVENT_TTL_MS)
-    .slice(-10);
-  const combatDamageFloatEvents = floatingCombatEvents.filter(event => event.kind !== "xp");
-  const combatXpFloatEvents = floatingCombatEvents.filter(event => event.kind === "xp");
-  const isPanelCollapsed = panel => !!collapsedPanels[panel];
-  const togglePanel = panel => {
-    setCollapsedPanels(current => ({
-      ...current,
-      [panel]: !current[panel],
-    }));
-  };
-  const enemyIdentityLabel = [enemy.familyName, enemy.familyTraitName].filter(Boolean).join(" · ");
-  const abyssMutator = enemy.abyssMutator || null;
-  const abyssBossProfile = enemy.abyssBossProfile || null;
-  const bossDepthSummary = enemy.isBoss ? formatAbyssBossUpgradeSummary(abyssBossProfile) : "";
-  const depthAffixIds = new Set(enemy.depthAffixIds || []);
-  const depthMechanicIds = new Set(enemy.depthMechanicIds || []);
-  const mutatorAffixIds = new Set(enemy.mutatorAffixIds || []);
-  const mutatorMechanicIds = new Set(enemy.mutatorMechanicIds || []);
-  const bossMechanicMitigation = enemy.isBoss
+  const enemyIdentityLabel = [enemy?.familyName, enemy?.familyTraitName].filter(Boolean).join(" · ");
+  const abyssMutator = enemy?.abyssMutator || null;
+  const abyssBossProfile = enemy?.abyssBossProfile || null;
+  const bossDepthSummary = enemy?.isBoss ? formatAbyssBossUpgradeSummary(abyssBossProfile) : "";
+  const depthAffixIds = new Set(enemy?.depthAffixIds || []);
+  const depthMechanicIds = new Set(enemy?.depthMechanicIds || []);
+  const mutatorAffixIds = new Set(enemy?.mutatorAffixIds || []);
+  const mutatorMechanicIds = new Set(enemy?.mutatorMechanicIds || []);
+  const bossMechanicMitigation = enemy?.isBoss
     ? Math.min(
       0.75,
       Math.max(0, Number(baseStats.bossMechanicMitigation || 0)) +
@@ -592,8 +543,8 @@ export default function Combat({ state, dispatch }) {
     )
     : 0;
   const enemyIntelChips = [
-    ...(enemy.monsterAffixes || []).slice(0, 2).map(affix => ({ id: `monster-${affix.id || affix.name}`, label: affix.name })),
-    ...(enemy.mechanics || []).slice(0, 2).map(mechanic => ({ id: `mech-${mechanic.id || mechanic.name}`, label: mechanic.name })),
+    ...(enemy?.monsterAffixes || []).slice(0, 2).map(affix => ({ id: `monster-${affix.id || affix.name}`, label: affix.name })),
+    ...(enemy?.mechanics || []).slice(0, 2).map(mechanic => ({ id: `mech-${mechanic.id || mechanic.name}`, label: mechanic.name })),
   ].filter(Boolean);
   const enemyLegendaryDrops = useMemo(() => getTargetedLegendaryDropsForEnemy(enemy, { abyss: state?.abyss || {} }), [enemy, state?.abyss]);
   const missingEnemyPowers = useMemo(() => {
@@ -852,6 +803,45 @@ export default function Combat({ state, dispatch }) {
     legendaryBonuses.markEffectPerStack,
     legendaryBonuses.spellMemoryMarkEffectPerStack,
   ]);
+
+  if (!enemy) return null;
+
+  const enemyHpPct = Math.max(0, (enemy.hp / enemy.maxHp) * 100);
+  const playerHpPct = Math.max(0, (player.hp / player.maxHp) * 100);
+
+  const xpNeeded = xpRequired(player.level);
+  const xpPct = Math.min(100, (player.xp / xpNeeded) * 100);
+
+  const getHpColor = pct => {
+    if (pct > 60) return COLORS.success;
+    if (pct > 30) return COLORS.warning;
+    return COLORS.danger;
+  };
+
+  const getLogEntryStyle = entry => {
+    const text = entry.toLowerCase();
+    if (text.includes("logro:")) return { color: "var(--tone-warning, #fde68a)", fontWeight: "900" };
+    if (text.includes("objetivo:")) return { color: "var(--tone-info, #93c5fd)", fontWeight: "900" };
+    if (text.includes("boss abatido")) return { color: "var(--tone-violet, #c4b5fd)", fontWeight: "900" };
+    if (text.includes("victoria")) return { color: COLORS.success, fontWeight: "900" };
+    if (text.includes("cayo frente")) return { color: "var(--tone-danger, #fca5a5)", fontWeight: "900" };
+    if (text.includes("critico")) return { color: COLORS.warning, fontWeight: "900" };
+    if (text.includes("derrotado") || text.includes("obtienes")) return { color: COLORS.success, fontWeight: "bold" };
+    if (text.includes("mueres") || text.includes("recibes")) return { color: "var(--tone-danger, #ef4444)" };
+    if (text.includes("nivel")) return { color: "var(--tone-violet, #a855f7)", fontWeight: "bold" };
+    return { color: "var(--color-text-tertiary, #94a3b8)" };
+  };
+  const rotatingTip = combatTips[tipIndex % Math.max(1, combatTips.length)] || null;
+  const floatingCombatEvents = (combat.floatEvents || []).slice(-10);
+  const combatDamageFloatEvents = floatingCombatEvents.filter(event => event.kind !== "xp");
+  const combatXpFloatEvents = floatingCombatEvents.filter(event => event.kind === "xp");
+  const isPanelCollapsed = panel => !!collapsedPanels[panel];
+  const togglePanel = panel => {
+    setCollapsedPanels(current => ({
+      ...current,
+      [panel]: !current[panel],
+    }));
+  };
 
   return (
     <div

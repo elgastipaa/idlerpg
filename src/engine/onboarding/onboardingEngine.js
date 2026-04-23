@@ -1,10 +1,14 @@
 import { ITEMS } from "../../data/items";
+import { RUN_SIGILS } from "../../data/runSigils";
 import { PRESTIGE_TREE_NODES } from "../../data/prestige";
 import { PLAYER_UPGRADES } from "../../data/playerUpgrades";
 import { addToInventory } from "../inventory/inventoryEngine";
 import { canPurchasePrestigeNode } from "../progression/prestigeEngine";
 import { materializeItem } from "../../utils/loot";
 import { buildExtractedItemRecord } from "../sanctuary/blueprintEngine";
+import { getSigilInfusionRecipe } from "../sanctuary/jobEngine";
+import { getTalentCostForPlayer } from "../talents/treeEngine";
+import { getAvailableNodes, canUnlockNode } from "../talents/talentTreeEngine";
 
 export const ONBOARDING_STEPS = {
   CHOOSE_CLASS: "choose_class",
@@ -31,8 +35,11 @@ export const ONBOARDING_STEPS = {
   EXTRACTION_SELECT_ITEM: "extraction_select_item",
   EXTRACTION_CONFIRM: "extraction_confirm",
   FIRST_SANCTUARY_RETURN: "first_sanctuary_return",
+  OPEN_LABORATORY: "open_laboratory",
   RESEARCH_DISTILLERY: "research_distillery",
   DISTILLERY_READY: "distillery_ready",
+  RETURN_TO_SANCTUARY: "return_to_sanctuary",
+  OPEN_DISTILLERY: "open_distillery",
   FIRST_DISTILLERY_JOB: "first_distillery_job",
   FIRST_ECHOES: "first_echoes",
   BUY_FIRST_ECHO_NODE: "buy_first_echo_node",
@@ -43,8 +50,11 @@ export const ONBOARDING_STEPS = {
   DEEP_FORGE_READY: "deep_forge_ready",
   FIRST_DEEP_FORGE_USE: "first_deep_forge_use",
   LIBRARY_READY: "library_ready",
+  FIRST_LIBRARY_RESEARCH: "first_library_research",
   ERRANDS_READY: "errands_ready",
+  FIRST_ERRAND: "first_errand",
   SIGIL_ALTAR_READY: "sigil_altar_ready",
+  FIRST_SIGIL_INFUSION: "first_sigil_infusion",
   ABYSS_PORTAL_READY: "abyss_portal_ready",
   TIER25_CAP: "tier25_cap",
   FIRST_ABYSS: "first_abyss",
@@ -65,6 +75,24 @@ const STATIC_INFO_STEPS = new Set([
   ONBOARDING_STEPS.FIRST_ABYSS,
 ]);
 
+const POST_ECHO_INFO_STEPS = new Set([
+  ONBOARDING_STEPS.FIRST_PRESTIGE_CLOSE,
+  ONBOARDING_STEPS.BLUEPRINT_INTRO,
+  ONBOARDING_STEPS.BLUEPRINT_DECISION,
+  ONBOARDING_STEPS.FIRST_BLUEPRINT_MATERIALIZATION,
+  ONBOARDING_STEPS.DEEP_FORGE_READY,
+  ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE,
+  ONBOARDING_STEPS.LIBRARY_READY,
+  ONBOARDING_STEPS.FIRST_LIBRARY_RESEARCH,
+  ONBOARDING_STEPS.ERRANDS_READY,
+  ONBOARDING_STEPS.FIRST_ERRAND,
+  ONBOARDING_STEPS.SIGIL_ALTAR_READY,
+  ONBOARDING_STEPS.FIRST_SIGIL_INFUSION,
+  ONBOARDING_STEPS.ABYSS_PORTAL_READY,
+  ONBOARDING_STEPS.TIER25_CAP,
+  ONBOARDING_STEPS.FIRST_ABYSS,
+]);
+
 const LAB_RESEARCH_STEP_TARGETS = {
   [ONBOARDING_STEPS.RESEARCH_DISTILLERY]: "unlock_distillery",
   [ONBOARDING_STEPS.DEEP_FORGE_READY]: "unlock_deep_forge",
@@ -72,6 +100,11 @@ const LAB_RESEARCH_STEP_TARGETS = {
   [ONBOARDING_STEPS.ERRANDS_READY]: "unlock_errands",
   [ONBOARDING_STEPS.SIGIL_ALTAR_READY]: "unlock_sigil_altar",
   [ONBOARDING_STEPS.ABYSS_PORTAL_READY]: "unlock_abyss_portal",
+};
+
+const ONBOARDING_FIRST_TALENT_BY_CLASS = {
+  warrior: "warrior_physical_training",
+  mage: "mage_arcane_power",
 };
 
 const BASE_ONBOARDING_FLAGS = {
@@ -91,6 +124,7 @@ const BASE_ONBOARDING_FLAGS = {
   huntUnlocked: false,
   extractionUnlocked: false,
   firstExtractionCompleted: false,
+  firstSanctuaryReturnSeen: false,
   laboratoryUnlocked: false,
   distilleryUnlocked: false,
   distilleryJobStarted: false,
@@ -105,8 +139,11 @@ const BASE_ONBOARDING_FLAGS = {
   deepForgeReadySeen: false,
   firstDeepForgeUseSeen: false,
   libraryReadySeen: false,
+  firstLibraryResearchSeen: false,
   errandsReadySeen: false,
+  firstErrandSeen: false,
   sigilAltarReadySeen: false,
+  firstSigilInfusionSeen: false,
   abyssPortalReadySeen: false,
   tier25CapSeen: false,
   firstAbyssSeen: false,
@@ -133,14 +170,24 @@ export function normalizeOnboardingState(onboarding = {}) {
       ? (onboarding.step === undefined ? ONBOARDING_STEPS.EXPEDITION_INTRO : onboarding.step)
       : ONBOARDING_STEPS.EXPEDITION_INTRO;
 
+  const normalizedFlags = {
+    ...BASE_ONBOARDING_FLAGS,
+    ...(onboarding?.flags || {}),
+  };
+  normalizedFlags.firstSanctuaryReturnSeen = Boolean(
+    normalizedFlags.firstSanctuaryReturnSeen ||
+    normalizedFlags.distilleryUnlocked ||
+    normalizedFlags.distilleryJobStarted ||
+    normalizedFlags.firstEchoesSeen
+  );
+
   return {
     ...createEmptyOnboardingState(),
     ...(onboarding || {}),
     completed: Boolean(onboarding?.completed),
     step: normalizedStep,
     flags: {
-      ...BASE_ONBOARDING_FLAGS,
-      ...(onboarding?.flags || {}),
+      ...normalizedFlags,
     },
     equipKillTarget:
       onboarding?.equipKillTarget == null
@@ -175,6 +222,75 @@ export function shouldShowHeroPrimaryTab(state = {}) {
 
 export function canOpenExpedition(state = {}) {
   return Boolean(state?.player?.class);
+}
+
+export function isSanctuaryLockedDuringExpeditionTutorial(state = {}) {
+  if (state?.onboarding?.completed) return false;
+  if (!state?.player?.class) return false;
+  return !Boolean(state?.onboarding?.flags?.firstExtractionCompleted);
+}
+
+export function shouldShowOnboardingSpotlightDuringInfoStep(step = null, state = {}) {
+  if (step !== ONBOARDING_STEPS.DISTILLERY_READY) return false;
+  const distilleryResearchPhase = getDistilleryResearchOnboardingPhase(state);
+  return distilleryResearchPhase === "running" || distilleryResearchPhase === "claimable";
+}
+
+function getDistilleryResearchOnboardingPhase(state = {}) {
+  const laboratoryJobs = Array.isArray(state?.sanctuary?.jobs) ? state.sanctuary.jobs : [];
+  const now = Number(state?.__liveNow || Date.now());
+  const job = laboratoryJobs.find(candidate =>
+    candidate?.station === "laboratory" &&
+    candidate?.input?.researchId === "unlock_distillery" &&
+    (candidate?.status === "running" || candidate?.status === "claimable")
+  );
+  if (!job) return "none";
+  if (job?.status === "claimable") return "claimable";
+  return Number(job?.endsAt || 0) <= now ? "claimable" : "running";
+}
+
+export function getEffectiveOnboardingStep(step = null, state = {}) {
+  const distilleryUnlocked = Boolean(
+    state?.onboarding?.flags?.distilleryUnlocked ||
+    state?.sanctuary?.stations?.distillery?.unlocked
+  );
+  if (
+    !distilleryUnlocked &&
+    [
+      ONBOARDING_STEPS.RETURN_TO_SANCTUARY,
+      ONBOARDING_STEPS.OPEN_DISTILLERY,
+      ONBOARDING_STEPS.FIRST_DISTILLERY_JOB,
+    ].includes(step) &&
+    ["running", "claimable"].includes(getDistilleryResearchOnboardingPhase(state))
+  ) {
+    return ONBOARDING_STEPS.DISTILLERY_READY;
+  }
+  if (
+    distilleryUnlocked &&
+    !state?.onboarding?.flags?.distilleryJobStarted &&
+    [
+      ONBOARDING_STEPS.DISTILLERY_READY,
+      ONBOARDING_STEPS.RETURN_TO_SANCTUARY,
+      ONBOARDING_STEPS.OPEN_DISTILLERY,
+    ].includes(step)
+  ) {
+    return ONBOARDING_STEPS.FIRST_DISTILLERY_JOB;
+  }
+  return step;
+}
+
+export function shouldSyncSanctuaryJobsDuringOnboarding(state = {}) {
+  const onboarding = state?.onboarding || {};
+  if (onboarding?.completed) return true;
+  if (!onboarding?.step) return true;
+
+  const effectiveStep = getEffectiveOnboardingStep(onboarding.step, state);
+  return [
+    ONBOARDING_STEPS.DISTILLERY_READY,
+    ONBOARDING_STEPS.RETURN_TO_SANCTUARY,
+    ONBOARDING_STEPS.OPEN_DISTILLERY,
+    ONBOARDING_STEPS.FIRST_DISTILLERY_JOB,
+  ].includes(effectiveStep);
 }
 
 export function isInventorySubviewUnlocked(state = {}) {
@@ -251,16 +367,35 @@ export function isBlueprintDecisionUnlocked(state = {}) {
   return Number(state?.prestige?.level || 0) >= 2;
 }
 
+function hasAvailableErrandSlot(state = {}) {
+  const jobs = Array.isArray(state?.sanctuary?.jobs) ? state.sanctuary.jobs : [];
+  const runningErrands = jobs.filter(job => job?.station === "errands" && job?.status === "running").length;
+  const errandSlots = Math.max(1, Number(state?.sanctuary?.stations?.errands?.slots || 2));
+  return runningErrands < errandSlots;
+}
+
+function hasAvailableSigilInfusion(state = {}) {
+  const jobs = Array.isArray(state?.sanctuary?.jobs) ? state.sanctuary.jobs : [];
+  const runningInfusions = jobs.filter(job => job?.station === "sigilInfusion" && job?.status === "running").length;
+  const infusionSlots = Math.max(1, Number(state?.sanctuary?.stations?.sigilInfusion?.slots || 1));
+  if (runningInfusions >= infusionSlots) return false;
+  const sigilFlux = Math.max(0, Number(state?.sanctuary?.resources?.sigilFlux || 0));
+  return RUN_SIGILS.some(sigil => sigilFlux >= Math.max(1, Number(getSigilInfusionRecipe(sigil.id)?.fuelCost || 0)));
+}
+
 export function getOnboardingRequiredTab(step = null) {
   switch (step) {
     case ONBOARDING_STEPS.EXPEDITION_INTRO:
     case ONBOARDING_STEPS.CHOOSE_CLASS:
     case ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN:
+    case ONBOARDING_STEPS.OPEN_LABORATORY:
     case ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO:
     case ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM:
     case ONBOARDING_STEPS.EXTRACTION_CONFIRM:
     case ONBOARDING_STEPS.RESEARCH_DISTILLERY:
     case ONBOARDING_STEPS.DISTILLERY_READY:
+    case ONBOARDING_STEPS.RETURN_TO_SANCTUARY:
+    case ONBOARDING_STEPS.OPEN_DISTILLERY:
     case ONBOARDING_STEPS.FIRST_DISTILLERY_JOB:
     case ONBOARDING_STEPS.BLUEPRINT_INTRO:
     case ONBOARDING_STEPS.BLUEPRINT_DECISION:
@@ -268,8 +403,11 @@ export function getOnboardingRequiredTab(step = null) {
     case ONBOARDING_STEPS.DEEP_FORGE_READY:
     case ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE:
     case ONBOARDING_STEPS.LIBRARY_READY:
+    case ONBOARDING_STEPS.FIRST_LIBRARY_RESEARCH:
     case ONBOARDING_STEPS.ERRANDS_READY:
+    case ONBOARDING_STEPS.FIRST_ERRAND:
     case ONBOARDING_STEPS.SIGIL_ALTAR_READY:
+    case ONBOARDING_STEPS.FIRST_SIGIL_INFUSION:
     case ONBOARDING_STEPS.ABYSS_PORTAL_READY:
       return "sanctuary";
     case ONBOARDING_STEPS.CHOOSE_SPEC:
@@ -306,7 +444,7 @@ export function getOnboardingRequiredTab(step = null) {
 
 export function isOnboardingTabAllowed(step = null, tab = "sanctuary") {
   if (!step) return true;
-  if (["registry", "system", "stats", "achievements"].includes(tab)) return true;
+  if (["registry", "account", "system", "stats", "achievements"].includes(tab)) return true;
   const requiredTab = getOnboardingRequiredTab(step);
   if (!requiredTab) return true;
   if (requiredTab === tab) return true;
@@ -324,37 +462,68 @@ export function getOnboardingFirstEchoNodeId(state = {}) {
   return purchasableNode?.id || null;
 }
 
+export function getOnboardingTutorialTalentNodeId(state = {}) {
+  const classId = state?.player?.class || null;
+  return ONBOARDING_FIRST_TALENT_BY_CLASS[classId] || null;
+}
+
+export function getResolvedOnboardingTutorialTalentNodeId(state = {}) {
+  const tutorialTalentNodeId = getOnboardingTutorialTalentNodeId(state);
+  if (tutorialTalentNodeId && canUnlockNode(state, tutorialTalentNodeId)) {
+    return tutorialTalentNodeId;
+  }
+  return getAvailableNodes(state)[0] || tutorialTalentNodeId || null;
+}
+
+function ensureTutorialTalentPoints(nextState) {
+  const tutorialTalentNodeId = getResolvedOnboardingTutorialTalentNodeId(nextState);
+  if (!tutorialTalentNodeId) return nextState;
+  const requiredTalentPoints = Math.max(
+    1,
+    Number(getTalentCostForPlayer(nextState, tutorialTalentNodeId) || 1)
+  );
+  if (Number(nextState?.player?.talentPoints || 0) >= requiredTalentPoints) return nextState;
+  return {
+    ...nextState,
+    player: {
+      ...nextState.player,
+      talentPoints: requiredTalentPoints,
+    },
+  };
+}
+
 export function getOnboardingStepInteractionMode(step = null, state = {}) {
   if (!step) return "forced";
 
+  if (step === ONBOARDING_STEPS.HUNT_INTRO) {
+    return state?.currentTab === "codex" ? "info" : "forced";
+  }
+
   if (step === ONBOARDING_STEPS.DISTILLERY_READY) {
-    const laboratoryJobs = Array.isArray(state?.sanctuary?.jobs) ? state.sanctuary.jobs : [];
-    const runningDistilleryResearch = laboratoryJobs.some(
-      job =>
-        job?.station === "laboratory" &&
-        job?.input?.researchId === "unlock_distillery" &&
-        job?.status === "running"
-    );
-    return runningDistilleryResearch ? "info" : "forced";
+    return "forced";
   }
 
   if (step === ONBOARDING_STEPS.FIRST_ECHOES) {
     return state?.currentTab === "prestige" ? "info" : "forced";
   }
 
-  if (
-    [
-      ONBOARDING_STEPS.DEEP_FORGE_READY,
-      ONBOARDING_STEPS.LIBRARY_READY,
-      ONBOARDING_STEPS.ERRANDS_READY,
-      ONBOARDING_STEPS.SIGIL_ALTAR_READY,
-      ONBOARDING_STEPS.ABYSS_PORTAL_READY,
-    ].includes(step)
-  ) {
+  if (step === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN) {
+    return "info";
+  }
+
+  if (step === ONBOARDING_STEPS.OPEN_LABORATORY) {
+    return "forced";
+  }
+
+  if (POST_ECHO_INFO_STEPS.has(step)) {
     return "info";
   }
 
   return STATIC_INFO_STEPS.has(step) ? "info" : "forced";
+}
+
+export function shouldShowOnboardingGlossaryHint(step = null) {
+  return POST_ECHO_INFO_STEPS.has(step);
 }
 
 export function getOnboardingStepMeta(step = null, state = {}) {
@@ -468,6 +637,13 @@ export function getOnboardingStepMeta(step = null, state = {}) {
         actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.HUNT_INTRO:
+      if (state?.currentTab === "codex") {
+        return {
+          title: "Esto es Intel",
+          body: "Aqui lees familias vistas, pistas y contexto tactico sin ensuciar el combate. Cuando cierres este paso volveras al frente y la run seguira corriendo.",
+          actionLabel: null,
+        };
+      }
       return {
         title: "Intel ya esta disponible",
         body: "Dentro de Expedicion ahora puedes abrir Intel para ver solo informacion tactica y objetivos ya revelados. Toca la subtab real resaltada.",
@@ -499,8 +675,14 @@ export function getOnboardingStepMeta(step = null, state = {}) {
       };
     case ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN:
       return {
-        title: "El Santuario ya puede crecer",
-        body: "La primera extraccion abre el Laboratorio. Toca el boton real resaltado para abrirlo: desde ahi vas a investigar la Destileria y empezar a procesar cargo real entre expediciones.",
+        title: "Volviste al Santuario",
+        body: "Ahora la run ya deja valor persistente. Primero te muestro rapido la base; despues te llevo al Laboratorio para encender la primera estacion real.",
+        actionLabel: null,
+      };
+    case ONBOARDING_STEPS.OPEN_LABORATORY:
+      return {
+        title: "Abri el Laboratorio",
+        body: "Aca viven los unlocks de infraestructura del Santuario. Toca el boton real resaltado para abrirlo.",
         actionLabel: null,
       };
     case ONBOARDING_STEPS.RESEARCH_DISTILLERY:
@@ -510,14 +692,14 @@ export function getOnboardingStepMeta(step = null, state = {}) {
         actionLabel: null,
       };
     case ONBOARDING_STEPS.DISTILLERY_READY:
-      if (Array.isArray(state?.sanctuary?.jobs) && state.sanctuary.jobs.some(job => job?.station === "laboratory" && job?.input?.researchId === "unlock_distillery" && job?.status === "running")) {
+      if (getDistilleryResearchOnboardingPhase(state) === "running") {
         return {
           title: "La investigacion ya esta corriendo",
           body: "El Laboratorio ya esta calibrando la Destileria. Espera a que termine y luego reclama el trabajo real desde la misma UI.",
           actionLabel: null,
         };
       }
-      if (Array.isArray(state?.sanctuary?.jobs) && state.sanctuary.jobs.some(job => job?.station === "laboratory" && job?.input?.researchId === "unlock_distillery" && job?.status === "claimable")) {
+      if (getDistilleryResearchOnboardingPhase(state) === "claimable") {
         return {
           title: "Reclama la Destileria",
           body: "La investigacion ya termino. Reclama ese trabajo del Laboratorio para abrir la primera estacion persistente del Santuario.",
@@ -529,10 +711,22 @@ export function getOnboardingStepMeta(step = null, state = {}) {
         body: "Cuando refines cargo, el Santuario empezara a devolver tinta, flux, polvo y esencia. Toca el control real resaltado para abrir la estacion.",
         actionLabel: null,
       };
+    case ONBOARDING_STEPS.RETURN_TO_SANCTUARY:
+      return {
+        title: "Volvamos al Santuario",
+        body: "Ya reclamaste la investigacion. Cierra el Laboratorio con el boton real resaltado y volvamos al hub para abrir la Destileria desde ahi.",
+        actionLabel: null,
+      };
+    case ONBOARDING_STEPS.OPEN_DISTILLERY:
+      return {
+        title: "Abri la Destileria",
+        body: "La estacion ya esta disponible. Toca el boton real resaltado para abrirla y ver el cargo que vas a procesar.",
+        actionLabel: null,
+      };
     case ONBOARDING_STEPS.FIRST_DISTILLERY_JOB:
       return {
         title: "Inicia tu primera destilacion",
-        body: "Abre la Destileria, elige el bundle marcado y mandalo a destilar. No hace falta esperar el resultado ahora: con eso ya habras aprendido el loop base de la estacion.",
+        body: "Elige el bundle marcado y mandalo a destilar. No hace falta esperar el resultado ahora: con eso ya habras aprendido el loop base de la estacion.",
         actionLabel: null,
       };
     case ONBOARDING_STEPS.FIRST_ECHOES:
@@ -568,56 +762,69 @@ export function getOnboardingStepMeta(step = null, state = {}) {
       };
     case ONBOARDING_STEPS.BLUEPRINT_DECISION:
       return {
-        title: "Haz ambas decisiones una vez",
-        body:
-          state?.onboarding?.flags?.blueprintScrapped && !state?.onboarding?.flags?.blueprintConverted
-            ? "Ya viste el desguace. Ahora convierte otra pieza en blueprint para aprender el camino persistente."
-            : !state?.onboarding?.flags?.blueprintScrapped && state?.onboarding?.flags?.blueprintConverted
-              ? "Ya hiciste un blueprint. Ahora desguaza otra pieza para ver el retorno inmediato."
-              : "Primero haz un desguace y una conversion a blueprint. Asi queda claro para que sirve cada salida del Stash temporal.",
-        actionLabel: null,
+        title: "Dos salidas, dos objetivos",
+        body: "Cuando rescatas una pieza temporal tienes dos caminos: blueprint si quieres sesgar futuras materializaciones, o desguace si quieres retorno inmediato en cargas y recursos. No compiten: cumplen funciones distintas.",
+        actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.FIRST_BLUEPRINT_MATERIALIZATION:
       return {
-        title: "El plano ya quedo listo",
-        body: "Ese blueprint ya entra a tu progreso persistente. Mas adelante podras activarlo para materializar una pieza nueva al inicio de una expedicion.",
+        title: "Que materializa un blueprint",
+        body: "Un blueprint no clona exactamente el item viejo: materializa una pieza nueva sesgada por ese perfil. Sirve para empujar una direccion de build entre runs sin depender de repetir el mismo drop.",
         actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.DEEP_FORGE_READY:
       return {
         title: "El Taller ya puede investigarse",
-        body: "Desde Prestige 3, el Laboratorio ya puede abrir la ruta hacia el Taller. Este beat es solo informativo: en el siguiente momento relevante lo vas a usar de verdad.",
-        actionLabel: null,
+        body: "Desde Prestige 3, el Santuario ya puede abrir la ruta al Taller. Ahi mejoras proyectos persistentes: no buscas un pico inmediato para esta run, sino una base mejor para muchas runs futuras.",
+        actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE:
       return {
-        title: "Usa el Taller",
-        body: "Abre la estacion y sube el proyecto marcado. Esta es la primera vez que conviertes una base prometedora en progreso persistente real del Santuario.",
-        actionLabel: null,
+        title: "Para que sirve el Taller",
+        body: "El Taller toma una base prometedora y la convierte en progreso persistente real. Es donde una buena pieza deja de ser solo loot de una run y pasa a formar parte del crecimiento largo de tu cuenta.",
+        actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.LIBRARY_READY:
       return {
         title: "Biblioteca lista para investigar",
-        body: "Desde Prestige 4, el Laboratorio ya puede catalogar la Biblioteca. Este beat solo te avisa que la ruta ya existe dentro del Santuario.",
-        actionLabel: null,
+        body: "La Biblioteca convierte kills, copias frescas e investigacion en bonus permanentes. Su valor no esta en mirar datos, sino en consolidar progreso historico de la cuenta.",
+        actionLabel: "Seguir",
+      };
+    case ONBOARDING_STEPS.FIRST_LIBRARY_RESEARCH:
+      return {
+        title: "Cuando vale la pena investigar",
+        body: "La Biblioteca gasta tinta para convertir progreso fresco en bonus permanentes. El criterio sano es simple: investiga cuando ya desbloqueaste un hito real y quieres fijarlo a nivel cuenta.",
+        actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.ERRANDS_READY:
       return {
         title: "Encargos ya pueden organizarse",
-        body: "Desde Prestige 5, el Laboratorio ya puede organizar Encargos. A partir de aqui el Santuario gana otra capa de trabajo paralelo entre expediciones.",
-        actionLabel: null,
+        body: "Los Encargos usan equipos auxiliares del Santuario. Tu heroe principal no se detiene: mientras una run empuja tiers, el hub puede seguir trayendo materiales, tinta o cargas en paralelo.",
+        actionLabel: "Seguir",
+      };
+    case ONBOARDING_STEPS.FIRST_ERRAND:
+      return {
+        title: "Que esperar de Encargos",
+        body: "Encargos no reemplaza el farmeo principal: lo complementa. Sirve para orientar retornos del Santuario entre runs y sostener materiales paralelos sin frenar a tu heroe.",
+        actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.SIGIL_ALTAR_READY:
       return {
         title: "Altar de Sigilos listo",
-        body: "Desde Prestige 6, el Laboratorio ya puede erigir el Altar de Sigilos. El punto importante es que el Santuario ya puede preparar carreras con mas intencion.",
-        actionLabel: null,
+        body: "El Altar no mejora la run actual: prepara la siguiente. Ahi conviertes flux en cargas de sigilo para salir con una intencion mas clara desde el primer tier.",
+        actionLabel: "Seguir",
+      };
+    case ONBOARDING_STEPS.FIRST_SIGIL_INFUSION:
+      return {
+        title: "Como pensar una infusion",
+        body: "Una infusion es preparacion, no reaccion. Conviene verla como una apuesta previa: eliges el sesgo de la siguiente expedicion antes de salir, no como parche para la run en curso.",
+        actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.ABYSS_PORTAL_READY:
       return {
         title: "Ya puedes abrir el Portal al Abismo",
         body: "Derrotaste al boss de Tier 25 y el Santuario ya domina Biblioteca, Encargos y Altar. El siguiente gran salto de cuenta es investigar el Portal al Abismo.",
-        actionLabel: null,
+        actionLabel: "Seguir",
       };
     case ONBOARDING_STEPS.TIER25_CAP:
       return {
@@ -700,7 +907,7 @@ function createTutorialCargoBundle() {
   };
 }
 
-function ensureTutorialCargoBundle(nextState) {
+export function ensureTutorialCargoBundle(nextState) {
   const cargoInventory = Array.isArray(nextState?.sanctuary?.cargoInventory) ? nextState.sanctuary.cargoInventory : [];
   if (cargoInventory.length > 0) return nextState;
   return {
@@ -808,12 +1015,28 @@ function withNextStep(nextState, onboarding, step, extra = {}) {
 
 export function getBlockedOnboardingAction(step = null, action = {}, state = {}) {
   const type = action?.type;
-  const interactionMode = getOnboardingStepInteractionMode(step, state);
+  const effectiveStep = getEffectiveOnboardingStep(step, state);
+  const interactionMode = getOnboardingStepInteractionMode(effectiveStep, state);
   if (!step) return false;
-  const requiredTab = getOnboardingRequiredTab(step);
+  const distilleryCorridorStep = [
+    ONBOARDING_STEPS.DISTILLERY_READY,
+    ONBOARDING_STEPS.RETURN_TO_SANCTUARY,
+    ONBOARDING_STEPS.OPEN_DISTILLERY,
+    ONBOARDING_STEPS.FIRST_DISTILLERY_JOB,
+  ].includes(effectiveStep);
+  if (
+    distilleryCorridorStep &&
+    ["CLAIM_SANCTUARY_JOB", "CLOSE_LABORATORY", "OPEN_DISTILLERY", "START_DISTILLERY_JOB", "START_TUTORIAL_DISTILLERY_JOB"].includes(type)
+  ) {
+    return false;
+  }
+  const requiredTab = getOnboardingRequiredTab(effectiveStep);
   if (type === "TOGGLE_THEME" || type === "SET_THEME") return false;
   if (type === "ACK_ONBOARDING_STEP") return false;
   if (type === "RESET_ALL_PROGRESS") return false;
+  if (type === "SYNC_SANCTUARY_JOBS") {
+    return !shouldSyncSanctuaryJobsDuringOnboarding(state);
+  }
   if (
     requiredTab === "sanctuary" &&
     ["ENTER_EXPEDITION_SETUP", "SELECT_RUN_SIGIL", "START_RUN"].includes(type)
@@ -821,27 +1044,27 @@ export function getBlockedOnboardingAction(step = null, action = {}, state = {})
     return true;
   }
   if (type === "SET_TAB") {
-    if (["registry", "system", "stats", "achievements"].includes(action?.tab)) {
+    if (["registry", "account", "system", "stats", "achievements"].includes(action?.tab)) {
       return false;
     }
-    if (step === ONBOARDING_STEPS.OPEN_HERO) {
+    if (effectiveStep === ONBOARDING_STEPS.OPEN_HERO) {
       return !["character", "skills", "talents"].includes(action?.tab);
     }
-    if (step === ONBOARDING_STEPS.HERO_SKILLS_INTRO) {
+    if (effectiveStep === ONBOARDING_STEPS.HERO_SKILLS_INTRO) {
       return action?.tab !== "skills";
     }
-    if (step === ONBOARDING_STEPS.HERO_TALENTS_INTRO) {
+    if (effectiveStep === ONBOARDING_STEPS.HERO_TALENTS_INTRO) {
       return action?.tab !== "talents";
     }
-    if (step === ONBOARDING_STEPS.HERO_CHARACTER_INTRO) {
+    if (effectiveStep === ONBOARDING_STEPS.HERO_CHARACTER_INTRO) {
       return action?.tab !== "character";
     }
   }
   if (type === "SET_TAB") {
-    return !isOnboardingTabAllowed(step, action?.tab || "sanctuary");
+    return !isOnboardingTabAllowed(effectiveStep, action?.tab || "sanctuary");
   }
 
-  switch (step) {
+  switch (effectiveStep) {
     case ONBOARDING_STEPS.CHOOSE_CLASS:
       return type !== "SELECT_CLASS";
     case ONBOARDING_STEPS.EXPEDITION_INTRO:
@@ -882,15 +1105,20 @@ export function getBlockedOnboardingAction(step = null, action = {}, state = {})
       return type !== "CONFIRM_EXTRACTION";
     case ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN:
       return type !== "ACK_ONBOARDING_STEP";
+    case ONBOARDING_STEPS.OPEN_LABORATORY:
+      return type !== "OPEN_LABORATORY";
     case ONBOARDING_STEPS.RESEARCH_DISTILLERY: {
       const researchId = action?.researchId || action?.payload?.researchId || "";
       return !(type === "START_LAB_RESEARCH" && researchId === "unlock_distillery");
     }
     case ONBOARDING_STEPS.DISTILLERY_READY:
-      if (interactionMode === "info") return type !== "ACK_ONBOARDING_STEP";
-      return !(type === "CLAIM_SANCTUARY_JOB" || type === "ACK_ONBOARDING_STEP");
+      return type !== "CLAIM_SANCTUARY_JOB";
+    case ONBOARDING_STEPS.RETURN_TO_SANCTUARY:
+      return type !== "CLOSE_LABORATORY" && type !== "CLAIM_SANCTUARY_JOB";
+    case ONBOARDING_STEPS.OPEN_DISTILLERY:
+      return type !== "OPEN_DISTILLERY" && type !== "CLAIM_SANCTUARY_JOB" && type !== "START_DISTILLERY_JOB" && type !== "START_TUTORIAL_DISTILLERY_JOB";
     case ONBOARDING_STEPS.FIRST_DISTILLERY_JOB:
-      return type !== "START_DISTILLERY_JOB";
+      return type !== "START_DISTILLERY_JOB" && type !== "START_TUTORIAL_DISTILLERY_JOB";
     case ONBOARDING_STEPS.FIRST_ECHOES:
       if (interactionMode === "info") {
         return type !== "ACK_ONBOARDING_STEP";
@@ -903,18 +1131,21 @@ export function getBlockedOnboardingAction(step = null, action = {}, state = {})
     case ONBOARDING_STEPS.BLUEPRINT_INTRO:
       return type !== "ACK_ONBOARDING_STEP";
     case ONBOARDING_STEPS.BLUEPRINT_DECISION:
-      return type !== "CONVERT_EXTRACTED_ITEM_TO_BLUEPRINT" && type !== "START_SCRAP_EXTRACTED_ITEM_JOB";
+      return type !== "ACK_ONBOARDING_STEP";
     case ONBOARDING_STEPS.FIRST_BLUEPRINT_MATERIALIZATION:
       return type !== "ACK_ONBOARDING_STEP";
     case ONBOARDING_STEPS.DEEP_FORGE_READY:
     case ONBOARDING_STEPS.LIBRARY_READY:
+    case ONBOARDING_STEPS.FIRST_LIBRARY_RESEARCH:
     case ONBOARDING_STEPS.ERRANDS_READY:
+    case ONBOARDING_STEPS.FIRST_ERRAND:
     case ONBOARDING_STEPS.SIGIL_ALTAR_READY:
+    case ONBOARDING_STEPS.FIRST_SIGIL_INFUSION:
     case ONBOARDING_STEPS.ABYSS_PORTAL_READY: {
       return type !== "ACK_ONBOARDING_STEP";
     }
     case ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE:
-      return type !== "START_DEEP_FORGE_JOB";
+      return type !== "ACK_ONBOARDING_STEP";
     case ONBOARDING_STEPS.TIER25_CAP:
     case ONBOARDING_STEPS.FIRST_ABYSS:
       return type !== "ACK_ONBOARDING_STEP";
@@ -931,6 +1162,10 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
       ...nextState,
       onboarding,
     };
+  }
+
+  if ([ONBOARDING_STEPS.TALENT_INTRO, ONBOARDING_STEPS.BUY_TALENT].includes(onboarding.step)) {
+    nextState = ensureTutorialTalentPoints(nextState);
   }
 
   const prevUpgradeLevels = countUpgradeLevels(prevState?.player);
@@ -995,6 +1230,47 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
           ? prevState.sanctuary.jobs.find(job => job?.id === (action.jobId || action.payload?.jobId))
           : null)
       : null;
+  const sanctuaryJobs = Array.isArray(nextState?.sanctuary?.jobs) ? nextState.sanctuary.jobs : [];
+  const distilleryResearchJob = sanctuaryJobs.find(
+    job =>
+      job?.station === "laboratory" &&
+      job?.input?.researchId === "unlock_distillery" &&
+      (job?.status === "running" || job?.status === "claimable")
+  );
+  const existingDistilleryJob = sanctuaryJobs.find(
+    job => job?.station === "distillery" && (job?.status === "running" || job?.status === "claimable")
+  );
+
+  if (
+    distilleryResearchJob &&
+    !onboarding.flags.distilleryUnlocked &&
+    !expeditionInRunFlow &&
+    onboarding.step !== ONBOARDING_STEPS.DISTILLERY_READY
+  ) {
+    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.DISTILLERY_READY, {
+      currentTab: "sanctuary",
+    });
+  }
+
+  if (
+    existingDistilleryJob &&
+    !onboarding.flags.distilleryJobStarted &&
+    !expeditionInRunFlow &&
+    [ONBOARDING_STEPS.OPEN_DISTILLERY, ONBOARDING_STEPS.FIRST_DISTILLERY_JOB, null].includes(onboarding.step)
+  ) {
+    return withNextStep(
+      nextState,
+      {
+        ...onboarding,
+        flags: {
+          ...onboarding.flags,
+          distilleryJobStarted: true,
+        },
+      },
+      ONBOARDING_STEPS.FIRST_ECHOES,
+      { currentTab: "sanctuary" }
+    );
+  }
 
   if (
     expeditionInRunFlow &&
@@ -1083,7 +1359,7 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
         }
       );
     } else if (onboarding.step === ONBOARDING_STEPS.TALENT_INTRO) {
-      return withNextStep(nextState, onboarding, ONBOARDING_STEPS.BUY_TALENT, {
+      return withNextStep(ensureTutorialTalentPoints(nextState), onboarding, ONBOARDING_STEPS.BUY_TALENT, {
         currentTab: "talents",
       });
     } else if (onboarding.step === ONBOARDING_STEPS.COMBAT_AFTER_TALENT) {
@@ -1113,6 +1389,10 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
           huntUnlocked: true,
         },
       };
+      nextState = {
+        ...nextState,
+        currentTab: "combat",
+      };
     } else if (onboarding.step === ONBOARDING_STEPS.EXTRACTION_READY) {
       onboarding = {
         ...onboarding,
@@ -1123,14 +1403,31 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
         },
       };
     } else if (onboarding.step === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN) {
+      return withNextStep(nextState, {
+        ...onboarding,
+        flags: {
+          ...onboarding.flags,
+          firstSanctuaryReturnSeen: true,
+        },
+      }, ONBOARDING_STEPS.OPEN_LABORATORY, {
+        currentTab: "sanctuary",
+      });
+    } else if (onboarding.step === ONBOARDING_STEPS.OPEN_LABORATORY) {
       return withNextStep(nextState, onboarding, ONBOARDING_STEPS.RESEARCH_DISTILLERY, {
         currentTab: "sanctuary",
       });
     } else if (onboarding.step === ONBOARDING_STEPS.DISTILLERY_READY) {
-      onboarding = {
-        ...onboarding,
-        step: null,
-      };
+      return withNextStep(nextState, onboarding, ONBOARDING_STEPS.RETURN_TO_SANCTUARY, {
+        currentTab: "sanctuary",
+      });
+    } else if (onboarding.step === ONBOARDING_STEPS.RETURN_TO_SANCTUARY) {
+      return withNextStep(nextState, onboarding, ONBOARDING_STEPS.OPEN_DISTILLERY, {
+        currentTab: "sanctuary",
+      });
+    } else if (onboarding.step === ONBOARDING_STEPS.OPEN_DISTILLERY) {
+      return withNextStep(nextState, onboarding, ONBOARDING_STEPS.FIRST_DISTILLERY_JOB, {
+        currentTab: "sanctuary",
+      });
     } else if (onboarding.step === ONBOARDING_STEPS.FIRST_ECHOES) {
       return withNextStep(
         nextState,
@@ -1155,7 +1452,7 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
       };
     } else if (onboarding.step === ONBOARDING_STEPS.BLUEPRINT_INTRO) {
       return withNextStep(
-        ensureTutorialBlueprintItems(nextState),
+        nextState,
         {
           ...onboarding,
           flags: {
@@ -1166,6 +1463,10 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
         ONBOARDING_STEPS.BLUEPRINT_DECISION,
         { currentTab: "sanctuary" }
       );
+    } else if (onboarding.step === ONBOARDING_STEPS.BLUEPRINT_DECISION) {
+      return withNextStep(nextState, onboarding, ONBOARDING_STEPS.FIRST_BLUEPRINT_MATERIALIZATION, {
+        currentTab: "sanctuary",
+      });
     } else if (onboarding.step === ONBOARDING_STEPS.FIRST_BLUEPRINT_MATERIALIZATION) {
       onboarding = {
         ...onboarding,
@@ -1184,6 +1485,15 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
           deepForgeReadySeen: true,
         },
       };
+    } else if (onboarding.step === ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE) {
+      onboarding = {
+        ...onboarding,
+        step: null,
+        flags: {
+          ...onboarding.flags,
+          firstDeepForgeUseSeen: true,
+        },
+      };
     } else if (onboarding.step === ONBOARDING_STEPS.LIBRARY_READY) {
       onboarding = {
         ...onboarding,
@@ -1191,6 +1501,15 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
         flags: {
           ...onboarding.flags,
           libraryReadySeen: true,
+        },
+      };
+    } else if (onboarding.step === ONBOARDING_STEPS.FIRST_LIBRARY_RESEARCH) {
+      onboarding = {
+        ...onboarding,
+        step: null,
+        flags: {
+          ...onboarding.flags,
+          firstLibraryResearchSeen: true,
         },
       };
     } else if (onboarding.step === ONBOARDING_STEPS.ERRANDS_READY) {
@@ -1202,6 +1521,15 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
           errandsReadySeen: true,
         },
       };
+    } else if (onboarding.step === ONBOARDING_STEPS.FIRST_ERRAND) {
+      onboarding = {
+        ...onboarding,
+        step: null,
+        flags: {
+          ...onboarding.flags,
+          firstErrandSeen: true,
+        },
+      };
     } else if (onboarding.step === ONBOARDING_STEPS.SIGIL_ALTAR_READY) {
       onboarding = {
         ...onboarding,
@@ -1209,6 +1537,15 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
         flags: {
           ...onboarding.flags,
           sigilAltarReadySeen: true,
+        },
+      };
+    } else if (onboarding.step === ONBOARDING_STEPS.FIRST_SIGIL_INFUSION) {
+      onboarding = {
+        ...onboarding,
+        step: null,
+        flags: {
+          ...onboarding.flags,
+          firstSigilInfusionSeen: true,
         },
       };
     } else if (onboarding.step === ONBOARDING_STEPS.ABYSS_PORTAL_READY) {
@@ -1276,7 +1613,7 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     action.type === "SET_TAB" &&
     action.tab === "talents"
   ) {
-    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.TALENT_INTRO, {
+    return withNextStep(ensureTutorialTalentPoints(nextState), onboarding, ONBOARDING_STEPS.TALENT_INTRO, {
       currentTab: "talents",
     });
   }
@@ -1650,18 +1987,15 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     action.type === "SET_TAB" &&
     action.tab === "codex"
   ) {
-    return {
-      ...nextState,
-      currentTab: "codex",
-      onboarding: {
-        ...onboarding,
-        step: null,
-        flags: {
-          ...onboarding.flags,
-          huntUnlocked: true,
-        },
+    return withNextStep(nextState, {
+      ...onboarding,
+      flags: {
+        ...onboarding.flags,
+        huntUnlocked: true,
       },
-    };
+    }, ONBOARDING_STEPS.HUNT_INTRO, {
+      currentTab: "codex",
+    });
   }
 
   if (
@@ -1749,6 +2083,90 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
   }
 
   if (
+    onboarding.step === ONBOARDING_STEPS.OPEN_LABORATORY &&
+    action.type === "OPEN_LABORATORY"
+  ) {
+    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.RESEARCH_DISTILLERY, {
+      currentTab: "sanctuary",
+    });
+  }
+
+  if (
+    onboarding.step === ONBOARDING_STEPS.RETURN_TO_SANCTUARY &&
+    action.type === "CLOSE_LABORATORY"
+  ) {
+    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.OPEN_DISTILLERY, {
+      currentTab: "sanctuary",
+    });
+  }
+
+  if (
+    onboarding.step === ONBOARDING_STEPS.OPEN_DISTILLERY &&
+    action.type === "OPEN_DISTILLERY"
+  ) {
+    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.FIRST_DISTILLERY_JOB, {
+      currentTab: "sanctuary",
+    });
+  }
+
+  if (
+    onboarding.step === ONBOARDING_STEPS.OPEN_DISTILLERY &&
+    (action.type === "START_DISTILLERY_JOB" || action.type === "START_TUTORIAL_DISTILLERY_JOB")
+  ) {
+    return withNextStep(
+      nextState,
+      {
+        ...onboarding,
+        flags: {
+          ...onboarding.flags,
+          distilleryJobStarted: true,
+        },
+      },
+      ONBOARDING_STEPS.FIRST_ECHOES,
+      { currentTab: "sanctuary" }
+    );
+  }
+
+  if (
+    (action.type === "START_DISTILLERY_JOB" || action.type === "START_TUTORIAL_DISTILLERY_JOB") &&
+    !expeditionInRunFlow &&
+    !onboarding.flags.firstEchoesSeen &&
+    getEffectiveOnboardingStep(onboarding.step, nextState) === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+  ) {
+    return withNextStep(
+      nextState,
+      {
+        ...onboarding,
+        flags: {
+          ...onboarding.flags,
+          distilleryJobStarted: true,
+        },
+      },
+      ONBOARDING_STEPS.FIRST_ECHOES,
+      { currentTab: "sanctuary" }
+    );
+  }
+
+  if (
+    (action.type === "START_DISTILLERY_JOB" || action.type === "START_TUTORIAL_DISTILLERY_JOB") &&
+    !onboarding.flags.distilleryJobStarted &&
+    !expeditionInRunFlow
+  ) {
+    return withNextStep(
+      nextState,
+      {
+        ...onboarding,
+        flags: {
+          ...onboarding.flags,
+          distilleryJobStarted: true,
+        },
+      },
+      ONBOARDING_STEPS.FIRST_ECHOES,
+      { currentTab: "sanctuary" }
+    );
+  }
+
+  if (
     onboarding.step === ONBOARDING_STEPS.RESEARCH_DISTILLERY &&
     action.type === "START_LAB_RESEARCH" &&
     (action.researchId || action.payload?.researchId) === "unlock_distillery"
@@ -1810,6 +2228,39 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
   }
 
   if (
+    onboarding.flags.firstExtractionCompleted &&
+    !onboarding.flags.firstSanctuaryReturnSeen &&
+    !onboarding.step &&
+    !expeditionInRunFlow
+  ) {
+    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN, {
+      currentTab: "sanctuary",
+    });
+  }
+
+  if (
+    onboarding.flags.firstExtractionCompleted &&
+    onboarding.flags.firstSanctuaryReturnSeen &&
+    !onboarding.flags.distilleryJobStarted &&
+    !onboarding.step &&
+    !expeditionInRunFlow
+  ) {
+    if (onboarding.flags.distilleryUnlocked || nextState?.sanctuary?.stations?.distillery?.unlocked) {
+      return withNextStep(nextState, onboarding, ONBOARDING_STEPS.FIRST_DISTILLERY_JOB, {
+        currentTab: "sanctuary",
+      });
+    }
+    if (distilleryResearchJob || nextLaboratoryCompleted?.unlock_distillery) {
+      return withNextStep(nextState, onboarding, ONBOARDING_STEPS.DISTILLERY_READY, {
+        currentTab: "sanctuary",
+      });
+    }
+    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.RESEARCH_DISTILLERY, {
+      currentTab: "sanctuary",
+    });
+  }
+
+  if (
     !onboarding.flags.firstEchoesSeen &&
     !onboarding.step &&
     nextPrestigeLevel >= 1 &&
@@ -1842,7 +2293,7 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
 
   if (
     onboarding.step === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB &&
-    action.type === "START_DISTILLERY_JOB"
+    (action.type === "START_DISTILLERY_JOB" || action.type === "START_TUTORIAL_DISTILLERY_JOB")
   ) {
     return withNextStep(
       nextState,
@@ -1948,7 +2399,7 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     Boolean(nextState?.sanctuary?.stations?.deepForge?.unlocked) &&
     !expeditionInRunFlow
   ) {
-    return withNextStep(ensureTutorialDeepForgeProject(nextState), onboarding, ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE, {
+    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE, {
       currentTab: "sanctuary",
     });
   }
@@ -1987,6 +2438,42 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
   }
 
   if (
+    !onboarding.flags.firstLibraryResearchSeen &&
+    !onboarding.step &&
+    Boolean(nextState?.sanctuary?.stations?.codexResearch?.unlocked) &&
+    Math.max(0, Number(nextState?.sanctuary?.resources?.codexInk || 0)) > 0 &&
+    !expeditionInRunFlow
+  ) {
+    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.FIRST_LIBRARY_RESEARCH, {
+      currentTab: "sanctuary",
+    });
+  }
+
+  if (
+    !onboarding.flags.firstErrandSeen &&
+    !onboarding.step &&
+    Boolean(nextState?.sanctuary?.stations?.errands?.unlocked) &&
+    hasAvailableErrandSlot(nextState) &&
+    !expeditionInRunFlow
+  ) {
+    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.FIRST_ERRAND, {
+      currentTab: "sanctuary",
+    });
+  }
+
+  if (
+    !onboarding.flags.firstSigilInfusionSeen &&
+    !onboarding.step &&
+    Boolean(nextState?.sanctuary?.stations?.sigilInfusion?.unlocked) &&
+    hasAvailableSigilInfusion(nextState) &&
+    !expeditionInRunFlow
+  ) {
+    return withNextStep(nextState, onboarding, ONBOARDING_STEPS.FIRST_SIGIL_INFUSION, {
+      currentTab: "sanctuary",
+    });
+  }
+
+  if (
     !onboarding.flags.abyssPortalReadySeen &&
     !onboarding.step &&
     nextTier25BossCleared &&
@@ -2010,23 +2497,6 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     return withNextStep(nextState, onboarding, ONBOARDING_STEPS.TIER25_CAP, {
       currentTab: "combat",
     });
-  }
-
-  if (
-    onboarding.step === ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE &&
-    action.type === "START_DEEP_FORGE_JOB"
-  ) {
-    return {
-      ...nextState,
-      onboarding: {
-        ...onboarding,
-        step: null,
-        flags: {
-          ...onboarding.flags,
-          firstDeepForgeUseSeen: true,
-        },
-      },
-    };
   }
 
   if (
@@ -2087,10 +2557,11 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
   };
 }
 
-export function getOnboardingOverlayAnchor(step = null) {
+export function getOnboardingOverlayAnchor(step = null, state = {}) {
   if (step === ONBOARDING_STEPS.EQUIP_INTRO) return "subnav";
   if (step === ONBOARDING_STEPS.HERO_INTRO) return "bottom";
   if (step === ONBOARDING_STEPS.BUY_TALENT) return "top";
+  if (step === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB) return "top";
   if (
     step === ONBOARDING_STEPS.HERO_SKILLS_INTRO ||
     step === ONBOARDING_STEPS.HERO_TALENTS_INTRO ||
@@ -2101,8 +2572,11 @@ export function getOnboardingOverlayAnchor(step = null) {
   if (step === ONBOARDING_STEPS.HUNT_INTRO) return "subnav";
   if (
     step === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN ||
+    step === ONBOARDING_STEPS.OPEN_LABORATORY ||
     step === ONBOARDING_STEPS.RESEARCH_DISTILLERY ||
     step === ONBOARDING_STEPS.DISTILLERY_READY ||
+    step === ONBOARDING_STEPS.RETURN_TO_SANCTUARY ||
+    step === ONBOARDING_STEPS.OPEN_DISTILLERY ||
     step === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB ||
     step === ONBOARDING_STEPS.SPEND_ATTRIBUTE ||
     step === ONBOARDING_STEPS.BUY_TALENT ||
@@ -2115,8 +2589,11 @@ export function getOnboardingOverlayAnchor(step = null) {
     step === ONBOARDING_STEPS.DEEP_FORGE_READY ||
     step === ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE ||
     step === ONBOARDING_STEPS.LIBRARY_READY ||
+    step === ONBOARDING_STEPS.FIRST_LIBRARY_RESEARCH ||
     step === ONBOARDING_STEPS.ERRANDS_READY ||
+    step === ONBOARDING_STEPS.FIRST_ERRAND ||
     step === ONBOARDING_STEPS.SIGIL_ALTAR_READY ||
+    step === ONBOARDING_STEPS.FIRST_SIGIL_INFUSION ||
     step === ONBOARDING_STEPS.ABYSS_PORTAL_READY ||
     step === ONBOARDING_STEPS.TIER25_CAP ||
     step === ONBOARDING_STEPS.FIRST_ABYSS ||
@@ -2128,21 +2605,31 @@ export function getOnboardingOverlayAnchor(step = null) {
 }
 
 export function getOnboardingSpotlightSelectors(step = null, state = {}) {
+  if (step === ONBOARDING_STEPS.DISTILLERY_READY) {
+    const distilleryResearchPhase = getDistilleryResearchOnboardingPhase(state);
+    return [
+      distilleryResearchPhase === "claimable"
+        ? '[data-onboarding-target="claim-distillery-research-card"], [data-onboarding-target="claim-distillery-research"]'
+        : distilleryResearchPhase === "running"
+          ? '[data-onboarding-target="running-distillery-research"]'
+          : '[data-onboarding-target="open-distillery"]',
+    ];
+  }
+
   if (getOnboardingStepInteractionMode(step, state) === "info") {
     return [];
   }
 
-  if (step === ONBOARDING_STEPS.DISTILLERY_READY) {
-    const hasClaim = Array.isArray(state?.sanctuary?.jobs)
-      && state.sanctuary.jobs.some(job => job?.station === "laboratory" && job?.input?.researchId === "unlock_distillery" && job?.status === "claimable");
-    return [
-      hasClaim ? '[data-onboarding-target="claim-distillery-research"]' : '[data-onboarding-target="open-distillery"]',
-    ];
+  if (step === ONBOARDING_STEPS.OPEN_DISTILLERY) {
+    return ['[data-onboarding-target="open-distillery"]'];
+  }
+  if (step === ONBOARDING_STEPS.RETURN_TO_SANCTUARY) {
+    return ['[data-onboarding-target="primary-sanctuary-tab"]'];
   }
   if (step === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB) {
     return [
-      '[data-onboarding-target="open-distillery"]',
       '[data-onboarding-target="tutorial-distillery-bundle"]',
+      '[data-onboarding-target="tutorial-distillery-start"]',
     ];
   }
   if (step === ONBOARDING_STEPS.FIRST_ECHOES) {
@@ -2158,6 +2645,12 @@ export function getOnboardingSpotlightSelectors(step = null, state = {}) {
   }
   const researchId = getOnboardingResearchTargetId(step);
   if (researchId) {
+    if (step === ONBOARDING_STEPS.RESEARCH_DISTILLERY) {
+      return [
+        `[data-onboarding-target="research-card-${researchId}"]`,
+        `[data-onboarding-target="research-${researchId}"]`,
+      ];
+    }
     return [
       `[data-onboarding-target="research-card-${researchId}"]`,
       `[data-onboarding-target="research-${researchId}"]`,
@@ -2213,9 +2706,9 @@ export function getOnboardingSpotlightSelectors(step = null, state = {}) {
     case ONBOARDING_STEPS.EXTRACTION_CONFIRM:
       return ['[data-onboarding-target="tutorial-extraction-confirm"]'];
     case ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN:
+      return [];
+    case ONBOARDING_STEPS.OPEN_LABORATORY:
       return ['[data-onboarding-target="open-laboratory"]'];
-    case ONBOARDING_STEPS.DISTILLERY_READY:
-      return ['[data-onboarding-target="open-distillery"]'];
     case ONBOARDING_STEPS.HUNT_INTRO:
       return ['[data-onboarding-target="subview-codex"]'];
     case ONBOARDING_STEPS.FIRST_ECHOES:
@@ -2231,6 +2724,16 @@ export function getOnboardingSpotlightSelectors(step = null, state = {}) {
       return ['[data-onboarding-target="combat-encounter"]'];
     case ONBOARDING_STEPS.TALENT_INTRO:
     case ONBOARDING_STEPS.BUY_TALENT:
+      if (step === ONBOARDING_STEPS.BUY_TALENT) {
+        const tutorialTalentNodeId = getResolvedOnboardingTutorialTalentNodeId(state);
+        if (tutorialTalentNodeId) {
+          return [
+            `[data-onboarding-node-id="${tutorialTalentNodeId}"]`,
+            '[data-onboarding-target="buy-talent-card"]',
+            '[data-onboarding-target="buy-talent"]',
+          ];
+        }
+      }
       return [
         '[data-onboarding-target="buy-talent-card"]',
         '[data-onboarding-target="buy-talent"]',

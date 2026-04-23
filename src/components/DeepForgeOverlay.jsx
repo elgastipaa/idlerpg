@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import OverlayShell from "./OverlayShell";
 import { getRarityColor } from "../constants/rarity";
 import { getProjectUpgradeRule } from "../engine/sanctuary/jobEngine";
 import { getOnboardingTutorialDeepForgeProjectId, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
@@ -230,8 +231,8 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
     Number(deepForgeSession.affixIndex) === selectedAffixIndex;
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,0.72)", zIndex: 9300, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", padding: isMobile ? "0" : "24px" }}>
-      <div style={{ width: "100%", maxWidth: "1160px", maxHeight: "100vh", overflow: "auto", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", borderRadius: isMobile ? "0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", display: "grid", gap: "12px", padding: isMobile ? "18px 16px 20px" : "20px 22px 22px" }}>
+    <OverlayShell isMobile={isMobile}>
+      <div style={{ width: "100%", maxWidth: "1160px", maxHeight: "100%", overflow: "auto", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", borderRadius: isMobile ? "16px 16px 0 0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", display: "grid", gap: "12px", padding: isMobile ? "18px 16px 20px" : "20px 22px 22px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "start" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
@@ -558,6 +559,9 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
                           {reforgeState.costs.essence} esencia · {reforgeState.costs.relicDust} polvo
                         </span>
                       </div>
+                      <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                        Pagas la preview una vez y luego eliges entre {selectedProject?.rarity === "epic" || selectedProject?.rarity === "legendary" ? 3 : 2} linea(s) nueva(s) o mantienes la actual.
+                      </div>
                     </div>
                   )}
 
@@ -567,7 +571,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
                         Reforge profunda abierta
                       </div>
                       <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
-                        Ya pagaste la preview. Ahora elegi una de las 2 lineas nuevas o manten la actual para cerrar la sesion.
+                        Ya pagaste la preview. Ahora elegi una de las {(deepForgeSession.options || []).length} linea(s) nueva(s) o manten la actual para cerrar la sesion.
                       </div>
                       <div style={{ display: "grid", gap: "8px" }}>
                         <button onClick={() => dispatch({ type: "CANCEL_DEEP_FORGE_SESSION" })} style={chipStyle({ tone: "var(--tone-violet, #6d28d9)" })}>
@@ -597,6 +601,6 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
           </div>
         </section>
       </div>
-    </div>
+    </OverlayShell>
   );
 }

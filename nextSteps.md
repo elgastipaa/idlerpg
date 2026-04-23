@@ -10,7 +10,18 @@
    - dónde aparecen las paredes
    - si `Mage` se siente distinto a `Warrior`
 
-2. `UI Surfacing v2`
+2. `QA onboarding tardio`
+   - Validar con helper de `Mas > Sistema`:
+   - `FIRST_PRESTIGE_CLOSE`
+   - `BLUEPRINT_*`
+   - `FIRST_DEEP_FORGE_USE`
+   - `FIRST_LIBRARY_RESEARCH`
+   - `FIRST_ERRAND`
+   - `FIRST_SIGIL_INFUSION`
+   - `TIER25_CAP`
+   - `FIRST_ABYSS`
+
+3. `UI Surfacing v2`
    - Mejorar cómo se muestran en UI:
    - `Mark`
    - `Flow`
@@ -18,12 +29,6 @@
    - `Fracture`
    - `Momentum`
    - `Rage`
-
-3. `Character clarity pass`
-   - Reagrupar stats por secciones más claras:
-   - ofensiva
-   - defensa
-   - mecánicas de build
 
 4. `Combat readability pass`
    - Revisar si `buffs/debuffs` están en el lugar correcto.
@@ -66,6 +71,37 @@
    - elegir clase
    - elegir sigilo
      sigue siendo ágil.
+
+## Pasadas ya aplicadas
+
+- `Character clarity pass`
+  - header mas corto
+  - `Build actual` unificado
+  - menos altura vertical
+
+- `Atributos clarity pass`
+  - `Lectura actual` mas arriba
+  - `Combate / Economia`
+  - filas compactas en lugar de cards altas
+
+- `Talentos clarity pass`
+  - mejor foco del tutorial del primer nodo
+  - filtros `Comprables / Activos / Todos`
+
+- `Sanctuary clarity pass`
+  - bandeja operacional arriba
+  - `Claims` y `Jobs en curso` sin duplicacion
+  - `Siguiente mejor paso` resumido
+
+- `Ecos clarity pass`
+  - header mas corto
+  - `Ecos disponibles` fusionado con `Bonos activos`
+  - `Hitos de Abismo` colapsables
+
+- `Intel/Biblioteca clarity pass`
+  - hero panel mas corto
+  - `Poderes` y `Familias` colapsables
+  - investigacion mas visible en Biblioteca
 
 ## 10 cosas más que puedo avanzar sin depender de una run tuya
 

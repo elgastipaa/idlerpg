@@ -1,6 +1,6 @@
 # ONBOARDING_PLAN
 
-Fecha: 2026-04-20 UTC
+Fecha: 2026-04-22 UTC
 
 ## 0. Base actual observada
 
@@ -69,9 +69,26 @@ Fecha: 2026-04-20 UTC
 ### Drift detectado entre docs y código actual
 
 - `beats.md` y `notes/onboarding.md` ponen `CHOOSE_SPEC` antes de `HERO_INTRO`; el código actual hace `HERO_INTRO -> Atributos -> Talentos -> volver a Ficha -> CHOOSE_SPEC`.
-- `TALENT_INTRO` existe en `ONBOARDING_STEPS`, meta y spotlight, pero hoy no tiene transición de entrada: es un step muerto.
-- `BLUEPRINT_INTRO` existe y spotlight-ea el `Stash temporal`, pero todavía no resuelve el concepto fuerte de `Blueprint vs Desguace`.
-- Los unlocks tardíos de `Laboratorio` ya tienen spotlight al research real, pero faltan varios beats de primer uso dentro de las estaciones.
+- Desde la compra del primer nodo de `Ecos`, los beats tardios ya no fuerzan clicks reales: pasan a formato informativo.
+- `FIRST_LIBRARY_RESEARCH`, `FIRST_ERRAND` y `FIRST_SIGIL_INFUSION` ya existen en engine y quedan pendientes de QA, no de definicion conceptual.
+- `FIRST_BOSS_KILL_MILESTONE` queda descartado para no recargar la secuencia.
+
+### Regla fija post-Ecos
+
+- El onboarding principal termina en `BUY_FIRST_ECHO_NODE`.
+- A partir de ahi, cualquier beat nuevo usa:
+  - popup informativo
+  - boton `Seguir`
+  - hint fijo `En Mas > Glosario podes ver mas`
+- Ningun beat tardio debe obligar interaccion sobre UI real.
+
+### Arquitectura UX base
+
+- `Santuario` = home operacional
+- `Expedicion` = run activa
+- `Heroe` = build actual
+- `Ecos` = meta y resonancia
+- `Mas` = utilitario, diagnostico y tooling
 
 ## A) MAPA COMPLETO DEL TUTORIAL
 
@@ -90,12 +107,12 @@ Fecha: 2026-04-20 UTC
 | 11 | `HERO_SKILLS_INTRO` | abrir `Atributos` | subnav de `Heroe` | `ACK` de `HERO_INTRO` | ✅ hecho |
 | 12 | `SPEND_ATTRIBUTE` | gastar el primer atributo | `Heroe > Atributos` | entrar en `Atributos` | ✅ hecho |
 | 13 | `HERO_TALENTS_INTRO` | abrir `Talentos` | subnav de `Heroe` | comprar primer atributo | ✅ hecho |
-| 14 | `TALENT_INTRO` | explicación corta del árbol antes de comprar | `Heroe > Talentos` | debería disparar al abrir `Talentos` | 🔲 pendiente | ///SUMALO ANTES DE QUE COMPRE UN PUNTO, UNA EXPLICACIÓN CORTA Y UN BOTÓN "SEGUIR".
+| 14 | `TALENT_INTRO` | explicación corta del árbol antes de comprar | `Heroe > Talentos` | al abrir `Talentos` por primera vez | ✅ hecho |
 | 15 | `BUY_TALENT` | comprar el primer nodo | `Heroe > Talentos` | hoy entra directo al abrir `Talentos` | ✅ hecho |
 | 16 | `HERO_CHARACTER_INTRO` | volver a `Ficha` para cerrar build | subnav de `Heroe` | comprar primer talento sin spec | ✅ hecho |
 | 17 | `CHOOSE_SPEC` | elegir subclase | `Heroe > Ficha` | hoy se dispara después del primer talento | ✅ hecho |
 | 18 | `COMBAT_AFTER_TALENT` | volver al boss y cerrar la run tutorial | `Expedición > Combate` | spec elegida | ✅ hecho |
-| 19 | `FIRST_BOSS_KILL_MILESTONE` | hito de haber bajado el primer boss | `Expedición > Combate` | kill del boss de `Tier 5` | 🔲 pendiente | ///NO LO HAGAMOS.
+| 19 | `FIRST_BOSS_KILL_MILESTONE` | hito separado del primer boss | `Expedición > Combate` | kill del boss de `Tier 5` | ⛔ descartado | absorbido en `HUNT_INTRO`
 | 20 | `HUNT_INTRO` | abrir `Caza` por primera vez | `Expedición` subnav | primer boss derrotado | ✅ hecho |
 | 21 | `EXTRACTION_READY` | entender que la run puede cerrarse | `Expedición > Combate` | progreso post-boss + `Tier 6+` | ✅ hecho |
 | 22 | `EXTRACTION_SELECT_CARGO` | elegir cargo | `ExtractionOverlay` | abrir extracción tutorial | ✅ hecho |
@@ -107,21 +124,21 @@ Fecha: 2026-04-20 UTC
 | 28 | `FIRST_DISTILLERY_JOB` | iniciar la primera destilación real | `DistilleryOverlay` | abrir `Destilería` con bundles disponibles | 🔲 pendiente | ///HACELO, post destilería que empiece el tutorial de la destilería. Hacelo abrirla, elegir un bundle, y ponerlo a destilar. Que no espere necesariamente que termine, que pueda volver al santuario si quiere.
 | 29 | `FIRST_ECHOES` | entender que existe progreso meta | `Ecos` | primer prestige real | ✅ hecho | ///Cuando vuelva de la destilería, mostrarle que existe esto! Misma lógica,spotlightear "Ecos" (que hasta ahora no lo podía seleccionar), luego epxlicarle cuántos ecos tiene disponibles con spotlight, luego hacerlo comprar un primer nodo base, etc.
 | 30 | `BUY_FIRST_ECHO_NODE` | comprar el primer nodo de ecos | `Ecos` | `ACK` de `FIRST_ECHOES` | ✅ hecho | ///Decirle que puede volver al Santuario.
-| 31 | `FIRST_PRESTIGE_CLOSE` | fijar mentalmente el loop `run -> hub -> ecos` | `Ecos` o `Santuario` | compra del primer nodo | 🔲 pendiente |
+| 31 | `FIRST_PRESTIGE_CLOSE` | fijar mentalmente el loop `run -> hub -> ecos` | `Ecos` o `Santuario` | compra del primer nodo | ✅ hecho | informativo
 | 32 | `BLUEPRINT_INTRO` | ubicar el `Stash temporal` y presentar persistencia de items | `Santuario` | `Prestige 2` | ✅ hecho | ///Mostrarle el Stash temporal (hasta este momento que esté oculto), explicarle para qué es.
-| 33 | `BLUEPRINT_DECISION` | decidir `Blueprint` vs `Desguace` con botones reales | `Santuario > Stash temporal` | `Prestige 2` con items rescatados | 🔲 pendiente | ///Si no tiene 2 items, crearle hastsa que tenga 2 en el Stash (si falta crear alguno que sea genérico). Así puede seguir el tutorial de ambas funciones. Primero que haga un desguace, y luego un "Plano", así pasa a la etapa siguiente.
-| 34 | `FIRST_BLUEPRINT_MATERIALIZATION` | explicar que el blueprint materializa una pieza nueva | inicio de una run con blueprint activo | primera materialización real | 🔲 pendiente | ///Explicar luego de hacer un Plano.
+| 33 | `BLUEPRINT_DECISION` | explicar `Blueprint` vs `Desguace` | `Santuario > Stash temporal` | `Prestige 2` con items rescatados | ✅ hecho | informativo
+| 34 | `FIRST_BLUEPRINT_MATERIALIZATION` | explicar que el blueprint materializa una pieza nueva | inicio de una run con blueprint activo | primera materialización real | ✅ hecho | informativo
 | 35 | `DEEP_FORGE_READY` | research de `Forja Profunda` | `Laboratorio` | `Prestige 3` | ✅ hecho |
-| 36 | `FIRST_DEEP_FORGE_USE` | primer uso guiado de la estación | `DeepForgeOverlay` | `Forja Profunda` desbloqueada + proyecto válido | 🔲 pendiente |
+| 36 | `FIRST_DEEP_FORGE_USE` | primer beat de Taller | `Santuario` | `Forja Profunda` desbloqueada + contexto valido | ✅ hecho | informativo
 | 37 | `LIBRARY_READY` | research de `Biblioteca` | `Laboratorio` | `Prestige 4` | ✅ hecho |
-| 38 | `FIRST_LIBRARY_RESEARCH` | activar el primer hito de Biblioteca | `Biblioteca` | `Biblioteca` abierta + tinta + target investigable | 🔲 pendiente |
+| 38 | `FIRST_LIBRARY_RESEARCH` | presentar el primer uso real de Biblioteca | `Santuario` | `Biblioteca` abierta + tinta + target investigable | ✅ hecho | informativo
 | 39 | `ERRANDS_READY` | research de `Encargos` | `Laboratorio` | `Prestige 5` | ✅ hecho |
-| 40 | `FIRST_ERRAND` | asignar el primer equipo paralelo | `Encargos` | `Encargos` abiertos + slot libre | 🔲 pendiente |
+| 40 | `FIRST_ERRAND` | presentar el primer uso real de Encargos | `Santuario` | `Encargos` abiertos + slot libre | ✅ hecho | informativo
 | 41 | `SIGIL_ALTAR_READY` | research de `Altar de Sigilos` | `Laboratorio` | `Prestige 6` | ✅ hecho |
-| 42 | `FIRST_SIGIL_INFUSION` | preparar la siguiente run con un sigilo | `Altar de Sigilos` | altar abierto + flux suficiente | 🔲 pendiente |
-| 43 | `TIER25_CAP` | explicar que el mundo base terminó en `Tier 25` | `Expedición > Combate` | matar boss de `Tier 25` sin portal abierto | 🔲 pendiente |
+| 42 | `FIRST_SIGIL_INFUSION` | presentar el primer uso real del Altar | `Santuario` | altar abierto + flux suficiente | ✅ hecho | informativo
+| 43 | `TIER25_CAP` | explicar que el mundo base terminó en `Tier 25` | `Expedición > Combate` | matar boss de `Tier 25` sin portal abierto | ✅ hecho | informativo
 | 44 | `ABYSS_PORTAL_READY` | research del portal al endgame | `Laboratorio` | boss `Tier 25` + prerequisitos de Santuario | ✅ hecho |
-| 45 | `FIRST_ABYSS` | explicar reglas del Abismo al entrar a `Tier 26+` | `Expedición > Combate` o interstitial dedicado | primera entrada a `Tier 26` con portal abierto | 🔲 pendiente |
+| 45 | `FIRST_ABYSS` | explicar reglas del Abismo al entrar a `Tier 26+` | `Expedición > Combate` o interstitial dedicado | primera entrada a `Tier 26` con portal abierto | ✅ hecho | informativo
 
 ## B) PASOS PENDIENTES EN DETALLE
 

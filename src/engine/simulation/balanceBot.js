@@ -1,5 +1,6 @@
 import { gameReducer } from "../../state/gameReducer";
 import { ACTIVE_GOALS } from "../../data/activeGoals";
+import { CLASSES } from "../../data/classes";
 import { PLAYER_UPGRADES } from "../../data/playerUpgrades";
 import { TALENTS } from "../../data/talents";
 import { PRESTIGE_TREE_NODES } from "../../data/prestige";
@@ -184,6 +185,33 @@ function getPreferredClass(options = {}) {
   return "warrior";
 }
 
+function getClassDefinition(classId) {
+  return CLASSES.find(entry => entry.id === classId) || null;
+}
+
+function getUnlockProgressValue(state, unlockCondition = {}) {
+  switch (unlockCondition?.stat) {
+    case "level":
+      return Number(state.player?.level || 1);
+    case "kills":
+      return Number(state.stats?.kills || 0);
+    case "bossKills":
+      return Number(state.stats?.bossKills || 0);
+    case "prestigeLevel":
+      return Number(state.prestige?.level || 0);
+    default:
+      return 0;
+  }
+}
+
+function isSpecUnlockedForState(state, classId, specId) {
+  const classDef = getClassDefinition(classId);
+  const specialization = classDef?.specializations?.find(entry => entry.id === specId) || null;
+  if (!specialization) return false;
+  if (!specialization.unlockCondition) return true;
+  return getUnlockProgressValue(state, specialization.unlockCondition) >= Number(specialization.unlockCondition.value || 0);
+}
+
 function ensureClass(state, logs, tick, options = {}) {
   if (!state.player.class) {
     const classId = getPreferredClass(options);
@@ -195,13 +223,11 @@ function ensureClass(state, logs, tick, options = {}) {
 
 function maybeSelectSpec(state, logs, tick, options = {}) {
   if (state.player.specialization) return state;
-  const stats = state.stats || {};
-  const level = state.player.level || 1;
   const preferredSpec = getPreferredSpec(options);
   const classId = state.player.class || getPreferredClass(options);
 
-  const attemptSelectSpec = (specId, label, condition) => {
-    if (!condition) return null;
+  const attemptSelectSpec = (specId, label) => {
+    if (!isSpecUnlockedForState(state, classId, specId)) return null;
     const nextState = reduceState(state, { type: "SELECT_SPECIALIZATION", specId });
     if (nextState !== state) {
       logDecision(logs, tick, `Elige ${label}`);
@@ -212,36 +238,49 @@ function maybeSelectSpec(state, logs, tick, options = {}) {
 
   if (classId === "mage") {
     if (preferredSpec === "sorcerer") {
-      const selected = attemptSelectSpec("sorcerer", "Sorcerer", level >= 18);
+      const selected = attemptSelectSpec("sorcerer", "Sorcerer");
       if (selected) return selected;
     }
     if (preferredSpec === "arcanist") {
-      const selected = attemptSelectSpec("arcanist", "Arcanist", (stats.kills || 0) >= 200);
+      const selected = attemptSelectSpec("arcanist", "Arcanist");
       if (selected) return selected;
     }
-    const sorcerer = attemptSelectSpec("sorcerer", "Sorcerer", level >= 18);
+    const sorcerer = attemptSelectSpec("sorcerer", "Sorcerer");
     if (sorcerer) return sorcerer;
-    const arcanist = attemptSelectSpec("arcanist", "Arcanist", (stats.kills || 0) >= 200);
+    const arcanist = attemptSelectSpec("arcanist", "Arcanist");
     if (arcanist) return arcanist;
     return state;
   }
 
   if (preferredSpec === "berserker") {
-    const selected = attemptSelectSpec("berserker", "Berserker", (stats.kills || 0) >= 200);
+    const selected = attemptSelectSpec("berserker", "Berserker");
     if (selected) return selected;
   }
 
   if (preferredSpec === "juggernaut") {
-    const selected = attemptSelectSpec("juggernaut", "Juggernaut", level >= 18);
+    const selected = attemptSelectSpec("juggernaut", "Juggernaut");
     if (selected) return selected;
   }
 
-  const berserker = attemptSelectSpec("berserker", "Berserker", (stats.kills || 0) >= 200);
+  const berserker = attemptSelectSpec("berserker", "Berserker");
   if (berserker) return berserker;
-  const juggernaut = attemptSelectSpec("juggernaut", "Juggernaut", level >= 18);
+  const juggernaut = attemptSelectSpec("juggernaut", "Juggernaut");
   if (juggernaut) return juggernaut;
 
   return state;
+}
+
+function maybeEnterExpeditionSetup(state, logs, tick) {
+  if (!state.player?.class) return state;
+  if (state.combat?.pendingRunSetup) return state;
+  const phase = state.expedition?.phase || "sanctuary";
+  if (phase === "active" || phase === "extraction") return state;
+
+  const nextState = reduceState(state, { type: "ENTER_EXPEDITION_SETUP" });
+  if (nextState !== state) {
+    logDecision(logs, tick, "Abre setup de expedicion");
+  }
+  return nextState;
 }
 
 function claimGoals(state, logs, tick) {
@@ -753,9 +792,10 @@ function maybeStartRun(state, logs, tick, options = {}) {
 function runDecisionCycle(state, logs, tick, ticksRemaining, options = {}) {
   const humanProfile = getHumanProfile(options);
   let nextState = state;
-  nextState = maybeStartRun(nextState, logs, tick, options);
   nextState = ensureClass(nextState, logs, tick, options);
   nextState = maybeSelectSpec(nextState, logs, tick, options);
+  nextState = maybeEnterExpeditionSetup(nextState, logs, tick);
+  nextState = maybeStartRun(nextState, logs, tick, options);
   nextState = claimGoals(nextState, logs, tick);
   nextState = equipBestItems(nextState, logs, tick, humanProfile);
   nextState = maybeCraft(nextState, logs, tick, options);

@@ -12,6 +12,7 @@ import {
 import { buildReplayDatasetSummary, buildReplayJsonExport, buildReplayLibraryExport, buildReplaySummary, buildReplayTextReport, deriveHumanReplayProfile, parseReplayImportPayload } from "../utils/replayLog";
 import { runBalanceBotSimulation } from "../engine/simulation/balanceBot";
 import { importGameFromText, isRecoveryMode, saveGame, serializeSaveGame } from "../utils/storage";
+import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 
 function formatNumber(value) {
   if (typeof value !== "number") return value;
@@ -78,12 +79,25 @@ function currentTierPressure(tier = 1) {
   return Math.max(10, Math.round(12 + tier * 10 + tier * tier * 1.5));
 }
 
+const QA_ONBOARDING_BEATS = [
+  { id: ONBOARDING_STEPS.FIRST_PRESTIGE_CLOSE, label: "Cierre primer prestige", description: "Popup que fija el loop run -> Santuario -> Ecos." },
+  { id: ONBOARDING_STEPS.BLUEPRINT_INTRO, label: "Intro blueprints", description: "Presentacion informativa del stash temporal y persistencia de items." },
+  { id: ONBOARDING_STEPS.BLUEPRINT_DECISION, label: "Decision blueprint", description: "Explica blueprint vs desguace sin forzar clicks reales." },
+  { id: ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE, label: "Primer Taller", description: "Primer beat informativo de Taller." },
+  { id: ONBOARDING_STEPS.FIRST_LIBRARY_RESEARCH, label: "Primera Biblioteca", description: "Primer beat informativo de Biblioteca." },
+  { id: ONBOARDING_STEPS.FIRST_ERRAND, label: "Primer Encargo", description: "Primer beat informativo de Encargos." },
+  { id: ONBOARDING_STEPS.FIRST_SIGIL_INFUSION, label: "Primera infusion", description: "Primer beat informativo del Altar de Sigilos." },
+  { id: ONBOARDING_STEPS.TIER25_CAP, label: "Cierre Tier 25", description: "Explica el cap del mundo base." },
+  { id: ONBOARDING_STEPS.FIRST_ABYSS, label: "Primer Abismo", description: "Popup de entrada al endgame." },
+];
+
 export default function Stats({ state, dispatch, mode = "stats" }) {
   const { player, combat, prestige } = state;
   const isDarkMode = state.settings?.theme === "dark";
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [openSections, setOpenSections] = useState({
     diagnostics: false,
+    qa: false,
     accountTelemetry: false,
     save: false,
     bot: false,
@@ -91,6 +105,8 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
     telemetry: false,
     lastRun: false,
   });
+  const [statsFocus, setStatsFocus] = useState("all");
+  const [labFocus, setLabFocus] = useState("all");
   const [copied, setCopied] = useState(false);
   const [saveCopied, setSaveCopied] = useState(false);
   const [saveImportText, setSaveImportText] = useState("");
@@ -206,6 +222,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
     if (!isMobile) {
       setOpenSections({
         diagnostics: isLab,
+        qa: isLab,
         accountTelemetry: isLab,
         save: isLab,
         bot: isLab,
@@ -217,6 +234,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
     }
     setOpenSections({
       diagnostics: isLab,
+      qa: false,
       accountTelemetry: false,
       save: false,
       bot: false,
@@ -270,8 +288,8 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
       setSaveImportStatus("Estas en modo recovery. Sali de ?fresh=1/?wipe=1 para guardar.");
       return;
     }
-    saveGame(state);
-    setSaveImportStatus("Save escrito en localStorage.");
+    const saved = saveGame(state);
+    setSaveImportStatus(saved ? "Save escrito en localStorage." : "No se pudo escribir el save en localStorage.");
   };
 
   const handleCopySave = async () => {
@@ -535,6 +553,8 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
       [key]: !current[key],
     }));
   };
+  const statsSectionVisible = key => statsFocus === "all" || statsFocus === key;
+  const labSectionVisible = key => labFocus === "all" || labFocus === key;
 
   return (
     <div style={{ padding: isMobile ? "0.9rem" : "1.2rem", display: "flex", flexDirection: "column", gap: "12px", background: isDarkMode ? "linear-gradient(180deg, var(--color-background-primary, #0b1220) 0%, var(--color-background-secondary, #111a2e) 100%)" : "linear-gradient(180deg, var(--color-background-primary, #f8fafc) 0%, var(--color-background-tertiary, #eef6f4) 100%)", color: "var(--color-text-primary, #1e293b)" }}>
@@ -560,13 +580,38 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                 </div>
               </div>
             </div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" }}>
+              {[
+                ["all", "Todo"],
+                ["diagnostics", "Diagnostico"],
+                ["save", "Save"],
+                ["replay", "Replay"],
+                ["bot", "IA"],
+              ].map(([value, label]) => (
+                <button key={value} onClick={() => setLabFocus(value)} style={focusChipButtonStyle(labFocus === value)}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </section>
       )}
 
       {isStatsMode && (
       <section style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
-        {Number(prestige.level || 0) >= 1 && (
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          {[
+            ["all", "Todo"],
+            ["run", "Run"],
+            ["telemetry", "Telemetria"],
+            ["lastRun", "Ultima vida"],
+          ].map(([value, label]) => (
+            <button key={value} onClick={() => setStatsFocus(value)} style={focusChipButtonStyle(statsFocus === value)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {statsSectionVisible("run") && Number(prestige.level || 0) >= 1 && (
           <div style={lightPanelStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", flexWrap: "wrap" }}>
               <div>
@@ -602,7 +647,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
           </div>
         )}
 
-        <div style={lightPanelStyle}>
+        {statsSectionVisible("run") && <div style={lightPanelStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", marginBottom: "10px", flexWrap: "wrap" }}>
             <div>
               <div style={sectionTitleStyle}>Corrida Actual</div>
@@ -616,11 +661,11 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
               <DataRow key={row.label} label={row.label} value={row.value} accent={row.accent} />
             ))}
           </div>
-        </div>
+        </div>}
       </section>
       )}
 
-      {isLab && <section style={lightPanelStyle}>
+      {isLab && labSectionVisible("diagnostics") && <section style={lightPanelStyle}>
         <button onClick={() => toggleSection("diagnostics")} style={accordionHeaderButtonStyle}>
           <div>
             <div style={sectionTitleStyle}>Diagnostico</div>
@@ -654,7 +699,52 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
         )}
       </section>}
 
-      {isLab && <section style={lightPanelStyle}>
+      {isLab && labSectionVisible("qa") && <section style={lightPanelStyle}>
+        <button onClick={() => toggleSection("qa")} style={accordionHeaderButtonStyle}>
+          <div>
+            <div style={sectionTitleStyle}>QA onboarding tardio</div>
+            <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>
+              Fuerza popups informativos post-Ecos para revisar copy, tabs y cierre sin depender de una run larga.
+            </div>
+          </div>
+          <span style={accordionLabelStyle}>{openSections.qa ? "Ocultar" : "Ver"}</span>
+        </button>
+
+        {openSections.qa && (
+          <>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" }}>
+              <button onClick={() => dispatch({ type: "SET_QA_ONBOARDING_STEP", step: null })} style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}>
+                Limpiar beat QA
+              </button>
+              <div style={{ ...pillStyle("rgba(99,102,241,0.10)", "#4338ca", "rgba(99,102,241,0.22)") }}>
+                Paso actual: {state?.onboarding?.step || "sin beat"}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
+              {QA_ONBOARDING_BEATS.map(entry => (
+                <div key={entry.id} style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
+                  <div style={{ display: "grid", gap: "5px" }}>
+                    <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "#1e293b" }}>{entry.label}</div>
+                    <div style={{ fontSize: "0.66rem", color: "#64748b", lineHeight: 1.4 }}>{entry.description}</div>
+                    <div style={{ fontSize: "0.58rem", color: "#94a3b8", fontWeight: "900" }}>{entry.id}</div>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "10px" }}>
+                    <button
+                      onClick={() => dispatch({ type: "SET_QA_ONBOARDING_STEP", step: entry.id })}
+                      style={actionBtnStyle("#1d4ed8", "#ffffff")}
+                    >
+                      Forzar beat
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </section>}
+
+      {isLab && labSectionVisible("accountTelemetry") && <section style={lightPanelStyle}>
         <button onClick={() => toggleSection("accountTelemetry")} style={accordionHeaderButtonStyle}>
           <div>
             <div style={sectionTitleStyle}>Telemetria de Cuenta</div>
@@ -687,7 +777,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
         )}
       </section>}
 
-      {isLab && <section style={lightPanelStyle}>
+      {isLab && labSectionVisible("save") && <section style={lightPanelStyle}>
         <button onClick={() => toggleSection("save")} style={accordionHeaderButtonStyle}>
           <div>
             <div style={sectionTitleStyle}>Save</div>
@@ -742,7 +832,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
         )}
       </section>}
 
-      {isLab && <section style={lightPanelStyle}>
+      {isLab && labSectionVisible("replay") && <section style={lightPanelStyle}>
         <button onClick={() => toggleSection("replay")} style={accordionHeaderButtonStyle}>
           <div>
             <div style={sectionTitleStyle}>Replay de Sesion</div>
@@ -907,7 +997,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
         )}
       </section>}
 
-      {isLab && <section style={lightPanelStyle}>
+      {isLab && labSectionVisible("bot") && <section style={lightPanelStyle}>
         <button onClick={() => toggleSection("bot")} style={accordionHeaderButtonStyle}>
           <div>
             <div style={sectionTitleStyle}>IA de Balance</div>
@@ -972,7 +1062,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
         )}
       </section>}
 
-      {isStatsMode && <section style={lightPanelStyle}>
+      {isStatsMode && statsSectionVisible("telemetry") && <section style={lightPanelStyle}>
         <button onClick={() => toggleSection("telemetry")} style={accordionHeaderButtonStyle}>
           <div>
             <div style={sectionTitleStyle}>Telemetria de Sesion</div>
@@ -1005,7 +1095,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
         )}
       </section>}
 
-      {isStatsMode && lastRunSummary && (
+      {isStatsMode && statsSectionVisible("lastRun") && lastRunSummary && (
         <section style={lastRunBoxStyle(lastRunSummary.outcome)}>
           <button onClick={() => toggleSection("lastRun")} style={{ ...accordionHeaderButtonStyle, color: "#fff" }}>
             <div>
@@ -1047,6 +1137,82 @@ function DataRow({ label, value, accent }) {
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", padding: "8px 0", borderBottom: "1px solid #eef2f7" }}>
       <span style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>{label}</span>
       <span style={{ fontSize: "0.76rem", color: accent || "var(--color-text-primary, #1e293b)", fontWeight: "900", textAlign: "right" }}>{value}</span>
+    </div>
+  );
+}
+
+function MetricPill({ label, value }) {
+  return (
+    <div
+      style={{
+        background: "var(--color-background-tertiary, #f8fafc)",
+        border: "1px solid var(--color-border-primary, #e2e8f0)",
+        borderRadius: "12px",
+        padding: "10px 12px",
+        display: "grid",
+        gap: "4px",
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          fontSize: "0.56rem",
+          fontWeight: "900",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          color: "var(--color-text-tertiary, #94a3b8)",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: "0.84rem",
+          fontWeight: "900",
+          color: "var(--color-text-primary, #1e293b)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function RunMetric({ label, value }) {
+  return (
+    <div
+      style={{
+        background: "rgba(255,255,255,0.06)",
+        border: "1px solid rgba(148,163,184,0.22)",
+        borderRadius: "12px",
+        padding: "10px 12px",
+        display: "grid",
+        gap: "4px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "0.56rem",
+          fontWeight: "900",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          color: "#94a3b8",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: "0.9rem",
+          fontWeight: "900",
+          color: "#f8fafc",
+        }}
+      >
+        {value}
+      </div>
     </div>
   );
 }
@@ -1108,6 +1274,18 @@ const pillStyle = (background, color, border) => ({
   background,
   color,
   border,
+});
+
+const focusChipButtonStyle = active => ({
+  border: "1px solid",
+  borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #cbd5e1)",
+  background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #ffffff)",
+  color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #475569)",
+  borderRadius: "999px",
+  padding: "7px 10px",
+  fontSize: "0.64rem",
+  fontWeight: "900",
+  cursor: "pointer",
 });
 
 const actionBtnStyle = (background, color, border = "none") => ({

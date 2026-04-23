@@ -251,6 +251,94 @@ export function getRunSigilPlayerBonuses(runSigilIds = "free") {
   return cloneObject(merged);
 }
 
+function formatPercentDelta(multiplier = 1) {
+  const delta = Math.round((Number(multiplier || 1) - 1) * 100);
+  if (delta > 0) return `+${delta}%`;
+  if (delta < 0) return `${delta}%`;
+  return "base";
+}
+
+function hasForgeBias(playerBonuses = {}) {
+  return Object.keys(playerBonuses || {}).some(key => key.toLowerCase().includes("costreduction"));
+}
+
+function buildRewardProfile({ rewardModifiers = {}, prestigeModifiers = {}, codexModifiers = {}, playerBonuses = {} } = {}) {
+  const boosts = [];
+  const tradeoffs = [];
+
+  if (Number(prestigeModifiers.tierEchoMult || 1) !== 1 || Number(prestigeModifiers.levelEchoMult || 1) !== 1) {
+    const averageEchoMult =
+      (Number(prestigeModifiers.tierEchoMult || 1) + Number(prestigeModifiers.levelEchoMult || 1)) / 2;
+    const row = { label: `Ecos ${formatPercentDelta(averageEchoMult)}`, positive: averageEchoMult > 1 };
+    (row.positive ? boosts : tradeoffs).push(row);
+  }
+  if (Number(rewardModifiers.xpMult || 1) !== 1) {
+    const row = { label: `XP ${formatPercentDelta(rewardModifiers.xpMult)}`, positive: Number(rewardModifiers.xpMult || 1) > 1 };
+    (row.positive ? boosts : tradeoffs).push(row);
+  }
+  if (Number(rewardModifiers.essenceMult || 1) !== 1) {
+    const row = { label: `Esencia ${formatPercentDelta(rewardModifiers.essenceMult)}`, positive: Number(rewardModifiers.essenceMult || 1) > 1 };
+    (row.positive ? boosts : tradeoffs).push(row);
+  }
+  if (Number(rewardModifiers.powerHuntMultiplier || 1) !== 1) {
+    const row = { label: `Poderes ${formatPercentDelta(rewardModifiers.powerHuntMultiplier)}`, positive: Number(rewardModifiers.powerHuntMultiplier || 1) > 1 };
+    (row.positive ? boosts : tradeoffs).push(row);
+  }
+
+  const rareBonus = Number(rewardModifiers?.rarityBonus?.rare || 0);
+  const epicBonus = Number(rewardModifiers?.rarityBonus?.epic || 0);
+  if (rareBonus > 0 || epicBonus > 0) {
+    boosts.push({
+      label: `Loot rare/epic +${Math.round((rareBonus + epicBonus) * 1000) / 10}%`,
+      positive: true,
+    });
+  }
+
+  if (Number(codexModifiers.familyKillMult || 1) > 1 || Number(codexModifiers.bossKillMult || 1) > 1) {
+    boosts.push({
+      label: `Biblioteca x${Number(codexModifiers.familyKillMult || 1).toFixed(1)}`,
+      positive: true,
+    });
+  }
+  if (Number(codexModifiers.duplicatePowerGainMult || 1) > 1) {
+    boosts.push({
+      label: `Duplicados x${Number(codexModifiers.duplicatePowerGainMult || 1).toFixed(1)}`,
+      positive: true,
+    });
+  }
+
+  if (hasForgeBias(playerBonuses)) {
+    boosts.push({
+      label: "Forja mas barata",
+      positive: true,
+    });
+  }
+
+  return {
+    boosts: boosts.slice(0, 4),
+    tradeoffs: tradeoffs.slice(0, 4),
+  };
+}
+
+export function buildRunSigilChoiceProfile(sigilId = "free") {
+  const sigil = getRunSigil(sigilId);
+  return buildRewardProfile({
+    rewardModifiers: sigil.rewardModifiers || {},
+    prestigeModifiers: sigil.prestigeModifiers || {},
+    codexModifiers: sigil.codexModifiers || {},
+    playerBonuses: sigil.playerBonuses || {},
+  });
+}
+
+export function buildRunSigilLoadoutProfile(runSigilIds = "free") {
+  return buildRewardProfile({
+    rewardModifiers: getRunSigilRewardModifiers(runSigilIds),
+    prestigeModifiers: getRunSigilPrestigeModifiers(runSigilIds),
+    codexModifiers: getRunSigilCodexModifiers(runSigilIds),
+    playerBonuses: getRunSigilPlayerBonuses(runSigilIds),
+  });
+}
+
 export function formatRunSigilLoadout(runSigilIds = "free", { short = false } = {}) {
   const sigils = getRunSigils(runSigilIds, { slots: Array.isArray(runSigilIds) ? runSigilIds.length || 1 : 1 });
   const nonFree = sigils.filter(sigil => sigil.id !== "free");

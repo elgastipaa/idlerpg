@@ -9,7 +9,7 @@ const PROJECT_PROGRESS_RULES = {
     affixStepMult: 1.025,
     ascensionRatingStepMult: 1.12,
     ascensionAffixStepMult: 1.08,
-    ascendEssence: 120,
+    ascendEssence: 108,
     ascendDust: 3,
     imprintEssence: 100,
   },
@@ -18,7 +18,7 @@ const PROJECT_PROGRESS_RULES = {
     affixStepMult: 1.028,
     ascensionRatingStepMult: 1.14,
     ascensionAffixStepMult: 1.09,
-    ascendEssence: 180,
+    ascendEssence: 162,
     ascendDust: 5,
     imprintEssence: 125,
   },
@@ -27,7 +27,7 @@ const PROJECT_PROGRESS_RULES = {
     affixStepMult: 1.03,
     ascensionRatingStepMult: 1.16,
     ascensionAffixStepMult: 1.1,
-    ascendEssence: 260,
+    ascendEssence: 228,
     ascendDust: 7,
     imprintEssence: 150,
   },
@@ -232,14 +232,14 @@ export function getDeepForgeCosts(project = {}, mode = "polish", affixIndex = nu
 
   if (mode === "polish") {
     return {
-      essence: Math.floor((18 + rarityIndex * 10 + currentUpgradeLevel * 2) * (1 + crafting.polishCount * 0.32)),
+      essence: Math.floor((20 + rarityIndex * 10 + currentUpgradeLevel * 2) * (1 + crafting.polishCount * 0.3)),
       relicDust: Math.max(1, Math.floor((rarityIndex + tierIndex - 1) / 2)),
     };
   }
 
   if (mode === "reforge") {
     return {
-      essence: Math.floor((34 + rarityIndex * 18 + currentUpgradeLevel * 3) * (1 + crafting.reforgeCount * 0.34)),
+      essence: Math.floor((28 + rarityIndex * 14 + currentUpgradeLevel * 2) * (1 + crafting.reforgeCount * 0.26)),
       relicDust: Math.max(1, rarityIndex + Math.floor(currentUpgradeLevel / 5)),
     };
   }
@@ -336,7 +336,7 @@ export function buildDeepForgeReforgePreview(project = {}, affixIndex = null, { 
       affixes: Array.isArray(normalized?.baseAffixes) ? normalized.baseAffixes.map(cloneAffixRecord) : [],
     },
     affixIndex,
-    2,
+    project?.rarity === "epic" || project?.rarity === "legendary" ? 3 : 2,
     favoredStats,
     extraPool
   );

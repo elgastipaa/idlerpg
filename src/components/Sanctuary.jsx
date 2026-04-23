@@ -1,14 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
-import DistilleryOverlay from "./DistilleryOverlay";
-import EncargosOverlay from "./EncargosOverlay";
-import BlueprintForgeOverlay from "./BlueprintForgeOverlay";
-import SigilAltarOverlay from "./SigilAltarOverlay";
-import BibliotecaOverlay from "./BibliotecaOverlay";
-import LaboratoryOverlay from "./LaboratoryOverlay";
+import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import OverlayShell from "./OverlayShell";
 import { getRunSigil } from "../data/runSigils";
 import { CLASSES } from "../data/classes";
 import { getSanctuaryStationState } from "../engine/sanctuary/laboratoryEngine";
 import {
+  getEffectiveOnboardingStep,
   getOnboardingStepInteractionMode,
   getOnboardingTutorialDeepForgeProjectId,
   getOnboardingTutorialExtractedItemId,
@@ -17,6 +13,13 @@ import {
   isDistilleryUnlocked,
   isLaboratoryUnlocked,
 } from "../engine/onboarding/onboardingEngine";
+
+const DistilleryOverlay = lazy(() => import("./DistilleryOverlay"));
+const EncargosOverlay = lazy(() => import("./EncargosOverlay"));
+const BlueprintForgeOverlay = lazy(() => import("./BlueprintForgeOverlay"));
+const SigilAltarOverlay = lazy(() => import("./SigilAltarOverlay"));
+const BibliotecaOverlay = lazy(() => import("./BibliotecaOverlay"));
+const LaboratoryOverlay = lazy(() => import("./LaboratoryOverlay"));
 
 function sectionCardStyle(accent = "var(--tone-accent, #4338ca)") {
   return {
@@ -102,38 +105,6 @@ function chipStyle(accent = "var(--tone-accent, #4338ca)") {
   };
 }
 
-function nextStepToneStyle(tone = "accent") {
-  if (tone === "success") {
-    return {
-      accent: "var(--tone-success, #10b981)",
-      surface: "var(--tone-success-soft, #ecfdf5)",
-    };
-  }
-  if (tone === "warning") {
-    return {
-      accent: "var(--tone-warning, #f59e0b)",
-      surface: "var(--tone-warning-soft, #fff7ed)",
-    };
-  }
-  if (tone === "danger") {
-    return {
-      accent: "var(--tone-danger, #D85A30)",
-      surface: "var(--tone-danger-soft, #fff1f2)",
-    };
-  }
-  return {
-    accent: "var(--tone-accent, #4338ca)",
-    surface: "var(--tone-accent-soft, #eef2ff)",
-  };
-}
-
-function formatPhaseLabel(phase = "sanctuary") {
-  if (phase === "active") return "Expedicion activa";
-  if (phase === "setup") return "Preparando expedicion";
-  if (phase === "extraction") return "Extraccion abierta";
-  return "En Santuario";
-}
-
 function formatRemaining(ms = 0) {
   const remainingMs = Math.max(0, Number(ms || 0));
   const totalSeconds = Math.ceil(remainingMs / 1000);
@@ -143,6 +114,16 @@ function formatRemaining(ms = 0) {
   if (hours > 0) return `${hours}h ${minutes}m`;
   if (minutes > 0) return `${minutes}m ${seconds}s`;
   return `${seconds}s`;
+}
+
+function OverlayLoadingFallback({ label, isMobile = false }) {
+  return (
+    <OverlayShell isMobile={isMobile}>
+      <div style={{ width: "100%", maxWidth: "420px", borderRadius: isMobile ? "16px 16px 0 0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #ffffff)", color: "var(--color-text-secondary, #64748b)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", padding: isMobile ? "18px 16px 20px" : "20px 22px", textAlign: "center", fontSize: "0.78rem", fontWeight: "900" }}>
+        Cargando {label}...
+      </div>
+    </OverlayShell>
+  );
 }
 
 function resourceLabel(resourceKey = "") {
@@ -209,10 +190,14 @@ export default function Sanctuary({ state, dispatch }) {
   const [showSigilAltar, setShowSigilAltar] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [showLaboratory, setShowLaboratory] = useState(false);
-  const [showDetailedInfrastructure, setShowDetailedInfrastructure] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
   const isMobileViewport = viewportWidth < 768;
   const isNarrowViewport = viewportWidth < 420;
+  const rawOnboardingStep = state?.onboarding?.step || null;
+  const onboardingStep = getEffectiveOnboardingStep(rawOnboardingStep, {
+    ...state,
+    __liveNow: now,
+  });
 
   function closeAllOverlays() {
     setShowDistillery(false);
@@ -238,34 +223,22 @@ export default function Sanctuary({ state, dispatch }) {
     const handler = event => {
       if (event?.detail?.tab === "sanctuary") {
         closeAllOverlays();
+        if (rawOnboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY) {
+          dispatch({ type: "CLOSE_LABORATORY" });
+        }
       }
     };
     window.addEventListener("primary-tab-reselected", handler);
     return () => window.removeEventListener("primary-tab-reselected", handler);
-  }, []);
-
-  useEffect(() => {
-    if (
-      [
-        "research_distillery",
-        "deep_forge_ready",
-        "library_ready",
-        "errands_ready",
-        "sigil_altar_ready",
-        "abyss_portal_ready",
-      ].includes(state?.onboarding?.step) &&
-      !showLaboratory
-    ) {
-      setShowLaboratory(true);
-    }
-  }, [showLaboratory, state?.onboarding?.step]);
+  }, [dispatch, rawOnboardingStep]);
 
   useEffect(() => {
     const selectorByStep = {
-      [ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN]: '[data-onboarding-target="open-laboratory"]',
-      [ONBOARDING_STEPS.DISTILLERY_READY]: '[data-onboarding-target="open-distillery"]',
+      [ONBOARDING_STEPS.OPEN_LABORATORY]: '[data-onboarding-target="open-laboratory"]',
+      [ONBOARDING_STEPS.OPEN_DISTILLERY]: '[data-onboarding-target="open-distillery"]',
+      [ONBOARDING_STEPS.DISTILLERY_READY]: '[data-onboarding-target="open-laboratory"]',
     };
-    const selector = selectorByStep[state?.onboarding?.step];
+    const selector = selectorByStep[onboardingStep];
     if (!selector) return undefined;
 
     let frameId = null;
@@ -279,11 +252,13 @@ export default function Sanctuary({ state, dispatch }) {
     return () => {
       if (frameId != null) cancelAnimationFrame(frameId);
     };
-  }, [state?.onboarding?.step, showLaboratory]);
+  }, [onboardingStep, showLaboratory]);
 
   const expeditionPhase = state.expedition?.phase || "sanctuary";
-  const onboardingStep = state?.onboarding?.step || null;
-  const onboardingMode = getOnboardingStepInteractionMode(onboardingStep, state);
+  const onboardingMode = getOnboardingStepInteractionMode(onboardingStep, {
+    ...state,
+    __liveNow: now,
+  });
   const hasClass = Boolean(state.player?.class);
   const hasSpec = Boolean(state.player?.specialization);
   const sanctuary = state.sanctuary || {};
@@ -309,24 +284,31 @@ export default function Sanctuary({ state, dispatch }) {
   const deepForgeStation = getSanctuaryStationState(sanctuary, "deepForge");
   const laboratoryStation = getSanctuaryStationState(sanctuary, "laboratory");
   const laboratoryUnlocked = laboratoryStation.unlocked || isLaboratoryUnlocked(state);
-  const distilleryUnlocked = distilleryStation.unlocked && isDistilleryUnlocked(state);
+  const distilleryUnlocked = distilleryStation.unlocked || isDistilleryUnlocked(state);
   const blueprintDecisionUnlocked = isBlueprintDecisionUnlocked(state);
   const tutorialBlueprintItemId = getOnboardingTutorialExtractedItemId(state);
   const tutorialDeepForgeProjectId = getOnboardingTutorialDeepForgeProjectId(state);
-  const infrastructureVisible = Boolean(state?.onboarding?.completed || state?.onboarding?.flags?.firstExtractionCompleted);
+  const infrastructureVisible = Boolean(
+    state?.onboarding?.completed ||
+    state?.onboarding?.flags?.firstExtractionCompleted ||
+    onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN ||
+    onboardingStep === ONBOARDING_STEPS.RESEARCH_DISTILLERY
+  );
   const laboratoryCompleted = sanctuary?.laboratory?.completed || {};
   const abyssPortalUnlocked = Boolean(state?.abyss?.portalUnlocked);
   const tier25BossCleared = Boolean(state?.abyss?.tier25BossCleared);
   const showingSanctuaryIntro = !hasClass && onboardingStep === ONBOARDING_STEPS.EXPEDITION_INTRO;
   const choosingClass = !hasClass && onboardingStep === ONBOARDING_STEPS.CHOOSE_CLASS;
+  const classSelectionRequested = !hasClass && (choosingClass || expeditionPhase === "setup");
   const spotlightBlueprintIntro =
     onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO && onboardingMode === "forced";
-  const spotlightDistilleryReady =
-    onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY && onboardingMode === "forced";
   const sanctuaryOnboardingLocked = [
     ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
+    ONBOARDING_STEPS.OPEN_LABORATORY,
     ONBOARDING_STEPS.RESEARCH_DISTILLERY,
     ONBOARDING_STEPS.DISTILLERY_READY,
+    ONBOARDING_STEPS.RETURN_TO_SANCTUARY,
+    ONBOARDING_STEPS.OPEN_DISTILLERY,
     ONBOARDING_STEPS.FIRST_DISTILLERY_JOB,
     ONBOARDING_STEPS.BLUEPRINT_INTRO,
     ONBOARDING_STEPS.BLUEPRINT_DECISION,
@@ -338,27 +320,56 @@ export default function Sanctuary({ state, dispatch }) {
     ONBOARDING_STEPS.SIGIL_ALTAR_READY,
     ONBOARDING_STEPS.ABYSS_PORTAL_READY,
   ].includes(onboardingStep);
-  const forceDetailedInfrastructure = [
-    ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
-    ONBOARDING_STEPS.DISTILLERY_READY,
-    ONBOARDING_STEPS.FIRST_DISTILLERY_JOB,
-    ONBOARDING_STEPS.BLUEPRINT_INTRO,
-    ONBOARDING_STEPS.BLUEPRINT_DECISION,
-    ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE,
-  ].includes(onboardingStep);
+  useEffect(() => {
+    if (onboardingStep !== ONBOARDING_STEPS.FIRST_DISTILLERY_JOB || !distilleryUnlocked) return;
+    setShowLaboratory(false);
+    setShowErrands(false);
+    setShowDeepForge(false);
+    setShowSigilAltar(false);
+    setShowLibrary(false);
+    setShowDistillery(true);
+  }, [distilleryUnlocked, onboardingStep]);
 
   useEffect(() => {
-    if (forceDetailedInfrastructure) {
-      setShowDetailedInfrastructure(true);
-    }
-  }, [forceDetailedInfrastructure]);
+    if (onboardingStep !== ONBOARDING_STEPS.FIRST_ECHOES) return;
+    setShowDistillery(false);
+    setShowLaboratory(false);
+  }, [onboardingStep]);
 
   function scrollToClassSelection() {
     const element = document.getElementById("onboarding-class-selector");
     if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "start" });
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }
+
+  useEffect(() => {
+    if (!classSelectionRequested) return undefined;
+
+    let frameId = null;
+    let timeoutId = null;
+    let attempts = 0;
+
+    const revealClassSelector = () => {
+      const element = document.getElementById("onboarding-class-selector");
+      if (!element) {
+        attempts += 1;
+        if (attempts < 8) {
+          timeoutId = window.setTimeout(() => {
+            frameId = window.requestAnimationFrame(revealClassSelector);
+          }, 60);
+        }
+        return;
+      }
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+
+    frameId = window.requestAnimationFrame(revealClassSelector);
+    return () => {
+      if (frameId != null) window.cancelAnimationFrame(frameId);
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+    };
+  }, [classSelectionRequested]);
 
   function openLaboratoryFromSanctuary(source = "generic") {
     if (!laboratoryUnlocked) return;
@@ -369,7 +380,9 @@ export default function Sanctuary({ state, dispatch }) {
       return;
     }
     setShowLaboratory(true);
-    if (onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN) {
+    if (onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY) {
+      dispatch({ type: "OPEN_LABORATORY" });
+    } else if (onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN) {
       dispatch({ type: "ACK_ONBOARDING_STEP" });
     }
   }
@@ -382,6 +395,11 @@ export default function Sanctuary({ state, dispatch }) {
 
   function handleTutorialStationOpen(stepId, action) {
     action();
+    if (onboardingStep !== stepId) return;
+    if (stepId === ONBOARDING_STEPS.OPEN_DISTILLERY) {
+      dispatch({ type: "OPEN_DISTILLERY" });
+      return;
+    }
     acknowledgeTutorialStep(stepId);
   }
 
@@ -407,13 +425,17 @@ export default function Sanctuary({ state, dispatch }) {
     job =>
       job?.station === "laboratory" &&
       job?.input?.researchId === "unlock_distillery" &&
-      job?.status === "running"
+      job?.status === "running" &&
+      Number(job?.endsAt || 0) > now
   );
   const hasClaimableDistilleryResearch = jobs.some(
     job =>
       job?.station === "laboratory" &&
       job?.input?.researchId === "unlock_distillery" &&
-      job?.status === "claimable"
+      (
+        job?.status === "claimable" ||
+        (job?.status === "running" && Number(job?.endsAt || 0) <= now)
+      )
   );
 
   function scrollToTarget(selector) {
@@ -427,6 +449,9 @@ export default function Sanctuary({ state, dispatch }) {
   function guideSanctuaryOnboardingStep(stepId = onboardingStep) {
     switch (stepId) {
       case ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN:
+        dispatch({ type: "ACK_ONBOARDING_STEP" });
+        return;
+      case ONBOARDING_STEPS.OPEN_LABORATORY:
         scrollToTarget('[data-onboarding-target="open-laboratory"]');
         return;
       case ONBOARDING_STEPS.RESEARCH_DISTILLERY:
@@ -437,7 +462,15 @@ export default function Sanctuary({ state, dispatch }) {
           openLaboratoryFromSanctuary("header-cta");
           return;
         }
-        setShowDistillery(true);
+        dispatch({ type: "ACK_ONBOARDING_STEP" });
+        return;
+      case ONBOARDING_STEPS.OPEN_DISTILLERY:
+        if (distilleryUnlocked) {
+          setShowDistillery(true);
+          dispatch({ type: "OPEN_DISTILLERY" });
+          return;
+        }
+        openLaboratoryFromSanctuary("header-cta");
         return;
       case ONBOARDING_STEPS.FIRST_DISTILLERY_JOB:
         if (distilleryUnlocked) {
@@ -479,10 +512,18 @@ export default function Sanctuary({ state, dispatch }) {
     }
     if (onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN) {
       return {
-        label: "Ir al Laboratorio",
+        label: "Seguir",
         primary: true,
-        action: () => guideSanctuaryOnboardingStep(ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN),
-        helper: "La expedicion termino. Antes de volver a salir, abre el Laboratorio desde el boton real resaltado y desbloquea la primera estacion persistente.",
+        action: () => dispatch({ type: "ACK_ONBOARDING_STEP" }),
+        helper: "Primero ves rapido que el Santuario ahora existe como capa persistente. En el siguiente paso te hago abrir el Laboratorio real.",
+      };
+    }
+    if (onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY) {
+      return {
+        label: "Abrir Laboratorio",
+        primary: true,
+        action: () => guideSanctuaryOnboardingStep(ONBOARDING_STEPS.OPEN_LABORATORY),
+        helper: "El Laboratorio es la puerta de entrada a la infraestructura. Toca el boton real resaltado y entrá.",
       };
     }
     if (onboardingStep === ONBOARDING_STEPS.RESEARCH_DISTILLERY) {
@@ -497,12 +538,28 @@ export default function Sanctuary({ state, dispatch }) {
       return {
         label: hasClaimableDistilleryResearch || hasRunningDistilleryResearch || !distilleryUnlocked
           ? "Abrir Laboratorio"
-          : "Abrir Destileria",
+          : "Seguir",
         primary: true,
         action: () => guideSanctuaryOnboardingStep(ONBOARDING_STEPS.DISTILLERY_READY),
         helper: hasClaimableDistilleryResearch || hasRunningDistilleryResearch || !distilleryUnlocked
           ? "La expedicion sigue bloqueada por el tutorial hasta terminar de abrir la Destileria desde el Laboratorio."
-          : "La Destileria ya esta lista. Abrela y aprende a procesar tu primer cargo antes de volver a salir.",
+          : "La investigacion ya esta cerrada. Sigue y en el proximo beat te hago abrir la Destileria real.",
+      };
+    }
+    if (onboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY) {
+      return {
+        label: "Volver al Santuario",
+        primary: true,
+        action: () => setShowLaboratory(false),
+        helper: "Cierra el Laboratorio desde su boton real. El siguiente paso ya ocurre en el hub del Santuario.",
+      };
+    }
+    if (onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY) {
+      return {
+        label: "Abrir Destileria",
+        primary: true,
+        action: () => guideSanctuaryOnboardingStep(ONBOARDING_STEPS.OPEN_DISTILLERY),
+        helper: "La estacion ya esta lista. Toca el boton real resaltado para abrirla.",
       };
     }
     if (onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB) {
@@ -522,6 +579,14 @@ export default function Sanctuary({ state, dispatch }) {
       };
     }
     if (!hasClass) {
+      if (!classSelectionRequested) {
+        return {
+          label: "Iniciar expedicion",
+          primary: true,
+          action: () => dispatch({ type: "ENTER_EXPEDITION_SETUP" }),
+          helper: "Primero abre la salida. Cuando empieces a preparar la expedicion, ahi recien eliges la clase de esta run.",
+        };
+      }
       return {
         label: "Elegir clase",
         primary: true,
@@ -572,133 +637,151 @@ export default function Sanctuary({ state, dispatch }) {
     sanctuaryOnboardingLocked,
     showingSanctuaryIntro,
     state.combat?.pendingRunSetup,
+    classSelectionRequested,
   ]);
 
   const expeditionLabel = hasClass
     ? `${state.player.class}${hasSpec ? ` · ${state.player.specialization}` : ""}`
     : "Sin heroe asignado";
 
-  if (!hasClass) {
-    return (
-      <div style={{ padding: "12px", display: "grid", gap: "12px" }}>
-        <section style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
-          <div style={{ display: "grid", gap: "6px" }}>
-            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
-              Santuario
-            </div>
-            <div style={{ fontSize: "1rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-              {showingSanctuaryIntro
-                ? "Inicia tu primera expedicion desde aqui"
-                : "Elige una clase para abrir tu primera expedicion"}
-            </div>
-            <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
-              {showingSanctuaryIntro
-                ? "El Santuario es tu base. Primero aprendes a salir desde aqui; recien despues eliges una clase y entras al combate."
-                : "Ahora ya sabes el flujo general. El siguiente paso es elegir Warrior o Mage para que la primera run tenga una identidad base."}
-            </div>
-            {showingSanctuaryIntro && (
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "6px" }}>
-                <button
-                  onClick={expeditionCta.action}
-                  data-onboarding-target={showingSanctuaryIntro ? "start-expedition" : undefined}
-                  style={{
-                    ...actionButtonStyle({ primary: true }),
-                    boxShadow: "0 0 0 2px rgba(83,74,183,0.16), 0 12px 28px rgba(83,74,183,0.14)",
-                    animation: "sanctuarySpotlightPulse 1600ms ease-in-out infinite",
-                  }}
-                >
-                  {expeditionCta.label}
-                </button>
-              </div>
-            )}
+  const noClassContent = (
+    <div style={{ padding: "12px", display: "grid", gap: "12px" }}>
+      <section style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
+        <div style={{ display: "grid", gap: "6px" }}>
+          <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+            Santuario
           </div>
-        </section>
+          <div style={{ fontSize: "1rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+            {showingSanctuaryIntro
+              ? "Inicia tu primera expedicion desde aqui"
+              : classSelectionRequested
+                ? "Elige una clase para esta expedicion"
+                : "La clase se define al iniciar expedicion"}
+          </div>
+          <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+            {showingSanctuaryIntro
+              ? "El Santuario es tu base. Primero aprendes a salir desde aqui; recien despues eliges una clase y entras al combate."
+              : classSelectionRequested
+                ? "La salida ya esta en preparacion. Elige Warrior o Mage para darle identidad a esta run antes de seguir."
+                : "La clase ya no se elige de antemano. Primero inicia la expedicion y recien ahi decides con que arquetipo sales."}
+          </div>
+          {(showingSanctuaryIntro || !classSelectionRequested) && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "6px" }}>
+              <button
+                onClick={expeditionCta.action}
+                data-onboarding-target={showingSanctuaryIntro ? "start-expedition" : undefined}
+                style={{
+                  ...actionButtonStyle({ primary: true }),
+                  boxShadow: "0 0 0 2px rgba(83,74,183,0.16), 0 12px 28px rgba(83,74,183,0.14)",
+                  animation: "sanctuarySpotlightPulse 1600ms ease-in-out infinite",
+                }}
+              >
+                {expeditionCta.label}
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
 
-        {showingSanctuaryIntro ? (
+      {showingSanctuaryIntro || !classSelectionRequested ? (
+        <div style={{ padding: "12px", display: "grid", gap: "12px" }}>
           <section style={sectionCardStyle("var(--tone-info, #0369a1)")}>
             <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
-              Primera run
+              {showingSanctuaryIntro ? "Primera run" : "Preparar salida"}
             </div>
             <div style={{ display: "grid", gap: "8px" }}>
               <div style={{ fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-                Primero sal desde el Santuario.
+                {showingSanctuaryIntro ? "Primero sal desde el Santuario." : "La clase se elige al preparar la expedicion."}
               </div>
               <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
-                Toca <strong>Iniciar expedicion</strong>. En el siguiente paso elegirás una clase para esa salida y, recien ahi, entrarás al combate para arrancar la run.
+                {showingSanctuaryIntro
+                  ? <>Toca <strong>Iniciar expedicion</strong>. En el siguiente paso elegirás una clase para esa salida y, recien ahi, entrarás al combate para arrancar la run.</>
+                  : <>Toca <strong>Iniciar expedicion</strong>. Cuando se abra la preparacion de la salida, ahi recien vas a elegir la clase de esta run.</>}
               </div>
               <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)" }}>
                 Usa el boton real resaltado arriba, no este panel.
               </div>
             </div>
           </section>
-        ) : (
-          <section
-            id="onboarding-class-selector"
+        </div>
+      ) : (
+        <section
+          id="onboarding-class-selector"
+          style={{
+            ...sectionCardStyle("var(--tone-info, #0369a1)"),
+            boxShadow:
+              choosingClass
+                ? "0 0 0 2px rgba(3,105,161,0.14), 0 12px 30px rgba(3,105,161,0.16)"
+                : "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
+            animation: choosingClass ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite" : "none",
+          }}
+        >
+          <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
+            {choosingClass ? "Paso obligatorio" : "Elegir clase"}
+          </div>
+          {choosingClass && (
+            <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+              Elige una clase para esta primera salida. En cuanto la selecciones entraras al combate y la expedicion arrancara.
+            </div>
+          )}
+          <div
             style={{
-              ...sectionCardStyle("var(--tone-info, #0369a1)"),
-              boxShadow:
-                choosingClass
-                  ? "0 0 0 2px rgba(3,105,161,0.14), 0 12px 30px rgba(3,105,161,0.16)"
-                  : "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
-              animation: choosingClass ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite" : "none",
+              display: "grid",
+              gridTemplateColumns: choosingClass
+                ? "repeat(2, minmax(0, 1fr))"
+                : isMobileViewport
+                  ? "1fr"
+                  : "repeat(2, minmax(0, 1fr))",
+              gap: isNarrowViewport ? "8px" : "10px",
             }}
           >
-            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
-              {choosingClass ? "Paso obligatorio" : "Elegir clase"}
-            </div>
-            {choosingClass && (
-              <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
-                Elige una clase para esta primera salida. En cuanto la selecciones entraras al combate y la expedicion arrancara.
-              </div>
-            )}
-            <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
-              {CLASSES.map(clase => (
-                <button
-                  key={clase.id}
-                  onClick={() => dispatch({ type: "SELECT_CLASS", classId: clase.id })}
-                  data-onboarding-target={choosingClass ? "choose-class" : undefined}
-                  style={{
-                    border: "1px solid var(--color-border-primary, #e2e8f0)",
-                    background: "var(--color-background-secondary, #ffffff)",
-                    borderRadius: "14px",
-                    padding: "14px",
-                    display: "grid",
-                    gap: "8px",
-                    textAlign: "left",
-                    cursor: "pointer",
-                    position: "relative",
-                    zIndex: choosingClass ? 2 : 1,
-                    boxShadow: choosingClass
-                      ? "0 0 0 2px rgba(3,105,161,0.18), 0 14px 34px rgba(3,105,161,0.18)"
-                      : "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
-                    animation: choosingClass ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite" : "none",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <div style={{ fontSize: "1.4rem", lineHeight: 1 }}>{clase.icon || "?"}</div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: "0.92rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{clase.name}</div>
-                      <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                        {clase.playstyle || "Clase"}
-                      </div>
+            {CLASSES.map(clase => (
+              <button
+                key={clase.id}
+                onClick={() => dispatch({ type: "SELECT_CLASS", classId: clase.id })}
+                data-onboarding-target={choosingClass ? "choose-class" : undefined}
+                style={{
+                  border: "1px solid var(--color-border-primary, #e2e8f0)",
+                  background: "var(--color-background-secondary, #ffffff)",
+                  borderRadius: "14px",
+                  padding: choosingClass && isNarrowViewport ? "10px" : "14px",
+                  display: "grid",
+                  gap: choosingClass && isNarrowViewport ? "6px" : "8px",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  position: "relative",
+                  zIndex: choosingClass ? 2 : 1,
+                  boxShadow: choosingClass
+                    ? "0 0 0 2px rgba(3,105,161,0.22), 0 0 0 8px rgba(3,105,161,0.08), 0 16px 36px rgba(3,105,161,0.22)"
+                    : "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
+                  animation: choosingClass ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite" : "none",
+                  transform: choosingClass ? "translateY(-1px)" : "none",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div style={{ fontSize: choosingClass && isNarrowViewport ? "1.1rem" : "1.4rem", lineHeight: 1 }}>{clase.icon || "?"}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: choosingClass && isNarrowViewport ? "0.8rem" : "0.92rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{clase.name}</div>
+                    <div style={{ fontSize: choosingClass && isNarrowViewport ? "0.56rem" : "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      {clase.playstyle || "Clase"}
                     </div>
                   </div>
-                  <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
-                    {clase.description}
-                  </div>
-                  <div style={{ fontSize: "0.66rem", color: "var(--tone-accent, #4338ca)", fontWeight: "900" }}>
-                    {clase.id === "warrior"
-                      ? "Impacto frontal, aguante y curva mas estable."
-                      : "Caster mas fragil al inicio, pero con mas precision y control."}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-      </div>
-    );
-  }
+                </div>
+                <div style={{ fontSize: choosingClass && isNarrowViewport ? "0.64rem" : "0.72rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4 }}>
+                  {clase.description}
+                </div>
+                <div style={{ fontSize: choosingClass && isNarrowViewport ? "0.6rem" : "0.66rem", color: "var(--tone-accent, #4338ca)", fontWeight: "900" }}>
+                  {clase.id === "warrior"
+                    ? "Impacto frontal, aguante y curva mas estable."
+                    : "Caster mas fragil al inicio, pero con mas precision y control."}
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
 
   const totalCargoQuantity = useMemo(
     () => cargoInventory.reduce((total, bundle) => total + Math.max(0, Number(bundle?.quantity || 0)), 0),
@@ -743,8 +826,28 @@ export default function Sanctuary({ state, dispatch }) {
           : "La estacion ya esta viva. Abrela y prepara la primera destilacion antes de volver a salir.",
         cta: hasClaimableDistilleryResearch || hasRunningDistilleryResearch || !distilleryUnlocked
           ? "Abrir Laboratorio"
-          : "Abrir Destileria",
+          : "Seguir",
         action: () => guideSanctuaryOnboardingStep(ONBOARDING_STEPS.DISTILLERY_READY),
+      };
+    }
+    if (onboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY) {
+      return {
+        tone: "accent",
+        eyebrow: "Cierre de overlay",
+        title: "Vuelve al Santuario",
+        body: "Ya reclamaste la investigacion. Cierra el Laboratorio desde su boton real y despues abrimos la Destileria desde el hub.",
+        cta: "Cerrar Laboratorio",
+        action: () => setShowLaboratory(false),
+      };
+    }
+    if (onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY) {
+      return {
+        tone: "accent",
+        eyebrow: "Estacion nueva",
+        title: "Abre la Destileria",
+        body: "La estacion ya existe. Abrela para ver el primer bundle tutorial y cerrar este tramo del Santuario.",
+        cta: "Abrir Destileria",
+        action: () => guideSanctuaryOnboardingStep(ONBOARDING_STEPS.OPEN_DISTILLERY),
       };
     }
     if (onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB) {
@@ -957,7 +1060,6 @@ export default function Sanctuary({ state, dispatch }) {
     hasRunningDistilleryResearch,
     sanctuaryOnboardingLocked,
   ]);
-  const nextStepTone = nextStepToneStyle(nextStep.tone);
   const readyNowRows = useMemo(() => {
     const rows = claimableJobs.slice(0, 3).map(job => ({
       id: `claim-${job.id}`,
@@ -992,6 +1094,62 @@ export default function Sanctuary({ state, dispatch }) {
       chip: "Libre",
     }];
   }, [now, runningJobs]);
+  const blockedResourceRows = useMemo(() => {
+    const rows = [];
+    if (distilleryUnlocked && totalCargoQuantity <= 0) {
+      rows.push({
+        id: "distillery-empty",
+        title: "Destileria",
+        detail: "Sin bundles para procesar.",
+        chip: "Sin cargo",
+      });
+    }
+    if (libraryStation.unlocked && Math.max(0, Number(resources?.codexInk || 0)) <= 0) {
+      rows.push({
+        id: "library-no-ink",
+        title: "Biblioteca",
+        detail: "No hay tinta para activar otro hito.",
+        chip: "Sin tinta",
+      });
+    }
+    if (infusionStation.unlocked && Math.max(0, Number(resources?.sigilFlux || 0)) <= 0) {
+      rows.push({
+        id: "sigil-no-flux",
+        title: "Altar de Sigilos",
+        detail: "Falta flux para otra infusion.",
+        chip: "Sin flux",
+      });
+    }
+    if (blueprintDecisionUnlocked && deepForgeStation.unlocked && blueprintCount <= 0 && extractedItems.length <= 0) {
+      rows.push({
+        id: "forge-no-input",
+        title: "Taller",
+        detail: "Sin blueprints ni piezas rescatadas para trabajar.",
+        chip: "Sin base",
+      });
+    }
+    if (rows.length > 0) return rows.slice(0, 3);
+    return [{
+      id: "no-blockers",
+      title: "Sin bloqueos fuertes",
+      detail: "El cuello de botella visible ahora no es un recurso del Santuario.",
+      chip: "OK",
+    }];
+  }, [
+    blueprintCount,
+    blueprintDecisionUnlocked,
+    deepForgeStation.unlocked,
+    distilleryUnlocked,
+    extractedItems.length,
+    infusionStation.unlocked,
+    libraryStation.unlocked,
+    resources?.codexInk,
+    resources?.sigilFlux,
+    totalCargoQuantity,
+  ]);
+  const primaryBlockedRow = blockedResourceRows[0]?.id === "no-blockers"
+    ? null
+    : blockedResourceRows[0] || null;
 
   const totalStoredSigilCharges = useMemo(
     () => Object.values(sigilInfusions).reduce((total, entry) => total + Math.max(0, Number(entry?.charges || 0)), 0),
@@ -1027,7 +1185,7 @@ export default function Sanctuary({ state, dispatch }) {
       id: "laboratory",
       title: "Laboratorio",
       status: laboratoryUnlocked ? `${laboratoryRunningCount} activo(s)` : "Bloqueado",
-      detail: laboratoryClaimableCount > 0 ? `${laboratoryClaimableCount} claim(s)` : "Infraestructura y unlocks",
+      detail: `${laboratoryClaimableCount} disponible(s).`,
       tone: "var(--tone-accent, #4338ca)",
       actionLabel: laboratoryUnlocked ? "Abrir" : "Cerrado",
       action: laboratoryUnlocked ? () => openLaboratoryFromSanctuary("overview-laboratory") : null,
@@ -1036,7 +1194,7 @@ export default function Sanctuary({ state, dispatch }) {
       id: "distillery",
       title: "Destileria",
       status: distilleryUnlocked ? `${runningByStation.distillery || 0}/${distillerySlots}` : "Bloqueada",
-      detail: `${totalCargoQuantity} bundle(s)`,
+      detail: `${totalCargoQuantity} bundle(s).`,
       tone: "var(--tone-violet, #7c3aed)",
       actionLabel: distilleryUnlocked ? "Abrir" : "Laboratorio",
       action: () => (distilleryUnlocked ? setShowDistillery(true) : openLaboratoryFromSanctuary("overview-distillery")),
@@ -1045,7 +1203,7 @@ export default function Sanctuary({ state, dispatch }) {
       id: "library",
       title: "Biblioteca",
       status: libraryStation.unlocked ? `${runningLibraryJobs.length}/${librarySlots}` : "Bloqueada",
-      detail: libraryStation.unlocked ? `${claimableLibraryJobs.length} claim(s)` : "Hitos e investigacion",
+      detail: `${claimableLibraryJobs.length} disponible(s).`,
       tone: "var(--tone-accent, #4338ca)",
       actionLabel: libraryStation.unlocked ? "Abrir" : "Laboratorio",
       action: () => (libraryStation.unlocked ? setShowLibrary(true) : openLaboratoryFromSanctuary("overview-library")),
@@ -1054,7 +1212,7 @@ export default function Sanctuary({ state, dispatch }) {
       id: "errands",
       title: "Encargos",
       status: errandStation.unlocked ? `${runningErrandJobs.length}/${errandSlots}` : "Bloqueados",
-      detail: errandStation.unlocked ? `${claimableErrandJobs.length} recompensa(s)` : "Equipos paralelos",
+      detail: `${Math.max(0, errandSlots - runningErrandJobs.length)} equipo(s) libre(s).`,
       tone: "var(--tone-info, #0369a1)",
       actionLabel: errandStation.unlocked ? "Abrir" : "Laboratorio",
       action: () => (errandStation.unlocked ? setShowErrands(true) : openLaboratoryFromSanctuary("overview-errands")),
@@ -1063,9 +1221,7 @@ export default function Sanctuary({ state, dispatch }) {
       id: "sigils",
       title: "Altar de Sigilos",
       status: infusionStation.unlocked ? `${runningByStation.sigilInfusion || 0}/${infusionSlots}` : "Bloqueado",
-      detail: infusionStation.unlocked
-        ? `${Object.values(sigilInfusions).reduce((total, entry) => total + Math.max(0, Number(entry?.charges || 0)), 0)} carga(s)`
-        : "Preparacion de run",
+      detail: `${Object.values(sigilInfusions).reduce((total, entry) => total + Math.max(0, Number(entry?.charges || 0)), 0)} disponible(s).`,
       tone: "var(--tone-success, #10b981)",
       actionLabel: infusionStation.unlocked ? "Abrir" : "Laboratorio",
       action: () => (infusionStation.unlocked ? setShowSigilAltar(true) : openLaboratoryFromSanctuary("overview-sigil")),
@@ -1075,7 +1231,7 @@ export default function Sanctuary({ state, dispatch }) {
           id: "deepforge",
           title: "Taller",
           status: deepForgeStation.unlocked ? `${runningByStation.deepForge || 0}/${deepForgeSlots}` : "Bloqueada",
-          detail: `${blueprintCount} blueprint(s)`,
+          detail: `${blueprintCount} plano(s).`,
           tone: "var(--tone-danger, #D85A30)",
           actionLabel: deepForgeStation.unlocked ? "Abrir" : "Laboratorio",
           action: () => (deepForgeStation.unlocked ? setShowDeepForge(true) : openLaboratoryFromSanctuary("overview-forge")),
@@ -1107,57 +1263,17 @@ export default function Sanctuary({ state, dispatch }) {
     sigilInfusions,
     totalCargoQuantity,
   ]);
-  const summaryMetrics = useMemo(() => ([
-    {
-      id: "hero",
-      label: "Heroe de guardia",
-      value: expeditionLabel,
-    },
-    {
-      id: "workshop",
-      label: "Taller",
-      value: `${stashCount}/${Number(sanctuary?.extractionUpgrades?.extractedItemSlots || 3)} items`,
-    },
-    {
-      id: "blueprints",
-      label: "Blueprints",
-      value: `${blueprintCount} activos`,
-    },
-    {
-      id: "cargo",
-      label: "Cargo",
-      value: `${cargoInventory.length} bundles`,
-    },
-    {
-      id: "claims",
-      label: "Claims",
-      value: `${claimableJobs.length} listos`,
-    },
-  ]), [
-    blueprintCount,
-    cargoInventory.length,
-    claimableJobs.length,
-    expeditionLabel,
-    sanctuary?.extractionUpgrades?.extractedItemSlots,
-    stashCount,
-  ]);
   const resourceSummaryRows = useMemo(
     () => Object.entries(resources)
       .filter(([, value]) => Math.floor(Number(value || 0)) > 0)
       .sort((left, right) => Number(right[1] || 0) - Number(left[1] || 0)),
     [resources]
   );
-  const shouldShowClaimsSection = claimableJobs.length > (isMobileViewport ? 3 : 0);
   const topCardPadding = isMobileViewport ? "12px" : "16px";
   const compactMetricCard = {
     ...metricCardStyle(),
     padding: isMobileViewport ? "8px 10px" : "10px 12px",
     gap: isMobileViewport ? "2px" : "4px",
-  };
-  const topSummaryGridStyle = {
-    display: "grid",
-    gridTemplateColumns: isNarrowViewport ? "1fr" : isMobileViewport ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fit, minmax(150px, 1fr))",
-    gap: isMobileViewport ? "8px" : "10px",
   };
   const stationOverviewGridStyle = {
     display: "grid",
@@ -1166,20 +1282,14 @@ export default function Sanctuary({ state, dispatch }) {
   };
   const bandSectionStyle = {
     display: "grid",
-    gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))",
+    gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(3, minmax(0, 1fr))",
     gap: "0.9rem",
   };
-  const detailedInfrastructureGridStyle = {
-    display: "grid",
-    gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(auto-fit, minmax(300px, 1fr))",
-    gap: "1rem",
-  };
   const mobileFullWidthButtonStyle = isMobileViewport ? { width: "100%", justifyContent: "center" } : null;
-  const compactStatsGridStyle = {
-    display: "grid",
-    gridTemplateColumns: isNarrowViewport ? "1fr" : "repeat(auto-fit, minmax(120px, 1fr))",
-    gap: "8px",
-  };
+
+  if (!hasClass && (!infrastructureVisible || classSelectionRequested)) {
+    return noClassContent;
+  }
 
   return (
     <div style={{ padding: isMobileViewport ? "0.7rem" : "0.9rem", display: "grid", gap: "0.9rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
@@ -1197,45 +1307,33 @@ export default function Sanctuary({ state, dispatch }) {
               Santuario
             </div>
             <div style={{ fontSize: "1.08rem", fontWeight: "900", marginTop: "4px" }}>
-              Hub persistente
+              Santuario operativo
             </div>
             <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.4 }}>
-              Reclama, prepara la proxima salida y deja valor cocinandose.
+              Recursos persistentes listos para sostener la siguiente salida.
             </div>
           </div>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", width: isMobileViewport ? "100%" : "auto", justifyContent: isMobileViewport ? "space-between" : "flex-end" }}>
-            <div style={{ padding: "8px 10px", borderRadius: "999px", border: "1px solid rgba(99,102,241,0.18)", background: "var(--tone-accent-soft, #eef2ff)", color: "var(--tone-accent, #4338ca)", fontSize: "0.68rem", fontWeight: "900", whiteSpace: "nowrap" }}>
-              {formatPhaseLabel(expeditionPhase)}
-            </div>
-            <button
-              onClick={expeditionCta.action}
-              style={{
-                ...actionButtonStyle({ primary: expeditionCta.primary }),
-                ...(isMobileViewport ? { flex: "1 1 180px" } : null),
-                boxShadow: showingSanctuaryIntro
-                  ? "0 0 0 2px rgba(83,74,183,0.16), 0 12px 28px rgba(83,74,183,0.14)"
-                  : undefined,
-                animation: showingSanctuaryIntro ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite" : "none",
-              }}
-            >
-              {expeditionCta.label}
-            </button>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", width: isMobileViewport ? "100%" : "auto", justifyContent: isMobileViewport ? "flex-end" : "flex-end" }}>
+            {!sanctuaryOnboardingLocked && (
+              <button
+                onClick={expeditionCta.action}
+                style={{
+                  ...actionButtonStyle({ primary: expeditionCta.primary }),
+                  ...(isMobileViewport ? { flex: "1 1 180px" } : null),
+                  boxShadow: showingSanctuaryIntro
+                    ? "0 0 0 2px rgba(83,74,183,0.16), 0 12px 28px rgba(83,74,183,0.14)"
+                    : undefined,
+                  animation: showingSanctuaryIntro ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite" : "none",
+                }}
+              >
+                {expeditionCta.label}
+              </button>
+            )}
           </div>
-        </div>
-
-        <div style={topSummaryGridStyle}>
-          {summaryMetrics.map(metric => (
-            <div key={metric.id} style={compactMetricCard}>
-              <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                {metric.label}
-              </div>
-              <div style={{ fontSize: isMobileViewport ? "0.82rem" : "0.9rem", fontWeight: "900" }}>{metric.value}</div>
-            </div>
-          ))}
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {resourceSummaryRows.length > 0 ? resourceSummaryRows.map(([key, value]) => (
+          {resourceSummaryRows.length > 0 ? resourceSummaryRows.slice(0, 3).map(([key, value]) => (
             <div
               key={key}
               style={{
@@ -1258,14 +1356,9 @@ export default function Sanctuary({ state, dispatch }) {
             </div>
           )) : (
             <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
-              Todavia no hay recursos persistentes acumulados.
+              Todavia no acumulaste recursos persistentes.
             </div>
           )}
-        </div>
-
-        <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
-          <span style={{ fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{expeditionLabel}.</span>{" "}
-            {expeditionCta.helper}
         </div>
       </section>
 
@@ -1276,9 +1369,7 @@ export default function Sanctuary({ state, dispatch }) {
               <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
                 Listo ahora
               </div>
-              <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-                Lo primero que conviene tocar
-              </div>
+              <div style={{ fontSize: "0.88rem", fontWeight: "900", marginTop: "4px" }}>Claims y acciones inmediatas</div>
             </div>
             <div style={chipStyle("var(--tone-warning, #f59e0b)")}>
               {claimableJobs.length > 0 ? `${claimableJobs.length} claims` : "Sin claims"}
@@ -1311,11 +1402,9 @@ export default function Sanctuary({ state, dispatch }) {
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div>
               <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
-                Operacion en curso
+                Corriendo
               </div>
-              <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-                Lo que el Santuario esta cocinando
-              </div>
+              <div style={{ fontSize: "0.88rem", fontWeight: "900", marginTop: "4px" }}>Trabajos activos</div>
             </div>
             <div style={chipStyle("var(--tone-info, #0369a1)")}>
               {runningJobs.length} activos
@@ -1340,37 +1429,9 @@ export default function Sanctuary({ state, dispatch }) {
         </div>
       </section>
 
-      <section style={{ ...sectionCardStyle(nextStepTone.accent), borderTop: `3px solid ${nextStepTone.accent}` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", flexWrap: "wrap" }}>
-          <div style={{ minWidth: 0, display: "grid", gap: "6px" }}>
-            <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: nextStepTone.accent }}>
-              {nextStep.eyebrow}
-            </div>
-            <div style={{ fontSize: "1rem", fontWeight: "900" }}>{nextStep.title}</div>
-            <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.5, maxWidth: "72ch" }}>
-              {nextStep.body}
-            </div>
-          </div>
-          <button
-            onClick={nextStep.action}
-            disabled={Boolean(nextStep.disabled)}
-            style={{
-              ...stationButtonStyle({
-                tone: nextStepTone.accent,
-                surface: nextStepTone.surface,
-                disabled: Boolean(nextStep.disabled),
-              }),
-              ...(isMobileViewport ? { width: "100%" } : null),
-            }}
-          >
-            {nextStep.cta}
-          </button>
-        </div>
-      </section>
-
       {infrastructureVisible && (
         <section style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+          <div>
             <div>
               <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
                 Estaciones
@@ -1379,13 +1440,6 @@ export default function Sanctuary({ state, dispatch }) {
                 Accesos operativos del Santuario
               </div>
             </div>
-            <button
-              onClick={() => setShowDetailedInfrastructure(current => !current)}
-              disabled={forceDetailedInfrastructure}
-              style={actionButtonStyle({ primary: showDetailedInfrastructure || forceDetailedInfrastructure, disabled: forceDetailedInfrastructure })}
-            >
-              {showDetailedInfrastructure || forceDetailedInfrastructure ? "Detalle desplegado" : "Ver detalle"}
-            </button>
           </div>
 
           <div style={stationOverviewGridStyle}>
@@ -1422,56 +1476,7 @@ export default function Sanctuary({ state, dispatch }) {
         </section>
       )}
 
-      {shouldShowClaimsSection && (
-      <section style={sectionCardStyle("var(--tone-warning, #f59e0b)")}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
-          <div>
-            <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
-              Claims
-            </div>
-            <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>Listos para reclamar</div>
-          </div>
-          <div style={chipStyle("var(--tone-warning, #f59e0b)")}>
-            {claimableJobs.length} disponibles
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(auto-fit, minmax(240px, 1fr))", gap: "10px" }}>
-          {claimableJobs.map(job => (
-            <div key={job.id} style={metricCardStyle()}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
-                <div>
-                  <div style={{ fontSize: "0.76rem", fontWeight: "900" }}>{jobTitle(job)}</div>
-                  <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
-                    {jobStationLabel(job.station)}
-                  </div>
-                </div>
-                <span style={chipStyle("var(--tone-success, #10b981)")}>Listo</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
-                  {jobSummary(job)}
-                </div>
-                <button
-                  onClick={() => dispatch({ type: "CLAIM_SANCTUARY_JOB", jobId: job.id, now })}
-                  data-onboarding-target={
-                    onboardingStep === ONBOARDING_STEPS.DISTILLERY_READY &&
-                    job?.input?.researchId === "unlock_distillery"
-                      ? "claim-distillery-research"
-                      : undefined
-                  }
-                  style={actionButtonStyle({ primary: true })}
-                >
-                  Reclamar
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-      )}
-
-      {infrastructureVisible && (showDetailedInfrastructure || forceDetailedInfrastructure) && (
+      {false && (
       <section style={detailedInfrastructureGridStyle}>
         <div style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
@@ -1591,15 +1596,21 @@ export default function Sanctuary({ state, dispatch }) {
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>Convierte bundles en recursos utiles.</div>
             <button
-              onClick={() => handleTutorialStationOpen(
-                onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
-                  ? ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
-                  : ONBOARDING_STEPS.DISTILLERY_READY,
-                () => (distilleryUnlocked ? setShowDistillery(true) : openLaboratoryFromSanctuary("distillery-card"))
-              )}
+              onClick={() => {
+                const openAction = () => (distilleryUnlocked ? setShowDistillery(true) : openLaboratoryFromSanctuary("distillery-card"));
+                if (onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY) {
+                  handleTutorialStationOpen(ONBOARDING_STEPS.OPEN_DISTILLERY, openAction);
+                  return;
+                }
+                if (onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB) {
+                  handleTutorialStationOpen(ONBOARDING_STEPS.FIRST_DISTILLERY_JOB, openAction);
+                  return;
+                }
+                openAction();
+              }}
               disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !distilleryUnlocked}
               data-onboarding-target={
-                spotlightDistilleryReady || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY
                   ? "open-distillery"
                   : undefined
               }
@@ -1611,19 +1622,19 @@ export default function Sanctuary({ state, dispatch }) {
                 }),
                 ...mobileFullWidthButtonStyle,
                 position:
-                  spotlightDistilleryReady || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                  onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY
                     ? "relative"
                     : "static",
                 zIndex:
-                  spotlightDistilleryReady || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                  onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY
                     ? 2
                     : 1,
                 boxShadow:
-                  spotlightDistilleryReady || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                  onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY
                     ? "0 0 0 2px rgba(124,58,237,0.18), 0 12px 28px rgba(124,58,237,0.14)"
                     : "none",
                 animation:
-                  spotlightDistilleryReady || onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB
+                  onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY
                     ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite"
                     : "none",
               }}
@@ -1769,7 +1780,7 @@ export default function Sanctuary({ state, dispatch }) {
       </section>
       )}
 
-      {infrastructureVisible && (showDetailedInfrastructure || forceDetailedInfrastructure) && (
+      {false && (
       <section style={detailedInfrastructureGridStyle}>
         {blueprintDecisionUnlocked && (
         <div
@@ -1892,48 +1903,6 @@ export default function Sanctuary({ state, dispatch }) {
           )}
         </div>
         )}
-        <div style={sectionCardStyle("var(--tone-info, #0369a1)")}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
-                Jobs en curso
-              </div>
-              <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-                Cola persistente del Santuario
-              </div>
-            </div>
-            <div style={chipStyle("var(--tone-info, #0369a1)")}>
-              {runningJobs.length} corriendo
-            </div>
-          </div>
-
-          {runningJobs.length === 0 ? (
-            <div style={{ fontSize: "0.69rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
-              No hay trabajos corriendo.
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: "8px" }}>
-              {runningJobs.map(job => (
-                <div key={job.id} style={metricCardStyle()}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
-                    <div>
-                      <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>{jobTitle(job)}</div>
-                      <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
-                        {jobSummary(job)}
-                      </div>
-                    </div>
-                    <span style={chipStyle("var(--tone-info, #0369a1)")}>
-                      {formatRemaining(Number(job.endsAt || 0) - now)}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: "0.62rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                    {jobStationLabel(job.station)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
         <div style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div>
@@ -1983,7 +1952,11 @@ export default function Sanctuary({ state, dispatch }) {
             <button
               onClick={() => openLaboratoryFromSanctuary("laboratory-card")}
               disabled={!laboratoryUnlocked}
-              data-onboarding-target={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN ? "open-laboratory" : undefined}
+              data-onboarding-target={
+                onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY
+                  ? "open-laboratory"
+                  : undefined
+              }
               style={{
                 ...stationButtonStyle({
                   tone: "var(--tone-accent, #4338ca)",
@@ -1991,14 +1964,20 @@ export default function Sanctuary({ state, dispatch }) {
                   disabled: !laboratoryUnlocked,
                 }),
                 ...mobileFullWidthButtonStyle,
-                position: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN ? "relative" : "static",
-                zIndex: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN ? 2 : 1,
+                position:
+                  onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY
+                    ? "relative"
+                    : "static",
+                zIndex:
+                  onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY
+                    ? 2
+                    : 1,
                 boxShadow:
-                  onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN
+                  onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY
                     ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 28px rgba(83,74,183,0.14)"
                     : "none",
                 animation:
-                  onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN
+                  onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY
                     ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite"
                     : "none",
               }}
@@ -2088,52 +2067,64 @@ export default function Sanctuary({ state, dispatch }) {
       )}
 
       {showDistillery && (
-        <DistilleryOverlay
-          state={state}
-          dispatch={dispatch}
-          isMobile={isMobileViewport}
-          onClose={() => setShowDistillery(false)}
-        />
+        <Suspense fallback={<OverlayLoadingFallback label="Destileria" isMobile={isMobileViewport} />}>
+          <DistilleryOverlay
+            state={state}
+            dispatch={dispatch}
+            isMobile={isMobileViewport}
+            onClose={() => setShowDistillery(false)}
+          />
+        </Suspense>
       )}
       {showErrands && (
-        <EncargosOverlay
-          state={state}
-          dispatch={dispatch}
-          isMobile={isMobileViewport}
-          onClose={() => setShowErrands(false)}
-        />
+        <Suspense fallback={<OverlayLoadingFallback label="Encargos" isMobile={isMobileViewport} />}>
+          <EncargosOverlay
+            state={state}
+            dispatch={dispatch}
+            isMobile={isMobileViewport}
+            onClose={() => setShowErrands(false)}
+          />
+        </Suspense>
       )}
       {showDeepForge && (
-        <BlueprintForgeOverlay
-          state={state}
-          dispatch={dispatch}
-          isMobile={isMobileViewport}
-          onClose={() => setShowDeepForge(false)}
-        />
+        <Suspense fallback={<OverlayLoadingFallback label="Taller" isMobile={isMobileViewport} />}>
+          <BlueprintForgeOverlay
+            state={state}
+            dispatch={dispatch}
+            isMobile={isMobileViewport}
+            onClose={() => setShowDeepForge(false)}
+          />
+        </Suspense>
       )}
       {showSigilAltar && (
-        <SigilAltarOverlay
-          state={state}
-          dispatch={dispatch}
-          isMobile={isMobileViewport}
-          onClose={() => setShowSigilAltar(false)}
-        />
+        <Suspense fallback={<OverlayLoadingFallback label="Altar de Sigilos" isMobile={isMobileViewport} />}>
+          <SigilAltarOverlay
+            state={state}
+            dispatch={dispatch}
+            isMobile={isMobileViewport}
+            onClose={() => setShowSigilAltar(false)}
+          />
+        </Suspense>
       )}
       {showLibrary && (
-        <BibliotecaOverlay
-          state={state}
-          dispatch={dispatch}
-          isMobile={isMobileViewport}
-          onClose={() => setShowLibrary(false)}
-        />
+        <Suspense fallback={<OverlayLoadingFallback label="Biblioteca" isMobile={isMobileViewport} />}>
+          <BibliotecaOverlay
+            state={state}
+            dispatch={dispatch}
+            isMobile={isMobileViewport}
+            onClose={() => setShowLibrary(false)}
+          />
+        </Suspense>
       )}
       {showLaboratory && (
-        <LaboratoryOverlay
-          state={state}
-          dispatch={dispatch}
-          isMobile={isMobileViewport}
-          onClose={() => setShowLaboratory(false)}
-        />
+        <Suspense fallback={<OverlayLoadingFallback label="Laboratorio" isMobile={isMobileViewport} />}>
+          <LaboratoryOverlay
+            state={state}
+            dispatch={dispatch}
+            isMobile={isMobileViewport}
+            onClose={() => setShowLaboratory(false)}
+          />
+        </Suspense>
       )}
     </div>
   );

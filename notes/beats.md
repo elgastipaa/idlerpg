@@ -116,6 +116,217 @@ Regla:
 
 **si el jugador no ve el control, el beat todavía no está bien implementado.**
 
+### 2.5.1 Orden correcto de montaje para beats interactivos con scroll
+
+Cuando el beat necesita spotlight real sobre un control que puede quedar fuera de viewport,
+el orden de implementación correcto es este:
+
+1. renderizar la tarjeta del tutorial
+2. medir su altura real
+3. calcular la ventana segura visible (`header`, `subnav`, `bottom nav`, `top guards`)
+4. scrollear primero contenedores internos con `overflow`
+5. scrollear después la página si todavía hace falta
+6. recién ahí prender el spotlight y el glow
+
+Regla:
+
+**no activar el spotlight antes de que la tarjeta y el scroll estén estabilizados.**
+
+Si no se respeta este orden, aparecen bugs típicos:
+
+- el target queda debajo del header
+- el target queda debajo de la nav inferior
+- la tarjeta del beat tapa el botón correcto
+- el spotlight se dibuja en una posición vieja y parece “perdido”
+
+### 2.5.2 Contenedores con scroll interno
+
+No todos los beats viven en el scroll principal de la página.
+Hay vistas como `Mochila` o modales largos donde el target está dentro de un contenedor con `overflowY: auto`.
+
+En esos casos:
+
+- no alcanza con usar `window.scrollBy`
+- primero hay que revelar el target dentro de su contenedor scrolleable
+- ese scroll interno debe respetar la misma ventana segura del overlay
+
+Eso significa que el target no debe quedar simplemente “visible” dentro del contenedor:
+
+- tampoco puede quedar tapado por la tarjeta del beat
+- tampoco puede quedar tapado por la nav inferior fija
+- tampoco puede quedar pegado a un borde difícil de tocar
+
+Regla:
+
+**un target dentro de un contenedor con scroll se considera bien resuelto sólo si queda dentro de la ventana segura final del onboarding, no sólo dentro del contenedor.**
+
+### 2.5.3 Scroll interno horizontal también cuenta
+
+Hay vistas donde el problema no es sólo vertical.
+Ejemplo real: árboles, tabs o carruseles que viven dentro de un contenedor con `overflowX: auto`.
+
+En esos casos el tutorial también tiene que:
+
+- detectar ancestros con scroll horizontal
+- revelar el target dentro de ese contenedor
+- dejarlo en una zona cómoda, no apenas visible al borde
+
+Regla:
+
+**si el beat apunta a un target dentro de una UI desplazable horizontalmente, el onboarding tiene que centrar o acercar ese target antes de prender el spotlight.**
+
+### 2.5.4 El scroll se bloquea después de estabilizar la vista
+
+Una vez que el beat ya:
+
+1. montó la tarjeta
+2. midió la tarjeta
+3. scrolleó contenedores internos
+4. scrolleó la página
+5. prendió el spotlight
+
+entonces conviene bloquear el scroll del usuario.
+
+No antes.
+
+Si se bloquea antes:
+
+- el auto-scroll puede romperse
+- la UI puede quedar en una posición intermedia
+
+Si se bloquea después:
+
+- el target ya quedó donde queríamos
+- el usuario no puede “irse” del beat por accidente
+
+Regla:
+
+**el lock de scroll entra sólo cuando la vista ya quedó estable y el spotlight está listo.**
+
+Excepción útil:
+
+si el beat muestra varias opciones hermanas que el jugador tiene que comparar
+antes de elegir, puede convenir no bloquear scroll.
+
+Ejemplo real:
+
+- `Elegir clase`
+
+Ahí el objetivo no es fijar un botón puntual diminuto, sino permitir que el jugador
+vea bien ambas cards y elija una.
+
+Regla:
+
+**beats de decisión entre múltiples opciones equivalentes pueden dejar scroll habilitado si eso mejora visibilidad y no rompe el foco.**
+
+### 2.5.5 Para beats críticos, usar target semántico fijo y no “el primer disponible”
+
+`Compra tu primer talento` dejó una lección importante:
+
+si el onboarding usa un target dinámico del estilo:
+
+- “primer nodo comprable”
+- “primer item mejor”
+- “primer botón visible”
+
+el beat se vuelve frágil.
+
+Puede romperse por:
+
+- árbol seleccionado distinto
+- orden de render
+- unlocks dinámicos
+- cambios de layout
+- DOM todavía no montado
+
+Para beats críticos del tutorial, conviene usar un target semántico fijo.
+
+Ejemplos reales:
+
+- `Warrior -> warrior_physical_training`
+- `Mage -> mage_arcane_power`
+
+Regla:
+
+**si el tutorial quiere enseñar “el primer nodo base”, el target debe ser un `nodeId` explícito definido por clase/sistema, no una búsqueda heurística en runtime.**
+
+### 2.5.6 El engine y la UI deben compartir el mismo target tutorial
+
+No alcanza con que el componente sepa cuál es el nodo correcto.
+El overlay también tiene que usar exactamente esa misma fuente de verdad.
+
+Si la UI resuelve una cosa y el engine otra:
+
+- el spotlight puede buscar un selector genérico
+- el componente puede intentar scrollear otro nodo
+- el beat parece roto aunque ambas partes “funcionen” por separado
+
+Regla:
+
+**para beats con target fuerte, el `nodeId` o `itemId` tutorial debe salir de un helper compartido del engine, no duplicarse en cada componente.**
+
+### 2.5.7 En listas o árboles, marcar también el contenedor semántico
+
+No spotlightear sólo el botón.
+
+También conviene marcar:
+
+- la card
+- el row
+- o el nodo completo
+
+Ejemplo:
+
+- `buy-talent-card`
+- `buy-talent`
+- `data-onboarding-node-id="warrior_physical_training"`
+
+Esto permite:
+
+- scrollear al contenedor correcto
+- medir mejor el target
+- dibujar un spotlight más claro
+- no depender de un botón chiquito
+
+Regla:
+
+**en beats con nodos, items o cards, siempre exponer al menos un selector de acción y otro selector/container semántico.**
+
+### 2.5.8 Si el beat requiere un recurso, el tutorial lo garantiza antes de mostrarlo
+
+No alcanza con mostrar el target correcto si el jugador no puede pagarlo o ejecutarlo.
+
+Ejemplo real:
+
+- `Compra tu primer talento`
+  si el nodo cuesta `1 TP` y el jugador entra con `0 TP`,
+  el tutorial debe darle `1 TP` antes de mostrar el beat
+
+El mismo patrón aplica a:
+
+- oro para el primer atributo
+- TP para el primer talento
+- cargo/tutorial bundle para la primera destilación
+- item tutorial para el primer equip
+
+Regla:
+
+**si un beat exige una acción concreta, el onboarding tiene que garantizar el recurso mínimo necesario antes de entrar en ese beat.**
+
+No dejarlo librado a:
+
+- drops previos
+- recompensas aleatorias
+- estado contaminado del save
+- que el jugador “debería tener” ese recurso
+
+La forma correcta es:
+
+1. resolver cuál es el target tutorial real
+2. calcular el costo mínimo de esa acción
+3. subir el recurso del jugador hasta ese mínimo si hace falta
+4. recién entonces mostrar el beat
+
 ### 2.6 Los ticks pueden pausarse
 
 Si el beat requiere leer, decidir o tocar algo importante:

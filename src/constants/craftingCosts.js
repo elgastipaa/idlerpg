@@ -1,8 +1,8 @@
 export const ASCEND_BASE_COSTS = {
-  common: { gold: 0, essence: 40, minLevel: 3 },
-  magic: { gold: 0, essence: 120, minLevel: 5 },
-  rare: { gold: 0, essence: 320, minLevel: 7 },
-  epic: { gold: 0, essence: 900, minLevel: 9 },
+  common: { gold: 0, essence: 36, minLevel: 3 },
+  magic: { gold: 0, essence: 110, minLevel: 5 },
+  rare: { gold: 0, essence: 270, minLevel: 7 },
+  epic: { gold: 0, essence: 760, minLevel: 9 },
 };
 
 export const ESSENCE_COST_MULTIPLIERS = {
@@ -52,17 +52,17 @@ export const REROLL_RARITY_MULTIPLIER = {
 export const POLISH_RARITY_MULTIPLIER = {
   common: 0.75,
   magic: 1,
-  rare: 0.8,
-  epic: 3.8,
+  rare: 0.9,
+  epic: 4.1,
   legendary: 6.5,
 };
 
 export const REFORGE_RARITY_MULTIPLIER = {
   common: 1,
-  magic: 1.35,
-  rare: 1.2,
-  epic: 5.2,
-  legendary: 9,
+  magic: 1.2,
+  rare: 0.88,
+  epic: 3.85,
+  legendary: 7.2,
 };
 
 const RARE_HIGH_UPGRADE_MULTIPLIER = 1.5;
@@ -175,7 +175,7 @@ export function getReforgeCosts(item, player = {}, affix = null) {
       CRAFTING_BASE_COSTS.reforge.essence *
       rarityMult *
       tierMult *
-      (1 + craftingState.reforgeCount * 0.5) *
+      (1 + craftingState.reforgeCount * 0.38) *
       (1 - reduction)
     ),
   };

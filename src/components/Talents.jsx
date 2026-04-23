@@ -16,7 +16,10 @@ import {
   getNodeTreeSpendRequirement,
   getNodeUpgradeCost,
 } from "../engine/talents/talentTreeEngine";
-import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
+import {
+  getResolvedOnboardingTutorialTalentNodeId,
+  ONBOARDING_STEPS,
+} from "../engine/onboarding/onboardingEngine";
 
 const TYPE_COLORS = {
   aura: "var(--tone-accent, #534AB7)",
@@ -34,6 +37,11 @@ const TREE_COLORS = {
   arcanist: "var(--tone-accent, #7c3aed)",
   berserker_tree: "var(--tone-danger, #D85A30)",
   juggernaut_tree: "var(--tone-accent, #534AB7)",
+};
+
+const ONBOARDING_TALENT_TREE_BY_NODE = {
+  warrior_physical_training: "warrior_general",
+  mage_arcane_power: "mage_general",
 };
 
 const TALENT_STAT_LABELS = {
@@ -104,6 +112,12 @@ const SEGMENT_META = {
   gameplay: { key: "gameplay", label: "Tramo 2 · Gameplay", order: 2 },
   keystone: { key: "keystone", label: "Tramo 3 · Keystones", order: 3 },
 };
+
+const TALENT_VISIBILITY_FILTERS = [
+  { id: "comprables", label: "Comprables" },
+  { id: "activos", label: "Activos" },
+  { id: "todos", label: "Todos" },
+];
 
 function formatTalentNumber(value) {
   if (typeof value !== "number" || Number.isNaN(value)) return String(value ?? 0);
@@ -560,6 +574,7 @@ function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, pre
 
   return (
     <div
+      data-onboarding-node-id={node.talent.id}
       data-onboarding-target={spotlight ? "buy-talent-card" : undefined}
       style={{
         background: "var(--color-background-secondary, #fff)",
@@ -661,6 +676,7 @@ function MobileTalentNodeRow({ node, nodeState, justUnlocked, dispatch, prereqTe
 
   return (
     <article
+      data-onboarding-node-id={node.talent.id}
       data-onboarding-target={spotlight ? "buy-talent-card" : undefined}
       style={{
         background: "var(--color-background-secondary, #fff)",
@@ -771,6 +787,7 @@ export default function Talents({ state, dispatch }) {
   } = player;
   const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < 768 : false);
   const [selectedTreeId, setSelectedTreeId] = useState(null);
+  const [visibilityFilter, setVisibilityFilter] = useState("comprables");
   const [recentUnlocks, setRecentUnlocks] = useState({});
   const [canScrollTreesLeft, setCanScrollTreesLeft] = useState(false);
   const [canScrollTreesRight, setCanScrollTreesRight] = useState(false);
@@ -816,6 +833,77 @@ export default function Talents({ state, dispatch }) {
     });
   }, [treesByProgression, state]);
   const offSpecTreeCount = treeData.filter(item => item.tree.isOffSpec).length;
+  const tutorialTalentNodeId = spotlightTalentPurchase
+    ? getResolvedOnboardingTutorialTalentNodeId(state)
+    : null;
+  const selectedTree = treeData.find(item => item.tree.id === selectedTreeId) || treeData[0] || null;
+  const visibleTrees = selectedTree ? [selectedTree] : [];
+  const selectedTreeNodeEntries = useMemo(
+    () => (selectedTree?.nodes || []).map(node => ({ node, nodeState: getNodeState({ state, node }) })),
+    [selectedTree, state]
+  );
+  const selectedTreeBuyableNodes = useMemo(
+    () => selectedTreeNodeEntries.filter(entry => entry.nodeState.canUnlockNext).map(entry => entry.node),
+    [selectedTreeNodeEntries]
+  );
+  const tutorialTalentTreeId = useMemo(() => {
+    if (!spotlightTalentPurchase || !tutorialTalentNodeId) return null;
+    const tutorialTree = treeData.find(item =>
+      item.nodes.some(node => node.talent.id === tutorialTalentNodeId)
+    );
+    return tutorialTree?.tree?.id || ONBOARDING_TALENT_TREE_BY_NODE[tutorialTalentNodeId] || null;
+  }, [spotlightTalentPurchase, treeData, tutorialTalentNodeId]);
+  const resolvedTutorialTalentNodeId = useMemo(() => {
+    if (!spotlightTalentPurchase) return null;
+    if (tutorialTalentNodeId) {
+      return tutorialTalentNodeId;
+    }
+    return selectedTreeBuyableNodes[0]?.talent?.id || null;
+  }, [selectedTreeBuyableNodes, spotlightTalentPurchase, tutorialTalentNodeId]);
+  const totalBuyableNodes = useMemo(
+    () => treeData.reduce((total, item) => total + item.nodes.filter(node => canUnlockNode(state, node.talent.id)).length, 0),
+    [treeData, state]
+  );
+  const visibleTreeGroups = useMemo(() => {
+    if (!selectedTree) return [];
+    const shouldShowNode = entry => {
+      if (spotlightTalentPurchase && entry.node.talent.id === resolvedTutorialTalentNodeId) {
+        return true;
+      }
+      if (visibilityFilter === "activos") {
+        return entry.nodeState.currentLevel > 0;
+      }
+      if (visibilityFilter === "comprables") {
+        return entry.nodeState.currentLevel > 0 || entry.nodeState.canUnlockNext;
+      }
+      return true;
+    };
+
+    const visibleEntriesById = new Map(
+      selectedTreeNodeEntries
+        .filter(shouldShowNode)
+        .map(entry => [entry.node.talent.id, entry])
+    );
+
+    return getGroupedColumns(selectedTree.nodes)
+      .map(group => {
+        const nodeEntries = group.nodes
+          .map(node => visibleEntriesById.get(node.talent.id))
+          .filter(Boolean);
+        const actionableCount = group.nodes.filter(node => canUnlockNode(state, node.talent.id)).length;
+        const activeCount = group.nodes.filter(node => getNodeLevel(state, node.talent.id) > 0).length;
+        return {
+          ...group,
+          nodeEntries,
+          totalNodes: group.nodes.length,
+          actionableCount,
+          activeCount,
+        };
+      })
+      .filter(group => group.nodeEntries.length > 0);
+  }, [selectedTree, selectedTreeNodeEntries, spotlightTalentPurchase, resolvedTutorialTalentNodeId, state, visibilityFilter]);
+  const hasVisibleNodes = visibleTreeGroups.length > 0;
+  const treeHeaderStickyTop = "var(--app-header-offset, 96px)";
 
   useEffect(() => {
     const node = treeTabsScrollerRef.current;
@@ -840,6 +928,72 @@ export default function Talents({ state, dispatch }) {
     };
   }, [treeData.length, isMobile]);
 
+  useEffect(() => {
+    if (!spotlightTalentPurchase || !tutorialTalentTreeId) return;
+    if (selectedTreeId !== tutorialTalentTreeId) {
+      setSelectedTreeId(tutorialTalentTreeId);
+    }
+  }, [selectedTreeId, spotlightTalentPurchase, tutorialTalentTreeId]);
+
+  useEffect(() => {
+    if (!spotlightTalentPurchase || !resolvedTutorialTalentNodeId) return undefined;
+    if (tutorialTalentTreeId && selectedTreeId !== tutorialTalentTreeId) return undefined;
+
+    let frameId = null;
+    let timeoutId = null;
+    let attempts = 0;
+
+    const scrollTutorialNodeIntoView = () => {
+      const node = document.querySelector(`[data-onboarding-node-id="${resolvedTutorialTalentNodeId}"]`);
+      if (!(node instanceof HTMLElement)) {
+        attempts += 1;
+        if (attempts < 8) {
+          timeoutId = window.setTimeout(() => {
+            frameId = window.requestAnimationFrame(scrollTutorialNodeIntoView);
+          }, 90);
+        }
+        return;
+      }
+
+      const behavior = attempts === 0 ? "auto" : "smooth";
+      const topSafe = isMobile ? 118 : 112;
+      const bottomSafe = isMobile ? 90 : 28;
+      const visibleBottom = Math.max(topSafe + 48, window.innerHeight - bottomSafe);
+
+      node.scrollIntoView({
+        behavior,
+        block: "center",
+        inline: isMobile ? "nearest" : "center",
+      });
+
+      const rect = node.getBoundingClientRect();
+      if (rect.top < topSafe) {
+        window.scrollBy({
+          top: rect.top - topSafe - 10,
+          behavior,
+        });
+      } else if (rect.bottom > visibleBottom) {
+        window.scrollBy({
+          top: rect.bottom - visibleBottom + 10,
+          behavior,
+        });
+      }
+
+      attempts += 1;
+      if (attempts < 3) {
+        timeoutId = window.setTimeout(() => {
+          frameId = window.requestAnimationFrame(scrollTutorialNodeIntoView);
+        }, 120);
+      }
+    };
+
+    frameId = window.requestAnimationFrame(scrollTutorialNodeIntoView);
+    return () => {
+      if (frameId != null) window.cancelAnimationFrame(frameId);
+      if (timeoutId != null) window.clearTimeout(timeoutId);
+    };
+  }, [isMobile, resolvedTutorialTalentNodeId, selectedTreeId, spotlightTalentPurchase, tutorialTalentTreeId]);
+
   if (!playerClass) {
     return (
       <div style={emptyContainerStyle}>
@@ -848,21 +1002,6 @@ export default function Talents({ state, dispatch }) {
       </div>
     );
   }
-
-  const selectedTree = treeData.find(item => item.tree.id === selectedTreeId) || treeData[0];
-  const visibleTrees = selectedTree ? [selectedTree] : [];
-  const selectedTreeBuyableNodes = useMemo(
-    () => (selectedTree?.nodes || []).filter(node => canUnlockNode(state, node.talent.id)),
-    [selectedTree, state]
-  );
-  const tutorialTalentNodeId = spotlightTalentPurchase
-    ? (selectedTreeBuyableNodes[0]?.talent?.id || null)
-    : null;
-  const totalBuyableNodes = useMemo(
-    () => treeData.reduce((total, item) => total + item.nodes.filter(node => canUnlockNode(state, node.talent.id)).length, 0),
-    [treeData, state]
-  );
-  const treeHeaderStickyTop = "var(--app-header-offset, 96px)";
 
   return (
     <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "6px", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", minHeight: "100%" }}>
@@ -974,28 +1113,65 @@ export default function Talents({ state, dispatch }) {
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>{tree.description}</div>
+                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px", lineHeight: 1.35 }}>
+                  {visibilityFilter === "todos"
+                    ? tree.description
+                    : visibilityFilter === "activos"
+                      ? "Solo muestra nodos ya comprados en esta rama."
+                      : "Solo muestra nodos activos o que ya puedes comprar ahora."}
+                </div>
               </div>
-              <div style={{ fontSize: "0.68rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>{progress}/{nodes.length}</div>
+              <div style={{ display: "grid", gap: "6px", justifyItems: "end" }}>
+                <div style={{ fontSize: "0.68rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>{progress}/{nodes.length}</div>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  {TALENT_VISIBILITY_FILTERS.map(filter => {
+                    const active = visibilityFilter === filter.id;
+                    return (
+                      <button
+                        key={filter.id}
+                        onClick={() => setVisibilityFilter(filter.id)}
+                        style={{
+                          border: "1px solid",
+                          borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
+                          background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #fff)",
+                          color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #64748b)",
+                          borderRadius: "999px",
+                          padding: "3px 8px",
+                          fontSize: "0.56rem",
+                          fontWeight: "900",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {filter.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
 
           <div style={treeBodyStyle}>
-          {isMobile ? (
+          {!hasVisibleNodes ? (
+            <div style={{ padding: "10px 2px", fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+              {visibilityFilter === "activos"
+                ? "Todavia no hay nodos activos en esta rama. Cambia a `Comprables` o `Todos` para explorarla."
+                : "Ahora mismo esta rama no tiene compras directas. Usa `Todos` si quieres ver tiers futuros."}
+            </div>
+          ) : isMobile ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {getGroupedColumns(nodes).map(({ segmentKey, label, nodes: columnNodes }) => (
+              {visibleTreeGroups.map(({ segmentKey, label, nodeEntries, totalNodes, actionableCount, activeCount }) => (
                 <div key={`stage-${segmentKey}`} style={mobileStageStyle}>
                   <div style={mobileStageHeaderStyle}>
                     <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
                       {label}
                     </span>
                     <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                      {columnNodes.length} nodo{columnNodes.length === 1 ? "" : "s"}
+                      {nodeEntries.length}/{totalNodes} nodo{totalNodes === 1 ? "" : "s"} · {activeCount} activo{activeCount === 1 ? "" : "s"} · {actionableCount} comprable{actionableCount === 1 ? "" : "s"}
                     </span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {columnNodes.map(node => {
-                      const nodeState = getNodeState({ state, node });
+                    {nodeEntries.map(({ node, nodeState }) => {
                       const justUnlocked = !!recentUnlocks[node.talent.id];
                       const prereqText = buildNodeRequirementText(state, node, nodes, nodeState);
 
@@ -1009,10 +1185,8 @@ export default function Talents({ state, dispatch }) {
                           prereqText={prereqText}
                           spotlight={
                             spotlightTalentPurchase &&
-                            tutorialTalentNodeId != null &&
-                            node.talent.id === tutorialTalentNodeId &&
-                            nodeState.canUnlockNext &&
-                            !!nodeState.nextTalent
+                            resolvedTutorialTalentNodeId != null &&
+                            node.talent.id === resolvedTutorialTalentNodeId
                           }
                         />
                       );
@@ -1024,19 +1198,18 @@ export default function Talents({ state, dispatch }) {
           ) : (
             <div style={{ overflowX: "auto", paddingBottom: "6px" }}>
               <div style={{ display: "flex", gap: "12px", alignItems: "stretch", minWidth: "max-content" }}>
-                {getGroupedColumns(nodes).map(({ segmentKey, label, nodes: columnNodes }) => (
+                {visibleTreeGroups.map(({ segmentKey, label, nodeEntries, totalNodes, actionableCount, activeCount }) => (
                   <div key={`desktop-stage-${segmentKey}`} style={desktopStageStyle}>
                     <div style={desktopStageHeaderStyle}>
                       <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-secondary, #475569)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
                         {label}
                       </span>
                       <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                        {columnNodes.length} nodo{columnNodes.length === 1 ? "" : "s"}
+                        {nodeEntries.length}/{totalNodes} · {activeCount} activo{activeCount === 1 ? "" : "s"} · {actionableCount} comprable{actionableCount === 1 ? "" : "s"}
                       </span>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
-                      {columnNodes.map(node => {
-                        const nodeState = getNodeState({ state, node });
+                      {nodeEntries.map(({ node, nodeState }) => {
                         const justUnlocked = !!recentUnlocks[node.talent.id];
                         const prereqText = buildNodeRequirementText(state, node, nodes, nodeState);
                         return (
@@ -1050,10 +1223,8 @@ export default function Talents({ state, dispatch }) {
                             prereqText={prereqText}
                             spotlight={
                               spotlightTalentPurchase &&
-                              tutorialTalentNodeId != null &&
-                              node.talent.id === tutorialTalentNodeId &&
-                              nodeState.canUnlockNext &&
-                              !!nodeState.nextTalent
+                              resolvedTutorialTalentNodeId != null &&
+                              node.talent.id === resolvedTutorialTalentNodeId
                             }
                           />
                         );

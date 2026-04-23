@@ -1,23 +1,35 @@
-import React, { Suspense, lazy, useState, useEffect, useRef } from "react";
+import React, { Suspense, lazy, useState, useEffect, useRef, useCallback } from "react";
+import packageJson from "../package.json";
 import { useGame } from "./hooks/useGame";
 import Sanctuary from "./components/Sanctuary";
-import ExtractionOverlay from "./components/ExtractionOverlay";
 import OnboardingOverlay from "./components/OnboardingOverlay";
+import OverlayShell from "./components/OverlayShell";
 import { getRarityColor } from "./constants/rarity";
-import { formatRunSigilLoadout, getRunSigil, normalizeRunSigilIds, RUN_SIGILS, summarizeRunSigilLoadout } from "./data/runSigils";
+import {
+  buildRunSigilChoiceProfile,
+  buildRunSigilLoadoutProfile,
+  formatRunSigilLoadout,
+  getRunSigil,
+  normalizeRunSigilIds,
+  RUN_SIGILS,
+  summarizeRunSigilLoadout,
+} from "./data/runSigils";
 import { getMaxRunSigilSlots } from "./engine/progression/abyssProgression";
 import {
   canOpenExpedition,
   getOnboardingRequiredTab,
+  isSanctuaryLockedDuringExpeditionTutorial,
   isOnboardingTabAllowed,
   ONBOARDING_STEPS,
   shouldShowHeroPrimaryTab,
 } from "./engine/onboarding/onboardingEngine";
+import { buildTesterSnapshot, copyTextToClipboard, createDebugErrorEntry, formatDebugValue } from "./utils/testerSnapshot";
 
 const Prestige = lazy(() => import("./components/Prestige"));
 const HeroView = lazy(() => import("./components/HeroView"));
 const ExpeditionView = lazy(() => import("./components/ExpeditionView"));
 const RegistryView = lazy(() => import("./components/RegistryView"));
+const ExtractionOverlay = lazy(() => import("./components/ExtractionOverlay"));
 
 class TabErrorBoundary extends React.Component {
   constructor(props) {
@@ -203,6 +215,37 @@ function buildOfflineSummaryKey(summary = {}) {
   ].join("|");
 }
 
+function buildActionToastFromLog(logLine = "") {
+  const text = String(logLine || "").trim();
+  if (!text) return null;
+
+  if (text.startsWith("MOCHILA LLENA:")) {
+    return {
+      tone: "warning",
+      label: text.replace("MOCHILA LLENA:", "Mochila llena ·"),
+    };
+  }
+
+  if (text.startsWith("OBJETIVO:")) {
+    return {
+      tone: "success",
+      label: text.replace("OBJETIVO:", "Objetivo ·"),
+    };
+  }
+
+  if (!text.startsWith("SANTUARIO:")) return null;
+
+  const label = text.replace("SANTUARIO:", "").trim();
+  let tone = "info";
+  if (/reclamad|vuelve|completa|convierte|desguaza|alcanza/i.test(label)) {
+    tone = "success";
+  } else if (/retirado|pierde|sin recuperacion/i.test(label)) {
+    tone = "warning";
+  }
+
+  return { tone, label };
+}
+
 function isPrestigeTabUnlocked(state) {
   return Number(state?.prestige?.level || 0) > 0 || Number(state?.prestige?.totalEchoesEarned || 0) > 0;
 }
@@ -210,7 +253,7 @@ function isPrestigeTabUnlocked(state) {
 function getPrimaryTab(tab = "sanctuary") {
   if (tab === "inventory" || tab === "crafting" || tab === "codex" || tab === "combat") return "combat";
   if (tab === "skills" || tab === "talents" || tab === "character") return "character";
-  if (tab === "achievements" || tab === "stats" || tab === "system" || tab === "registry") return "registry";
+  if (tab === "account" || tab === "achievements" || tab === "stats" || tab === "system" || tab === "registry") return "registry";
   if (tab === "prestige") return "prestige";
   return "sanctuary";
 }
@@ -229,7 +272,13 @@ function getDefaultTabForPrimaryTab(primaryTab = "sanctuary") {
   return "sanctuary";
 }
 
-function isPrimaryTabAllowed(primaryTab = "sanctuary", onboardingStep = null) {
+function isPrimaryTabAllowed(primaryTab = "sanctuary", onboardingStep = null, state = {}) {
+  if (!state?.player?.class && state?.expedition?.phase === "setup") {
+    return primaryTab === "sanctuary";
+  }
+  if (primaryTab === "sanctuary" && isSanctuaryLockedDuringExpeditionTutorial(state)) {
+    return false;
+  }
   if (!onboardingStep) return true;
   if (primaryTab === "combat") {
     return ["combat", "inventory", "crafting", "codex"].some(tab => isOnboardingTabAllowed(onboardingStep, tab));
@@ -258,12 +307,21 @@ const PRIMARY_TAB_CONFIG = {
   registry:     { label: "Mas", icon: "🗂️" },
 };
 
+const APP_VERSION = packageJson?.version || "0.0.0";
+const DEBUG_TRIPLE_CLICK_WINDOW_MS = 750;
+const MAX_RECENT_ERROR_ENTRIES = 20;
+
 export default function App() {
-  const { state, dispatch } = useGame();
+  const { state, dispatch, getRecentActions } = useGame();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [showLegacySavePrompt, setShowLegacySavePrompt] = useState(false);
+  const [testerToast, setTesterToast] = useState(null);
+  const [actionToast, setActionToast] = useState(null);
   const contentRef = useRef(null);
   const prevTabRef = useRef(null);
+  const recentErrorLogRef = useRef([]);
+  const headerTapTimesRef = useRef([]);
+  const previousCombatLogRef = useRef(null);
   const offlineSummary = state.combat?.offlineSummary;
   const hasTalentPoints = (state.player?.talentPoints || 0) > 0;
   const reforgeLocked = !!state.combat?.reforgeSession;
@@ -318,6 +376,10 @@ export default function App() {
     document.documentElement.style.setProperty("--app-header-offset", `${isMobile ? HEADER_HEIGHT_MOBILE : HEADER_HEIGHT_DESKTOP}px`);
   }, [isMobile]);
 
+  useEffect(() => {
+    document.documentElement.style.setProperty("--app-bottom-nav-offset", `${isMobile ? NAV_HEIGHT_MOBILE : 0}px`);
+  }, [isMobile]);
+
   const HEADER_HEIGHT_MOBILE = 62;
   const HEADER_HEIGHT_DESKTOP = 68;
   const NAV_HEIGHT_MOBILE = 72;
@@ -328,17 +390,171 @@ export default function App() {
   const expeditionUnlocked = canOpenExpedition(state);
   const showHeroPrimaryTab = shouldShowHeroPrimaryTab(state);
   const visiblePrimaryTabs = ["sanctuary", "combat", ...(showHeroPrimaryTab ? ["character"] : []), ...(prestigeTabUnlocked ? ["prestige"] : []), "registry"];
+  const sanctuaryOnboardingScrollLocked = [
+    ONBOARDING_STEPS.OPEN_LABORATORY,
+    ONBOARDING_STEPS.RESEARCH_DISTILLERY,
+    ONBOARDING_STEPS.DISTILLERY_READY,
+    ONBOARDING_STEPS.OPEN_DISTILLERY,
+    ONBOARDING_STEPS.FIRST_DISTILLERY_JOB,
+  ].includes(onboardingStep);
+
+  const pushRecentError = useCallback((entry) => {
+    if (!entry) return;
+    recentErrorLogRef.current = [...recentErrorLogRef.current, entry].slice(-MAX_RECENT_ERROR_ENTRIES);
+  }, []);
+
+  useEffect(() => {
+    const handleWindowError = (event) => {
+      pushRecentError(createDebugErrorEntry("window.error", {
+        message: event?.message || "Error no capturado",
+        stack: event?.error?.stack || null,
+        file: event?.filename || null,
+        line: event?.lineno,
+        column: event?.colno,
+      }));
+    };
+
+    const handleUnhandledRejection = (event) => {
+      pushRecentError(createDebugErrorEntry("unhandledrejection", {
+        message: formatDebugValue(event?.reason),
+        stack: event?.reason?.stack || null,
+        detail: formatDebugValue(event?.reason, { maxLength: 720 }),
+      }));
+    };
+
+    const originalConsoleError = console.error.bind(console);
+    console.error = (...args) => {
+      const firstErrorLike = args.find(arg => arg instanceof Error || typeof arg?.stack === "string");
+      pushRecentError(createDebugErrorEntry("console.error", {
+        message: args.map(arg => formatDebugValue(arg)).join(" | "),
+        stack: firstErrorLike?.stack || null,
+        detail: args.slice(0, 4).map(arg => formatDebugValue(arg, { maxLength: 420 })).join(" || "),
+      }));
+      originalConsoleError(...args);
+    };
+
+    window.addEventListener("error", handleWindowError);
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+
+    return () => {
+      console.error = originalConsoleError;
+      window.removeEventListener("error", handleWindowError);
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+    };
+  }, [pushRecentError]);
+
+  useEffect(() => {
+    if (!testerToast) return undefined;
+    const timeout = window.setTimeout(() => setTesterToast(null), 1800);
+    return () => window.clearTimeout(timeout);
+  }, [testerToast]);
+
+  useEffect(() => {
+    if (!actionToast) return undefined;
+    const timeout = window.setTimeout(() => setActionToast(null), 2200);
+    return () => window.clearTimeout(timeout);
+  }, [actionToast]);
+
+  const combatLog = state.combat?.log || [];
+
+  useEffect(() => {
+    if (previousCombatLogRef.current == null) {
+      previousCombatLogRef.current = combatLog;
+      return;
+    }
+    const previousLog = Array.isArray(previousCombatLogRef.current) ? previousCombatLogRef.current : [];
+    const nextEntries =
+      combatLog.length >= previousLog.length
+        ? combatLog.slice(previousLog.length)
+        : combatLog;
+    previousCombatLogRef.current = combatLog;
+    const nextToastLine = [...nextEntries]
+      .reverse()
+      .find(entry => buildActionToastFromLog(entry));
+    if (!nextToastLine) return;
+    const nextToast = buildActionToastFromLog(nextToastLine);
+    if (!nextToast) return;
+    setActionToast({
+      ...nextToast,
+      id: `action-toast-${Date.now()}`,
+    });
+  }, [combatLog]);
+
+  const triggerTesterSnapshot = useCallback(async () => {
+    const payload = buildTesterSnapshot(state, {
+      version: APP_VERSION,
+      recentErrors: recentErrorLogRef.current,
+      recentActions: getRecentActions(),
+    });
+    try {
+      await copyTextToClipboard(JSON.stringify(payload, null, 2));
+      setTesterToast({ tone: "success", label: "Reporte copiado" });
+    } catch (error) {
+      pushRecentError(createDebugErrorEntry("tester.snapshot", {
+        message: "No se pudo copiar el reporte de tester.",
+        stack: error?.stack || null,
+        detail: formatDebugValue(error),
+      }));
+      setTesterToast({ tone: "danger", label: "No se pudo copiar" });
+    }
+  }, [getRecentActions, pushRecentError, state]);
+
+  const handleHeaderDebugTap = useCallback(() => {
+    const now = Date.now();
+    const recentTaps = [...headerTapTimesRef.current, now]
+      .filter(timestamp => now - timestamp <= DEBUG_TRIPLE_CLICK_WINDOW_MS)
+      .slice(-3);
+    headerTapTimesRef.current = recentTaps;
+    if (recentTaps.length === 3) {
+      headerTapTimesRef.current = [];
+      triggerTesterSnapshot();
+    }
+  }, [triggerTesterSnapshot]);
   const saveDiagnostics = state.saveDiagnostics || {};
   const shouldOfferLegacyRepair =
     Boolean(saveDiagnostics.legacyNeedsRepair) &&
     Number(saveDiagnostics.legacyPromptShownCount || 0) < 3;
 
+  function scrollAppToTop(behavior = "auto") {
+    const scrollRoot = document.scrollingElement || document.documentElement || document.body;
+    window.scrollTo({ top: 0, behavior });
+    if (typeof document.documentElement.scrollTo === "function") {
+      document.documentElement.scrollTo({ top: 0, behavior });
+    } else if (behavior !== "smooth") {
+      document.documentElement.scrollTop = 0;
+    }
+    if (typeof document.body.scrollTo === "function") {
+      document.body.scrollTo({ top: 0, behavior });
+    } else if (behavior !== "smooth") {
+      document.body.scrollTop = 0;
+    }
+    if (scrollRoot && typeof scrollRoot.scrollTo === "function") {
+      scrollRoot.scrollTo({ top: 0, behavior });
+    } else if (scrollRoot && behavior !== "smooth") {
+      scrollRoot.scrollTop = 0;
+    }
+    if (contentRef.current) {
+      if (typeof contentRef.current.scrollTo === "function") {
+        contentRef.current.scrollTo({ top: 0, behavior });
+      } else if (behavior !== "smooth") {
+        contentRef.current.scrollTop = 0;
+      }
+    }
+  }
+
+  function scrollAppToTopSoon(behavior = "auto") {
+    scrollAppToTop(behavior);
+    window.requestAnimationFrame(() => {
+      scrollAppToTop(behavior);
+      window.requestAnimationFrame(() => {
+        scrollAppToTop(behavior);
+      });
+    });
+  }
+
   useEffect(() => {
     if (prevTabRef.current !== state.currentTab) {
-      window.scrollTo({ top: 0, behavior: "auto" });
-      if (contentRef.current) {
-        contentRef.current.scrollTo({ top: 0, behavior: "auto" });
-      }
+      scrollAppToTopSoon();
       prevTabRef.current = state.currentTab;
     }
   }, [state.currentTab]);
@@ -351,39 +567,46 @@ export default function App() {
     setShowLegacySavePrompt(true);
   }, [shouldOfferLegacyRepair]);
 
+  function getPrimaryTabDestination(tab) {
+    const requiredOnboardingTab = getOnboardingRequiredTab(state?.onboarding?.step || null);
+    if (
+      tab === "combat" &&
+      ["combat", "inventory", "crafting", "codex"].includes(requiredOnboardingTab)
+    ) {
+      return requiredOnboardingTab;
+    }
+    if (
+      tab === "character" &&
+      ["character", "skills", "talents"].includes(requiredOnboardingTab)
+    ) {
+      return requiredOnboardingTab;
+    }
+    return getDefaultTabForPrimaryTab(tab);
+  }
+
   function handlePrimaryTabPress(tab) {
+    const destinationTab = getPrimaryTabDestination(tab);
     const isActive = currentPrimaryTab === tab;
     if (isActive) {
+      if (tab === "sanctuary" && sanctuaryOnboardingScrollLocked) {
+        return;
+      }
       window.dispatchEvent(new CustomEvent("primary-tab-reselected", { detail: { tab } }));
-      window.scrollTo({ top: 0, behavior: "auto" });
-      if (contentRef.current) {
-        contentRef.current.scrollTo({ top: 0, behavior: "auto" });
+      if (state.currentTab !== destinationTab) {
+        dispatch({ type: "SET_TAB", tab: destinationTab });
+      } else {
+        scrollAppToTopSoon("smooth");
       }
       return;
     }
-    if (!isPrimaryTabAllowed(tab, onboardingStep)) {
+    if (!isPrimaryTabAllowed(tab, onboardingStep, state)) {
       return;
     }
     if (tab === "combat" && !expeditionUnlocked) {
       dispatch({ type: "SET_TAB", tab: "sanctuary" });
       return;
     }
-    const requiredOnboardingTab = getOnboardingRequiredTab(state?.onboarding?.step || null);
-    if (
-      tab === "combat" &&
-      ["combat", "inventory", "crafting", "codex"].includes(requiredOnboardingTab)
-    ) {
-      dispatch({ type: "SET_TAB", tab: requiredOnboardingTab });
-      return;
-    }
-    if (
-      tab === "character" &&
-      ["character", "skills", "talents"].includes(requiredOnboardingTab)
-    ) {
-      dispatch({ type: "SET_TAB", tab: requiredOnboardingTab });
-      return;
-    }
-    dispatch({ type: "SET_TAB", tab: getDefaultTabForPrimaryTab(tab) });
+    dispatch({ type: "SET_TAB", tab: destinationTab });
   }
   const resourceSummary = (
     <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, overflowX: "auto", scrollbarWidth: "none" }}>
@@ -429,7 +652,7 @@ export default function App() {
     <div style={{ backgroundColor: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", minHeight: "100vh", display: "flex", flexDirection: "column", width: "100%" }}>
       <header style={{ position: "fixed", top: 0, left: 0, width: "100%", height: isMobile ? `${HEADER_HEIGHT_MOBILE}px` : `${HEADER_HEIGHT_DESKTOP}px`, backgroundColor: "var(--color-background-primary, #f8fafc)", borderBottom: "1px solid var(--color-border-secondary, #e2e8f0)", zIndex: 5000, display: "flex", alignItems: "center" }}>
         <div style={{ maxWidth: `${DESKTOP_MAX_WIDTH}px`, width: "100%", margin: "0 auto", padding: isMobile ? "8px 14px" : "10px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
-          <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: "8px" }} onClick={handleHeaderDebugTap}>
             <div style={{ minWidth: 0 }}>
               <h1 style={{ margin: 0, fontSize: isMobile ? "1.15rem" : "1.55rem", fontWeight: "800", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.1 }}>
                 {PRIMARY_TAB_CONFIG[currentPrimaryTab].label}
@@ -473,15 +696,18 @@ export default function App() {
                   const disabled =
                     (reforgeLocked && currentPrimaryTab !== t) ||
                     (t === "combat" && !expeditionUnlocked) ||
-                    !isPrimaryTabAllowed(t, onboardingStep);
+                    !isPrimaryTabAllowed(t, onboardingStep, state);
                   const spotlightHeroPrimary = onboardingStep === ONBOARDING_STEPS.OPEN_HERO && t === "character";
                   const spotlightPrestigePrimary = onboardingStep === ONBOARDING_STEPS.FIRST_ECHOES && t === "prestige";
+                  const spotlightSanctuaryPrimary = onboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY && t === "sanctuary";
                   return (
                     <button
                       key={t}
                       disabled={disabled}
                       data-onboarding-target={
-                        spotlightHeroPrimary
+                        spotlightSanctuaryPrimary
+                          ? "primary-sanctuary-tab"
+                          : spotlightHeroPrimary
                           ? "primary-hero-tab"
                           : spotlightPrestigePrimary
                             ? "primary-prestige-tab"
@@ -501,12 +727,12 @@ export default function App() {
                         gap: "6px",
                         transition: "all 0.2s",
                         opacity: disabled ? 0.55 : 1,
-                        position: spotlightHeroPrimary || spotlightPrestigePrimary ? "relative" : "static",
-                        zIndex: spotlightHeroPrimary || spotlightPrestigePrimary ? 2 : 1,
-                        boxShadow: spotlightHeroPrimary || spotlightPrestigePrimary
+                        position: spotlightHeroPrimary || spotlightPrestigePrimary || spotlightSanctuaryPrimary ? "relative" : "static",
+                        zIndex: spotlightHeroPrimary || spotlightPrestigePrimary || spotlightSanctuaryPrimary ? 2 : 1,
+                        boxShadow: spotlightHeroPrimary || spotlightPrestigePrimary || spotlightSanctuaryPrimary
                           ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 28px rgba(83,74,183,0.18)"
                           : "none",
-                        animation: spotlightHeroPrimary || spotlightPrestigePrimary ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                        animation: spotlightHeroPrimary || spotlightPrestigePrimary || spotlightSanctuaryPrimary ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
                       }}
                     >
                   <span>{PRIMARY_TAB_CONFIG[t].icon}</span>
@@ -568,11 +794,13 @@ export default function App() {
       )}
 
       {state.expedition?.phase === "extraction" && (
-        <ExtractionOverlay
-          state={state}
-          dispatch={dispatch}
-          isMobile={isMobile}
-        />
+        <Suspense fallback={<OverlayLoadingCard label="extraccion" isMobile={isMobile} />}>
+          <ExtractionOverlay
+            state={state}
+            dispatch={dispatch}
+            isMobile={isMobile}
+          />
+        </Suspense>
       )}
 
       <OnboardingOverlay state={state} dispatch={dispatch} isMobile={isMobile} />
@@ -648,6 +876,72 @@ export default function App() {
         </div>
       )}
 
+      {testerToast && (
+        <div
+          style={{
+            position: "fixed",
+            top: isMobile ? `${HEADER_HEIGHT_MOBILE + 10}px` : `${HEADER_HEIGHT_DESKTOP + 12}px`,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 7200,
+            borderRadius: "999px",
+            padding: "8px 12px",
+            fontSize: "0.72rem",
+            fontWeight: "900",
+            border: `1px solid ${testerToast.tone === "danger" ? "rgba(216,90,48,0.28)" : "rgba(29,158,117,0.24)"}`,
+            background: testerToast.tone === "danger" ? "var(--tone-danger-soft, #fff1f2)" : "var(--tone-success-soft, #ecfdf5)",
+            color: testerToast.tone === "danger" ? "var(--tone-danger, #D85A30)" : "var(--tone-success-strong, #047857)",
+            boxShadow: "0 14px 30px rgba(15,23,42,0.14)",
+            pointerEvents: "none",
+          }}
+        >
+          {testerToast.label}
+        </div>
+      )}
+
+      {actionToast && (
+        <div
+          style={{
+            position: "fixed",
+            top: isMobile
+              ? `${HEADER_HEIGHT_MOBILE + (testerToast ? 52 : 10)}px`
+              : `${HEADER_HEIGHT_DESKTOP + (testerToast ? 54 : 12)}px`,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 7190,
+            borderRadius: "999px",
+            padding: "8px 12px",
+            fontSize: "0.72rem",
+            fontWeight: "900",
+            border: `1px solid ${
+              actionToast.tone === "success"
+                ? "rgba(29,158,117,0.24)"
+                : actionToast.tone === "warning"
+                  ? "rgba(245,158,11,0.26)"
+                  : "rgba(3,105,161,0.24)"
+            }`,
+            background:
+              actionToast.tone === "success"
+                ? "var(--tone-success-soft, #ecfdf5)"
+                : actionToast.tone === "warning"
+                  ? "var(--tone-warning-soft, #fff7ed)"
+                  : "var(--tone-info-soft, #f0f9ff)",
+            color:
+              actionToast.tone === "success"
+                ? "var(--tone-success-strong, #047857)"
+                : actionToast.tone === "warning"
+                  ? "var(--tone-warning, #f59e0b)"
+                  : "var(--tone-info, #0369a1)",
+            boxShadow: "0 14px 30px rgba(15,23,42,0.14)",
+            pointerEvents: "none",
+            maxWidth: isMobile ? "calc(100vw - 28px)" : "640px",
+            textAlign: "center",
+          }}
+        >
+          {actionToast.label}
+        </div>
+      )}
+
       {isMobile && (
         <>
           <nav style={{ position: "fixed", bottom: 0, left: 0, width: "100%", height: `${NAV_HEIGHT_MOBILE}px`, backgroundColor: "var(--color-background-secondary, #ffffff)", borderTop: "1px solid var(--color-border-secondary, #e2e8f0)", display: "flex", zIndex: 5000, paddingBottom: "env(safe-area-inset-bottom)", boxSizing: "content-box" }}>
@@ -656,15 +950,18 @@ export default function App() {
               const disabled =
                 (reforgeLocked && !isActive) ||
                 (t === "combat" && !expeditionUnlocked) ||
-                !isPrimaryTabAllowed(t, onboardingStep);
+                !isPrimaryTabAllowed(t, onboardingStep, state);
               const spotlightHeroPrimary = onboardingStep === ONBOARDING_STEPS.OPEN_HERO && t === "character";
               const spotlightPrestigePrimary = onboardingStep === ONBOARDING_STEPS.FIRST_ECHOES && t === "prestige";
+              const spotlightSanctuaryPrimary = onboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY && t === "sanctuary";
               return (
                 <button
                   key={t}
                   disabled={disabled}
                   data-onboarding-target={
-                    spotlightHeroPrimary
+                    spotlightSanctuaryPrimary
+                      ? "primary-sanctuary-tab"
+                      : spotlightHeroPrimary
                       ? "primary-hero-tab"
                       : spotlightPrestigePrimary
                         ? "primary-prestige-tab"
@@ -685,11 +982,11 @@ export default function App() {
                     position: "relative",
                     paddingTop: "5px",
                     opacity: disabled ? 0.45 : 1,
-                    boxShadow: spotlightHeroPrimary || spotlightPrestigePrimary
+                    boxShadow: spotlightHeroPrimary || spotlightPrestigePrimary || spotlightSanctuaryPrimary
                       ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.16)"
                       : "none",
-                    animation: spotlightHeroPrimary || spotlightPrestigePrimary ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
-                    zIndex: spotlightHeroPrimary || spotlightPrestigePrimary ? 2 : 1,
+                    animation: spotlightHeroPrimary || spotlightPrestigePrimary || spotlightSanctuaryPrimary ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                    zIndex: spotlightHeroPrimary || spotlightPrestigePrimary || spotlightSanctuaryPrimary ? 2 : 1,
                   }}
                 >
                   <span style={{ filter: isActive ? "none" : "grayscale(1) opacity(0.5)", position: "relative", fontSize: "21px", lineHeight: 1 }}>
@@ -723,6 +1020,16 @@ function TabLoadingCard({ label }) {
     <div style={{ padding: "18px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "220px", color: "var(--color-text-secondary, #475569)", fontWeight: "900", fontSize: "0.82rem" }}>
       Cargando {label}...
     </div>
+  );
+}
+
+function OverlayLoadingCard({ label, isMobile = false }) {
+  return (
+    <OverlayShell isMobile={isMobile}>
+      <div style={{ width: "100%", maxWidth: "480px", borderRadius: isMobile ? "16px 16px 0 0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #ffffff)", color: "var(--color-text-secondary, #475569)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", padding: isMobile ? "18px 16px 20px" : "20px 22px", textAlign: "center", fontSize: "0.82rem", fontWeight: "900" }}>
+        Cargando {label}...
+      </div>
+    </OverlayShell>
   );
 }
 
@@ -896,6 +1203,7 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
   const currentPendingRunSigil = getRunSigil(pendingRunSigilIds?.[activeSlotIndex] || "free");
   const currentLoadoutName = formatRunSigilLoadout(pendingRunSigilIds);
   const currentLoadoutSummary = summarizeRunSigilLoadout(pendingRunSigilIds);
+  const currentLoadoutProfile = buildRunSigilLoadoutProfile(pendingRunSigilIds);
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,0.72)", zIndex: 9000, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", padding: isMobile ? "0" : "24px" }}>
@@ -915,6 +1223,32 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
               Abismo IV activo: podes equipar 2 sigilos. No se repiten.
             </div>
           )}
+        </div>
+
+        <div style={{ padding: isMobile ? "14px 16px 0" : "16px 22px 0", display: "grid", gap: "10px" }}>
+          <div style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-tertiary, #f8fafc)", borderRadius: "14px", padding: "12px", display: "grid", gap: "8px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "start" }}>
+              <div style={{ display: "grid", gap: "4px" }}>
+                <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-accent, #4338ca)" }}>
+                  Loadout actual
+                </div>
+                <div style={{ fontSize: "0.94rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                  {currentLoadoutName}
+                </div>
+                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                  {currentLoadoutSummary}
+                </div>
+              </div>
+              <div style={{ fontSize: "0.64rem", fontWeight: "900", color: "var(--tone-info, #0369a1)" }}>
+                Slot activo: {activeSlotIndex + 1} · {currentPendingRunSigil.shortName || currentPendingRunSigil.name}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px" }}>
+              <SigilProfileGroup title="Esta run premia" tone="success" items={currentLoadoutProfile.boosts} emptyLabel="Sin sesgo positivo fuerte." />
+              <SigilProfileGroup title="Esta run cede" tone="danger" items={currentLoadoutProfile.tradeoffs} emptyLabel="Sin coste de oportunidad relevante." />
+            </div>
+          </div>
         </div>
 
         {sigilSlotCount > 1 && (
@@ -951,6 +1285,7 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
             const selectedSlots = (pendingRunSigilIds || [])
               .map((selectedId, index) => (selectedId === sigil.id ? index + 1 : null))
               .filter(Boolean);
+            const sigilProfile = buildRunSigilChoiceProfile(sigil.id);
             return (
               <button
                 key={sigil.id}
@@ -984,6 +1319,10 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
                 </div>
                 <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #475569)", marginTop: "8px", lineHeight: 1.45 }}>
                   {sigil.summary}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "8px", marginTop: "10px" }}>
+                  <SigilProfileGroup title="Premia" tone="success" items={sigilProfile.boosts} emptyLabel="Sin premio directo." compact />
+                  <SigilProfileGroup title="Cede" tone="danger" items={sigilProfile.tradeoffs} emptyLabel="Sin coste visible." compact />
                 </div>
                 <div style={{ marginTop: "8px", padding: "8px 9px", borderRadius: "10px", background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
                   <div style={{ fontSize: "0.54rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary, #94a3b8)" }}>
@@ -1045,6 +1384,53 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
             Empezar corrida
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SigilProfileGroup({ title, tone = "success", items = [], emptyLabel = "", compact = false }) {
+  const palette =
+    tone === "danger"
+      ? {
+          label: "var(--tone-danger, #b91c1c)",
+          bg: "var(--tone-danger-soft, #fff1f2)",
+          border: "rgba(244,63,94,0.18)",
+          text: "var(--tone-danger, #b91c1c)",
+        }
+      : {
+          label: "var(--tone-success-strong, #047857)",
+          bg: "var(--tone-success-soft, #ecfdf5)",
+          border: "rgba(16,185,129,0.18)",
+          text: "var(--tone-success-strong, #047857)",
+        };
+
+  return (
+    <div style={{ display: "grid", gap: compact ? "5px" : "6px" }}>
+      <div style={{ fontSize: compact ? "0.56rem" : "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: palette.label }}>
+        {title}
+      </div>
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+        {items.length > 0 ? items.map(item => (
+          <span
+            key={item.label}
+            style={{
+              fontSize: compact ? "0.58rem" : "0.62rem",
+              fontWeight: "800",
+              color: palette.text,
+              background: palette.bg,
+              border: `1px solid ${palette.border}`,
+              borderRadius: "999px",
+              padding: compact ? "3px 6px" : "4px 7px",
+            }}
+          >
+            {item.label}
+          </span>
+        )) : (
+          <span style={{ fontSize: compact ? "0.58rem" : "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
+            {emptyLabel}
+          </span>
+        )}
       </div>
     </div>
   );

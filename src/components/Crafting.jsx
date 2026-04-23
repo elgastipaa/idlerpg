@@ -59,6 +59,17 @@ function getModeTooltipStyle(tone) {
   };
 }
 
+function contractCardStyle() {
+  return {
+    display: "grid",
+    gap: "6px",
+    border: "1px solid var(--color-border-primary, #e2e8f0)",
+    background: "var(--color-background-secondary, #ffffff)",
+    borderRadius: "12px",
+    padding: "10px 12px",
+  };
+}
+
 export default function Crafting({ state, dispatch }) {
   const { player } = state;
   const inventory = Array.isArray(player.inventory) ? player.inventory : [];
@@ -412,11 +423,15 @@ export default function Crafting({ state, dispatch }) {
           ? "Mantener actual cierra la reforja sin fijar la pieza."
           : "Elegi una opcion para cerrar la reforja.";
       }
+      const freshOptionCount =
+        selectedItem?.rarity === "epic" || selectedItem?.rarity === "legendary"
+          ? 3
+          : 2;
       return focusedAffix
         ? `La pieza ya quedo fijada a ${focusedAffixLabel}.`
         : canUseAbyssCraftingOnSelection
-          ? "Pagas la reforja, ves opciones y despues decidis si cambias. Esta pieza puede abrir affixes de Abismo."
-          : "Pagas la reforja, ves opciones y despues decidis si cambias.";
+          ? `Pagas la reforja una vez, ves ${freshOptionCount} linea(s) nueva(s) y despues decidis si cambias. Esta pieza puede abrir affixes de Abismo.`
+          : `Pagas la reforja una vez, ves ${freshOptionCount} linea(s) nueva(s) y despues decidis si cambias.`;
     }
     if (mode === "ascend") {
       if (selectedActionReq?.nextRarity === "legendary") {
@@ -617,6 +632,22 @@ export default function Crafting({ state, dispatch }) {
         {modeTooltip && (
           <div style={getModeTooltipStyle(modeTooltip.tone)}>
             {modeTooltip.text}
+          </div>
+        )}
+        {mode !== "extract" && (
+          <div style={contractCardStyle()}>
+            <div style={{ fontSize: "0.54rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+              Contrato actual
+            </div>
+            <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45, fontWeight: "800" }}>
+              Aqui no existe `Forging Potential`. La tension real de la pieza vive en limites por accion, costo creciente y linea trabajada.
+            </div>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              <span style={miniStatPillStyle}>Reroll rehace toda la base</span>
+              <span style={miniStatPillStyle}>Polish mejora solo valor</span>
+              <span style={miniStatPillStyle}>Reforge cambia una linea y luego la fija</span>
+              <span style={miniStatPillStyle}>Ascend sube rareza si la pieza ya llego</span>
+            </div>
           </div>
         )}
         {isReforgeLocked && (
@@ -1030,6 +1061,11 @@ export default function Crafting({ state, dispatch }) {
                   </button>
                 ))}
               </div>
+              {selectedItemReforgeOptions.length > 0 && (
+                <div style={{ fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>
+                  Ya pagaste la preview. Esta reforja te deja comparar {Math.max(0, selectedItemReforgeOptions.length - 1)} linea(s) nueva(s) antes de cerrar la pieza.
+                </div>
+              )}
             </div>
           )}
         </section>

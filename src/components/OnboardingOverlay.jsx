@@ -1,17 +1,135 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  getEffectiveOnboardingStep,
+  ONBOARDING_STEPS,
   getOnboardingOverlayAnchor,
   getOnboardingSpotlightSelectors,
   getOnboardingStepMeta,
   isInfoOnlyOnboardingStep,
+  shouldShowOnboardingGlossaryHint,
+  shouldShowOnboardingSpotlightDuringInfoStep,
 } from "../engine/onboarding/onboardingEngine";
 
+function getScrollableAncestors(node) {
+  const ancestors = [];
+  let current = node?.parentElement || null;
+  while (current) {
+    const style = window.getComputedStyle(current);
+    const overflowY = `${style.overflowY || ""} ${style.overflow || ""}`;
+    const overflowX = `${style.overflowX || ""} ${style.overflow || ""}`;
+    const canScrollY =
+      /(auto|scroll|overlay)/.test(overflowY) &&
+      current.scrollHeight > current.clientHeight + 1;
+    const canScrollX =
+      /(auto|scroll|overlay)/.test(overflowX) &&
+      current.scrollWidth > current.clientWidth + 1;
+    if (canScrollX || canScrollY) {
+      ancestors.push({ node: current, canScrollX, canScrollY });
+    }
+    current = current.parentElement;
+  }
+  return ancestors;
+}
+
+function revealTargetInScrollContainers(target, { minViewportTop = 0, maxViewportBottom = window.innerHeight } = {}) {
+  let adjusted = false;
+  for (const entry of getScrollableAncestors(target)) {
+    const container = entry.node;
+    const targetRect = target.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    if (entry.canScrollY) {
+      const visibleTop = Math.max(containerRect.top + 12, minViewportTop);
+      const visibleBottom = Math.min(containerRect.bottom - 12, maxViewportBottom);
+
+      if (visibleBottom > visibleTop + 24) {
+        if (targetRect.top < visibleTop) {
+          container.scrollBy({
+            top: targetRect.top - visibleTop,
+            behavior: "auto",
+          });
+          adjusted = true;
+        } else if (targetRect.bottom > visibleBottom) {
+          container.scrollBy({
+            top: targetRect.bottom - visibleBottom,
+            behavior: "auto",
+          });
+          adjusted = true;
+        } else {
+          const comfortTop = visibleTop + 24;
+          const comfortBottom = visibleBottom - 24;
+          const targetCenter = targetRect.top + (targetRect.height / 2);
+          const comfortCenter = comfortTop + Math.max(0, (comfortBottom - comfortTop) / 2);
+          const targetTooCloseToEdge =
+            targetRect.height <= Math.max(120, (visibleBottom - visibleTop) * 0.35) &&
+            (targetRect.top < comfortTop || targetRect.bottom > comfortBottom);
+
+          if (targetTooCloseToEdge) {
+            container.scrollBy({
+              top: targetCenter - comfortCenter,
+              behavior: "auto",
+            });
+            adjusted = true;
+          }
+        }
+      }
+    }
+
+    if (entry.canScrollX) {
+      const visibleLeft = containerRect.left + 12;
+      const visibleRight = containerRect.right - 12;
+
+      if (visibleRight > visibleLeft + 24) {
+        if (targetRect.left < visibleLeft) {
+          container.scrollBy({
+            left: targetRect.left - visibleLeft,
+            behavior: "auto",
+          });
+          adjusted = true;
+        } else if (targetRect.right > visibleRight) {
+          container.scrollBy({
+            left: targetRect.right - visibleRight,
+            behavior: "auto",
+          });
+          adjusted = true;
+        } else {
+          const comfortLeft = visibleLeft + 24;
+          const comfortRight = visibleRight - 24;
+          const targetCenter = targetRect.left + (targetRect.width / 2);
+          const comfortCenter = comfortLeft + Math.max(0, (comfortRight - comfortLeft) / 2);
+          const targetTooCloseToHorizontalEdge =
+            targetRect.width <= Math.max(160, (visibleRight - visibleLeft) * 0.5) &&
+            (targetRect.left < comfortLeft || targetRect.right > comfortRight);
+
+          if (targetTooCloseToHorizontalEdge) {
+            container.scrollBy({
+              left: targetCenter - comfortCenter,
+              behavior: "auto",
+            });
+            adjusted = true;
+          }
+        }
+      }
+    }
+  }
+  return adjusted;
+}
+
 export default function OnboardingOverlay({ state, dispatch, isMobile = false }) {
-  const step = state?.onboarding?.step || null;
-  const meta = getOnboardingStepMeta(step, state);
-  const anchor = getOnboardingOverlayAnchor(step);
-  const infoOnly = isInfoOnlyOnboardingStep(step, state);
-  const spotlightSelectors = getOnboardingSpotlightSelectors(step, state);
+  const rawStep = state?.onboarding?.step || null;
+  const [liveNow, setLiveNow] = useState(Date.now());
+  const liveState =
+    rawStep === ONBOARDING_STEPS.DISTILLERY_READY ||
+    rawStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY ||
+    rawStep === ONBOARDING_STEPS.OPEN_DISTILLERY
+      ? { ...state, __liveNow: liveNow }
+      : state;
+  const step = getEffectiveOnboardingStep(rawStep, liveState);
+  const meta = getOnboardingStepMeta(step, liveState);
+  const anchor = getOnboardingOverlayAnchor(step, liveState);
+  const infoOnly = isInfoOnlyOnboardingStep(step, liveState);
+  const showGlossaryHint = shouldShowOnboardingGlossaryHint(step);
+  const infoSpotlightAllowed = shouldShowOnboardingSpotlightDuringInfoStep(step, liveState);
+  const spotlightSelectors = getOnboardingSpotlightSelectors(step, liveState);
   const spotlightSelectorsKey = spotlightSelectors.join("|");
   const currentTab = state?.currentTab || "sanctuary";
   const backdrop = infoOnly ? "rgba(2,6,23,0.46)" : "rgba(2,6,23,0.24)";
@@ -23,6 +141,61 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
     anchor === "subnav"
       ? (isMobile ? "124px" : "144px")
       : (isMobile ? "78px" : "88px");
+  const shouldLockScroll =
+    Boolean(step) &&
+    step !== ONBOARDING_STEPS.CHOOSE_CLASS &&
+    step !== ONBOARDING_STEPS.CHOOSE_SPEC &&
+    (infoOnly || spotlightReady);
+  const sanctuaryCorridorClickThrough = [
+    ONBOARDING_STEPS.OPEN_LABORATORY,
+    ONBOARDING_STEPS.RESEARCH_DISTILLERY,
+    ONBOARDING_STEPS.DISTILLERY_READY,
+    ONBOARDING_STEPS.RETURN_TO_SANCTUARY,
+    ONBOARDING_STEPS.OPEN_DISTILLERY,
+    ONBOARDING_STEPS.FIRST_DISTILLERY_JOB,
+  ].includes(step);
+
+  useEffect(() => {
+    if (step !== ONBOARDING_STEPS.DISTILLERY_READY) return undefined;
+    const id = window.setInterval(() => {
+      setLiveNow(Date.now());
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [step]);
+
+  useEffect(() => {
+    if (!shouldLockScroll) return undefined;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousOverscroll = document.documentElement.style.overscrollBehavior;
+
+    const preventScroll = event => {
+      event.preventDefault();
+    };
+
+    const preventScrollKeys = event => {
+      if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " ", "Spacebar"].includes(event.key)) {
+        event.preventDefault();
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    document.documentElement.style.overscrollBehavior = "none";
+    window.addEventListener("wheel", preventScroll, { passive: false, capture: true });
+    window.addEventListener("touchmove", preventScroll, { passive: false, capture: true });
+    window.addEventListener("keydown", preventScrollKeys, { capture: true });
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.documentElement.style.overscrollBehavior = previousOverscroll;
+      window.removeEventListener("wheel", preventScroll, true);
+      window.removeEventListener("touchmove", preventScroll, true);
+      window.removeEventListener("keydown", preventScrollKeys, true);
+    };
+  }, [shouldLockScroll]);
 
   useEffect(() => {
     if (!step) {
@@ -37,11 +210,11 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       return undefined;
     }
 
-    if (infoOnly) {
+    if (infoOnly && !infoSpotlightAllowed) {
       setSpotlightReady(true);
     }
 
-    if (!spotlightReady && !infoOnly) {
+    if (!spotlightReady && !(infoOnly && infoSpotlightAllowed)) {
       setSpotlightRects([]);
       return undefined;
     }
@@ -75,7 +248,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       window.removeEventListener("resize", scheduleMeasure);
       window.removeEventListener("scroll", scheduleMeasure, true);
     };
-  }, [currentTab, infoOnly, spotlightReady, spotlightSelectorsKey, step]);
+  }, [currentTab, infoOnly, infoSpotlightAllowed, spotlightReady, spotlightSelectorsKey, step]);
 
   useEffect(() => {
     if (!step) {
@@ -83,7 +256,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       return undefined;
     }
 
-    if (!spotlightSelectors.length || infoOnly) {
+    if (!spotlightSelectors.length || (infoOnly && !infoSpotlightAllowed)) {
       setSpotlightReady(true);
       return undefined;
     }
@@ -99,7 +272,6 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
     setSpotlightReady(false);
     const scrollTargetIntoView = () => {
       const target = [...spotlightSelectors]
-        .reverse()
         .flatMap(selector => [...document.querySelectorAll(selector)])
         .find(node => node instanceof HTMLElement && node.offsetParent !== null);
       if (!target) {
@@ -114,7 +286,6 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
         return;
       }
 
-      const targetRect = target.getBoundingClientRect();
       const headerOffset = anchor === "subnav"
         ? (isMobile ? 72 : 80)
         : (isMobile ? 68 : 76);
@@ -132,7 +303,12 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
         .reduce((maxBottom, bottom) => Math.max(maxBottom, bottom), 0);
       const visibleTop = Math.max(12, safeTop, extraTopGuard > 0 ? extraTopGuard + 12 : 0);
       const visibleBottom = Math.max(visibleTop + 48, window.innerHeight - safeBottom);
-      let adjusted = false;
+      const adjustedInnerScroll = revealTargetInScrollContainers(target, {
+        minViewportTop: visibleTop,
+        maxViewportBottom: visibleBottom,
+      });
+      const targetRect = target.getBoundingClientRect();
+      let adjusted = adjustedInnerScroll;
 
       if (targetRect.top < visibleTop) {
         window.scrollBy({
@@ -188,7 +364,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       if (frameId != null) cancelAnimationFrame(frameId);
       if (timeoutId != null) window.clearTimeout(timeoutId);
     };
-  }, [anchor, cardRect?.height, currentTab, infoOnly, isMobile, spotlightSelectorsKey, step]);
+  }, [anchor, cardRect?.height, currentTab, infoOnly, infoSpotlightAllowed, isMobile, spotlightSelectorsKey, step]);
 
   const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
   const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
@@ -275,7 +451,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9800, pointerEvents: "none" }}>
-      {spotlightRect && !infoOnly && spotlightReady ? (
+      {spotlightRect && spotlightReady ? (
         <>
           <div
             style={{
@@ -285,7 +461,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               width: "100%",
               height: `${Math.max(0, spotlightRect.y)}px`,
               background: backdrop,
-              pointerEvents: "auto",
+              pointerEvents: sanctuaryCorridorClickThrough ? "none" : "auto",
             }}
           />
           <div
@@ -296,7 +472,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               width: `${Math.max(0, spotlightRect.x)}px`,
               height: `${Math.max(0, spotlightRect.height)}px`,
               background: backdrop,
-              pointerEvents: "auto",
+              pointerEvents: sanctuaryCorridorClickThrough ? "none" : "auto",
             }}
           />
           <div
@@ -307,7 +483,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               right: 0,
               height: `${Math.max(0, spotlightRect.height)}px`,
               background: backdrop,
-              pointerEvents: "auto",
+              pointerEvents: sanctuaryCorridorClickThrough ? "none" : "auto",
             }}
           />
           <div
@@ -318,7 +494,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               width: "100%",
               bottom: 0,
               background: backdrop,
-              pointerEvents: "auto",
+              pointerEvents: sanctuaryCorridorClickThrough ? "none" : "auto",
             }}
           />
         </>
@@ -328,7 +504,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
             position: "fixed",
             inset: 0,
             background: backdrop,
-            pointerEvents: "auto",
+            pointerEvents: sanctuaryCorridorClickThrough ? "none" : "auto",
           }}
         />
       )}
@@ -336,6 +512,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
         ref={cardRef}
         style={{
           position: "fixed",
+          zIndex: 2,
           left: `${defaultLeft}px`,
           width: `${cardWidth}px`,
           top: cardTop != null ? `${cardTop}px` : "auto",
@@ -349,7 +526,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
           padding: "14px 16px",
           display: "grid",
           gap: "10px",
-          pointerEvents: "auto",
+          pointerEvents: infoOnly ? "auto" : "none",
           opacity: 1,
         }}
       >
@@ -360,6 +537,11 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
         <div style={{ fontSize: "0.78rem", lineHeight: 1.45, color: "var(--color-text-secondary, #475569)" }}>
           {meta.body}
         </div>
+        {infoOnly && showGlossaryHint && (
+          <div style={{ fontSize: "0.7rem", lineHeight: 1.45, color: "var(--color-text-tertiary, #64748b)", paddingTop: "2px", borderTop: "1px solid var(--color-border-primary, #e2e8f0)" }}>
+            En Mas &gt; Glosario podes ver mas.
+          </div>
+        )}
         {infoOnly && (
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button

@@ -1,4 +1,4 @@
-﻿import { loadGame } from "../utils/storage";
+﻿import { getSaveMode, loadGame } from "../utils/storage";
 import { ENEMIES } from "../data/enemies";
 import { BOSSES } from "../data/bosses";
 import { normalizeStoredItem } from "../utils/loot";
@@ -22,6 +22,8 @@ import { refreshStats } from "./combat/statEngine";
 import { createEmptyCodexState, normalizeCodexState, recordCodexSighting, syncCodexBonuses } from "./progression/codexEngine";
 import { createEmptyAbyssState, getMaxRunSigilSlots, normalizeAbyssState } from "./progression/abyssProgression";
 import { createEmptyPrestigeCycleProgress, normalizePrestigeState, syncPrestigeBonuses } from "./progression/prestigeEngine";
+import { createEmptyWeeklyLedger, ensureWeeklyLedger } from "./progression/weeklyLedger";
+import { createEmptyAppearanceProfile, normalizeAppearanceProfile } from "./progression/appearanceProfile";
 import { rebuildPlayerProgressionBonuses } from "./progression/progressionEngine";
 import { getRunSigil, getRunSigilPlayerBonuses, normalizeRunSigilIds } from "../data/runSigils";
 import { migrateTalentsToV2, TALENT_SYSTEM_VERSION } from "./migrations/talentsV2Migration";
@@ -33,6 +35,7 @@ import {
   normalizeBlueprintRecord,
   normalizeExtractedItemRecord,
 } from "./sanctuary/blueprintEngine";
+import { createEmptyItemStashState, syncItemStashState } from "./sanctuary/itemStashSchema";
 import { createEmptyOnboardingState, normalizeOnboardingState } from "./onboarding/onboardingEngine";
 
 const MAX_REWARD_GOLD = Math.max(
@@ -46,7 +49,7 @@ const SAFE_LEVEL_RECOVERY_CAP = 2_000;
 const SAFE_BASE_DAMAGE_RECOVERY_CAP = 5_000;
 const SAFE_BASE_MAX_HP_RECOVERY_CAP = 100_000;
 const SAFE_TALENT_POINT_RECOVERY_CAP = 10_000;
-const VALID_TABS = new Set(["sanctuary", "character", "combat", "inventory", "skills", "talents", "crafting", "prestige", "achievements", "stats", "registry", "system", "lab", "codex"]);
+const VALID_TABS = new Set(["sanctuary", "character", "combat", "inventory", "skills", "talents", "crafting", "prestige", "account", "achievements", "stats", "registry", "system", "lab", "codex"]);
 const EXPEDITION_TABS = new Set(["combat", "inventory", "crafting", "codex"]);
 
 function sanitizeStoredResource(value, { fallback = 0, recoveryCap = Number.MAX_SAFE_INTEGER } = {}) {
@@ -147,6 +150,7 @@ function createEmptySanctuaryState() {
   return {
     stash: [],
     extractedItems: [],
+    itemStash: createEmptyItemStashState(),
     blueprints: [],
     cargoInventory: [],
     jobs: [],
@@ -297,6 +301,16 @@ function buildCompletedOnboardingState({
         (Array.isArray(sanctuary?.cargoInventory) ? sanctuary.cargoInventory.length : 0) > 0 ||
         (Array.isArray(sanctuary?.jobs) ? sanctuary.jobs.length : 0) > 0 ||
         Number(prestige?.level || 0) > 0,
+      firstSanctuaryReturnSeen:
+        Boolean(sanctuary?.stations?.distillery?.unlocked) ||
+        (Array.isArray(sanctuary?.jobs)
+          ? sanctuary.jobs.some(
+              job =>
+                (job?.station === "laboratory" && job?.input?.researchId === "unlock_distillery") ||
+                job?.station === "distillery"
+            )
+          : false) ||
+        Number(prestige?.level || 0) > 0,
       laboratoryUnlocked: Boolean(sanctuary?.stations?.laboratory?.unlocked),
       distilleryUnlocked: Boolean(sanctuary?.stations?.distillery?.unlocked),
       distilleryJobStarted:
@@ -431,6 +445,7 @@ const freshState = {
   },
 
   currentTab: "sanctuary",
+  appearanceProfile: createEmptyAppearanceProfile(),
   sanctuary: createEmptySanctuaryState(),
   expedition: createEmptyExpeditionState(),
   onboarding: createEmptyOnboardingState(),
@@ -479,6 +494,7 @@ const freshState = {
     lastRunSummary: null,
     offlineSummary: null,
     latestLootEvent: null,
+    inventoryOverflowEvent: null,
     reforgeSession: null,
     runContext: DEFAULT_RUN_CONTEXT,
     pendingRunSetup: false,
@@ -539,15 +555,103 @@ const freshState = {
   replayLibrary: createEmptyReplayLibrary(),
   accountTelemetry: createEmptyAccountTelemetry(),
   saveDiagnostics: createEmptySaveDiagnostics(),
+  weeklyLedger: createEmptyWeeklyLedger(),
 };
 
 export function createFreshState() {
   const next = JSON.parse(JSON.stringify(freshState));
   next.codex = recordCodexSighting(next.codex, next.combat.enemy);
+  next.weeklyLedger = ensureWeeklyLedger(next, next.weeklyLedger, Date.now());
+  return next;
+}
+
+export function createSimulationSeedState() {
+  const next = createFreshState();
+  next.onboarding = buildCompletedOnboardingState({
+    player: next.player,
+    stats: next.stats,
+    combat: next.combat,
+    prestige: next.prestige,
+    sanctuary: next.sanctuary,
+    abyss: next.abyss,
+  });
+  return next;
+}
+
+function createLaboratoryDebugState() {
+  const next = createFreshState();
+  next.player.class = null;
+  next.player.specialization = null;
+  next.player.hp = next.player.maxHp;
+  next.prestige = normalizePrestigeState({
+    ...next.prestige,
+    level: 1,
+    echoes: 1,
+    totalEchoesEarned: 1,
+  });
+  next.sanctuary = {
+    ...createEmptySanctuaryState(),
+    ...next.sanctuary,
+    cargoInventory: [
+      {
+        id: "tutorial_lab_bundle",
+        type: "codexInk",
+        quantity: 3,
+        label: "Bundle tutorial",
+        description: "Carga de prueba para onboarding del Laboratorio.",
+        source: "tutorial",
+        extractedAt: Date.now(),
+      },
+    ],
+    stations: buildSanctuaryStationsWithLaboratory({
+      ...createEmptySanctuaryState().stations,
+      ...(next.sanctuary?.stations || {}),
+      laboratory: {
+        ...createEmptySanctuaryState().stations.laboratory,
+        unlocked: true,
+      },
+    }),
+  };
+  next.expedition = {
+    ...createEmptyExpeditionState(),
+    phase: "sanctuary",
+  };
+  next.combat = {
+    ...next.combat,
+    pendingRunSetup: false,
+  };
+  next.currentTab = "sanctuary";
+  next.onboarding = normalizeOnboardingState({
+    ...createEmptyOnboardingState(),
+    step: "open_laboratory",
+    flags: {
+      ...createEmptyOnboardingState().flags,
+      classChosen: true,
+      combatIntroSeen: true,
+      autoAdvanceUnlocked: true,
+      firstDeathSeen: true,
+      heroTabUnlocked: true,
+      specChosen: true,
+      heroIntroSeen: true,
+      firstAttributeSpent: true,
+      firstTalentBought: true,
+      inventoryUnlocked: true,
+      firstItemEquipped: true,
+      firstBossSeen: true,
+      huntUnlocked: true,
+      extractionUnlocked: true,
+      firstExtractionCompleted: true,
+      firstSanctuaryReturnSeen: true,
+      laboratoryUnlocked: true,
+      distilleryUnlocked: false,
+      distilleryJobStarted: false,
+    },
+  });
   return next;
 }
 
 const saved = loadGame();
+const saveMode = getSaveMode();
 const isValidSave =
   saved?.combat?.enemy?.xpReward != null &&
   saved?.player?.baseDamage != null &&
@@ -646,7 +750,10 @@ export function mergeStateWithDefaults(base, incoming) {
   const rawTalentPoints = Number(rawPlayer.talentPoints ?? base.player.talentPoints);
   const rawXp = Number(rawPlayer.xp ?? base.player.xp);
   const prestigeLevel = Number(normalizedPrestige.level || 0);
-  const pendingRunSetup = Boolean(rawCombat.pendingRunSetup) && prestigeLevel >= 1;
+  const pendingRunSetup = (
+    Boolean(rawCombat.pendingRunSetup) ||
+    rawExpedition?.phase === "setup"
+  ) && prestigeLevel >= 1;
   const pendingRunSigilIds = normalizeRunSigilIds(
     rawCombat.pendingRunSigilIds || rawCombat.pendingRunSigilId || "free",
     { slots: maxRunSigilSlots }
@@ -677,13 +784,15 @@ export function mergeStateWithDefaults(base, incoming) {
     sanctuary: rawSanctuary,
     onboarding: migratedIncoming.onboarding || {},
   });
+  const normalizedExtractedItems = Array.isArray(rawSanctuary.extractedItems)
+    ? rawSanctuary.extractedItems.map(item => normalizeExtractedItemRecord(item)).filter(Boolean)
+    : [];
   const preLaboratorySanctuary = {
     ...createEmptySanctuaryState(),
     ...rawSanctuary,
     stash: [],
-    extractedItems: Array.isArray(rawSanctuary.extractedItems)
-      ? rawSanctuary.extractedItems.map(item => normalizeExtractedItemRecord(item)).filter(Boolean)
-      : [],
+    extractedItems: normalizedExtractedItems,
+    itemStash: syncItemStashState(rawSanctuary.itemStash || {}, normalizedExtractedItems),
     blueprints: (
       Array.isArray(rawSanctuary.blueprints)
         ? rawSanctuary.blueprints.map(blueprint => normalizeBlueprintRecord(blueprint)).filter(Boolean)
@@ -990,6 +1099,7 @@ export function mergeStateWithDefaults(base, incoming) {
         ...((migratedIncoming.settings || {}).lootRules || {}),
       },
     },
+    appearanceProfile: normalizeAppearanceProfile(migratedIncoming.appearanceProfile || base.appearanceProfile),
     combat: {
       ...base.combat,
       ...rawCombat,
@@ -1021,6 +1131,7 @@ export function mergeStateWithDefaults(base, incoming) {
       reforgeSession: rawCombat.reforgeSession || null,
       lastRunSummary: shouldResetRuntimeSession ? null : (rawCombat.lastRunSummary || null),
       latestLootEvent: shouldResetRuntimeSession ? null : (rawCombat.latestLootEvent || null),
+      inventoryOverflowEvent: shouldResetRuntimeSession ? null : (rawCombat.inventoryOverflowEvent || null),
       runContext: normalizedRunContext,
       pendingRunSetup,
       pendingRunSigilId,
@@ -1062,6 +1173,12 @@ export function mergeStateWithDefaults(base, incoming) {
     accountTelemetry: sanitizeAccountTelemetry(migratedIncoming.accountTelemetry || base.accountTelemetry),
     saveDiagnostics: normalizedSaveDiagnostics,
   };
+
+  mergedState.weeklyLedger = ensureWeeklyLedger(
+    mergedState,
+    migratedIncoming.weeklyLedger || base.weeklyLedger,
+    Date.now()
+  );
 
   const detectedCorruption =
     hasPlayerStatCorruption ||
@@ -1110,6 +1227,10 @@ export function mergeStateWithDefaults(base, incoming) {
   };
 }
 
-export const initialState = isValidSave ? mergeStateWithDefaults(createFreshState(), saved) : createFreshState();
+export const initialState = saveMode.lab
+  ? createLaboratoryDebugState()
+  : isValidSave
+    ? mergeStateWithDefaults(createFreshState(), saved)
+    : createFreshState();
 export { DEFAULT_LOOT_RULES };
 

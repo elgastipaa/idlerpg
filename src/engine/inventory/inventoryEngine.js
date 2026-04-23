@@ -92,9 +92,22 @@ export function addToInventory(inventory, newItem) {
 
   if (updated.length > INVENTORY_CAP) {
     const dropped = updated[updated.length - 1];
-    return { inventory: updated.slice(0, INVENTORY_CAP), droppedName: dropped.name };
+    const nextInventory = updated.slice(0, INVENTORY_CAP);
+    return {
+      inventory: nextInventory,
+      droppedName: dropped.name,
+      droppedItem: dropped,
+      incomingItem: itemWithRating,
+      incomingItemKept: nextInventory.some(item => item?.id === itemWithRating.id),
+    };
   }
-  return { inventory: updated, droppedName: null };
+  return {
+    inventory: updated,
+    droppedName: null,
+    droppedItem: null,
+    incomingItem: itemWithRating,
+    incomingItemKept: true,
+  };
 }
 
 export function syncEquipment(player, updatedItem, refreshStats) {

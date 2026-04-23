@@ -26,6 +26,10 @@ export const CRAFT_ACTION_LIMITS = {
   epic: { reroll: 5, reforge: 4, polishPerLine: 6 },
   legendary: { reroll: 3, reforge: 3, polishPerLine: 5 },
 };
+
+function getReforgeExtraOptionCount(item = {}) {
+  return item?.rarity === "epic" || item?.rarity === "legendary" ? 1 : 0;
+}
 export const UPGRADE_CAP_BY_RARITY = {
   common: 5,
   magic: 7,
@@ -699,7 +703,10 @@ export function craftReforgePreview({ player, itemId, affixIndex, favoredStats =
 
   if (player.gold < goldCost || (player.essence || 0) < essenceCost) return null;
 
-  const totalOptionCount = 3 + Math.max(0, Math.floor(player?.prestigeBonuses?.reforgeOptionCount || 0));
+  const totalOptionCount =
+    3 +
+    getReforgeExtraOptionCount(item) +
+    Math.max(0, Math.floor(player?.prestigeBonuses?.reforgeOptionCount || 0));
   const optionCount = Math.max(1, totalOptionCount - 1);
   const allowedExtraAffixPool = ["epic", "legendary"].includes(item?.rarity) ? extraAffixPool : [];
   const generated = generateReforgeOptions(item, affixIndex, optionCount, favoredStats, allowedExtraAffixPool)
