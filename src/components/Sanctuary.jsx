@@ -1469,7 +1469,21 @@ export default function Sanctuary({ state, dispatch }) {
 
           <div style={stationOverviewGridStyle}>
             {stationOverviewRows.map(row => (
-              <div key={row.id} style={compactMetricCard}>
+              <div
+                key={row.id}
+                data-onboarding-target={row.onboardingTarget || undefined}
+                style={{
+                  ...compactMetricCard,
+                  position: row.onboardingTarget ? "relative" : compactMetricCard.position,
+                  zIndex: row.onboardingTarget ? 2 : compactMetricCard.zIndex,
+                  boxShadow: row.onboardingTarget
+                    ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 28px rgba(83,74,183,0.14)"
+                    : compactMetricCard.boxShadow,
+                  animation: row.onboardingTarget
+                    ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite"
+                    : "none",
+                }}
+              >
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" }}>
                   <div>
                     <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>{row.title}</div>
@@ -1483,7 +1497,6 @@ export default function Sanctuary({ state, dispatch }) {
                   <button
                     onClick={row.action || undefined}
                     disabled={!row.action}
-                    data-onboarding-target={row.onboardingTarget || undefined}
                     style={{
                       ...stationButtonStyle({
                         tone: row.tone,
@@ -1491,14 +1504,6 @@ export default function Sanctuary({ state, dispatch }) {
                         disabled: !row.action,
                       }),
                       ...mobileFullWidthButtonStyle,
-                      position: row.onboardingTarget ? "relative" : "static",
-                      zIndex: row.onboardingTarget ? 2 : 1,
-                      boxShadow: row.onboardingTarget
-                        ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 28px rgba(83,74,183,0.14)"
-                        : "none",
-                      animation: row.onboardingTarget
-                        ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite"
-                        : "none",
                     }}
                   >
                     {row.actionLabel}

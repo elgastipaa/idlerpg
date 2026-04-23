@@ -207,6 +207,13 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
     }
     return mapped;
   }, [catalog]);
+  const spotlightResearchEntry = useMemo(
+    () => (spotlightResearchId ? catalog.find(entry => entry.id === spotlightResearchId) || null : null),
+    [catalog, spotlightResearchId]
+  );
+  const spotlightGroupExpanded = spotlightResearchEntry?.group
+    ? Boolean(expandedGroups?.[spotlightResearchEntry.group])
+    : false;
   const unlockEntries = useMemo(
     () =>
       catalog
@@ -238,20 +245,59 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
   }
 
   useEffect(() => {
+    if (!spotlightResearchId || !spotlightResearchEntry?.group) return undefined;
+    setExpandedGroups(current => (
+      current?.[spotlightResearchEntry.group]
+        ? current
+        : { ...current, [spotlightResearchEntry.group]: true }
+    ));
+    setExpandedResearchCards(current => (
+      current?.[spotlightResearchId]
+        ? current
+        : { ...current, [spotlightResearchId]: true }
+    ));
+    return undefined;
+  }, [spotlightResearchEntry?.group, spotlightResearchId]);
+
+  useEffect(() => {
     if (!spotlightResearchId) return undefined;
 
     let frameId = null;
+    let timeoutId = null;
+    let attempts = 0;
+
     const scrollToTarget = () => {
       const target = document.querySelector(`[data-onboarding-target="research-card-${spotlightResearchId}"]`);
-      if (!target) return;
-      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (!(target instanceof HTMLElement)) {
+        attempts += 1;
+        if (attempts < 10) {
+          timeoutId = window.setTimeout(() => {
+            frameId = window.requestAnimationFrame(scrollToTarget);
+          }, 90);
+        }
+        return;
+      }
+
+      target.scrollIntoView({
+        behavior: attempts === 0 ? "auto" : "smooth",
+        block: "center",
+        inline: "nearest",
+      });
+
+      attempts += 1;
+      if (attempts < 4) {
+        timeoutId = window.setTimeout(() => {
+          frameId = window.requestAnimationFrame(scrollToTarget);
+        }, 90);
+      }
     };
 
     frameId = requestAnimationFrame(scrollToTarget);
     return () => {
       if (frameId != null) cancelAnimationFrame(frameId);
+      if (timeoutId != null) window.clearTimeout(timeoutId);
     };
-  }, [spotlightResearchId]);
+  }, [spotlightGroupExpanded, spotlightResearchId]);
 
   return (
     <div style={{ padding: "1rem", display: "grid", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
