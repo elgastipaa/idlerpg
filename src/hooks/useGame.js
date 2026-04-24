@@ -290,6 +290,7 @@ export const useGame = () => {
 
     const needsPhaseRepair =
       phase !== "active" &&
+      phase !== "setup" &&
       !combat?.pendingRunSetup &&
       hasRunEvidence;
     const needsEnemyRepair =

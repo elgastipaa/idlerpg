@@ -196,14 +196,14 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
             <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: expedition.exitReason === "death" ? "var(--tone-danger, #D85A30)" : "var(--tone-accent, #4338ca)" }}>
               {formatExitLabel(expedition.exitReason)}
             </div>
-            <div style={{ fontSize: isMobile ? "1.08rem" : "1.18rem", fontWeight: "900", marginTop: "4px" }}>
+            <div style={{ fontSize: "clamp(1.08rem, 2.1vw, 1.18rem)", fontWeight: "900", marginTop: "4px" }}>
               Cierra la expedicion y elige que vuelve al Santuario
             </div>
             <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.45, maxWidth: "60ch" }}>
               El valor meta ya no vive solo en la corrida. Elige bundles persistentes y, si la salida lo permite, un item para rescatar temporalmente en el Santuario.
             </div>
           </div>
-          <div style={{ display: "grid", gap: "6px", justifyItems: isMobile ? "stretch" : "end" }}>
+          <div className="overlay-actions-end" style={{ gap: "6px" }}>
             <div style={{ padding: "8px 10px", borderRadius: "999px", background: expedition.exitReason === "death" ? "var(--tone-danger-soft, #fff1f2)" : "var(--tone-accent-soft, #eef2ff)", border: "1px solid", borderColor: expedition.exitReason === "death" ? "rgba(244,63,94,0.18)" : "rgba(99,102,241,0.18)", color: expedition.exitReason === "death" ? "var(--tone-danger, #D85A30)" : "var(--tone-accent, #4338ca)", fontSize: "0.66rem", fontWeight: "900" }}>
               {expedition.exitReason === "death" ? "Riesgo activo" : "Salida controlada"}
             </div>
@@ -217,7 +217,7 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
           </div>
         </div>
 
-        <section style={{ ...panelStyle(), gridTemplateColumns: isMobile ? "repeat(2, minmax(0,1fr))" : "repeat(4, minmax(0,1fr))" }}>
+        <section className="overlay-cols-2-4" style={panelStyle()}>
           <Metric label="Tier maximo" value={summary.maxTier || 1} />
           <Metric label="Bosses" value={summary.bossesKilled || 0} />
           <Metric label="Kills" value={summary.kills || 0} />
@@ -250,7 +250,7 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
             )}
           </div>
           {showExtractionFlowDetails ? (
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "10px" }}>
+            <div className="overlay-cols-1-3">
               {extractionSteps.map(step => (
                 <div key={step.label} style={{ background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "10px", display: "grid", gap: "4px" }}>
                   <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{step.label}</div>
@@ -276,14 +276,14 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
               {outcomeSummary.title}
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "10px" }}>
+          <div className="overlay-cols-1-3">
             {outcomeSummary.groups.map(group => (
               <OutcomeGroup key={group.id} group={group} />
             ))}
           </div>
         </section>
 
-        <section style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.15fr 0.85fr", gap: "12px" }}>
+        <section className="overlay-split-58-42">
           <div style={panelStyle()}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
               <div>
@@ -477,7 +477,7 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
               version corta
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
+          <div className="overlay-cols-1-2">
             <QuickOutcomeColumn
               label="Conservas"
               tone="var(--tone-success, #10b981)"

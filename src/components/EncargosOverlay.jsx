@@ -271,7 +271,7 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
             </div>
           </section>
 
-          <section style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.08fr 0.92fr", gap: "12px" }}>
+          <section className="overlay-split-52-48">
             <div style={panelStyle("var(--tone-info, #0369a1)")}>
               <div
                 onClick={() => toggleSection("catalog")}
@@ -334,7 +334,7 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                       </div>
 
                       {entryExpanded && (
-                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0,1fr))", gap: "8px" }}>
+                        <div className="overlay-cols-1-3" style={{ gap: "8px" }}>
                           {entry.durationOptions.map(option => (
                             <div key={option.id} style={{ ...metricCardStyle(), padding: "9px 10px", gap: "8px" }}>
                               <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>

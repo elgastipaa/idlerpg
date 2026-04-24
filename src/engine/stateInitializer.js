@@ -232,6 +232,7 @@ function deriveExpeditionPhase({ player = {}, combat = {}, expedition = {}, onbo
   const hasTrackedActiveExpedition = Boolean(expedition?.id || expedition?.startedAt);
   if (combat?.pendingRunSetup) return "setup";
   if (explicitPhase === "extraction") return "extraction";
+  if (explicitPhase === "setup") return "setup";
   if (explicitPhase === "sanctuary") {
     if (
       player?.class &&
@@ -824,7 +825,7 @@ export function mergeStateWithDefaults(base, incoming) {
   const pendingRunSetup = (
     Boolean(rawCombat.pendingRunSetup) ||
     rawExpedition?.phase === "setup"
-  ) && prestigeLevel >= 1;
+  );
   const pendingRunSigilIds = normalizeRunSigilIds(
     rawCombat.pendingRunSigilIds || rawCombat.pendingRunSigilId || "free",
     { slots: maxRunSigilSlots }

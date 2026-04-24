@@ -247,14 +247,14 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
             <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
               Taller
             </div>
-            <div style={{ fontSize: isMobile ? "1.08rem" : "1.18rem", fontWeight: "900", marginTop: "4px" }}>
+            <div style={{ fontSize: "clamp(1.08rem, 2.1vw, 1.18rem)", fontWeight: "900", marginTop: "4px" }}>
               Acabado persistente de proyectos
             </div>
             <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.45, maxWidth: "68ch" }}>
               La expedicion resuelve la run. El cierre fino del proyecto vive aca: upgrade persistente, pulido profundo, reforge y ascenso.
             </div>
           </div>
-          <div style={{ display: "grid", gap: "8px", justifyItems: isMobile ? "stretch" : "end" }}>
+          <div className="overlay-actions-end">
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
               <span style={chipLabelStyle("var(--tone-danger, #D85A30)")}>
                 {deepForgeJobs.length} / {deepForgeSlots} jobs
@@ -283,7 +283,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
           </section>
         )}
 
-        <section style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "0.9fr 1.1fr", gap: "12px" }}>
+        <section className="overlay-split-45-55">
           <div style={panelStyle()}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
               <div>
@@ -352,7 +352,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0,1fr))" : "repeat(4, minmax(0,1fr))", gap: "8px" }}>
+                <div className="overlay-cols-2-4">
                   <div style={metricCardStyle()}>
                     <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
                       Rareza

@@ -66,7 +66,15 @@ export function handleRunFlowAction(state, action, dependencies) {
         },
         combat: {
           ...state.combat,
-          pendingRunSetup: shouldUseRunSetup,
+          pendingRunSetup: true,
+          pendingRunSigilId: shouldUseRunSetup
+            ? state.combat?.pendingRunSigilId || "free"
+            : "free",
+          pendingRunSigilIds: shouldUseRunSetup
+            ? (Array.isArray(state.combat?.pendingRunSigilIds)
+              ? [...state.combat.pendingRunSigilIds]
+              : normalizeRunSigilIds(state.combat?.pendingRunSigilId || "free"))
+            : normalizeRunSigilIds("free"),
         },
         currentTab: "combat",
       };
@@ -89,10 +97,12 @@ export function handleRunFlowAction(state, action, dependencies) {
       if (!state.combat?.pendingRunSetup) return state;
       if (!state.player?.class) return state;
       const startedAt = Number(action.now || Date.now());
-      const runSigilIds = resolveRunSigilLoadout(
-        state,
-        state.combat?.pendingRunSigilIds || state.combat?.pendingRunSigilId || "free"
-      );
+      const runSigilIds = isRunSigilsUnlocked(state)
+        ? resolveRunSigilLoadout(
+          state,
+          state.combat?.pendingRunSigilIds || state.combat?.pendingRunSigilId || "free"
+        )
+        : resolveRunSigilLoadout(state, "free");
       const consumedInfusions = consumeSigilInfusions(state.sanctuary || createEmptySanctuaryState(), runSigilIds);
       const activeBlueprints = ensureValidActiveBlueprints(
         consumedInfusions.sanctuary?.blueprints || [],
@@ -294,16 +304,21 @@ export function handleRunFlowAction(state, action, dependencies) {
     case "SELECT_EXTRACTION_PROJECT": {
       if (state.expedition?.phase !== "extraction") return state;
       if (Number(state.expedition?.extractionPreview?.availableSlots?.project || 0) <= 0) return state;
+      const requestedItemId = action.itemId || null;
+      const hasProjectOption = (state.expedition?.extractionPreview?.projectOptions || []).some(
+        option => option?.itemId === requestedItemId
+      );
+      if (requestedItemId && !hasProjectOption) return state;
       const tutorialProjectId =
         state?.onboarding?.step === ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM
           ? state.expedition?.extractionPreview?.projectOptions?.[0]?.itemId || null
           : null;
-      if (tutorialProjectId && action.itemId !== tutorialProjectId) return state;
+      if (tutorialProjectId && requestedItemId !== tutorialProjectId) return state;
       return {
         ...state,
         expedition: {
           ...(state.expedition || createEmptyExpeditionState()),
-          selectedProjectItemId: action.itemId || null,
+          selectedProjectItemId: requestedItemId,
         },
       };
     }

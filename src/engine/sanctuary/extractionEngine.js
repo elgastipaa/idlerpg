@@ -9,6 +9,12 @@ const RARITY_RANK = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
 const TUTORIAL_EXTRACTION_PROJECT_ID = "tutorial_extraction_project";
 const EXTRACTION_INTEL_LENS_USES = 2;
 
+export function isMaterializedBlueprintItem(item = {}) {
+  if (!item) return false;
+  if (item.blueprintId) return true;
+  return typeof item.id === "string" && item.id.startsWith("bp_item_");
+}
+
 function makeCargoId(type, seed) {
   return `cargo_${type}_${seed}`;
 }
@@ -220,6 +226,7 @@ function getCandidateItems(player = {}) {
   const seen = new Set();
   return [...equipmentItems, ...inventoryItems].filter(item => {
     if (!item?.id || seen.has(item.id)) return false;
+    if (isMaterializedBlueprintItem(item)) return false;
     seen.add(item.id);
     return PROJECT_ELIGIBLE_RARITIES.has(item.rarity);
   });

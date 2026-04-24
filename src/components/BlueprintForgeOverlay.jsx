@@ -333,23 +333,17 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                               Guarda la direccion como blueprint o desguaza para sumar cargas.
                               {scrapBlocked ? ` Cupo de jobs lleno (${deepForgeRunningJobs.length}/${deepForgeSlots}).` : ""}
                             </div>
-                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", width: isMobile ? "100%" : "auto" }}>
+                            <div className="overlay-responsive-buttons">
                               <button
                                 onClick={() => dispatch({ type: "CONVERT_EXTRACTED_ITEM_TO_BLUEPRINT", extractedItemId: item.id, now: Date.now() })}
-                                style={{
-                                  ...actionButtonStyle({ primary: true, compact: true }),
-                                  ...(isMobile ? { flex: "1 1 100%" } : null),
-                                }}
+                                style={actionButtonStyle({ primary: true, compact: true })}
                               >
                                 Convertir en plano
                               </button>
                               <button
                                 onClick={() => dispatch({ type: "START_SCRAP_EXTRACTED_ITEM_JOB", extractedItemId: item.id, now: Date.now() })}
                                 disabled={scrapBlocked}
-                                style={{
-                                  ...actionButtonStyle({ compact: true, disabled: scrapBlocked }),
-                                  ...(isMobile ? { flex: "1 1 100%" } : null),
-                                }}
+                                style={actionButtonStyle({ compact: true, disabled: scrapBlocked })}
                               >
                                 Desguazar
                               </button>
@@ -364,7 +358,7 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
             )}
           </section>
 
-          <section style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "0.95fr 1.05fr", gap: "12px" }}>
+          <section className="overlay-split-54-46">
             <div style={sectionPanelStyle("var(--tone-violet, #7c3aed)")}>
               <div
                 onClick={() => toggleSection("blueprints")}
@@ -495,7 +489,7 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                         </div>
                       </div>
 
-                      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0,1fr))", gap: "8px" }}>
+                      <div className="overlay-cols-1-3" style={{ gap: "8px" }}>
                         <div style={panelStyle()}>
                           <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
                             Identidad base
@@ -784,7 +778,7 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
             </div>
 
             {expandedSections?.bank && (
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0,1fr))", gap: "8px" }}>
+              <div className="overlay-cols-1-3" style={{ gap: "8px" }}>
                 {Object.values(BLUEPRINT_AFFIX_FAMILIES).map(family => (
                   <div key={family.id} style={panelStyle()}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>

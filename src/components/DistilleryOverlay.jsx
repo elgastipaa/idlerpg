@@ -607,7 +607,7 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                           {job.output?.amount || 0} en proceso
                         </div>
                       </div>
-                      <div style={{ width: isMobile ? "100%" : "min(260px, 44vw)", minWidth: isMobile ? 0 : "200px" }}>
+                      <div className="overlay-job-progress-wrap">
                         <JobProgressBar
                           startedAt={job?.startedAt}
                           endsAt={job?.endsAt}

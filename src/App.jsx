@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useState, useEffect, useRef, useCallback, useMem
 import packageJson from "../package.json";
 import { useGame } from "./hooks/useGame";
 import useViewport from "./hooks/useViewport";
-import OverlayShell from "./components/OverlayShell";
+import OverlayShell, { OverlaySurface } from "./components/OverlayShell";
 import { getRarityColor } from "./constants/rarity";
 import {
   buildRunSigilChoiceProfile,
@@ -376,8 +376,6 @@ const MAX_RECENT_ERROR_ENTRIES = 20;
 
 const AppHeader = React.memo(function AppHeader({
   isMobile,
-  headerHeight,
-  desktopMaxWidth,
   currentPrimaryLabel,
   reforgeLocked,
   onHeaderDebugTap,
@@ -386,11 +384,11 @@ const AppHeader = React.memo(function AppHeader({
   theme,
 }) {
   return (
-    <header style={{ position: "fixed", top: 0, left: 0, width: "100%", height: `${headerHeight}px`, backgroundColor: "var(--color-background-primary, #f8fafc)", borderBottom: "1px solid var(--color-border-secondary, #e2e8f0)", zIndex: 5000, display: "flex", alignItems: "center" }}>
-      <div style={{ maxWidth: `${desktopMaxWidth}px`, width: "100%", margin: "0 auto", padding: isMobile ? "8px 14px" : "10px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+    <header className="app-header-shell">
+      <div className="app-header-inner">
         <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: "8px" }} onClick={onHeaderDebugTap}>
           <div style={{ minWidth: 0 }}>
-            <h1 style={{ margin: 0, fontSize: isMobile ? "1.15rem" : "1.55rem", fontWeight: "800", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.1 }}>
+            <h1 className="app-header-title">
               {currentPrimaryLabel}
             </h1>
           </div>
@@ -408,7 +406,7 @@ const AppHeader = React.memo(function AppHeader({
             onClick={onToggleTheme}
             title="Cambiar tema"
             aria-label="Cambiar tema"
-            style={themeToggleButtonStyle(isMobile)}
+            style={themeToggleButtonStyle()}
           >
             {theme === "dark" ? "☀" : "☾"}
           </button>
@@ -539,7 +537,6 @@ const PrimaryTabPane = React.memo(
 
 const PrimaryTabViewport = React.memo(
   function PrimaryTabViewport({
-    isMobile,
     currentPrimaryLabel,
     recoverToTab,
     component,
@@ -547,7 +544,7 @@ const PrimaryTabViewport = React.memo(
     dispatch,
   }) {
     return (
-      <main style={{ width: "100%", background: isMobile ? "transparent" : "var(--color-background-secondary, #ffffff)", borderRadius: isMobile ? "0" : "12px", border: isMobile ? "none" : "1px solid var(--color-border-tertiary, #cbd5e1)", boxShadow: isMobile ? "none" : "0 4px 20px var(--color-shadow, rgba(0,0,0,0.05))" }}>
+      <main className="app-primary-viewport">
         <TabErrorBoundary
           label={currentPrimaryLabel}
           recoverLabel={recoverToTab === "combat" ? "Ir a Expedicion" : "Ir al Santuario"}
@@ -561,7 +558,6 @@ const PrimaryTabViewport = React.memo(
     );
   },
   (prevProps, nextProps) =>
-    prevProps.isMobile === nextProps.isMobile &&
     prevProps.currentPrimaryLabel === nextProps.currentPrimaryLabel &&
     prevProps.recoverToTab === nextProps.recoverToTab &&
     prevProps.component === nextProps.component &&
@@ -1243,11 +1239,9 @@ export default function App() {
   }
 
   return (
-    <div style={{ backgroundColor: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", minHeight: "100vh", display: "flex", flexDirection: "column", width: "100%" }}>
+    <div className="app-shell-root">
       <AppHeader
         isMobile={isMobile}
-        headerHeight={isMobile ? HEADER_HEIGHT_MOBILE : HEADER_HEIGHT_DESKTOP}
-        desktopMaxWidth={DESKTOP_MAX_WIDTH}
         currentPrimaryLabel={currentPrimaryLabel}
         reforgeLocked={reforgeLocked}
         onHeaderDebugTap={handleHeaderDebugTap}
@@ -1256,7 +1250,7 @@ export default function App() {
         theme={theme}
       />
 
-      <div ref={contentRef} style={{ paddingTop: isMobile ? `${HEADER_HEIGHT_MOBILE}px` : `${HEADER_HEIGHT_DESKTOP}px`, paddingBottom: isMobile ? "180px" : "40px", paddingLeft: isMobile ? "0px" : "24px", paddingRight: isMobile ? "0px" : "24px", maxWidth: isMobile ? "100%" : `${DESKTOP_MAX_WIDTH}px`, width: "100%", margin: "0 auto", flex: 1 }}>
+      <div ref={contentRef} className="app-shell-content" style={{ "--app-content-max-width": `${DESKTOP_MAX_WIDTH}px` }}>
         <style>{PRIMARY_TAB_SPOTLIGHT_KEYFRAMES}</style>
         {!isMobile && <DesktopPrimaryTabs entries={primaryTabEntries} onTabPress={handlePrimaryTabPress} />}
         {offlineSummary && (
@@ -1268,7 +1262,6 @@ export default function App() {
         )}
 
         <PrimaryTabViewport
-          isMobile={isMobile}
           currentPrimaryLabel={currentPrimaryLabel}
           recoverToTab={recoverToTab}
           component={ActivePrimaryTabComponent}
@@ -1607,17 +1600,17 @@ function HeaderCompactChip({ text, color, borderColor, background }) {
   );
 }
 
-function themeToggleButtonStyle(isMobile = false) {
+function themeToggleButtonStyle() {
   return {
     border: "1px solid var(--color-border-tertiary, #cbd5e1)",
     background: "var(--color-background-secondary, #ffffff)",
     color: "var(--color-text-primary, #1e293b)",
     borderRadius: "999px",
-    width: isMobile ? "34px" : "38px",
-    height: isMobile ? "34px" : "38px",
+    width: "clamp(34px, 3.2vw, 38px)",
+    height: "clamp(34px, 3.2vw, 38px)",
     padding: 0,
     cursor: "pointer",
-    fontSize: isMobile ? "0.94rem" : "1rem",
+    fontSize: "clamp(0.94rem, 1.7vw, 1rem)",
     fontWeight: "900",
     lineHeight: 1,
     boxShadow: "0 6px 18px var(--color-shadow, rgba(15,23,42,0.08))",
@@ -1631,6 +1624,11 @@ function themeToggleButtonStyle(isMobile = false) {
 function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, prestigeLevel, sigilSlotCount = 1 }) {
   const [activeSlotIndex, setActiveSlotIndex] = useState(0);
   const [expandedSigilId, setExpandedSigilId] = useState(null);
+  const runSigilsUnlocked = Number(prestigeLevel || 0) >= 1;
+  const availableRunSigils = useMemo(
+    () => (runSigilsUnlocked ? RUN_SIGILS : [getRunSigil("free")]),
+    [runSigilsUnlocked]
+  );
   useEffect(() => {
     if (activeSlotIndex < sigilSlotCount) return;
     setActiveSlotIndex(0);
@@ -1644,13 +1642,36 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
   const compactLoadoutTradeoffs = (currentLoadoutProfile.tradeoffs || []).slice(0, 3).map(item => item.label);
 
   useEffect(() => {
-    if (RUN_SIGILS.some(sigil => sigil.id === expandedSigilId)) return;
+    if (availableRunSigils.some(sigil => sigil.id === expandedSigilId)) return;
     setExpandedSigilId(null);
-  }, [expandedSigilId]);
+  }, [availableRunSigils, expandedSigilId]);
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,0.72)", zIndex: 9000, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", padding: isMobile ? "0" : "24px" }}>
-      <div style={{ width: "100%", maxWidth: "920px", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-primary, #1e293b)", borderRadius: isMobile ? "0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", display: "flex", flexDirection: "column", maxHeight: "100vh", overflow: "auto" }}>
+    <OverlayShell
+      isMobile={isMobile}
+      mode="hard"
+      zIndex={9000}
+      contentLabel="Preparacion de Sigilos"
+      backdrop="rgba(2,6,23,0.72)"
+    >
+      <OverlaySurface
+        isMobile={isMobile}
+        maxWidth="920px"
+        paddingMobile="0"
+        paddingDesktop="0"
+        gap="0"
+        style={{
+          background: "var(--color-background-secondary, #fff)",
+          color: "var(--color-text-primary, #1e293b)",
+          borderRadius: isMobile ? "0" : "18px",
+          border: "1px solid var(--color-border-primary, #e2e8f0)",
+          boxShadow: "0 24px 60px rgba(2,6,23,0.35)",
+          display: "flex",
+          flexDirection: "column",
+          maxHeight: "100vh",
+          overflow: "auto",
+        }}
+      >
         <div style={{ padding: isMobile ? "18px 16px 12px" : "20px 22px 14px", borderBottom: "1px solid var(--color-border-primary, #e2e8f0)" }}>
           <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
             {prestigeLevel <= 1 ? "Sigilos Desbloqueados" : "Proxima Run"}
@@ -1733,7 +1754,7 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
         )}
 
         <div style={{ padding: isMobile ? "12px 16px 16px" : "14px 22px 18px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
-          {RUN_SIGILS.map(sigil => {
+          {availableRunSigils.map(sigil => {
             const active = currentPendingRunSigil.id === sigil.id;
             const selectedSlots = (pendingRunSigilIds || [])
               .map((selectedId, index) => (selectedId === sigil.id ? index + 1 : null))
@@ -1894,8 +1915,8 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
             Empezar corrida
           </button>
         </div>
-      </div>
-    </div>
+      </OverlaySurface>
+    </OverlayShell>
   );
 }
 

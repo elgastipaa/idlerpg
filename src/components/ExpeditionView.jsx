@@ -94,6 +94,10 @@ export default function ExpeditionView({ state, dispatch }) {
   const mobileSubtabsScrollable = mobileSubviewCount >= 5;
   const resolvedSubview = availableSubviews.includes(activeSubview) ? activeSubview : "combat";
   const isCombatSubview = resolvedSubview === "combat";
+  const expeditionRootClassName = [
+    "expedition-root",
+    isMobile && isCombatSubview ? "expedition-root--combat-mobile" : "",
+  ].join(" ").trim();
   const runTier = Math.max(1, Number(state?.combat?.currentTier || 1));
   const runBossKills = Math.max(0, Number(state?.combat?.runStats?.bossKills || 0));
   const runSigilSlotCount = getMaxRunSigilSlots(state?.abyss || {});
@@ -115,38 +119,8 @@ export default function ExpeditionView({ state, dispatch }) {
     }
     return null;
   }, [inventoryUpgrades, resolvedSubview]);
-  const mobileSubviewDockStyle = {
-    position: "fixed",
-    left: 0,
-    right: 0,
-    bottom: "calc(var(--app-bottom-nav-offset, 72px) + env(safe-area-inset-bottom))",
-    zIndex: 4900,
-    background: "var(--color-background-secondary, #ffffff)",
-    borderTop: "1px solid var(--color-border-secondary, #e2e8f0)",
-    boxShadow: "0 -10px 24px rgba(15,23,42,0.08)",
-    padding: "8px 8px 8px",
-  };
-  const mobileSubviewRowStyle = {
-    display: "flex",
-    gap: "8px",
-    flexWrap: "nowrap",
-    width: "100%",
-    overflowX: mobileSubtabsScrollable ? "auto" : "hidden",
-    overflowY: "hidden",
-    scrollbarWidth: mobileSubtabsScrollable ? "none" : "auto",
-    WebkitOverflowScrolling: "touch",
-  };
-
   return (
-    <div
-      style={{
-        display: "grid",
-        gap: isMobile ? "8px" : "10px",
-        padding: isMobile ? (isCombatSubview ? "6px 0 0" : "8px 8px 10px") : "10px",
-        width: "100%",
-        minWidth: 0,
-      }}
-    >
+    <div className={expeditionRootClassName}>
       <style>{`
         @keyframes expeditionSubviewSpotlightPulse {
           0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
@@ -155,8 +129,14 @@ export default function ExpeditionView({ state, dispatch }) {
         }
       `}</style>
       {isMobile ? (
-        <div style={mobileSubviewDockStyle}>
-          <div style={mobileSubviewRowStyle}>
+        <div className="expedition-mobile-dock">
+          <div
+            className="expedition-mobile-row"
+            style={{
+              overflowX: mobileSubtabsScrollable ? "auto" : "hidden",
+              scrollbarWidth: mobileSubtabsScrollable ? "none" : "auto",
+            }}
+          >
             {visibleSubviews.map(viewId => {
               const active = resolvedSubview === viewId;
               const tutorialLocked = tutorialSubviewTarget != null && viewId !== tutorialSubviewTarget;
@@ -292,17 +272,7 @@ export default function ExpeditionView({ state, dispatch }) {
       )}
 
       {isMobile && !isCombatSubview && (
-        <div
-          style={{
-            border: "1px solid var(--color-border-primary, #e2e8f0)",
-            background: "var(--color-background-secondary, #ffffff)",
-            borderRadius: "12px",
-            padding: "8px 10px",
-            display: "grid",
-            gap: "6px",
-            margin: "0 8px",
-          }}
-        >
+        <div className="expedition-mobile-hint">
           <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
               <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "999px", padding: "2px 6px" }}>

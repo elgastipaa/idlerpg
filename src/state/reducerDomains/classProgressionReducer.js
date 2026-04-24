@@ -59,7 +59,15 @@ export function handleClassProgressionAction(state, action, dependencies) {
         },
         combat: {
           ...nextState.combat,
-          pendingRunSetup: isRunSigilsUnlocked(nextState),
+          pendingRunSetup: true,
+          pendingRunSigilId: isRunSigilsUnlocked(nextState)
+            ? (nextState.combat?.pendingRunSigilId || "free")
+            : "free",
+          pendingRunSigilIds: isRunSigilsUnlocked(nextState)
+            ? (Array.isArray(nextState.combat?.pendingRunSigilIds)
+              ? [...nextState.combat.pendingRunSigilIds]
+              : [nextState.combat?.pendingRunSigilId || "free"])
+            : ["free"],
         },
       };
     }

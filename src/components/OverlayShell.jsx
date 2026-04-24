@@ -40,26 +40,20 @@ export function OverlaySurface({
   paddingMobile = "12px 10px 16px",
   paddingDesktop = "14px 14px 16px",
   gap = "12px",
+  className = "",
   style = {},
   children,
 }) {
   return (
     <div
+      className={`overlay-shell__surface ${className}`.trim()}
       style={{
         width: "100%",
         maxWidth,
         maxHeight: "100%",
-        overflow: "auto",
-        background: "var(--color-background-primary, #f8fafc)",
-        color: "var(--color-text-primary, #1e293b)",
-        borderRadius: isMobile ? "16px 16px 0 0" : "18px",
-        border: "1px solid var(--color-border-primary, #e2e8f0)",
-        boxShadow: "0 24px 60px rgba(2,6,23,0.35)",
-        display: "grid",
-        gap,
-        alignItems: "start",
-        alignContent: "start",
-        padding: isMobile ? paddingMobile : paddingDesktop,
+        "--overlay-surface-padding-mobile": paddingMobile,
+        "--overlay-surface-padding-desktop": paddingDesktop,
+        "--overlay-surface-gap": gap,
         ...style,
       }}
     >
@@ -84,13 +78,13 @@ export default function OverlayShell({
   const topInset = mode === "soft" && respectHeader
     ? "var(--app-header-offset, 68px)"
     : "0px";
-  const bottomInset = isMobile && mode === "soft"
+  const bottomInset = mode === "soft"
     ? "calc(var(--app-bottom-nav-offset, 72px) + env(safe-area-inset-bottom))"
     : "0px";
   const resolvedZIndex = zIndex ?? (
     mode === "hard"
       ? OVERLAY_Z_INDEX.hard
-      : (isMobile ? OVERLAY_Z_INDEX.softMobile : OVERLAY_Z_INDEX.softDesktop)
+      : "var(--overlay-z-soft, 4800)"
   );
 
   useEffect(() => {
@@ -124,15 +118,12 @@ export default function OverlayShell({
       aria-label={contentLabel}
       data-overlay-shell-mode={mode}
       onClick={handleBackdropClick}
+      className="overlay-shell"
       style={{
         position: "fixed",
         inset: `${topInset} 0 ${bottomInset} 0`,
         background: backdrop,
         zIndex: resolvedZIndex,
-        display: "flex",
-        alignItems: isMobile ? "stretch" : "center",
-        justifyContent: "center",
-        padding: isMobile ? "0" : "24px",
       }}
     >
       {children}

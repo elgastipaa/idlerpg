@@ -16,7 +16,7 @@ import {
 } from "../engine/progression/codexEngine";
 import { createEmptyAccountTelemetry, createEmptySessionAnalytics, sanitizeAccountTelemetry } from "../utils/runTelemetry";
 import { recordReplayState } from "../utils/replayLog";
-import { buildExtractionPreview } from "../engine/sanctuary/extractionEngine";
+import { buildExtractionPreview, isMaterializedBlueprintItem } from "../engine/sanctuary/extractionEngine";
 import {
   createCodexResearchJob,
   createDistillJob,
@@ -585,6 +585,7 @@ function buildRetainedExtractionItem(state, selectedProjectItemId, sourceMeta = 
   const inventoryItems = Array.isArray(state?.player?.inventory) ? state.player.inventory : [];
   const equipmentItems = [state?.player?.equipment?.weapon, state?.player?.equipment?.armor].filter(Boolean);
   const candidate = [...equipmentItems, ...inventoryItems].find(item => item?.id === selectedProjectItemId);
+  if (isMaterializedBlueprintItem(candidate)) return null;
   return candidate ? buildExtractedItemRecord(candidate, sourceMeta) : null;
 }
 
@@ -1013,6 +1014,7 @@ function baseGameReducer(state, action) {
 
       const needsPhaseRepair =
         phase !== "active" &&
+        phase !== "setup" &&
         !combat?.pendingRunSetup &&
         hasRunEvidence;
       const needsEnemyRepair =

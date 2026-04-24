@@ -564,7 +564,16 @@ function getNodeActionLabel(nodeState, compact = false) {
   return `+${nodeState.nextCost || 0}${compact ? "" : " TP"}`;
 }
 
-function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, prereqText = "", spotlight = false }) {
+function TalentNodeCard({
+  node,
+  nodeState,
+  isMobile,
+  justUnlocked,
+  dispatch,
+  prereqText = "",
+  spotlight = false,
+  compact = false,
+}) {
   const displayType = getTalentDisplayType(nodeState.activeTalent);
   const typeColor = TYPE_COLORS[displayType] || "var(--color-text-secondary, #64748b)";
   const isUnlocked = nodeState.currentLevel > 0;
@@ -572,6 +581,110 @@ function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, pre
   const isKeystone = (nodeState.activeTalent?.tags || []).includes("keystone");
   const currentSummary = buildTalentEffectSummary(nodeState.activeTalent || node.talent);
   const nextSummary = nodeState.nextTalent ? buildTalentEffectSummary(nodeState.nextTalent) : "";
+  const compactButtonLabel = getNodeActionLabel(nodeState, true);
+
+  if (compact) {
+    return (
+      <article
+        data-onboarding-node-id={node.talent.id}
+        data-onboarding-target={spotlight ? "buy-talent-card" : undefined}
+        style={{
+          background: "var(--color-background-secondary, #fff)",
+          border: `1px solid ${justUnlocked ? "var(--tone-success, #22c55e)" : isUnlocked ? "var(--tone-success, #1D9E75)" : nodeState.allRequirementsMet ? "var(--color-border-primary, #e2e8f0)" : "var(--tone-danger, #fecaca)"}`,
+          borderRadius: "11px",
+          padding: "8px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "5px",
+          minWidth: 0,
+          position: spotlight ? "relative" : "static",
+          zIndex: spotlight ? 2 : 1,
+          boxShadow: spotlight
+            ? "0 0 0 2px rgba(99,102,241,0.18), 0 12px 28px rgba(99,102,241,0.18)"
+            : justUnlocked
+              ? "0 0 0 2px rgba(34,197,94,0.42), 0 0 18px rgba(34,197,94,0.25)"
+              : "none",
+          animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
+          transition: "all 0.2s ease",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "7px" }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: "0.69rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 }}>
+              {getNodeTitle(node)}
+            </div>
+            <div style={{ fontSize: "0.55rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", marginTop: "2px" }}>{nodeState.tierLabel}</div>
+          </div>
+          <button
+            onClick={() => dispatch({ type: "UPGRADE_TALENT_NODE", nodeId: node.talent.id })}
+            disabled={!canUpgrade}
+            data-onboarding-target={spotlight ? "buy-talent" : undefined}
+            style={{
+              ...treeButtonStyle(nodeState.isMaxed, canUpgrade, true),
+              boxShadow: spotlight ? "0 0 0 2px rgba(99,102,241,0.16), 0 8px 20px rgba(99,102,241,0.18)" : "none",
+              animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
+            }}
+          >
+            {compactButtonLabel}
+          </button>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap" }}>
+          {isKeystone && (
+            <div style={miniPillStyle("var(--tone-danger-strong, #9f1239)", "var(--tone-danger-soft, #fff1f2)")}>
+              Keystone
+            </div>
+          )}
+          <div style={badgeStyle(typeColor)}>{displayType.toUpperCase()}</div>
+          {canUpgrade && (
+            <div style={miniPillStyle("var(--tone-success-strong, #166534)", "var(--tone-success-soft, #ecfdf5)")}>
+              Disponible
+            </div>
+          )}
+          <div style={miniPillStyle("var(--tone-accent, #4338ca)", "var(--tone-accent-soft, #eef2ff)")}>
+            LV {nodeState.currentLevel}/{nodeState.maxLevel}
+          </div>
+        </div>
+
+        <div
+          style={{
+            fontSize: "0.62rem",
+            color: "var(--color-text-secondary, #475569)",
+            lineHeight: 1.28,
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {buildTalentDescription(nodeState.activeTalent || node.talent)}
+        </div>
+
+        <div style={{ fontSize: "0.56rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.25 }}>
+          {nodeState.currentLevel > 0 ? `Actual: ${currentSummary}` : `Base: ${currentSummary}`}
+        </div>
+        {!nodeState.isMaxed && nodeState.nextTalent && (
+          <div style={{ fontSize: "0.56rem", color: "var(--tone-accent, #4338ca)", fontWeight: "800", lineHeight: 1.25 }}>
+            {`Proximo: ${nextSummary}`}
+          </div>
+        )}
+
+        {prereqText && (
+          <div
+            style={{
+              fontSize: "0.55rem",
+              color: nodeState.allRequirementsMet ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #D85A30)",
+              fontWeight: "800",
+              lineHeight: 1.25,
+              whiteSpace: "pre-line",
+            }}
+          >
+            {prereqText}
+          </div>
+        )}
+      </article>
+    );
+  }
 
   return (
     <div
@@ -665,115 +778,13 @@ function TalentNodeCard({ node, nodeState, isMobile, justUnlocked, dispatch, pre
   );
 }
 
-function MobileTalentNodeRow({ node, nodeState, justUnlocked, dispatch, prereqText, spotlight = false }) {
-  const displayType = getTalentDisplayType(nodeState.activeTalent);
-  const typeColor = TYPE_COLORS[displayType] || "var(--color-text-secondary, #64748b)";
-  const isUnlocked = nodeState.currentLevel > 0;
-  const canUpgrade = nodeState.canUnlockNext && !!nodeState.nextTalent;
-  const compactButtonLabel = getNodeActionLabel(nodeState, true);
-  const isKeystone = (nodeState.activeTalent?.tags || []).includes("keystone");
-  const currentSummary = buildTalentEffectSummary(nodeState.activeTalent || node.talent);
-  const nextSummary = nodeState.nextTalent ? buildTalentEffectSummary(nodeState.nextTalent) : "";
-
+function MobileTalentNodeRow(props) {
   return (
-    <article
-      data-onboarding-node-id={node.talent.id}
-      data-onboarding-target={spotlight ? "buy-talent-card" : undefined}
-      style={{
-        background: "var(--color-background-secondary, #fff)",
-        border: `1px solid ${justUnlocked ? "var(--tone-success, #22c55e)" : isUnlocked ? "var(--tone-success, #1D9E75)" : nodeState.allRequirementsMet ? "var(--color-border-primary, #e2e8f0)" : "var(--tone-danger, #fecaca)"}`,
-        borderRadius: "11px",
-        padding: "8px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "5px",
-        minWidth: 0,
-        position: spotlight ? "relative" : "static",
-        zIndex: spotlight ? 2 : 1,
-        boxShadow: spotlight
-          ? "0 0 0 2px rgba(99,102,241,0.18), 0 12px 28px rgba(99,102,241,0.18)"
-          : justUnlocked
-            ? "0 0 0 2px rgba(34,197,94,0.42), 0 0 18px rgba(34,197,94,0.25)"
-            : "none",
-        animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
-        transition: "all 0.2s ease",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "7px" }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: "0.69rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 }}>
-            {getNodeTitle(node)}
-          </div>
-          <div style={{ fontSize: "0.55rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", marginTop: "2px" }}>{nodeState.tierLabel}</div>
-        </div>
-        <button
-          onClick={() => dispatch({ type: "UPGRADE_TALENT_NODE", nodeId: node.talent.id })}
-          disabled={!canUpgrade}
-          data-onboarding-target={spotlight ? "buy-talent" : undefined}
-          style={{
-            ...treeButtonStyle(nodeState.isMaxed, canUpgrade, true),
-            boxShadow: spotlight ? "0 0 0 2px rgba(99,102,241,0.16), 0 8px 20px rgba(99,102,241,0.18)" : "none",
-            animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
-          }}
-        >
-          {compactButtonLabel}
-        </button>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap" }}>
-        {isKeystone && (
-          <div style={miniPillStyle("var(--tone-danger-strong, #9f1239)", "var(--tone-danger-soft, #fff1f2)")}>
-            Keystone
-          </div>
-        )}
-        <div style={badgeStyle(typeColor)}>{displayType.toUpperCase()}</div>
-        {canUpgrade && (
-          <div style={miniPillStyle("var(--tone-success-strong, #166534)", "var(--tone-success-soft, #ecfdf5)")}>
-            Disponible
-          </div>
-        )}
-        <div style={miniPillStyle("var(--tone-accent, #4338ca)", "var(--tone-accent-soft, #eef2ff)")}>
-          LV {nodeState.currentLevel}/{nodeState.maxLevel}
-        </div>
-      </div>
-
-      <div
-        style={{
-          fontSize: "0.62rem",
-          color: "var(--color-text-secondary, #475569)",
-          lineHeight: 1.28,
-          display: "-webkit-box",
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: "vertical",
-          overflow: "hidden",
-        }}
-      >
-        {buildTalentDescription(nodeState.activeTalent || node.talent)}
-      </div>
-
-      <div style={{ fontSize: "0.56rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.25 }}>
-        {nodeState.currentLevel > 0 ? `Actual: ${currentSummary}` : `Base: ${currentSummary}`}
-      </div>
-      {!nodeState.isMaxed && nodeState.nextTalent && (
-        <div style={{ fontSize: "0.56rem", color: "var(--tone-accent, #4338ca)", fontWeight: "800", lineHeight: 1.25 }}>
-          {`Proximo: ${nextSummary}`}
-        </div>
-      )}
-
-      {prereqText && (
-        <div
-          style={{
-            fontSize: "0.55rem",
-            color: nodeState.allRequirementsMet ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #D85A30)",
-            fontWeight: "800",
-            lineHeight: 1.25,
-            whiteSpace: "pre-line",
-          }}
-        >
-          {prereqText}
-        </div>
-      )}
-    </article>
+    <TalentNodeCard
+      {...props}
+      isMobile
+      compact
+    />
   );
 }
 

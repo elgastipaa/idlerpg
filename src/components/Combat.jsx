@@ -1097,21 +1097,7 @@ export default function Combat({ state, dispatch }) {
   };
 
   return (
-    <div
-      style={{
-        padding: isMobile ? "0.45rem 0.5rem 0.8rem" : "1rem",
-        maxWidth: "100%",
-        margin: "0 auto",
-        display: "flex",
-        flexDirection: "column",
-        gap: isMobile ? "0.72rem" : "0.95rem",
-        background: "var(--color-background-primary, #f8fafc)",
-        color: "var(--color-text-primary, #1e293b)",
-        width: "100%",
-        minWidth: 0,
-        overflowX: "hidden",
-      }}
-    >
+    <div className="combat-root">
       <style>{COMBAT_ANIMATION_STYLES}</style>
       {visibleOverflowEvent && (
         <section
@@ -1203,22 +1189,13 @@ export default function Combat({ state, dispatch }) {
         />
       )}
       <section
+        className="combat-main-panel"
         style={{
-          display: "grid",
-          gap: isMobile ? "8px" : "10px",
-          background: "var(--color-background-secondary, #fff)",
-          padding: isMobile ? "8px" : "10px",
-          borderRadius: "16px",
           border: `2px solid ${enemy.isBoss ? COLORS.warning : "var(--color-border-primary, #e2e8f0)"}`,
         }}
       >
         <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "30px minmax(0, 1fr) 30px" : "34px minmax(0, 1fr) 34px 34px",
-            gap: isMobile ? "6px" : "8px",
-            alignItems: "center",
-          }}
+          className="combat-tier-grid"
         >
           <button
             onClick={() => dispatch({ type: "SET_TIER", tier: currentTier - 1 })}
@@ -1230,16 +1207,7 @@ export default function Combat({ state, dispatch }) {
           </button>
           <div style={{ display: "flex", justifyContent: "center", minWidth: 0 }}>
             <div
-              style={{
-                minWidth: isMobile ? 0 : "156px",
-                maxWidth: "100%",
-                borderRadius: "12px",
-                padding: isMobile ? "6px 8px" : "8px 12px",
-                border: "1px solid var(--color-border-primary, #e2e8f0)",
-                background: "var(--color-background-tertiary, #f8fafc)",
-                textAlign: "center",
-                boxSizing: "border-box",
-              }}
+              className="combat-tier-chip"
             >
               <div style={{ fontSize: 9, color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "2px" }}>
                 Tier Actual
@@ -1255,7 +1223,7 @@ export default function Combat({ state, dispatch }) {
                 ].filter(Boolean).join("\n")}
                 style={{
                   margin: 0,
-                  fontSize: isMobile ? 12 : 13,
+                  fontSize: "clamp(12px, 1.3vw, 13px)",
                   color: COLORS.common,
                   fontWeight: "900",
                   background: "none",
@@ -1955,7 +1923,7 @@ export default function Combat({ state, dispatch }) {
         </div>
       </section>
 
-      <section style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: 8, minWidth: 0 }}>
+      <section className="overlay-cols-2-4" style={{ gap: 8, minWidth: 0 }}>
         <StatCard
           label="Dano"
           value={effectiveDamageInCombat}
@@ -1979,17 +1947,7 @@ export default function Combat({ state, dispatch }) {
       </section>
 
       {showSessionFraming && primarySessionGoal && (
-        <section
-          style={{
-            background: "var(--color-background-secondary, #ffffff)",
-            border: "1px solid var(--color-border-primary, #e2e8f0)",
-            borderRadius: "14px",
-            padding: isMobile ? "10px" : "12px",
-            display: "grid",
-            gap: "8px",
-            boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
-          }}
-        >
+        <section className="combat-session-panel">
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>

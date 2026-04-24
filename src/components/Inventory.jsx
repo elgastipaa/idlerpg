@@ -289,7 +289,7 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
   }).length;
 
   return (
-    <div style={{ padding: isMobile ? "0.9rem" : "1.25rem", maxWidth: "100%", display: "flex", flexDirection: "column", gap: "0.9rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+    <div className="inventory-root">
       <style>{`
         @keyframes inventorySpotlightPulse {
           0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.24); }
@@ -372,13 +372,12 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
           <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.35 }}>
             Regla activa: {autoLootSummary}.
           </div>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: isMobile ? "stretch" : "flex-end" }}>
+          <div className="overlay-responsive-buttons">
             <button
               onClick={() => setShowLootFilterModal(true)}
               style={{
                 ...lootActionButtonStyle(true, "extract", isDarkMode),
                 padding: "8px 12px",
-                minWidth: isMobile ? "100%" : "auto",
               }}
             >
               Abrir filtro
@@ -394,7 +393,6 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
                 fontSize: "0.66rem",
                 fontWeight: "900",
                 cursor: "pointer",
-                minWidth: isMobile ? "100%" : "auto",
               }}
             >
               Cerrar
@@ -405,7 +403,7 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
 
       <section>
         <div style={{ ...sectionTitleStyle, marginBottom: "0.7rem" }}>Equipado</div>
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+        <div className="overlay-cols-1-2" style={{ gap: "8px" }}>
           <EquippedCard title="Arma" item={equipment.weapon} activeBuildTag={activeBuildTag} wishlistAffixes={wishlistAffixes} isDarkMode={isDarkMode} onOpen={() => equipment.weapon && setDetailItemId(equipment.weapon.id)} />
           <EquippedCard title="Armadura" item={equipment.armor} activeBuildTag={activeBuildTag} wishlistAffixes={wishlistAffixes} isDarkMode={isDarkMode} onOpen={() => equipment.armor && setDetailItemId(equipment.armor.id)} />
         </div>
@@ -546,7 +544,7 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
           <div style={emptyStateStyle}>No tenes objetos en la mochila</div>
         ) : (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+            <div className="overlay-cols-1-2" style={{ gap: "8px" }}>
               {visibleSortedItems.map(item => {
                 const isTutorialItem = equipTutorialActive && sortedItems[0]?.id === item.id;
                 return (
