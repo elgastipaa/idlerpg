@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo } from "react";
+import useViewport from "../hooks/useViewport";
 import { CLASSES } from "../data/classes";
 import { xpRequired } from "../engine/leveling";
 import { calcStats } from "../engine/combat/statEngine";
@@ -68,13 +69,7 @@ function buildCharacterQuickRows(classId, stats = {}) {
 }
 
 export default function Character({ player, dispatch, state }) {
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-
-  useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
+  const { isMobile, viewportWidth } = useViewport();
 
   const kills = state?.stats?.kills || 0;
   const selectedClass = useMemo(() => CLASSES.find(clase => clase.id === player.class) || null, [player.class]);
@@ -87,7 +82,7 @@ export default function Character({ player, dispatch, state }) {
   const spotlightHeroOverview =
     onboardingStep === ONBOARDING_STEPS.HERO_INTRO && onboardingMode === "forced";
   const tutorialSpecIds = specTutorialActive ? availableSpecs.map(spec => spec.id) : [];
-  const isNarrowMobile = isMobile && window.innerWidth < 420;
+  const isNarrowMobile = isMobile && viewportWidth < 420;
 
   useEffect(() => {
     if (!specTutorialActive) return undefined;

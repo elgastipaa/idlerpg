@@ -29,6 +29,7 @@ import { MOD_TYPES } from "../modifiers/modTypes";
 
 const CRIT_CAP = 0.75;
 const RARITY_RANK = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
+const VALID_LOOT_RARITIES = new Set(Object.keys(RARITY_RANK));
 const EXTRACT_RARITY_TIER = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
 const PERFORMANCE_SMOOTHING = 0.18;
 const FLOAT_EVENT_LIMIT = 8;
@@ -202,13 +203,27 @@ function getExtractYield(item) {
   return Math.max(1, Math.floor((rarityTier + Math.floor((item?.level ?? 0) / 2)) * rarityMult));
 }
 
+function normalizeInventoryOverflowStats(stats = {}) {
+  return {
+    total: Math.max(0, Math.floor(Number(stats?.total || 0))),
+    displaced: Math.max(0, Math.floor(Number(stats?.displaced || 0))),
+    lost: Math.max(0, Math.floor(Number(stats?.lost || 0))),
+    lastAt: stats?.lastAt ? Number(stats.lastAt) || null : null,
+  };
+}
+
 function buildLootRuleSet(rules = {}, player = {}, enemy = null) {
   const activeBuildTag = getPlayerBuildTag(player);
+  const minVisibleRarity = VALID_LOOT_RARITIES.has(rules?.minVisibleRarity)
+    ? rules.minVisibleRarity
+    : "common";
   return {
     autoSell: new Set(rules.autoSellRarities || []),
     autoExtract: new Set(rules.autoExtractRarities || []),
     protectHuntedDrops: rules.protectHuntedDrops !== false,
     protectUpgradeDrops: rules.protectUpgradeDrops !== false,
+    minVisibleRarity,
+    minVisibleRarityRank: RARITY_RANK[minVisibleRarity] || RARITY_RANK.common,
     huntPreset: rules.huntPreset || null,
     wishlistAffixes: resolveLootRuleWishlist(rules, { activeBuildTag, enemy }),
   };
@@ -1570,6 +1585,7 @@ export function processTick(state) {
   let lootStatsPatch = {};
   let latestLootEvent = null;
   let inventoryOverflowEvent = state.combat?.inventoryOverflowEvent || null;
+  let inventoryOverflowStats = normalizeInventoryOverflowStats(state.combat?.inventoryOverflowStats || {});
   let inventoryOverflowLogLine = null;
   let newlyUnlockedLegendaryPower = null;
   let legendaryPowerUnlocks = 0;
@@ -1590,6 +1606,14 @@ export function processTick(state) {
       wishlistAffixes: lootRuleSet.wishlistAffixes,
       huntContext: enemy,
     });
+    const lootRarityRank = RARITY_RANK[loot?.rarity] || RARITY_RANK.common;
+    const highlightVisible =
+      Boolean(latestLootEvent?.highlight) ||
+      (latestLootEvent?.wishlistMatches?.length || 0) > 0 ||
+      Number(latestLootEvent?.topHighlight?.priority || 0) >= 720;
+    const shouldShowDetailedLoot =
+      lootRarityRank >= (lootRuleSet.minVisibleRarityRank || RARITY_RANK.common) ||
+      highlightVisible;
     newlyUnlockedLegendaryPower =
       loot?.legendaryPowerId && !(state.codex?.powerDiscoveries?.[loot.legendaryPowerId] > 0)
         ? latestLootEvent?.legendaryPower || null
@@ -1626,11 +1650,14 @@ export function processTick(state) {
     } else {
       const result = addToInventory(newPlayer.inventory, loot, calcItemRating);
       newPlayer.inventory = result.inventory;
-      lootText = ` - Encontraste: ${loot.name}`;
+      lootText = shouldShowDetailedLoot
+        ? ` - Encontraste: ${loot.name}`
+        : ` - Loot ${loot.rarity} guardado`;
       if (result.droppedName) droppedText = ` (descartado: ${result.droppedName})`;
       if (result.droppedItem) {
+        const overflowAt = Date.now();
         inventoryOverflowEvent = {
-          id: `overflow_${Date.now()}_${result.droppedItem.id || result.incomingItem?.id || "item"}`,
+          id: `overflow_${overflowAt}_${result.droppedItem.id || result.incomingItem?.id || "item"}`,
           incomingItemId: result.incomingItem?.id || loot.id || null,
           incomingItemName: result.incomingItem?.name || loot.name || "Item",
           incomingItemRarity: result.incomingItem?.rarity || loot.rarity || "common",
@@ -1640,7 +1667,13 @@ export function processTick(state) {
           droppedItemRarity: result.droppedItem?.rarity || "common",
           droppedItemRating: Math.round(Number(result.droppedItem?.rating || 0)),
           incomingItemKept: result.incomingItemKept !== false,
-          timestamp: Date.now(),
+          timestamp: overflowAt,
+        };
+        inventoryOverflowStats = {
+          total: Math.max(0, Number(inventoryOverflowStats.total || 0) + 1),
+          displaced: Math.max(0, Number(inventoryOverflowStats.displaced || 0) + (inventoryOverflowEvent.incomingItemKept ? 1 : 0)),
+          lost: Math.max(0, Number(inventoryOverflowStats.lost || 0) + (inventoryOverflowEvent.incomingItemKept ? 0 : 1)),
+          lastAt: overflowAt,
         };
         inventoryOverflowLogLine = inventoryOverflowEvent.incomingItemKept
           ? `MOCHILA LLENA: entra ${inventoryOverflowEvent.incomingItemName} y sale ${inventoryOverflowEvent.droppedItemName}.`
@@ -1895,6 +1928,7 @@ export function processTick(state) {
       autoAdvance,
       latestLootEvent,
       inventoryOverflowEvent,
+      inventoryOverflowStats,
       log: [
         ...state.combat.log,
         ...(survivalLog ? [survivalLog] : []),

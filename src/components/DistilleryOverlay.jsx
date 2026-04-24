@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import OverlayShell from "./OverlayShell";
+import OverlayShell, { OverlaySurface } from "./OverlayShell";
 import JobProgressBar from "./JobProgressBar";
+import ActionToast from "./ActionToast";
+import useRelativeNow from "../hooks/useRelativeNow";
 import {
   getEffectiveOnboardingStep,
   getOnboardingTutorialBundleId,
@@ -16,6 +18,7 @@ function panelStyle(accent = "var(--tone-violet, #7c3aed)") {
     padding: "16px",
     display: "grid",
     gap: "12px",
+    alignSelf: "start",
     boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
   };
 }
@@ -104,16 +107,29 @@ function getDistillPreview(bundle = {}) {
 }
 
 export default function DistilleryOverlay({ state, dispatch, isMobile = false, onClose }) {
-  const [now, setNow] = useState(Date.now());
-  const [expandedSections, setExpandedSections] = useState({
-    cargo: false,
-    jobs: false,
+  const now = useRelativeNow();
+  const [actionToast, setActionToast] = useState(null);
+  const [expandedSections, setExpandedSections] = useState(() => {
+    const sanctuary = state?.sanctuary || {};
+    const jobs = Array.isArray(sanctuary?.jobs) ? sanctuary.jobs : [];
+    const hasActiveDistilleryJobs = jobs.some(
+      job =>
+        job?.station === "distillery" &&
+        (job?.status === "running" || job?.status === "claimable")
+    );
+    return {
+      cargo: true,
+      jobs: hasActiveDistilleryJobs,
+    };
   });
   const tutorialStartGuardRef = useRef({ cargoId: null, at: 0 });
+  const toastTimerRef = useRef(null);
 
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
+  useEffect(() => () => {
+    if (toastTimerRef.current != null) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
   }, []);
 
   const sanctuary = state.sanctuary || {};
@@ -136,6 +152,65 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
     [jobs]
   );
   const totalBundleQuantity = cargoInventory.reduce((total, bundle) => total + Math.max(0, Number(bundle?.quantity || 0)), 0);
+
+  function showActionToast(message, tone = "success") {
+    const id = Date.now();
+    if (toastTimerRef.current != null) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    setActionToast({ id, message, tone });
+    toastTimerRef.current = window.setTimeout(() => {
+      setActionToast(current => (current?.id === id ? null : current));
+      toastTimerRef.current = null;
+    }, 1700);
+  }
+
+  function pickRestartCargoId(preferredType = null, pool = []) {
+    if (!Array.isArray(pool) || pool.length <= 0) return null;
+    const preferredIndex = preferredType
+      ? pool.findIndex(entry => entry?.type === preferredType)
+      : -1;
+    const index = preferredIndex >= 0 ? preferredIndex : 0;
+    const selected = pool[index];
+    if (!selected?.id) return null;
+    pool.splice(index, 1);
+    return selected.id;
+  }
+
+  function claimDistilleryJob(job, { restart = false, restartCargoId = null, nowAt = Date.now() } = {}) {
+    if (!job?.id) return false;
+    dispatch({ type: "CLAIM_SANCTUARY_JOB", jobId: job.id, now: nowAt });
+    if (!restart || !restartCargoId) return false;
+    dispatch({ type: "START_DISTILLERY_JOB", cargoId: restartCargoId, now: nowAt + 1 });
+    return true;
+  }
+
+  function claimAllDistilleryJobs({ restart = false } = {}) {
+    if (claimableJobs.length <= 0) return;
+    const claimAt = Date.now();
+    const restartPool = [...cargoInventory];
+    let restartedCount = 0;
+    claimableJobs.forEach((job, index) => {
+      const restartCargoId = restart
+        ? pickRestartCargoId(job?.input?.cargoType || null, restartPool)
+        : null;
+      const restarted = claimDistilleryJob(job, {
+        restart,
+        restartCargoId,
+        nowAt: claimAt + (index * 2),
+      });
+      if (restarted) restartedCount += 1;
+    });
+    showActionToast(
+      restart
+        ? `Reclamaste ${claimableJobs.length} y relanzaste ${restartedCount}.`
+        : `Reclamaste ${claimableJobs.length} trabajos de Destilería.`,
+      restart ? "info" : "success"
+    );
+  }
+
+  const canRepeatClaimedDistillery = claimableJobs.length > 0 && cargoInventory.length > 0;
 
   function startDistilleryJob(cargoId) {
     const triggerAt = Date.now();
@@ -186,8 +261,8 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
 
     const scrollToTutorialBundle = () => {
       const target =
-        document.querySelector('[data-onboarding-target="tutorial-distillery-start"]') ||
-        document.querySelector('[data-onboarding-target="tutorial-distillery-bundle"]');
+        document.querySelector('[data-onboarding-target="tutorial-distillery-bundle"]') ||
+        document.querySelector('[data-onboarding-target="tutorial-distillery-start"]');
       if (!(target instanceof HTMLElement)) {
         attempts += 1;
         if (attempts < 12) {
@@ -201,24 +276,23 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
       const topSafe = isMobile ? 120 : 112;
       const bottomSafe = isMobile ? 92 : 28;
       const visibleBottom = Math.max(topSafe + 48, window.innerHeight - bottomSafe);
-      const behavior = attempts === 0 ? "auto" : "smooth";
 
       target.scrollIntoView({
         block: isMobile ? "center" : "start",
         inline: "nearest",
-        behavior,
+        behavior: "auto",
       });
 
       const rect = target.getBoundingClientRect();
       if (rect.top < topSafe) {
         window.scrollBy({
           top: rect.top - topSafe - 10,
-          behavior,
+          behavior: "auto",
         });
       } else if (rect.bottom > visibleBottom) {
         window.scrollBy({
           top: rect.bottom - visibleBottom + 10,
-          behavior,
+          behavior: "auto",
         });
       }
 
@@ -238,8 +312,8 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
   }, [cargoInventory.length, expandedSections?.cargo, isMobile, onboardingStep]);
 
   return (
-    <OverlayShell isMobile={isMobile}>
-      <div style={{ width: "100%", maxWidth: "1220px", maxHeight: "100%", overflow: "auto", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", borderRadius: isMobile ? "16px 16px 0 0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", display: "grid", gap: "12px", padding: isMobile ? "12px 10px 16px" : "14px 14px 16px" }}>
+    <OverlayShell isMobile={isMobile} contentLabel="Destileria">
+      <OverlaySurface isMobile={isMobile}>
         <style>{`
           @keyframes distillerySpotlightPulse {
             0% { box-shadow: 0 0 0 0 rgba(124,58,237,0.22); }
@@ -247,9 +321,17 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
             100% { box-shadow: 0 0 0 0 rgba(124,58,237,0); }
           }
         `}</style>
-        <div style={{ padding: "1rem", display: "grid", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+        <div style={{
+          padding: "1rem",
+          display: "grid",
+          gap: "1rem",
+          alignItems: "start",
+          alignContent: "start",
+          background: "var(--color-background-primary, #f8fafc)",
+          color: "var(--color-text-primary, #1e293b)",
+        }}>
           <section style={panelStyle("var(--tone-violet, #7c3aed)")}>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "12px", alignItems: "start" }}>
+            <div style={{ display: "grid", gap: "12px", alignItems: "start" }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" }}>
                   Destileria
@@ -261,9 +343,6 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                   Convierte bundles en tinta, flux y polvo.
                 </div>
               </div>
-              <button onClick={onClose} style={{ ...actionButtonStyle({ compact: true }), flex: "0 0 auto" }}>
-                Volver
-              </button>
             </div>
 
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -292,6 +371,12 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                 <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Polvo</div>
                 <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{Math.floor(Number(resources?.relicDust || 0)).toLocaleString()}</div>
               </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button onClick={onClose} style={{ ...actionButtonStyle({ compact: true }), flex: "0 0 auto" }}>
+                Volver
+              </button>
             </div>
           </section>
 
@@ -376,12 +461,12 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
                         <div>
-                          <div style={{ fontSize: "0.82rem", fontWeight: "900" }}>{bundle.label}</div>
+                          <div style={{ fontSize: "0.82rem", fontWeight: "900", lineHeight: 1.2 }}>{bundle.label}</div>
                           <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.35 }}>
                             {bundle.description}
                           </div>
                         </div>
-                        <div style={{ display: "grid", gap: "4px", justifyItems: "end" }}>
+                        <div style={{ display: "grid", gap: "4px", justifyItems: "end", textAlign: "right" }}>
                           <span style={chipLabelStyle("var(--tone-violet, #7c3aed)")}>x{Math.max(1, Number(bundle?.quantity || 1))}</span>
                           <span style={{ fontSize: "0.6rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>
                             {preview.amount} {preview.label} · {preview.duration}
@@ -456,15 +541,39 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                     Estado de refinado
                   </div>
                 </div>
-                <button
-                  onClick={event => {
-                    event.stopPropagation();
-                    toggleSection("jobs");
-                  }}
-                  style={{ ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
-                >
-                  {expandedSections?.jobs ? "-" : "+"}
-                </button>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  {canRepeatClaimedDistillery && (
+                    <button
+                      onClick={event => {
+                        event.stopPropagation();
+                        claimAllDistilleryJobs({ restart: true });
+                      }}
+                      style={actionButtonStyle({ compact: true })}
+                    >
+                      Todo + repetir
+                    </button>
+                  )}
+                  {claimableJobs.length > 1 && (
+                    <button
+                      onClick={event => {
+                        event.stopPropagation();
+                        claimAllDistilleryJobs();
+                      }}
+                      style={actionButtonStyle({ primary: true, compact: true })}
+                    >
+                      Reclamar todo
+                    </button>
+                  )}
+                  <button
+                    onClick={event => {
+                      event.stopPropagation();
+                      toggleSection("jobs");
+                    }}
+                    style={{ ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
+                  >
+                    {expandedSections?.jobs ? "-" : "+"}
+                  </button>
+                </div>
               </div>
 
               {expandedSections?.jobs && claimableJobs.length > 0 && (
@@ -478,7 +587,7 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                         </div>
                       </div>
                       <button
-                        onClick={() => dispatch({ type: "CLAIM_SANCTUARY_JOB", jobId: job.id, now })}
+                        onClick={() => claimDistilleryJob(job, { nowAt: now })}
                         style={actionButtonStyle({ primary: true })}
                       >
                         Reclamar
@@ -515,7 +624,8 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
             </section>
           )}
         </div>
-      </div>
+      </OverlaySurface>
+      <ActionToast toast={actionToast} isMobile={isMobile} />
     </OverlayShell>
   );
 }

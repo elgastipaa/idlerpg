@@ -1,11 +1,10 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import useViewport from "../hooks/useViewport";
 import { calculatePrestigeEchoGain, canPrestige, getPrestigeResonanceSummary } from "../engine/progression/prestigeEngine";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
 import {
-  buildAccountTelemetryEntries,
   buildAccountTelemetryReport,
   buildAccountTelemetrySections,
-  buildSessionTelemetryEntries,
   buildSessionTelemetryReport,
   buildSessionTelemetrySections,
 } from "../utils/runTelemetry";
@@ -13,6 +12,7 @@ import { buildReplayDatasetSummary, buildReplayJsonExport, buildReplayLibraryExp
 import { runBalanceBotSimulation } from "../engine/simulation/balanceBot";
 import { importGameFromText, isRecoveryMode, saveGame, serializeSaveGame } from "../utils/storage";
 import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
+import HorizontalOptionSelector from "./HorizontalOptionSelector";
 
 function formatNumber(value) {
   if (typeof value !== "number") return value;
@@ -33,6 +33,17 @@ function formatShortDateTime(value) {
   return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
+function formatRuntimeRecoveryReason(reason = null) {
+  if (!reason) return "-";
+  if (reason === "tick_guard") return "Guardia de tick";
+  if (reason === "visibility_restore") return "Restore por visibilidad";
+  if (reason === "focus_restore") return "Restore por focus";
+  if (reason === "pageshow_restore") return "Restore por pageshow";
+  if (reason === "offline_job_stall") return "Stall de offline job";
+  if (reason === "runtime_guard") return "Guardia runtime";
+  return String(reason);
+}
+
 function formatDurationSeconds(totalSeconds = 0) {
   const seconds = Math.max(0, Math.floor(Number(totalSeconds || 0)));
   if (seconds < 60) return `${seconds}s`;
@@ -51,18 +62,6 @@ function slugifyName(value = "") {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 64) || "replay";
-}
-
-function rarityColor(rarity) {
-  const colors = {
-    common: "#cbd5e1",
-    magic: "#1D9E75",
-    rare: "#3b82f6",
-    epic: "#a855f7",
-    legendary: "#f59e0b",
-  };
-
-  return colors[rarity] || "#fff";
 }
 
 function formatRunDuration(ticks = 0) {
@@ -91,10 +90,119 @@ const QA_ONBOARDING_BEATS = [
   { id: ONBOARDING_STEPS.FIRST_ABYSS, label: "Primer Abismo", description: "Popup de entrada al endgame." },
 ];
 
+const EMPTY_TELEMETRY_VIEW = { sections: [], text: "" };
+const EMPTY_REPLAY_SUMMARY = {
+  actionCount: 0,
+  uiActionCount: 0,
+  milestoneCount: 0,
+  avgPushHpRatio: 0,
+  avgDropHpRatio: 0,
+  preferredCraftMode: "-",
+  preferredSpec: "-",
+  autoAdvanceBias: 0,
+  wishlistStats: [],
+};
+const EMPTY_REPLAY_PROFILE = {
+  preferredSpec: "-",
+  avgPushHpRatio: 0,
+  avgDropHpRatio: 0,
+  preferredCraftMode: "-",
+  craftCounts: {},
+};
+const EMPTY_REPLAY_DATASET_SUMMARY = {
+  replayCount: 0,
+  uiActionCount: 0,
+  preferredSpec: "-",
+  preferredCraftMode: "-",
+  avgPushHpRatio: 0,
+  avgDropHpRatio: 0,
+};
+const EMPTY_REPLAY_VIEW = {
+  summary: EMPTY_REPLAY_SUMMARY,
+  profile: EMPTY_REPLAY_PROFILE,
+  text: "",
+  jsonText: "",
+  combinedSummary: EMPTY_REPLAY_DATASET_SUMMARY,
+  bundleText: "",
+};
+const PREVIEW_ROW_LIMIT = 12;
+const LAB_FOCUS_OPTIONS = [
+  { id: "diagnostics", label: "Diagnostico" },
+  { id: "save", label: "Save" },
+  { id: "replay", label: "Replay" },
+  { id: "bot", label: "IA" },
+];
+
+function buildDiagnosticsRows(state = {}) {
+  const stations = state?.sanctuary?.stations || {};
+  const telemetry = state?.accountTelemetry || {};
+  const unlockedStations = Object.entries(stations)
+    .filter(([, station]) => Boolean(station?.unlocked))
+    .map(([stationId, station]) => station?.label || stationId);
+  return [
+    { label: "Tab actual", value: state?.currentTab || "-" },
+    { label: "Fase expedicion", value: state?.expedition?.phase || "-" },
+    { label: "Onboarding", value: state?.onboarding?.completed ? "Completo" : (state?.onboarding?.step || "sin paso") },
+    { label: "Clase / Spec", value: `${state?.player?.class || "-"} / ${state?.player?.specialization || "-"}` },
+    { label: "Tier actual / max", value: `T${formatNumber(state?.combat?.currentTier || 1)} / T${formatNumber(state?.combat?.maxTier || 1)}` },
+    { label: "Prestige / Ecos", value: `${formatNumber(state?.prestige?.level || 0)} / ${formatNumber(state?.prestige?.echoes || 0)}` },
+    { label: "Portal al Abismo", value: state?.abyss?.portalUnlocked ? "Abierto" : (state?.abyss?.tier25BossCleared ? "Listo para research" : "Cerrado") },
+    { label: "Estaciones activas", value: unlockedStations.join(", ") || "-" },
+    { label: "Jobs corriendo", value: formatNumber((state?.sanctuary?.jobs || []).filter(job => job?.status === "running").length) },
+    { label: "Runtime recoveries", value: formatNumber(Number(telemetry?.runtimeRecoveryCount || 0)) },
+    { label: "Repairs expedicion", value: formatNumber(Number(telemetry?.runtimeRepairCount || 0)) },
+    { label: "Offline stalls", value: formatNumber(Number(telemetry?.runtimeOfflineJobStallCount || 0)) },
+    {
+      label: "Ultima recovery",
+      value: telemetry?.runtimeLastRecoveryAt
+        ? `${formatShortDateTime(telemetry.runtimeLastRecoveryAt)} · ${formatRuntimeRecoveryReason(telemetry.runtimeLastRecoveryReason)}`
+        : "-",
+    },
+    { label: "Save age", value: state?.savedAt ? formatDurationSeconds((Date.now() - Number(state.savedAt || 0)) / 1000) : "-" },
+  ];
+}
+
+function buildDiagnosticsText(rows = []) {
+  return [
+    "Diagnostico de Save",
+    "===================",
+    ...rows.map(row => `${row.label}: ${row.value}`),
+  ].join("\n");
+}
+
+function buildCombinedReplayDataset(hasCurrentReplayData, replay, activeReplayLibraryEntries) {
+  const source = [
+    ...(hasCurrentReplayData ? [replay] : []),
+    ...activeReplayLibraryEntries.map(entry => entry.replay),
+  ];
+  const summary = buildReplayDatasetSummary(source);
+  const bundleText = JSON.stringify(
+    buildReplayLibraryExport(
+      [
+        ...(hasCurrentReplayData
+          ? [{
+              id: "current-session",
+              label: "Sesion actual",
+              importedAt: Date.now(),
+              exportedAt: null,
+              isActive: true,
+              replay,
+            }]
+          : []),
+        ...activeReplayLibraryEntries,
+      ],
+      { label: "Replay Dataset Activo" }
+    ),
+    null,
+    2
+  );
+  return { source, summary, bundleText };
+}
+
 export default function Stats({ state, dispatch, mode = "stats" }) {
   const { player, combat, prestige } = state;
   const isDarkMode = state.settings?.theme === "dark";
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const { isMobile } = useViewport();
   const [openSections, setOpenSections] = useState({
     diagnostics: false,
     qa: false,
@@ -103,10 +211,8 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
     bot: false,
     replay: false,
     telemetry: false,
-    lastRun: false,
   });
-  const [statsFocus, setStatsFocus] = useState("all");
-  const [labFocus, setLabFocus] = useState("all");
+  const [labFocus, setLabFocus] = useState("diagnostics");
   const [copied, setCopied] = useState(false);
   const [saveCopied, setSaveCopied] = useState(false);
   const [saveImportText, setSaveImportText] = useState("");
@@ -122,14 +228,14 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
   const [botCopied, setBotCopied] = useState(false);
   const [botRunning, setBotRunning] = useState(false);
   const [botResult, setBotResult] = useState(null);
+  const [telemetryExpandedSections, setTelemetryExpandedSections] = useState({});
+  const [accountTelemetryExpandedSections, setAccountTelemetryExpandedSections] = useState({});
+  const [replayLibraryVisibleCount, setReplayLibraryVisibleCount] = useState(PREVIEW_ROW_LIMIT);
+  const [botDecisionsVisibleCount, setBotDecisionsVisibleCount] = useState(PREVIEW_ROW_LIMIT);
   const saveFileInputRef = useRef(null);
   const replayFileInputRef = useRef(null);
-
-  useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
+  const isLab = mode === "lab";
+  const isStatsMode = !isLab;
 
   const prestigeStatus = canPrestige(state);
   const projectedPoints = calculatePrestigeEchoGain(state);
@@ -137,73 +243,80 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
   const currentRun = combat.runStats || {};
   const snapshot = combat.performanceSnapshot || {};
   const analytics = combat.analytics || {};
-  const telemetryEntries = useMemo(() => buildSessionTelemetryEntries(state), [state]);
-  const telemetrySections = useMemo(() => buildSessionTelemetrySections(state), [state]);
-  const telemetryText = useMemo(() => buildSessionTelemetryReport(state), [state]);
-  const accountTelemetryEntries = useMemo(() => buildAccountTelemetryEntries(state), [state]);
-  const accountTelemetrySections = useMemo(() => buildAccountTelemetrySections(state), [state]);
-  const accountTelemetryText = useMemo(() => buildAccountTelemetryReport(state), [state]);
-  const replaySummary = useMemo(() => buildReplaySummary(state), [state]);
-  const replayProfile = useMemo(() => deriveHumanReplayProfile(state.replay || {}), [state.replay]);
-  const replayText = useMemo(() => buildReplayTextReport(state), [state]);
-  const replayJsonText = useMemo(() => JSON.stringify(buildReplayJsonExport(state), null, 2), [state]);
   const replayLibraryEntries = useMemo(() => state.replayLibrary?.entries || [], [state.replayLibrary]);
   const activeReplayLibraryEntries = useMemo(() => replayLibraryEntries.filter(entry => entry.isActive !== false), [replayLibraryEntries]);
-  const saveJsonText = useMemo(() => serializeSaveGame(state, { pretty: true }), [state]);
   const recoveryMode = useMemo(() => isRecoveryMode(), []);
   const hasCurrentReplayData = (state.replay?.actions || []).length > 0 || (state.replay?.milestones || []).length > 0;
-  const combinedReplaySource = useMemo(() => [
-    ...(hasCurrentReplayData ? [state.replay] : []),
-    ...activeReplayLibraryEntries.map(entry => entry.replay),
-  ], [hasCurrentReplayData, state.replay, activeReplayLibraryEntries]);
-  const combinedReplayProfile = useMemo(() => deriveHumanReplayProfile(combinedReplaySource), [combinedReplaySource]);
-  const combinedReplaySummary = useMemo(() => buildReplayDatasetSummary(combinedReplaySource), [combinedReplaySource]);
-  const replayBundleText = useMemo(() => JSON.stringify(
-    buildReplayLibraryExport(
-      [
-        ...(hasCurrentReplayData
-          ? [{
-              id: "current-session",
-              label: "Sesion actual",
-              importedAt: Date.now(),
-              exportedAt: null,
-              isActive: true,
-              replay: state.replay,
-            }]
-          : []),
-        ...activeReplayLibraryEntries,
-      ],
-      { label: "Replay Dataset Activo" }
-    ),
-    null,
-    2
-  ), [hasCurrentReplayData, state.replay, activeReplayLibraryEntries]);
+  const diagnosticsSectionActive = isLab && labFocus === "diagnostics" && openSections.diagnostics;
+  const accountTelemetrySectionActive = isLab && labFocus === "diagnostics" && openSections.accountTelemetry;
+  const replaySectionActive = isLab && labFocus === "replay" && openSections.replay;
+  const telemetrySectionActive = isStatsMode && openSections.telemetry;
+  const telemetryView = useMemo(() => {
+    if (!telemetrySectionActive) return EMPTY_TELEMETRY_VIEW;
+    return {
+      sections: buildSessionTelemetrySections(state),
+      text: buildSessionTelemetryReport(state),
+    };
+  }, [telemetrySectionActive, state]);
+  const accountTelemetryView = useMemo(() => {
+    if (!accountTelemetrySectionActive) return EMPTY_TELEMETRY_VIEW;
+    return {
+      sections: buildAccountTelemetrySections(state),
+      text: buildAccountTelemetryReport(state),
+    };
+  }, [accountTelemetrySectionActive, state]);
+  const replayView = useMemo(() => {
+    if (!replaySectionActive) return EMPTY_REPLAY_VIEW;
+    const combinedDataset = buildCombinedReplayDataset(hasCurrentReplayData, state.replay, activeReplayLibraryEntries);
+    return {
+      summary: buildReplaySummary(state),
+      profile: deriveHumanReplayProfile(state.replay || {}),
+      text: buildReplayTextReport(state),
+      jsonText: JSON.stringify(buildReplayJsonExport(state), null, 2),
+      combinedSummary: combinedDataset.summary,
+      bundleText: combinedDataset.bundleText,
+    };
+  }, [activeReplayLibraryEntries, hasCurrentReplayData, replaySectionActive, state]);
+  const replayLibraryProfiles = useMemo(() => {
+    if (!replaySectionActive) return {};
+    const profilesById = {};
+    replayLibraryEntries.forEach(entry => {
+      profilesById[entry.id] = deriveHumanReplayProfile(entry.replay);
+    });
+    return profilesById;
+  }, [replayLibraryEntries, replaySectionActive]);
+  const replaySummary = replayView.summary;
+  const replayProfile = replayView.profile;
+  const replayText = replayView.text;
+  const replayJsonText = replayView.jsonText;
+  const combinedReplaySummary = replayView.combinedSummary;
+  const replayBundleText = replayView.bundleText;
+  const replayLibraryVisibleEntries = useMemo(
+    () => replayLibraryEntries.slice(0, replayLibraryVisibleCount),
+    [replayLibraryEntries, replayLibraryVisibleCount]
+  );
+  const canShowMoreReplayLibrary = replayLibraryEntries.length > replayLibraryVisibleCount;
+  const canShowLessReplayLibrary = replayLibraryVisibleCount > PREVIEW_ROW_LIMIT;
+  const botDecisionRows = useMemo(() => {
+    if (!botResult?.decisions?.length) return [];
+    const maxCount = Math.min(40, botResult.decisions.length);
+    return botResult.decisions.slice(-maxCount);
+  }, [botResult]);
+  const visibleBotDecisionRows = useMemo(
+    () => botDecisionRows.slice(-Math.min(botDecisionsVisibleCount, botDecisionRows.length)),
+    [botDecisionRows, botDecisionsVisibleCount]
+  );
+  const canShowMoreBotDecisions = botDecisionRows.length > botDecisionsVisibleCount;
+  const canShowLessBotDecisions = botDecisionsVisibleCount > PREVIEW_ROW_LIMIT;
   const buildTag = getPlayerBuildTag(player);
-  const isLab = mode === "lab";
-  const isStatsMode = !isLab;
   const diagnosticsRows = useMemo(() => {
-    const stations = state?.sanctuary?.stations || {};
-    const unlockedStations = Object.entries(stations)
-      .filter(([, station]) => Boolean(station?.unlocked))
-      .map(([stationId, station]) => station?.label || stationId);
-    return [
-      { label: "Tab actual", value: state?.currentTab || "-" },
-      { label: "Fase expedicion", value: state?.expedition?.phase || "-" },
-      { label: "Onboarding", value: state?.onboarding?.completed ? "Completo" : (state?.onboarding?.step || "sin paso") },
-      { label: "Clase / Spec", value: `${state?.player?.class || "-"} / ${state?.player?.specialization || "-"}` },
-      { label: "Tier actual / max", value: `T${formatNumber(state?.combat?.currentTier || 1)} / T${formatNumber(state?.combat?.maxTier || 1)}` },
-      { label: "Prestige / Ecos", value: `${formatNumber(state?.prestige?.level || 0)} / ${formatNumber(state?.prestige?.echoes || 0)}` },
-      { label: "Portal al Abismo", value: state?.abyss?.portalUnlocked ? "Abierto" : (state?.abyss?.tier25BossCleared ? "Listo para research" : "Cerrado") },
-      { label: "Estaciones activas", value: unlockedStations.join(", ") || "-" },
-      { label: "Jobs corriendo", value: formatNumber((state?.sanctuary?.jobs || []).filter(job => job?.status === "running").length) },
-      { label: "Save age", value: state?.savedAt ? formatDurationSeconds((Date.now() - Number(state.savedAt || 0)) / 1000) : "-" },
-    ];
-  }, [state]);
-  const diagnosticsText = useMemo(() => [
-    "Diagnostico de Save",
-    "===================",
-    ...diagnosticsRows.map(row => `${row.label}: ${row.value}`),
-  ].join("\n"), [diagnosticsRows]);
+    if (!diagnosticsSectionActive) return [];
+    return buildDiagnosticsRows(state);
+  }, [diagnosticsSectionActive, state]);
+  const diagnosticsText = useMemo(() => {
+    if (!diagnosticsSectionActive) return "";
+    return buildDiagnosticsText(diagnosticsRows);
+  }, [diagnosticsRows, diagnosticsSectionActive]);
 
   const damagePerTick = snapshot.damagePerTick || 0;
   const goldPerTick = snapshot.goldPerTick || 0;
@@ -214,9 +327,6 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
   const survivabilityRatio = (player.hp || 0) / Math.max(1, player.maxHp || 1);
   const goldPerMinute = goldPerTick * 60;
   const xpPerMinute = xpPerTick * 60;
-  const lastRunSummary = combat.lastRunSummary;
-  const weapon = player.equipment.weapon;
-  const armor = player.equipment.armor;
 
   useEffect(() => {
     if (!isMobile) {
@@ -228,7 +338,6 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
         bot: isLab,
         replay: isLab,
         telemetry: isStatsMode,
-        lastRun: isStatsMode,
       });
       return;
     }
@@ -240,9 +349,30 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
       bot: false,
       replay: false,
       telemetry: isStatsMode,
-      lastRun: false,
     });
   }, [isLab, isMobile, isStatsMode]);
+
+  useEffect(() => {
+    if (!openSections.replay) {
+      setReplayLibraryVisibleCount(PREVIEW_ROW_LIMIT);
+    }
+  }, [openSections.replay]);
+
+  useEffect(() => {
+    if (!openSections.telemetry) {
+      setTelemetryExpandedSections({});
+    }
+  }, [openSections.telemetry]);
+
+  useEffect(() => {
+    if (!openSections.accountTelemetry) {
+      setAccountTelemetryExpandedSections({});
+    }
+  }, [openSections.accountTelemetry]);
+
+  useEffect(() => {
+    setBotDecisionsVisibleCount(PREVIEW_ROW_LIMIT);
+  }, [botResult]);
 
   const buildStatus =
     survivabilityRatio < 0.35
@@ -273,6 +403,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
 
   const handleCopy = async () => {
     try {
+      const telemetryText = telemetryView.text || buildSessionTelemetryReport(state);
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(telemetryText);
       }
@@ -294,6 +425,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
 
   const handleCopySave = async () => {
     try {
+      const saveJsonText = serializeSaveGame(state, { pretty: true });
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(saveJsonText);
       }
@@ -306,8 +438,9 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
 
   const handleCopyDiagnostics = async () => {
     try {
+      const nextDiagnosticsText = diagnosticsText || buildDiagnosticsText(buildDiagnosticsRows(state));
       if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(diagnosticsText);
+        await navigator.clipboard.writeText(nextDiagnosticsText);
       }
       setDiagnosticsCopied(true);
       window.setTimeout(() => setDiagnosticsCopied(false), 1800);
@@ -318,6 +451,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
 
   const handleCopyAccountTelemetry = async () => {
     try {
+      const accountTelemetryText = accountTelemetryView.text || buildAccountTelemetryReport(state);
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(accountTelemetryText);
       }
@@ -330,8 +464,9 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
 
   const handleCopyReplay = async () => {
     try {
+      const nextReplayText = replayText || buildReplayTextReport(state);
       if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(replayText);
+        await navigator.clipboard.writeText(nextReplayText);
       }
       setReplayCopied(true);
       window.setTimeout(() => setReplayCopied(false), 1800);
@@ -342,8 +477,9 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
 
   const handleCopyReplayJson = async () => {
     try {
+      const nextReplayJsonText = replayJsonText || JSON.stringify(buildReplayJsonExport(state), null, 2);
       if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(replayJsonText);
+        await navigator.clipboard.writeText(nextReplayJsonText);
       }
       setReplayJsonCopied(true);
       window.setTimeout(() => setReplayJsonCopied(false), 1800);
@@ -354,8 +490,9 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
 
   const handleCopyReplayBundle = async () => {
     try {
+      const nextReplayBundleText = replayBundleText || buildCombinedReplayDataset(hasCurrentReplayData, state.replay, activeReplayLibraryEntries).bundleText;
       if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(replayBundleText);
+        await navigator.clipboard.writeText(nextReplayBundleText);
       }
       setReplayBundleCopied(true);
       window.setTimeout(() => setReplayBundleCopied(false), 1800);
@@ -377,19 +514,26 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
   };
 
   const handleDownloadReplayJson = () => {
-    const spec = replaySummary.preferredSpec || player.specialization || "session";
-    const craft = replaySummary.preferredCraftMode || "mixed";
-    const filename = `${slugifyName(`replay-${spec}-${craft}-${replaySummary.actionCount}a`)}.json`;
-    handleDownloadText(replayJsonText, filename);
+    const nextReplaySummary = replaySummary.actionCount > 0 ? replaySummary : buildReplaySummary(state);
+    const nextReplayJsonText = replayJsonText || JSON.stringify(buildReplayJsonExport(state), null, 2);
+    const actionCount = Number(nextReplaySummary.actionCount || 0);
+    const spec = nextReplaySummary.preferredSpec || player.specialization || "session";
+    const craft = nextReplaySummary.preferredCraftMode || "mixed";
+    const filename = `${slugifyName(`replay-${spec}-${craft}-${actionCount}a`)}.json`;
+    handleDownloadText(nextReplayJsonText, filename);
   };
 
   const handleDownloadReplayBundle = () => {
-    const spec = combinedReplaySummary.preferredSpec || player.specialization || "dataset";
-    const filename = `${slugifyName(`replay-bundle-${spec}-${combinedReplaySummary.replayCount}r`)}.json`;
-    handleDownloadText(replayBundleText, filename);
+    const nextCombinedReplay = combinedReplaySummary.replayCount > 0
+      ? { summary: combinedReplaySummary, bundleText: replayBundleText }
+      : buildCombinedReplayDataset(hasCurrentReplayData, state.replay, activeReplayLibraryEntries);
+    const spec = nextCombinedReplay.summary.preferredSpec || player.specialization || "dataset";
+    const filename = `${slugifyName(`replay-bundle-${spec}-${nextCombinedReplay.summary.replayCount}r`)}.json`;
+    handleDownloadText(nextCombinedReplay.bundleText, filename);
   };
 
   const handleDownloadSave = () => {
+    const saveJsonText = serializeSaveGame(state, { pretty: true });
     const className = player.class || "save";
     const spec = player.specialization || "base";
     const filename = `${slugifyName(`save-${className}-${spec}-lvl${player.level || 1}`)}.json`;
@@ -501,17 +645,23 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
     setBotRunning(true);
     setBotCopied(false);
     await new Promise(resolve => window.setTimeout(resolve, 20));
+    const combinedDataset = buildCombinedReplayDataset(hasCurrentReplayData, state.replay, activeReplayLibraryEntries);
+    const combinedReplayProfile = deriveHumanReplayProfile(combinedDataset.source);
     const result = runBalanceBotSimulation(state, {
       ticks: 1800,
       humanProfile: combinedReplayProfile,
-      replaySource: combinedReplaySource,
+      replaySource: combinedDataset.source,
     });
-    setBotResult(result);
+    setBotResult({
+      ...result,
+      replayDatasetSummary: combinedDataset.summary,
+    });
     setBotRunning(false);
   };
 
   const botReportText = useMemo(() => {
     if (!botResult) return "";
+    const datasetSummary = botResult.replayDatasetSummary || EMPTY_REPLAY_DATASET_SUMMARY;
     return [
       "IdleRPG Balance Bot",
       "===================",
@@ -525,7 +675,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
       `Ecos disponibles: ${botResult.summary.echoes}`,
       `Mejor drop: ${botResult.summary.bestDrop}`,
       `Diagnostico: ${botResult.summary.stagnationReason}`,
-      `Dataset humano: ${combinedReplaySummary.replayCount} replay(s) · ${combinedReplaySummary.uiActionCount} acciones UI · spec ${combinedReplaySummary.preferredSpec} · push HP ${formatPct(combinedReplaySummary.avgPushHpRatio)} · craft ${combinedReplaySummary.preferredCraftMode}`,
+      `Dataset humano: ${datasetSummary.replayCount} replay(s) · ${datasetSummary.uiActionCount} acciones UI · spec ${datasetSummary.preferredSpec} · push HP ${formatPct(datasetSummary.avgPushHpRatio)} · craft ${datasetSummary.preferredCraftMode}`,
       "",
       botResult.telemetryText,
       "",
@@ -553,11 +703,27 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
       [key]: !current[key],
     }));
   };
-  const statsSectionVisible = key => statsFocus === "all" || statsFocus === key;
-  const labSectionVisible = key => labFocus === "all" || labFocus === key;
+  const toggleTelemetryRows = sectionId => {
+    setTelemetryExpandedSections(current => ({
+      ...current,
+      [sectionId]: !current[sectionId],
+    }));
+  };
+  const toggleAccountTelemetryRows = sectionId => {
+    setAccountTelemetryExpandedSections(current => ({
+      ...current,
+      [sectionId]: !current[sectionId],
+    }));
+  };
+  const labSectionVisible = key => {
+    if (labFocus === "diagnostics") {
+      return key === "diagnostics" || key === "qa" || key === "accountTelemetry";
+    }
+    return labFocus === key;
+  };
 
   return (
-    <div style={{ padding: isMobile ? "0.9rem" : "1.2rem", display: "flex", flexDirection: "column", gap: "12px", background: isDarkMode ? "linear-gradient(180deg, var(--color-background-primary, #0b1220) 0%, var(--color-background-secondary, #111a2e) 100%)" : "linear-gradient(180deg, var(--color-background-primary, #f8fafc) 0%, var(--color-background-tertiary, #eef6f4) 100%)", color: "var(--color-text-primary, #1e293b)" }}>
+    <div style={{ padding: 0, display: "flex", flexDirection: "column", gap: "12px", background: isDarkMode ? "linear-gradient(180deg, var(--color-background-primary, #0b1220) 0%, var(--color-background-secondary, #111a2e) 100%)" : "linear-gradient(180deg, var(--color-background-primary, #f8fafc) 0%, var(--color-background-tertiary, #eef6f4) 100%)", color: "var(--color-text-primary, #1e293b)" }}>
       {isLab && (
         <section style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
           <div style={lightPanelStyle}>
@@ -580,38 +746,36 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                 </div>
               </div>
             </div>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" }}>
-              {[
-                ["all", "Todo"],
-                ["diagnostics", "Diagnostico"],
-                ["save", "Save"],
-                ["replay", "Replay"],
-                ["bot", "IA"],
-              ].map(([value, label]) => (
-                <button key={value} onClick={() => setLabFocus(value)} style={focusChipButtonStyle(labFocus === value)}>
-                  {label}
-                </button>
-              ))}
-            </div>
+            <HorizontalOptionSelector
+              rootStyle={{ marginTop: "10px" }}
+              options={LAB_FOCUS_OPTIONS}
+              selectedId={labFocus}
+              onSelect={option => setLabFocus(option.id)}
+              getOptionId={option => option.id}
+              getArrowButtonStyle={({ disabled }) => ({
+                ...focusChipButtonStyle(false),
+                minWidth: "34px",
+                padding: "4px 0",
+                opacity: disabled ? 0.45 : 1,
+                cursor: disabled ? "not-allowed" : "pointer",
+              })}
+              getOptionButtonStyle={({ selected }) => ({
+                ...focusChipButtonStyle(selected),
+                textAlign: "center",
+                padding: "6px 9px",
+                flexShrink: 0,
+              })}
+              renderOption={({ option }) => (
+                <span style={{ fontSize: "0.66rem", fontWeight: "900" }}>{option.label}</span>
+              )}
+            />
           </div>
         </section>
       )}
 
       {isStatsMode && (
       <section style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {[
-            ["all", "Todo"],
-            ["run", "Run"],
-            ["telemetry", "Telemetria"],
-            ["lastRun", "Ultima vida"],
-          ].map(([value, label]) => (
-            <button key={value} onClick={() => setStatsFocus(value)} style={focusChipButtonStyle(statsFocus === value)}>
-              {label}
-            </button>
-          ))}
-        </div>
-        {statsSectionVisible("run") && Number(prestige.level || 0) >= 1 && (
+        {Number(prestige.level || 0) >= 1 && (
           <div style={lightPanelStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", flexWrap: "wrap" }}>
               <div>
@@ -647,7 +811,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
           </div>
         )}
 
-        {statsSectionVisible("run") && <div style={lightPanelStyle}>
+        <div style={lightPanelStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", marginBottom: "10px", flexWrap: "wrap" }}>
             <div>
               <div style={sectionTitleStyle}>Corrida Actual</div>
@@ -661,7 +825,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
               <DataRow key={row.label} label={row.label} value={row.value} accent={row.accent} />
             ))}
           </div>
-        </div>}
+        </div>
       </section>
       )}
 
@@ -764,12 +928,20 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
-              {accountTelemetrySections.map(section => (
+              {accountTelemetryView.sections.map(section => (
                 <div key={section.id} style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
                   <div style={sectionTitleStyle}>{section.title}</div>
-                  {(section.rows || []).map(entry => (
+                  {(accountTelemetryExpandedSections[section.id] ? (section.rows || []) : (section.rows || []).slice(0, PREVIEW_ROW_LIMIT)).map(entry => (
                     <DataRow key={`${section.id}-${entry.label}`} label={entry.label} value={entry.value} />
                   ))}
+                  {(section.rows || []).length > PREVIEW_ROW_LIMIT && (
+                    <button
+                      onClick={() => toggleAccountTelemetryRows(section.id)}
+                      style={{ ...actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe"), marginTop: "8px" }}
+                    >
+                      {accountTelemetryExpandedSections[section.id] ? "Ver menos" : `Ver ${(section.rows || []).length - PREVIEW_ROW_LIMIT} mas`}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -865,8 +1037,8 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                   style={{ width: "100%", marginTop: "8px", borderRadius: "10px", border: "1px solid var(--color-border-secondary, #dbe7e3)", padding: "10px 12px", fontSize: "0.72rem", color: "var(--color-text-primary, #1e293b)", background: "var(--color-background-secondary, #fff)" }}
                 />
                 <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "6px", maxHeight: isMobile ? "240px" : "300px", overflowY: "auto" }}>
-                  {replayLibraryEntries.length > 0 ? replayLibraryEntries.map(entry => {
-                    const entryProfile = deriveHumanReplayProfile(entry.replay);
+                  {replayLibraryVisibleEntries.length > 0 ? replayLibraryVisibleEntries.map(entry => {
+                    const entryProfile = replayLibraryProfiles[entry.id] || EMPTY_REPLAY_PROFILE;
                     return (
                       <div key={entry.id} style={{ background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "10px", padding: "9px 10px" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
@@ -894,6 +1066,26 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                       </div>
                     );
                   }) : <div style={{ fontSize: "0.74rem", color: "#64748b" }}>Todavia no guardaste ni importaste replays en la biblioteca.</div>}
+                  {(canShowMoreReplayLibrary || canShowLessReplayLibrary) && (
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "4px" }}>
+                      {canShowMoreReplayLibrary && (
+                        <button
+                          onClick={() => setReplayLibraryVisibleCount(current => current + PREVIEW_ROW_LIMIT)}
+                          style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}
+                        >
+                          Ver mas ({replayLibraryEntries.length - replayLibraryVisibleCount})
+                        </button>
+                      )}
+                      {canShowLessReplayLibrary && (
+                        <button
+                          onClick={() => setReplayLibraryVisibleCount(PREVIEW_ROW_LIMIT)}
+                          style={actionBtnStyle("#ffffff", "#64748b", "1px solid #cbd5e1")}
+                        >
+                          Ver menos
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {replayLibraryEntries.length > 0 && (
                   <button onClick={() => dispatch({ type: "CLEAR_REPLAY_LIBRARY", meta: { replay: false } })} style={{ ...actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca"), marginTop: "10px" }}>
@@ -1037,10 +1229,30 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                   <div style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
                     <div style={sectionTitleStyle}>Decisiones IA</div>
                     <div style={{ marginTop: "8px", maxHeight: isMobile ? "220px" : "320px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
-                      {botResult.decisions.length > 0 ? botResult.decisions.slice(-40).map((entry, index) => (
+                      {visibleBotDecisionRows.length > 0 ? visibleBotDecisionRows.map((entry, index) => (
                         <div key={`${entry}-${index}`} style={{ fontSize: "0.72rem", color: "#334155", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px 10px" }}>{entry}</div>
                       )) : <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #64748b)" }}>La IA no tuvo que tomar decisiones visibles.</div>}
                     </div>
+                    {(canShowMoreBotDecisions || canShowLessBotDecisions) && (
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
+                        {canShowMoreBotDecisions && (
+                          <button
+                            onClick={() => setBotDecisionsVisibleCount(current => current + PREVIEW_ROW_LIMIT)}
+                            style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}
+                          >
+                            Ver mas ({botDecisionRows.length - botDecisionsVisibleCount})
+                          </button>
+                        )}
+                        {canShowLessBotDecisions && (
+                          <button
+                            onClick={() => setBotDecisionsVisibleCount(PREVIEW_ROW_LIMIT)}
+                            style={actionBtnStyle("#ffffff", "#64748b", "1px solid #cbd5e1")}
+                          >
+                            Ver menos
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1062,7 +1274,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
         )}
       </section>}
 
-      {isStatsMode && statsSectionVisible("telemetry") && <section style={lightPanelStyle}>
+      {isStatsMode && <section style={lightPanelStyle}>
         <button onClick={() => toggleSection("telemetry")} style={accordionHeaderButtonStyle}>
           <div>
             <div style={sectionTitleStyle}>Telemetria de Sesion</div>
@@ -1081,12 +1293,20 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
-              {telemetrySections.map(section => (
+              {telemetryView.sections.map(section => (
                 <div key={section.id} style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
                   <div style={sectionTitleStyle}>{section.title}</div>
-                  {(section.rows || []).map(entry => (
+                  {(telemetryExpandedSections[section.id] ? (section.rows || []) : (section.rows || []).slice(0, PREVIEW_ROW_LIMIT)).map(entry => (
                     <DataRow key={`${section.id}-${entry.label}`} label={entry.label} value={entry.value} />
                   ))}
+                  {(section.rows || []).length > PREVIEW_ROW_LIMIT && (
+                    <button
+                      onClick={() => toggleTelemetryRows(section.id)}
+                      style={{ ...actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe"), marginTop: "8px" }}
+                    >
+                      {telemetryExpandedSections[section.id] ? "Ver menos" : `Ver ${(section.rows || []).length - PREVIEW_ROW_LIMIT} mas`}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -1094,40 +1314,6 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
           </>
         )}
       </section>}
-
-      {isStatsMode && statsSectionVisible("lastRun") && lastRunSummary && (
-        <section style={lastRunBoxStyle(lastRunSummary.outcome)}>
-          <button onClick={() => toggleSection("lastRun")} style={{ ...accordionHeaderButtonStyle, color: "#fff" }}>
-            <div>
-              <div style={{ fontSize: "0.62rem", color: "#94a3b8", fontWeight: "900", letterSpacing: "1px", textTransform: "uppercase" }}>Ultima Vida</div>
-              <div style={{ fontSize: "1rem", color: "#f8fafc", fontWeight: "900", marginTop: "3px" }}>Caida contra {lastRunSummary.enemyName}</div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
-              <div style={{ ...pillStyle("rgba(127,29,29,0.85)", "#fff", "rgba(248,113,113,0.35)") }}>{lastRunSummary.kills} bajas</div>
-              <span style={{ ...accordionLabelStyle, color: "#cbd5e1" }}>{openSections.lastRun ? "Ocultar" : "Ver"}</span>
-            </div>
-          </button>
-
-          {openSections.lastRun && (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px", marginTop: "10px" }}>
-                <RunMetric label="Tier Max" value={lastRunSummary.maxTier} />
-                <RunMetric label="Duracion" value={formatRunDuration(lastRunSummary.durationTicks)} />
-                <RunMetric label="Oro" value={formatNumber(lastRunSummary.gold)} />
-                <RunMetric label="XP" value={formatNumber(lastRunSummary.xp)} />
-                <RunMetric label="Items" value={formatNumber(lastRunSummary.items)} />
-              </div>
-
-              <div style={{ marginTop: "10px", fontSize: "0.78rem", color: "#e2e8f0" }}>
-                Mejor drop: <strong style={{ color: "#fff" }}>{lastRunSummary.bestDropName || "Sin drop destacado"}</strong>
-                {lastRunSummary.bestDropRarity && (
-                  <span style={{ color: rarityColor(lastRunSummary.bestDropRarity), fontWeight: "900", marginLeft: "6px", textTransform: "uppercase" }}>{lastRunSummary.bestDropRarity}</span>
-                )}
-              </div>
-            </>
-          )}
-        </section>
-      )}
     </div>
   );
 }
@@ -1173,42 +1359,6 @@ function MetricPill({ label, value }) {
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function RunMetric({ label, value }) {
-  return (
-    <div
-      style={{
-        background: "rgba(255,255,255,0.06)",
-        border: "1px solid rgba(148,163,184,0.22)",
-        borderRadius: "12px",
-        padding: "10px 12px",
-        display: "grid",
-        gap: "4px",
-      }}
-    >
-      <div
-        style={{
-          fontSize: "0.56rem",
-          fontWeight: "900",
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          color: "#94a3b8",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: "0.9rem",
-          fontWeight: "900",
-          color: "#f8fafc",
         }}
       >
         {value}
@@ -1282,8 +1432,8 @@ const focusChipButtonStyle = active => ({
   background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #ffffff)",
   color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #475569)",
   borderRadius: "999px",
-  padding: "7px 10px",
-  fontSize: "0.64rem",
+  padding: "6px 9px",
+  fontSize: "0.62rem",
   fontWeight: "900",
   cursor: "pointer",
 });
@@ -1298,12 +1448,4 @@ const actionBtnStyle = (background, color, border = "none") => ({
   fontSize: "0.76rem",
   cursor: "pointer",
   boxShadow: background !== "#ffffff" ? "0 8px 20px rgba(15,118,110,0.18)" : "none",
-});
-
-const lastRunBoxStyle = outcome => ({
-  background: outcome === "death" ? "linear-gradient(145deg, #1f2937 0%, #111827 100%)" : "linear-gradient(145deg, #0f3b2e 0%, #0b1f1a 100%)",
-  padding: "1rem",
-  borderRadius: "18px",
-  border: `1px solid ${outcome === "death" ? "#7f1d1d" : "#166534"}`,
-  boxShadow: "0 10px 24px rgba(0,0,0,0.18)",
 });

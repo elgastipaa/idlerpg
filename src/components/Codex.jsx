@@ -16,6 +16,7 @@ import {
 import { formatRunSigilLoadout, normalizeRunSigilIds, summarizeRunSigilLoadout } from "../data/runSigils";
 import { getMaxRunSigilSlots } from "../engine/progression/abyssProgression";
 import { getCodexResearchDefinition } from "../engine/sanctuary/jobEngine";
+import HorizontalOptionSelector from "./HorizontalOptionSelector";
 
 const STAT_DESCRIPTIONS = [
   ["damage", "Dano base de tus golpes normales y de varias habilidades."],
@@ -69,6 +70,37 @@ const RARITY_GUIDE = [
   ["Legendary", "Drops de persecucion, muy raros y con fantasias fuertes."],
 ];
 
+const LIST_PAGE_SIZES = {
+  huntPowers: 12,
+  huntFamilies: 10,
+  libraryPowers: 12,
+  libraryFamilies: 10,
+  libraryBosses: 8,
+  glossaryStats: 12,
+  glossaryFamilies: 10,
+};
+
+const LIBRARY_MASTERY_GROUPS = [
+  {
+    id: "libraryPowers",
+    label: "Poderes legendarios",
+    subtitle: "Descubiertos, ocultos y progreso de investigacion.",
+    accent: "var(--tone-warning, #fb923c)",
+  },
+  {
+    id: "libraryFamilies",
+    label: "Familias",
+    subtitle: "Kills, hitos y avance de investigacion por familia.",
+    accent: "var(--tone-success, #10b981)",
+  },
+  {
+    id: "libraryBosses",
+    label: "Bosses",
+    subtitle: "Registro de caza, ruta y milestones de cada boss.",
+    accent: "var(--tone-accent, #4338ca)",
+  },
+];
+
 function formatImplicit(bonus = {}) {
   return Object.entries(bonus)
     .map(([key, value]) => `${key}: ${typeof value === "number" && value < 1 ? `${Math.round(value * 100)}%` : value}`)
@@ -100,6 +132,18 @@ function formatRemaining(ms = 0) {
   return `${seconds}s`;
 }
 
+function getPaginatedSlice(entries = [], page = 0, pageSize = 10) {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const totalPages = Math.max(1, Math.ceil(safeEntries.length / Math.max(1, pageSize)));
+  const safePage = Math.max(0, Math.min(Number(page || 0), totalPages - 1));
+  const start = safePage * pageSize;
+  return {
+    entries: safeEntries.slice(start, start + pageSize),
+    page: safePage,
+    totalPages,
+  };
+}
+
 const BONUS_LABELS = {
   damagePct: "Dano",
   defensePct: "Defensa",
@@ -126,18 +170,21 @@ const BONUS_LABELS = {
 
 const BOSS_NAME_BY_ID = Object.fromEntries(BOSSES.map(boss => [boss.id, boss.name]));
 export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
+  const isLibraryMode = mode === "library";
+  const isHuntMode = !isLibraryMode;
   const [activeTab, setActiveTab] = useState("mastery");
-  const [collapsedSections, setCollapsedSections] = useState({
+  const [activeMasteryGroup, setActiveMasteryGroup] = useState("libraryPowers");
+  const [collapsedSections, setCollapsedSections] = useState(() => ({
     huntPowers: true,
     huntFamilies: true,
-    libraryPowers: true,
-    libraryFamilies: true,
-    libraryBosses: true,
+    libraryPowers: !isLibraryMode,
+    libraryFamilies: !isLibraryMode,
+    libraryBosses: !isLibraryMode,
     glossarySystems: true,
     glossaryRarity: true,
     glossaryStats: true,
     glossaryFamilies: true,
-  });
+  }));
   const [expandedGroups, setExpandedGroups] = useState({
     libraryPowers: false,
     libraryFamilies: false,
@@ -145,8 +192,15 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
     glossaryStats: false,
     glossaryFamilies: false,
   });
-  const isLibraryMode = mode === "library";
-  const isHuntMode = !isLibraryMode;
+  const [listPages, setListPages] = useState({
+    huntPowers: 0,
+    huntFamilies: 0,
+    libraryPowers: 0,
+    libraryFamilies: 0,
+    libraryBosses: 0,
+    glossaryStats: 0,
+    glossaryFamilies: 0,
+  });
   const codex = state?.codex || {};
   const currentTier = Number(state?.combat?.currentTier || 1);
   const sanctuary = state?.sanctuary || {};
@@ -200,6 +254,16 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
     setExpandedGroups(current => ({
       ...current,
       [groupId]: !current[groupId],
+    }));
+    setListPages(current => ({
+      ...current,
+      [groupId]: 0,
+    }));
+  };
+  const setListPage = (listId, nextPage) => {
+    setListPages(current => ({
+      ...current,
+      [listId]: Math.max(0, Number(nextPage || 0)),
     }));
   };
   const hasRunningResearch = runningResearchJobs.length > 0;
@@ -320,11 +384,62 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
   const activePowersCount = powerEntries.filter(entry => entry.unlocked).length;
   const discoveredFamiliesCount = familyEntries.filter(entry => entry.seen).length;
   const discoveredBossesCount = bossEntries.filter(entry => entry.seen).length;
-  const visibleLibraryPowerEntries = expandedGroups.libraryPowers ? orderedPowerEntries : orderedPowerEntries.slice(0, 8);
-  const visibleLibraryFamilyEntries = expandedGroups.libraryFamilies ? orderedFamilyEntries : orderedFamilyEntries.slice(0, 8);
-  const visibleLibraryBossEntries = expandedGroups.libraryBosses ? orderedBossEntries : orderedBossEntries.slice(0, 6);
-  const visibleGlossaryStats = expandedGroups.glossaryStats ? STAT_DESCRIPTIONS : STAT_DESCRIPTIONS.slice(0, 10);
-  const visibleGlossaryFamilies = expandedGroups.glossaryFamilies ? Object.entries(ITEM_FAMILIES) : Object.entries(ITEM_FAMILIES).slice(0, 8);
+  const huntPowerEntries = useMemo(
+    () => orderedPowerEntries.filter(entry => entry.unlocked),
+    [orderedPowerEntries]
+  );
+  const huntFamilyEntries = useMemo(
+    () => orderedFamilyEntries.filter(entry => entry.seen && expeditionSeenFamilyIds.includes(entry.id)),
+    [orderedFamilyEntries, expeditionSeenFamilyIds]
+  );
+  const glossaryFamilyEntries = useMemo(
+    () => Object.entries(ITEM_FAMILIES),
+    []
+  );
+  const huntPowersPaging = useMemo(
+    () => getPaginatedSlice(huntPowerEntries, listPages.huntPowers, LIST_PAGE_SIZES.huntPowers),
+    [huntPowerEntries, listPages.huntPowers]
+  );
+  const huntFamiliesPaging = useMemo(
+    () => getPaginatedSlice(huntFamilyEntries, listPages.huntFamilies, LIST_PAGE_SIZES.huntFamilies),
+    [huntFamilyEntries, listPages.huntFamilies]
+  );
+  const libraryPowersPaging = useMemo(
+    () => getPaginatedSlice(orderedPowerEntries, listPages.libraryPowers, LIST_PAGE_SIZES.libraryPowers),
+    [orderedPowerEntries, listPages.libraryPowers]
+  );
+  const libraryFamiliesPaging = useMemo(
+    () => getPaginatedSlice(orderedFamilyEntries, listPages.libraryFamilies, LIST_PAGE_SIZES.libraryFamilies),
+    [orderedFamilyEntries, listPages.libraryFamilies]
+  );
+  const libraryBossesPaging = useMemo(
+    () => getPaginatedSlice(orderedBossEntries, listPages.libraryBosses, LIST_PAGE_SIZES.libraryBosses),
+    [orderedBossEntries, listPages.libraryBosses]
+  );
+  const glossaryStatsPaging = useMemo(
+    () => getPaginatedSlice(STAT_DESCRIPTIONS, listPages.glossaryStats, LIST_PAGE_SIZES.glossaryStats),
+    [listPages.glossaryStats]
+  );
+  const glossaryFamiliesPaging = useMemo(
+    () => getPaginatedSlice(glossaryFamilyEntries, listPages.glossaryFamilies, LIST_PAGE_SIZES.glossaryFamilies),
+    [glossaryFamilyEntries, listPages.glossaryFamilies]
+  );
+  const visibleLibraryPowerEntries = expandedGroups.libraryPowers ? libraryPowersPaging.entries : orderedPowerEntries.slice(0, 8);
+  const visibleLibraryFamilyEntries = expandedGroups.libraryFamilies ? libraryFamiliesPaging.entries : orderedFamilyEntries.slice(0, 8);
+  const visibleLibraryBossEntries = expandedGroups.libraryBosses ? libraryBossesPaging.entries : orderedBossEntries.slice(0, 6);
+  const visibleGlossaryStats = expandedGroups.glossaryStats ? glossaryStatsPaging.entries : STAT_DESCRIPTIONS.slice(0, 10);
+  const visibleGlossaryFamilies = expandedGroups.glossaryFamilies ? glossaryFamiliesPaging.entries : glossaryFamilyEntries.slice(0, 8);
+  const selectedMasteryGroupId = LIBRARY_MASTERY_GROUPS.some(group => group.id === activeMasteryGroup)
+    ? activeMasteryGroup
+    : LIBRARY_MASTERY_GROUPS[0].id;
+  const selectedMasteryGroupIndex = LIBRARY_MASTERY_GROUPS.findIndex(group => group.id === selectedMasteryGroupId);
+  const selectedMasteryGroupMeta =
+    LIBRARY_MASTERY_GROUPS[selectedMasteryGroupIndex] || LIBRARY_MASTERY_GROUPS[0];
+  const masteryGroupSummary = {
+    libraryPowers: `${orderedPowerEntries.length} registro${orderedPowerEntries.length === 1 ? "" : "s"}`,
+    libraryFamilies: `${orderedFamilyEntries.length} familia${orderedFamilyEntries.length === 1 ? "" : "s"}`,
+    libraryBosses: `${orderedBossEntries.length} boss${orderedBossEntries.length === 1 ? "" : "es"}`,
+  };
   const goToTier = (tier) => {
     if (!dispatch || !tier || tier > maxUnlockedTier) return;
     dispatch({ type: "SET_TIER", tier });
@@ -339,7 +454,7 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
       <section style={isLibraryMode ? libraryHeroPanelStyle : panelStyle}>
         {isLibraryMode ? (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "12px", alignItems: "start" }}>
+            <div style={{ display: "grid", gap: "12px", alignItems: "start" }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
                   Biblioteca
@@ -351,11 +466,6 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                   Convierte kills y descubrimientos en progreso permanente con tinta y estudios de Biblioteca.
                 </div>
               </div>
-              {onBack && (
-                <button onClick={onBack} style={overlayBackButtonStyle}>
-                  Volver
-                </button>
-              )}
             </div>
 
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -397,6 +507,14 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
               <button onClick={() => setActiveTab("mastery")} style={tabBtnStyle(activeTab === "mastery")}>Archivo</button>
               <button onClick={() => setActiveTab("glossary")} style={tabBtnStyle(activeTab === "glossary")}>Glosario</button>
             </div>
+
+            {onBack && (
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button onClick={onBack} style={overlayBackButtonStyle}>
+                  Volver
+                </button>
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -573,8 +691,7 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
             </button>
             {!collapsedSections.huntPowers && (
               <div style={gridStyle}>
-                {orderedPowerEntries.filter(entry => entry.unlocked).length > 0 ? orderedPowerEntries
-                  .filter(entry => entry.unlocked)
+                {huntPowerEntries.length > 0 ? huntPowersPaging.entries
                   .map(entry => (
                     <div key={entry.id} style={cardStyle}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
@@ -624,6 +741,14 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                   )) : (
                   <div style={cardStyle}>Todavia no descubriste powers legendarios.</div>
                 )}
+                {huntPowersPaging.totalPages > 1 && (
+                  <PaginationControls
+                    page={huntPowersPaging.page}
+                    totalPages={huntPowersPaging.totalPages}
+                    onPrevious={() => setListPage("huntPowers", huntPowersPaging.page - 1)}
+                    onNext={() => setListPage("huntPowers", huntPowersPaging.page + 1)}
+                  />
+                )}
               </div>
             )}
           </section>
@@ -636,8 +761,7 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
             {!collapsedSections.huntFamilies && (
               <div style={cardStyle}>
                 <div style={huntPanelTitleStyle}>Familias visibles en esta run</div>
-                {orderedFamilyEntries.filter(entry => entry.seen && expeditionSeenFamilyIds.includes(entry.id)).length > 0 ? orderedFamilyEntries
-                  .filter(entry => entry.seen && expeditionSeenFamilyIds.includes(entry.id))
+                {huntFamilyEntries.length > 0 ? huntFamiliesPaging.entries
                   .map(entry => {
                     const familyTier = getHighestUnlockedTierForFamily(entry.id, maxUnlockedTier, runContext);
                     return (
@@ -660,6 +784,14 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                   }) : (
                   <div style={huntEmptyStyle}>Todavia no viste familias reveladas dentro de esta expedicion.</div>
                 )}
+                {huntFamiliesPaging.totalPages > 1 && (
+                  <PaginationControls
+                    page={huntFamiliesPaging.page}
+                    totalPages={huntFamiliesPaging.totalPages}
+                    onPrevious={() => setListPage("huntFamilies", huntFamiliesPaging.page - 1)}
+                    onNext={() => setListPage("huntFamilies", huntFamiliesPaging.page + 1)}
+                  />
+                )}
               </div>
             )}
           </section>
@@ -667,15 +799,72 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
       ) : activeTab === "mastery" ? (
         <>
           <section style={librarySecondaryPanelStyle}>
-            <button onClick={() => toggleSection("libraryPowers")} style={compactToggleButtonStyle}>
-              <span style={librarySectionHeadingWrapStyle}>
-                <span style={librarySectionTitleStyle}>Poderes legendarios</span>
-                <span style={librarySectionSubtitleStyle}>Descubiertos, ocultos y progreso de investigacion.</span>
-              </span>
-              <span style={collapseLabelStyle}>{collapsedSections.libraryPowers ? "+" : "-"}</span>
-            </button>
-            {!collapsedSections.libraryPowers && (
-              <>
+            <div style={librarySectionHeadingWrapStyle}>
+              <div style={librarySectionTitleStyle}>Bonos activos</div>
+              <div style={librarySectionSubtitleStyle}>Efectos permanentes ya aplicados a tu cuenta.</div>
+            </div>
+            <div style={gridStyle}>
+              {visibleBonuses.length > 0 ? visibleBonuses.map(([key, value]) => (
+                <div key={key} style={cardStyle}>
+                  <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{BONUS_LABELS[key] || key}</div>
+                  <div style={{ fontSize: "0.86rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", marginTop: "4px" }}>{formatBonusValue(key, value)}</div>
+                </div>
+              )) : (
+                <div style={cardStyle}>Todavia no activaste hitos de Biblioteca.</div>
+              )}
+            </div>
+          </section>
+
+          <section style={librarySecondaryPanelStyle}>
+            <HorizontalOptionSelector
+              header={(
+                <div style={librarySectionHeadingWrapStyle}>
+                  <div style={librarySectionTitleStyle}>{selectedMasteryGroupMeta.label}</div>
+                  <div style={librarySectionSubtitleStyle}>{selectedMasteryGroupMeta.subtitle}</div>
+                </div>
+              )}
+              options={LIBRARY_MASTERY_GROUPS}
+              selectedId={selectedMasteryGroupId}
+              onSelect={group => setActiveMasteryGroup(group.id)}
+              getOptionId={group => group.id}
+              getOptionKey={group => `library-group-${group.id}`}
+              getArrowButtonStyle={({ disabled }) => ({
+                ...showMoreButtonStyle,
+                minWidth: "34px",
+                padding: "4px 0",
+                opacity: disabled ? 0.45 : 1,
+                cursor: disabled ? "not-allowed" : "pointer",
+              })}
+              getOptionButtonStyle={({ option: group, selected }) => ({
+                ...showMoreButtonStyle,
+                borderColor: selected ? group.accent : "var(--color-border-primary, #cbd5e1)",
+                background: selected ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #fff)",
+                color: selected ? group.accent : "var(--color-text-secondary, #64748b)",
+                textAlign: "left",
+                display: "grid",
+                gap: "2px",
+                minWidth: "132px",
+                justifyItems: "start",
+                padding: "6px 10px",
+                flexShrink: 0,
+              })}
+              renderOption={({ option: group }) => (
+                <>
+                  <span style={{ fontSize: "0.64rem", fontWeight: "900" }}>{group.label}</span>
+                  <span style={{ fontSize: "0.56rem", fontWeight: "800", color: "inherit" }}>
+                    {masteryGroupSummary[group.id]}
+                  </span>
+                </>
+              )}
+            />
+          </section>
+
+          {selectedMasteryGroupId === "libraryPowers" && (
+          <section style={librarySecondaryPanelStyle}>
+            <div style={librarySectionHeadingWrapStyle}>
+              <span style={librarySectionTitleStyle}>Poderes legendarios</span>
+              <span style={librarySectionSubtitleStyle}>Descubiertos, ocultos y progreso de investigacion.</span>
+            </div>
               <div style={gridStyle}>
                 {visibleLibraryPowerEntries.map(entry => (
                   <div key={entry.id} style={cardStyle}>
@@ -765,42 +954,28 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                 </div>
               ))}
               </div>
+              {expandedGroups.libraryPowers && libraryPowersPaging.totalPages > 1 && (
+                <PaginationControls
+                  page={libraryPowersPaging.page}
+                  totalPages={libraryPowersPaging.totalPages}
+                  onPrevious={() => setListPage("libraryPowers", libraryPowersPaging.page - 1)}
+                  onNext={() => setListPage("libraryPowers", libraryPowersPaging.page + 1)}
+                />
+              )}
               {orderedPowerEntries.length > 8 && (
                 <button onClick={() => toggleExpandedGroup("libraryPowers")} style={showMoreButtonStyle}>
                   {expandedGroups.libraryPowers ? "-" : `+${orderedPowerEntries.length}`}
                 </button>
               )}
-              </>
-            )}
           </section>
+          )}
 
+          {selectedMasteryGroupId === "libraryFamilies" && (
           <section style={librarySecondaryPanelStyle}>
             <div style={librarySectionHeadingWrapStyle}>
-              <div style={librarySectionTitleStyle}>Bonos activos</div>
-              <div style={librarySectionSubtitleStyle}>Efectos permanentes ya aplicados a tu cuenta.</div>
+              <span style={librarySectionTitleStyle}>Familias</span>
+              <span style={librarySectionSubtitleStyle}>Kills, hitos y avance de investigacion por familia.</span>
             </div>
-            <div style={gridStyle}>
-              {visibleBonuses.length > 0 ? visibleBonuses.map(([key, value]) => (
-                <div key={key} style={cardStyle}>
-                  <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{BONUS_LABELS[key] || key}</div>
-                  <div style={{ fontSize: "0.86rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", marginTop: "4px" }}>{formatBonusValue(key, value)}</div>
-                </div>
-              )) : (
-                <div style={cardStyle}>Todavia no activaste hitos de Biblioteca.</div>
-              )}
-            </div>
-          </section>
-
-          <section style={librarySecondaryPanelStyle}>
-            <button onClick={() => toggleSection("libraryFamilies")} style={compactToggleButtonStyle}>
-              <span style={librarySectionHeadingWrapStyle}>
-                <span style={librarySectionTitleStyle}>Familias</span>
-                <span style={librarySectionSubtitleStyle}>Kills, hitos y avance de investigacion por familia.</span>
-              </span>
-              <span style={collapseLabelStyle}>{collapsedSections.libraryFamilies ? "+" : "-"}</span>
-            </button>
-            {!collapsedSections.libraryFamilies && (
-              <>
               <div style={gridStyle}>
                 {visibleLibraryFamilyEntries.map(entry => (
                   <div key={entry.id} style={cardStyle}>
@@ -869,25 +1044,28 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                   </div>
                 ))}
               </div>
+              {expandedGroups.libraryFamilies && libraryFamiliesPaging.totalPages > 1 && (
+                <PaginationControls
+                  page={libraryFamiliesPaging.page}
+                  totalPages={libraryFamiliesPaging.totalPages}
+                  onPrevious={() => setListPage("libraryFamilies", libraryFamiliesPaging.page - 1)}
+                  onNext={() => setListPage("libraryFamilies", libraryFamiliesPaging.page + 1)}
+                />
+              )}
               {orderedFamilyEntries.length > 8 && (
                 <button onClick={() => toggleExpandedGroup("libraryFamilies")} style={showMoreButtonStyle}>
                   {expandedGroups.libraryFamilies ? "-" : `+${orderedFamilyEntries.length}`}
                 </button>
               )}
-              </>
-            )}
           </section>
+          )}
 
+          {selectedMasteryGroupId === "libraryBosses" && (
           <section style={librarySecondaryPanelStyle}>
-            <button onClick={() => toggleSection("libraryBosses")} style={compactToggleButtonStyle}>
-              <span style={librarySectionHeadingWrapStyle}>
-                <span style={librarySectionTitleStyle}>Bosses</span>
-                <span style={librarySectionSubtitleStyle}>Registro de caza, ruta y milestones de cada boss.</span>
-              </span>
-              <span style={collapseLabelStyle}>{collapsedSections.libraryBosses ? "+" : "-"}</span>
-            </button>
-            {!collapsedSections.libraryBosses && (
-            <>
+            <div style={librarySectionHeadingWrapStyle}>
+              <span style={librarySectionTitleStyle}>Bosses</span>
+              <span style={librarySectionSubtitleStyle}>Registro de caza, ruta y milestones de cada boss.</span>
+            </div>
             <div style={gridStyle}>
               {visibleLibraryBossEntries.map(entry => (
                 <div key={entry.id} style={cardStyle}>
@@ -1001,15 +1179,22 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                   )}
                 </div>
               ))}
-              {orderedBossEntries.length > 6 && (
-                <button onClick={() => toggleExpandedGroup("libraryBosses")} style={showMoreButtonStyle}>
-                  {expandedGroups.libraryBosses ? "-" : `+${orderedBossEntries.length}`}
-                </button>
-              )}
             </div>
-            </>
+            {expandedGroups.libraryBosses && libraryBossesPaging.totalPages > 1 && (
+              <PaginationControls
+                page={libraryBossesPaging.page}
+                totalPages={libraryBossesPaging.totalPages}
+                onPrevious={() => setListPage("libraryBosses", libraryBossesPaging.page - 1)}
+                onNext={() => setListPage("libraryBosses", libraryBossesPaging.page + 1)}
+              />
+            )}
+            {orderedBossEntries.length > 6 && (
+              <button onClick={() => toggleExpandedGroup("libraryBosses")} style={showMoreButtonStyle}>
+                {expandedGroups.libraryBosses ? "-" : `+${orderedBossEntries.length}`}
+              </button>
             )}
           </section>
+          )}
         </>
       ) : (
         <>
@@ -1080,6 +1265,14 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                   <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 }}>{description}</div>
                 </div>
               ))}
+              {expandedGroups.glossaryStats && glossaryStatsPaging.totalPages > 1 && (
+                <PaginationControls
+                  page={glossaryStatsPaging.page}
+                  totalPages={glossaryStatsPaging.totalPages}
+                  onPrevious={() => setListPage("glossaryStats", glossaryStatsPaging.page - 1)}
+                  onNext={() => setListPage("glossaryStats", glossaryStatsPaging.page + 1)}
+                />
+              )}
               {STAT_DESCRIPTIONS.length > 10 && (
                 <button onClick={() => toggleExpandedGroup("glossaryStats")} style={showMoreButtonStyle}>
                   {expandedGroups.glossaryStats ? "-" : `+${STAT_DESCRIPTIONS.length}`}
@@ -1112,6 +1305,14 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                   </div>
                 </div>
               ))}
+              {expandedGroups.glossaryFamilies && glossaryFamiliesPaging.totalPages > 1 && (
+                <PaginationControls
+                  page={glossaryFamiliesPaging.page}
+                  totalPages={glossaryFamiliesPaging.totalPages}
+                  onPrevious={() => setListPage("glossaryFamilies", glossaryFamiliesPaging.page - 1)}
+                  onNext={() => setListPage("glossaryFamilies", glossaryFamiliesPaging.page + 1)}
+                />
+              )}
               {Object.keys(ITEM_FAMILIES).length > 8 && (
                 <button onClick={() => toggleExpandedGroup("glossaryFamilies")} style={showMoreButtonStyle}>
                   {expandedGroups.glossaryFamilies ? "-" : `+${Object.keys(ITEM_FAMILIES).length}`}
@@ -1123,6 +1324,41 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
           </section>
         </>
       )}
+    </div>
+  );
+}
+
+function PaginationControls({ page = 0, totalPages = 1, onPrevious, onNext }) {
+  if (totalPages <= 1) return null;
+  const isFirst = page <= 0;
+  const isLast = page >= totalPages - 1;
+  return (
+    <div style={paginationBarStyle}>
+      <button
+        onClick={onPrevious}
+        disabled={isFirst}
+        style={{
+          ...paginationButtonStyle,
+          opacity: isFirst ? 0.45 : 1,
+          cursor: isFirst ? "not-allowed" : "pointer",
+        }}
+      >
+        -
+      </button>
+      <span style={paginationLabelStyle}>
+        {page + 1}/{totalPages}
+      </span>
+      <button
+        onClick={onNext}
+        disabled={isLast}
+        style={{
+          ...paginationButtonStyle,
+          opacity: isLast ? 0.45 : 1,
+          cursor: isLast ? "not-allowed" : "pointer",
+        }}
+      >
+        +
+      </button>
     </div>
   );
 }
@@ -1290,6 +1526,33 @@ const showMoreButtonStyle = {
   fontWeight: "900",
   lineHeight: 1,
   cursor: "pointer",
+};
+
+const paginationBarStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "8px",
+  justifySelf: "end",
+};
+
+const paginationButtonStyle = {
+  minWidth: "32px",
+  height: "28px",
+  border: "1px solid var(--color-border-primary, #e2e8f0)",
+  background: "var(--color-background-secondary, #ffffff)",
+  color: "var(--color-text-primary, #1e293b)",
+  borderRadius: "8px",
+  fontSize: "0.74rem",
+  fontWeight: "900",
+  lineHeight: 1,
+};
+
+const paginationLabelStyle = {
+  fontSize: "0.62rem",
+  fontWeight: "900",
+  color: "var(--color-text-secondary, #64748b)",
+  minWidth: "48px",
+  textAlign: "center",
 };
 
 const huntHeroPanelStyle = {

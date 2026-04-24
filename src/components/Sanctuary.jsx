@@ -1,8 +1,10 @@
 import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
-import OverlayShell from "./OverlayShell";
+import OverlayShell, { OverlaySurface } from "./OverlayShell";
 import JobProgressBar from "./JobProgressBar";
+import ActionToast from "./ActionToast";
+import useRelativeNow from "../hooks/useRelativeNow";
+import useViewport from "../hooks/useViewport";
 import { getRunSigil } from "../data/runSigils";
-import { CLASSES } from "../data/classes";
 import { getSanctuaryStationState } from "../engine/sanctuary/laboratoryEngine";
 import {
   getEffectiveOnboardingStep,
@@ -15,12 +17,14 @@ import {
   isLaboratoryUnlocked,
 } from "../engine/onboarding/onboardingEngine";
 
-const DistilleryOverlay = lazy(() => import("./DistilleryOverlay"));
+const loadDistilleryOverlay = () => import("./DistilleryOverlay");
+const DistilleryOverlay = lazy(loadDistilleryOverlay);
 const EncargosOverlay = lazy(() => import("./EncargosOverlay"));
 const BlueprintForgeOverlay = lazy(() => import("./BlueprintForgeOverlay"));
 const SigilAltarOverlay = lazy(() => import("./SigilAltarOverlay"));
 const BibliotecaOverlay = lazy(() => import("./BibliotecaOverlay"));
 const LaboratoryOverlay = lazy(() => import("./LaboratoryOverlay"));
+const SanctuaryClassSelector = lazy(() => import("./SanctuaryClassSelector"));
 
 function sectionCardStyle(accent = "var(--tone-accent, #4338ca)") {
   return {
@@ -119,10 +123,23 @@ function formatRemaining(ms = 0) {
 
 function OverlayLoadingFallback({ label, isMobile = false }) {
   return (
-    <OverlayShell isMobile={isMobile}>
-      <div style={{ width: "100%", maxWidth: "420px", borderRadius: isMobile ? "16px 16px 0 0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #ffffff)", color: "var(--color-text-secondary, #64748b)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", padding: isMobile ? "18px 16px 20px" : "20px 22px", textAlign: "center", fontSize: "0.78rem", fontWeight: "900" }}>
+    <OverlayShell isMobile={isMobile} contentLabel={`Cargando ${label}`}>
+      <OverlaySurface
+        isMobile={isMobile}
+        maxWidth="420px"
+        paddingMobile="18px 16px 20px"
+        paddingDesktop="20px 22px"
+        gap="0"
+        style={{
+          textAlign: "center",
+          fontSize: "0.78rem",
+          fontWeight: "900",
+          color: "var(--color-text-secondary, #64748b)",
+          background: "var(--color-background-secondary, #ffffff)",
+        }}
+      >
         Cargando {label}...
-      </div>
+      </OverlaySurface>
     </OverlayShell>
   );
 }
@@ -184,14 +201,15 @@ function sortJobsByEnding(left = {}, right = {}) {
 }
 
 export default function Sanctuary({ state, dispatch }) {
-  const [now, setNow] = useState(Date.now());
+  const now = useRelativeNow();
+  const [actionToast, setActionToast] = useState(null);
   const [showDistillery, setShowDistillery] = useState(false);
   const [showErrands, setShowErrands] = useState(false);
   const [showDeepForge, setShowDeepForge] = useState(false);
   const [showSigilAltar, setShowSigilAltar] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [showLaboratory, setShowLaboratory] = useState(false);
-  const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
+  const { viewportWidth } = useViewport();
   const isMobileViewport = viewportWidth < 768;
   const isNarrowViewport = viewportWidth < 420;
   const rawOnboardingStep = state?.onboarding?.step || null;
@@ -199,6 +217,20 @@ export default function Sanctuary({ state, dispatch }) {
     ...state,
     __liveNow: now,
   });
+
+  useEffect(() => {
+    if (
+      showDistillery ||
+      [
+        ONBOARDING_STEPS.DISTILLERY_READY,
+        ONBOARDING_STEPS.RETURN_TO_SANCTUARY,
+        ONBOARDING_STEPS.OPEN_DISTILLERY,
+        ONBOARDING_STEPS.FIRST_DISTILLERY_JOB,
+      ].includes(onboardingStep)
+    ) {
+      loadDistilleryOverlay();
+    }
+  }, [onboardingStep, showDistillery]);
 
   function closeAllOverlays() {
     setShowDistillery(false);
@@ -210,15 +242,10 @@ export default function Sanctuary({ state, dispatch }) {
   }
 
   useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    const handler = () => setViewportWidth(window.innerWidth);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
+    if (!actionToast?.id) return undefined;
+    const id = window.setTimeout(() => setActionToast(null), 1700);
+    return () => window.clearTimeout(id);
+  }, [actionToast?.id]);
 
   useEffect(() => {
     const handler = event => {
@@ -407,7 +434,7 @@ export default function Sanctuary({ state, dispatch }) {
       const element = document.getElementById("onboarding-class-selector");
       if (!element) {
         attempts += 1;
-        if (attempts < 8) {
+        if (attempts < 16) {
           timeoutId = window.setTimeout(() => {
             frameId = window.requestAnimationFrame(revealClassSelector);
           }, 60);
@@ -490,6 +517,70 @@ export default function Sanctuary({ state, dispatch }) {
         (job?.status === "running" && Number(job?.endsAt || 0) <= now)
       )
   );
+
+  function getRepeatActionForSanctuaryJob(job, nowAt = Date.now()) {
+    if (!job) return null;
+    if (job.type === "distill_bundle" && job.input?.cargoId) {
+      return { type: "START_DISTILLERY_JOB", cargoId: job.input.cargoId, now: nowAt + 1 };
+    }
+    if (job.type === "sanctuary_errand" && job.input?.errandId) {
+      return {
+        type: "START_SANCTUARY_ERRAND",
+        errandId: job.input.errandId,
+        durationId: job.input.durationId || "short",
+        now: nowAt + 1,
+      };
+    }
+    if (job.type === "infuse_sigil") {
+      return {
+        type: "START_SIGIL_INFUSION",
+        sigilId: job.input?.sigilId || job.output?.sigilId || "free",
+        now: nowAt + 1,
+      };
+    }
+    if (job.type === "codex_research" && job.input?.researchType && job.input?.targetId) {
+      return {
+        type: "START_CODEX_RESEARCH",
+        researchType: job.input.researchType,
+        targetId: job.input.targetId,
+        now: nowAt + 1,
+      };
+    }
+    return null;
+  }
+
+  function canRepeatSanctuaryJob(job) {
+    return Boolean(getRepeatActionForSanctuaryJob(job, now));
+  }
+
+  function claimSanctuaryJob(job, { repeat = false, nowAt = Date.now() } = {}) {
+    if (!job?.id) return false;
+    dispatch({ type: "CLAIM_SANCTUARY_JOB", jobId: job.id, now: nowAt });
+    if (!repeat) return false;
+    const repeatAction = getRepeatActionForSanctuaryJob(job, nowAt);
+    if (repeatAction) {
+      dispatch(repeatAction);
+      return true;
+    }
+    return false;
+  }
+
+  function claimAllSanctuaryJobs(jobList = [], { repeat = false } = {}) {
+    if (!Array.isArray(jobList) || jobList.length <= 0) return;
+    const claimAt = Date.now();
+    let restartedCount = 0;
+    jobList.forEach((job, index) => {
+      const restarted = claimSanctuaryJob(job, { repeat, nowAt: claimAt + (index * 2) });
+      if (restarted) restartedCount += 1;
+    });
+    setActionToast({
+      id: Date.now(),
+      tone: repeat ? "info" : "success",
+      message: repeat
+        ? `Reclamaste ${jobList.length} y relanzaste ${restartedCount}.`
+        : `Reclamaste ${jobList.length} trabajos del Santuario.`,
+    });
+  }
 
   function scrollToTarget(selector) {
     window.requestAnimationFrame(() => {
@@ -758,80 +849,22 @@ export default function Sanctuary({ state, dispatch }) {
           </section>
         </div>
       ) : (
-        <section
-          id="onboarding-class-selector"
-          style={{
-            ...sectionCardStyle("var(--tone-info, #0369a1)"),
-            boxShadow:
-              choosingClass
-                ? "0 0 0 2px rgba(3,105,161,0.14), 0 12px 30px rgba(3,105,161,0.16)"
-                : "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
-            animation: choosingClass ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite" : "none",
-          }}
-        >
-          <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
-            {choosingClass ? "Paso obligatorio" : "Elegir clase"}
-          </div>
-          {choosingClass && (
-            <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
-              Elige una clase para esta primera salida. En cuanto la selecciones entraras al combate y la expedicion arrancara.
-            </div>
+        <Suspense
+          fallback={(
+            <section style={sectionCardStyle("var(--tone-info, #0369a1)")}>
+              <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
+                Cargando selector de clase...
+              </div>
+            </section>
           )}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: choosingClass
-                ? "repeat(2, minmax(0, 1fr))"
-                : isMobileViewport
-                  ? "1fr"
-                  : "repeat(2, minmax(0, 1fr))",
-              gap: isNarrowViewport ? "8px" : "10px",
-            }}
-          >
-            {CLASSES.map(clase => (
-              <button
-                key={clase.id}
-                onClick={() => dispatch({ type: "SELECT_CLASS", classId: clase.id })}
-                data-onboarding-target={choosingClass ? "choose-class" : undefined}
-                style={{
-                  border: "1px solid var(--color-border-primary, #e2e8f0)",
-                  background: "var(--color-background-secondary, #ffffff)",
-                  borderRadius: "14px",
-                  padding: choosingClass && isNarrowViewport ? "10px" : "14px",
-                  display: "grid",
-                  gap: choosingClass && isNarrowViewport ? "6px" : "8px",
-                  textAlign: "left",
-                  cursor: "pointer",
-                  position: "relative",
-                  zIndex: choosingClass ? 2 : 1,
-                  boxShadow: choosingClass
-                    ? "0 0 0 2px rgba(3,105,161,0.22), 0 0 0 8px rgba(3,105,161,0.08), 0 16px 36px rgba(3,105,161,0.22)"
-                    : "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
-                  animation: choosingClass ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite" : "none",
-                  transform: choosingClass ? "translateY(-1px)" : "none",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <div style={{ fontSize: choosingClass && isNarrowViewport ? "1.1rem" : "1.4rem", lineHeight: 1 }}>{clase.icon || "?"}</div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: choosingClass && isNarrowViewport ? "0.8rem" : "0.92rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{clase.name}</div>
-                    <div style={{ fontSize: choosingClass && isNarrowViewport ? "0.56rem" : "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      {clase.playstyle || "Clase"}
-                    </div>
-                  </div>
-                </div>
-                <div style={{ fontSize: choosingClass && isNarrowViewport ? "0.64rem" : "0.72rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4 }}>
-                  {clase.description}
-                </div>
-                <div style={{ fontSize: choosingClass && isNarrowViewport ? "0.6rem" : "0.66rem", color: "var(--tone-accent, #4338ca)", fontWeight: "900" }}>
-                  {clase.id === "warrior"
-                    ? "Impacto frontal, aguante y curva mas estable."
-                    : "Caster mas fragil al inicio, pero con mas precision y control."}
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
+        >
+          <SanctuaryClassSelector
+            choosingClass={choosingClass}
+            isMobileViewport={isMobileViewport}
+            isNarrowViewport={isNarrowViewport}
+            onSelectClass={classId => dispatch({ type: "SELECT_CLASS", classId })}
+          />
+        </Suspense>
       )}
     </div>
   );
@@ -1113,15 +1146,21 @@ export default function Sanctuary({ state, dispatch }) {
     hasRunningDistilleryResearch,
     sanctuaryOnboardingLocked,
   ]);
+  const maxOperationsRows = isMobileViewport ? 2 : 3;
   const readyNowRows = useMemo(() => {
-    const rows = claimableJobs.slice(0, 3).map(job => ({
-      id: `claim-${job.id}`,
-      title: jobTitle(job),
-      detail: jobStationLabel(job.station),
-      chip: "Listo",
-      actionLabel: "Reclamar",
-      action: () => dispatch({ type: "CLAIM_SANCTUARY_JOB", jobId: job.id, now }),
-    }));
+    const rows = claimableJobs.slice(0, maxOperationsRows).map(job => {
+      const repeatable = canRepeatSanctuaryJob(job);
+      return {
+        id: `claim-${job.id}`,
+        title: jobTitle(job),
+        detail: jobStationLabel(job.station),
+        chip: "Listo",
+        actionLabel: "Reclamar",
+        action: () => claimSanctuaryJob(job, { nowAt: now }),
+        secondaryActionLabel: repeatable ? "Reclamar + repetir" : null,
+        secondaryAction: repeatable ? () => claimSanctuaryJob(job, { repeat: true, nowAt: now + 1 }) : null,
+      };
+    });
     if (rows.length > 0) return rows;
     return [{
       id: "next-step",
@@ -1131,9 +1170,13 @@ export default function Sanctuary({ state, dispatch }) {
       actionLabel: nextStep.cta,
       action: nextStep.action,
     }];
-  }, [claimableJobs, dispatch, nextStep, now]);
+  }, [claimableJobs, maxOperationsRows, nextStep, now]);
+  const canRepeatClaimableJobs = useMemo(
+    () => claimableJobs.some(job => canRepeatSanctuaryJob(job)),
+    [claimableJobs, now]
+  );
   const runningOverviewRows = useMemo(() => {
-    const rows = runningJobs.slice(0, 3).map(job => ({
+    const rows = runningJobs.slice(0, maxOperationsRows).map(job => ({
       id: `running-${job.id}`,
       title: jobTitle(job),
       detail: jobStationLabel(job.station),
@@ -1148,7 +1191,7 @@ export default function Sanctuary({ state, dispatch }) {
       detail: "Lanza una investigacion o un job para dejar valor cocinandose mientras juegas.",
       chip: "Libre",
     }];
-  }, [now, runningJobs]);
+  }, [maxOperationsRows, now, runningJobs]);
   const blockedResourceRows = useMemo(() => {
     const rows = [];
     if (distilleryUnlocked && totalCargoQuantity <= 0) {
@@ -1243,6 +1286,7 @@ export default function Sanctuary({ state, dispatch }) {
       detail: `${laboratoryClaimableCount} disponible(s).`,
       tone: "var(--tone-accent, #4338ca)",
       actionLabel: laboratoryUnlocked ? "Abrir" : "Cerrado",
+      locked: !laboratoryUnlocked,
       action: laboratoryUnlocked ? () => openLaboratoryFromSanctuary("overview-laboratory") : null,
       onboardingTarget:
         onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY
@@ -1258,6 +1302,7 @@ export default function Sanctuary({ state, dispatch }) {
       detail: `${totalCargoQuantity} bundle(s).`,
       tone: "var(--tone-violet, #7c3aed)",
       actionLabel: distilleryUnlocked ? "Abrir" : "Laboratorio",
+      locked: !distilleryUnlocked,
       action: () => {
         if (!distilleryUnlocked) {
           openLaboratoryFromSanctuary("overview-distillery");
@@ -1280,6 +1325,7 @@ export default function Sanctuary({ state, dispatch }) {
       detail: `${claimableLibraryJobs.length} disponible(s).`,
       tone: "var(--tone-accent, #4338ca)",
       actionLabel: libraryStation.unlocked ? "Abrir" : "Laboratorio",
+      locked: !libraryStation.unlocked,
       action: () => (libraryStation.unlocked ? setShowLibrary(true) : openLaboratoryFromSanctuary("overview-library")),
     },
     {
@@ -1289,6 +1335,7 @@ export default function Sanctuary({ state, dispatch }) {
       detail: `${Math.max(0, errandSlots - runningErrandJobs.length)} equipo(s) libre(s).`,
       tone: "var(--tone-info, #0369a1)",
       actionLabel: errandStation.unlocked ? "Abrir" : "Laboratorio",
+      locked: !errandStation.unlocked,
       action: () => (errandStation.unlocked ? setShowErrands(true) : openLaboratoryFromSanctuary("overview-errands")),
     },
     {
@@ -1298,6 +1345,7 @@ export default function Sanctuary({ state, dispatch }) {
       detail: `${Object.values(sigilInfusions).reduce((total, entry) => total + Math.max(0, Number(entry?.charges || 0)), 0)} disponible(s).`,
       tone: "var(--tone-success, #10b981)",
       actionLabel: infusionStation.unlocked ? "Abrir" : "Laboratorio",
+      locked: !infusionStation.unlocked,
       action: () => (infusionStation.unlocked ? setShowSigilAltar(true) : openLaboratoryFromSanctuary("overview-sigil")),
     },
     ...(blueprintDecisionUnlocked
@@ -1308,6 +1356,7 @@ export default function Sanctuary({ state, dispatch }) {
           detail: `${blueprintCount} plano(s).`,
           tone: "var(--tone-danger, #D85A30)",
           actionLabel: deepForgeStation.unlocked ? "Abrir" : "Laboratorio",
+          locked: !deepForgeStation.unlocked,
           action: () => (deepForgeStation.unlocked ? setShowDeepForge(true) : openLaboratoryFromSanctuary("overview-forge")),
         }]
       : []),
@@ -1339,17 +1388,18 @@ export default function Sanctuary({ state, dispatch }) {
     sigilInfusions,
     totalCargoQuantity,
   ]);
+  const visibleStationOverviewRows = stationOverviewRows;
   const resourceSummaryRows = useMemo(
     () => Object.entries(resources)
       .filter(([, value]) => Math.floor(Number(value || 0)) > 0)
       .sort((left, right) => Number(right[1] || 0) - Number(left[1] || 0)),
     [resources]
   );
-  const topCardPadding = isMobileViewport ? "12px" : "16px";
+  const topCardPadding = isMobileViewport ? "10px" : "16px";
   const compactMetricCard = {
     ...metricCardStyle(),
-    padding: isMobileViewport ? "8px 10px" : "10px 12px",
-    gap: isMobileViewport ? "2px" : "4px",
+    padding: isMobileViewport ? "7px 9px" : "10px 12px",
+    gap: isMobileViewport ? "1px" : "4px",
   };
   const stationOverviewGridStyle = {
     display: "grid",
@@ -1358,8 +1408,8 @@ export default function Sanctuary({ state, dispatch }) {
   };
   const bandSectionStyle = {
     display: "grid",
-    gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(3, minmax(0, 1fr))",
-    gap: "0.9rem",
+    gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))",
+    gap: isMobileViewport ? "0.7rem" : "0.9rem",
   };
   const mobileFullWidthButtonStyle = isMobileViewport ? { width: "100%", justifyContent: "center" } : null;
 
@@ -1383,11 +1433,13 @@ export default function Sanctuary({ state, dispatch }) {
               Santuario
             </div>
             <div style={{ fontSize: "1.08rem", fontWeight: "900", marginTop: "4px" }}>
-              Santuario operativo
+              Recursos persistentes
             </div>
-            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.4 }}>
-              Recursos persistentes listos para sostener la siguiente salida.
-            </div>
+            {!isMobileViewport && (
+              <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.4 }}>
+                Recursos persistentes listos para sostener la siguiente salida.
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", width: isMobileViewport ? "100%" : "auto", justifyContent: isMobileViewport ? "flex-end" : "flex-end" }}>
             {!sanctuaryOnboardingLocked && (
@@ -1409,14 +1461,14 @@ export default function Sanctuary({ state, dispatch }) {
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {resourceSummaryRows.length > 0 ? resourceSummaryRows.slice(0, 3).map(([key, value]) => (
+          {resourceSummaryRows.length > 0 ? resourceSummaryRows.slice(0, isMobileViewport ? 2 : 3).map(([key, value]) => (
             <div
               key={key}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "8px",
-                padding: isMobileViewport ? "7px 10px" : "8px 10px",
+                padding: isMobileViewport ? "6px 9px" : "8px 10px",
                 borderRadius: "999px",
                 background: "var(--color-background-tertiary, #f8fafc)",
                 border: "1px solid var(--color-border-primary, #e2e8f0)",
@@ -1445,10 +1497,30 @@ export default function Sanctuary({ state, dispatch }) {
               <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
                 Listo ahora
               </div>
-              <div style={{ fontSize: "0.88rem", fontWeight: "900", marginTop: "4px" }}>Claims y acciones inmediatas</div>
-            </div>
-            <div style={chipStyle("var(--tone-warning, #f59e0b)")}>
-              {claimableJobs.length > 0 ? `${claimableJobs.length} claims` : "Sin claims"}
+                  {!isMobileViewport && (
+                    <div style={{ fontSize: "0.88rem", fontWeight: "900", marginTop: "4px" }}>Claims y acciones inmediatas</div>
+                  )}
+                </div>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              {claimableJobs.length > 0 && canRepeatClaimableJobs && (
+                <button
+                  onClick={() => claimAllSanctuaryJobs(claimableJobs, { repeat: true })}
+                  style={actionButtonStyle()}
+                >
+                  Todo + repetir
+                </button>
+              )}
+              {claimableJobs.length > 1 && (
+                <button
+                  onClick={() => claimAllSanctuaryJobs(claimableJobs)}
+                  style={actionButtonStyle({ primary: true })}
+                >
+                  Reclamar todo
+                </button>
+              )}
+              <div style={chipStyle("var(--tone-warning, #f59e0b)")}>
+                {claimableJobs.length > 0 ? `${claimableJobs.length} claims` : "Sin claims"}
+              </div>
             </div>
           </div>
 
@@ -1458,16 +1530,37 @@ export default function Sanctuary({ state, dispatch }) {
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
                   <div>
                     <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>{row.title}</div>
-                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
-                      {row.detail}
-                    </div>
+                    {!isMobileViewport && (
+                      <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
+                        {row.detail}
+                      </div>
+                    )}
                   </div>
                   <span style={chipStyle("var(--tone-success, #10b981)")}>{row.chip}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: isMobileViewport ? "stretch" : "flex-end" }}>
-                  <button onClick={row.action} style={{ ...actionButtonStyle({ primary: true }), ...mobileFullWidthButtonStyle }}>
-                    {row.actionLabel}
-                  </button>
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", width: isMobileViewport ? "100%" : "auto" }}>
+                    <button
+                      onClick={row.action}
+                      style={{
+                        ...actionButtonStyle({ primary: !row.secondaryAction }),
+                        ...(row.secondaryAction ? {} : mobileFullWidthButtonStyle),
+                      }}
+                    >
+                      {row.actionLabel}
+                    </button>
+                    {row.secondaryAction && (
+                      <button
+                        onClick={row.secondaryAction}
+                        style={{
+                          ...actionButtonStyle({ primary: true }),
+                          ...mobileFullWidthButtonStyle,
+                        }}
+                      >
+                        {row.secondaryActionLabel}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -1480,8 +1573,10 @@ export default function Sanctuary({ state, dispatch }) {
               <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
                 Corriendo
               </div>
-              <div style={{ fontSize: "0.88rem", fontWeight: "900", marginTop: "4px" }}>Trabajos activos</div>
-            </div>
+                  {!isMobileViewport && (
+                    <div style={{ fontSize: "0.88rem", fontWeight: "900", marginTop: "4px" }}>Trabajos activos</div>
+                  )}
+                </div>
             <div style={chipStyle("var(--tone-info, #0369a1)")}>
               {runningJobs.length} activos
             </div>
@@ -1493,9 +1588,11 @@ export default function Sanctuary({ state, dispatch }) {
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
                   <div>
                     <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>{row.title}</div>
-                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
-                      {row.detail}
-                    </div>
+                    {!isMobileViewport && (
+                      <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
+                        {row.detail}
+                      </div>
+                    )}
                   </div>
                 </div>
                 {row?.endsAt > 0 ? (
@@ -1518,7 +1615,7 @@ export default function Sanctuary({ state, dispatch }) {
 
       {infrastructureVisible && (
         <section style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
-          <div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" }}>
             <div>
               <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
                 Estaciones
@@ -1530,7 +1627,7 @@ export default function Sanctuary({ state, dispatch }) {
           </div>
 
           <div style={stationOverviewGridStyle}>
-            {stationOverviewRows.map(row => (
+            {visibleStationOverviewRows.map(row => (
               <div
                 key={row.id}
                 data-onboarding-target={row.onboardingTarget || undefined}
@@ -1549,9 +1646,11 @@ export default function Sanctuary({ state, dispatch }) {
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" }}>
                   <div>
                     <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>{row.title}</div>
-                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
-                      {row.detail}
-                    </div>
+                    {!isMobileViewport && (
+                      <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
+                        {row.detail}
+                      </div>
+                    )}
                   </div>
                   <span style={chipStyle(row.tone)}>{row.status}</span>
                 </div>
@@ -2227,6 +2326,7 @@ export default function Sanctuary({ state, dispatch }) {
           />
         </Suspense>
       )}
+      <ActionToast toast={actionToast} isMobile={isMobileViewport} />
     </div>
   );
 }

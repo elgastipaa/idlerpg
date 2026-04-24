@@ -6,6 +6,36 @@ const EMPTY_PERFORMANCE_SNAPSHOT = {
   killsPerMinute: 0,
 };
 
+function stripTransientRootKeys(data = {}) {
+  const next = { ...(data || {}) };
+  Object.keys(next).forEach(key => {
+    if (typeof key === "string" && key.startsWith("__")) {
+      delete next[key];
+    }
+  });
+  delete next.savedAt;
+  return next;
+}
+
+function buildPersistedCombatState(combat = {}) {
+  return {
+    ...(combat || {}),
+    log: Array.isArray(combat?.log) ? combat.log.slice(-20) : [],
+    effects: Array.isArray(combat?.effects) ? combat.effects.slice(-24) : [],
+    talentBuffs: Array.isArray(combat?.talentBuffs) ? combat.talentBuffs.slice(-20) : [],
+    craftingLog: Array.isArray(combat?.craftingLog) ? combat.craftingLog.slice(-30) : [],
+    floatEvents: [],
+    latestLootEvent: null,
+    offlineSummary: null,
+    reforgeSession: null,
+    performanceSnapshot: {
+      ...EMPTY_PERFORMANCE_SNAPSHOT,
+    },
+    inventoryOverflowEvent: null,
+    pendingOpenLootFilter: false,
+  };
+}
+
 function getStorage() {
   if (typeof window === "undefined") return null;
   try {
@@ -63,17 +93,11 @@ export const saveGame = (data) => {
 };
 
 export function buildPersistedState(data = {}) {
+  const persistedRoot = stripTransientRootKeys(data);
   return {
-    ...data,
+    ...persistedRoot,
     combat: {
-      ...(data?.combat || {}),
-      floatEvents: [],
-      latestLootEvent: null,
-      offlineSummary: null,
-      reforgeSession: null,
-      performanceSnapshot: {
-        ...EMPTY_PERFORMANCE_SNAPSHOT,
-      },
+      ...buildPersistedCombatState(persistedRoot?.combat || {}),
     },
   };
 }

@@ -18,6 +18,7 @@ export function handleBlueprintForgeAction(state, action, dependencies) {
     deepForgeApplyReforge,
     deepForgeAscendProject,
     deepForgePolishProject,
+    deepForgeRerollProject,
     ensureValidActiveBlueprints,
     getAccountTelemetry,
     getLegendaryPowerImprintReduction,
@@ -463,6 +464,74 @@ export function handleBlueprintForgeAction(state, action, dependencies) {
           log: [
             ...(state.combat?.log || []),
             `SANTUARIO: Pulido profundo sobre ${project.name} · ${project.affixes?.[affixIndex]?.stat || "linea"} ajustada.`,
+          ].slice(-20),
+        },
+      });
+    }
+
+    case "DEEP_FORGE_REROLL_PROJECT": {
+      const projectId = action.projectId || action.payload?.projectId;
+      const stash = Array.isArray(state.sanctuary?.stash) ? state.sanctuary.stash : [];
+      const projectIndex = stash.findIndex(project => project?.id === projectId);
+      if (projectIndex < 0) return state;
+
+      const project = normalizeProjectRecord(stash[projectIndex]);
+      const check = canDeepForgeProject(
+        project,
+        {
+          playerEssence: state.player?.essence || 0,
+          relicDust: state.sanctuary?.resources?.relicDust || 0,
+        },
+        "reroll"
+      );
+      if (!check.ok) return state;
+
+      const nextProject = deepForgeRerollProject(project);
+      if (!nextProject) return state;
+
+      const nextStash = [...stash];
+      nextStash[projectIndex] = normalizeProjectRecord(nextProject);
+      const spentEssence = Math.max(0, Number(check.costs?.essence || 0));
+      const spentDust = Math.max(0, Number(check.costs?.relicDust || 0));
+
+      return withAchievementProgress({
+        ...state,
+        player: {
+          ...state.player,
+          essence: Math.max(0, Number(state.player?.essence || 0) - spentEssence),
+        },
+        stats: {
+          ...state.stats,
+          rerollsCrafted: (state.stats?.rerollsCrafted || 0) + 1,
+        },
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          stash: nextStash,
+          deepForgeSession:
+            state.sanctuary?.deepForgeSession?.projectId === projectId
+              ? null
+              : state.sanctuary?.deepForgeSession || null,
+          resources: {
+            ...createEmptySanctuaryState().resources,
+            ...(state.sanctuary?.resources || {}),
+            relicDust: Math.max(0, Number(state.sanctuary?.resources?.relicDust || 0) - spentDust),
+          },
+        },
+        combat: {
+          ...state.combat,
+          analytics: {
+            ...(state.combat.analytics || createEmptySessionAnalytics()),
+            rerollsCrafted: (state.combat.analytics?.rerollsCrafted || 0) + 1,
+            essenceSpent: (state.combat.analytics?.essenceSpent || 0) + spentEssence,
+            essenceSpentBySource: {
+              ...(state.combat.analytics?.essenceSpentBySource || createEmptySessionAnalytics().essenceSpentBySource),
+              rerolls: (state.combat.analytics?.essenceSpentBySource?.rerolls || 0) + spentEssence,
+            },
+          },
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: Reroll profundo sobre ${project.name}. Se rehacen todas sus lineas base.`,
           ].slice(-20),
         },
       });

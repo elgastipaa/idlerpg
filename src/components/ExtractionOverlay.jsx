@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import OverlayShell from "./OverlayShell";
+import React, { useEffect, useState } from "react";
+import OverlayShell, { OverlaySurface } from "./OverlayShell";
 import { getRarityColor } from "../constants/rarity";
 import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 import { buildRunOutcomeSummary } from "../utils/runOutcomeSummary";
@@ -77,6 +77,7 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
   const summary = preview.summary || {};
   const cargoOptions = preview.cargoOptions || [];
   const projectOptions = preview.projectOptions || [];
+  const projectIntelLensUses = Math.max(0, Number(preview.projectIntelLensUses || 0));
   const selectedCargoIds = new Set(expedition.selectedCargoIds || []);
   const selectedProjectItemId = expedition.selectedProjectItemId || null;
   const onboardingStep = state?.onboarding?.step || null;
@@ -122,6 +123,7 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
             : "Esta salida vuelve al Santuario sin convertir a Ecos todavia.",
     },
   ];
+  const [showExtractionFlowDetails, setShowExtractionFlowDetails] = useState(() => extractionTutorialActive);
   const outcomeSummary = buildRunOutcomeSummary(state, {
     prestigeMode: preview.prestige?.mode || "none",
     exitReason: expedition.exitReason === "death" ? "death" : "retire",
@@ -130,6 +132,11 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
     echoes: Number(preview.prestige?.echoes || 0),
     source: "extraction",
   });
+  const keepsGroup = outcomeSummary.groups.find(group => group.id === "keeps") || null;
+  const resetsGroup = outcomeSummary.groups.find(group => group.id === "resets") || null;
+  const quickKeeps = Array.isArray(keepsGroup?.items) ? keepsGroup.items.slice(0, 2) : [];
+  const quickResets = Array.isArray(resetsGroup?.items) ? resetsGroup.items.slice(0, 2) : [];
+  const extractionIsPrestigeReset = preview.prestige?.mode === "echoes" || preview.prestige?.mode === "emergency";
 
   useEffect(() => {
     if (!extractionTutorialActive) return undefined;
@@ -163,9 +170,20 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
     };
   }, [extractionTutorialActive, onboardingStep, cargoOptions.length, projectOptions.length]);
 
+  useEffect(() => {
+    if (extractionTutorialActive) {
+      setShowExtractionFlowDetails(true);
+    }
+  }, [extractionTutorialActive]);
+
   return (
-    <OverlayShell isMobile={isMobile} zIndex={9200}>
-      <div style={{ width: "100%", maxWidth: "980px", maxHeight: "100%", overflow: "auto", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", borderRadius: isMobile ? "16px 16px 0 0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", display: "grid", gap: "12px", padding: isMobile ? "18px 16px 20px" : "20px 22px 22px" }}>
+    <OverlayShell isMobile={isMobile} zIndex={9200} contentLabel="Extraccion">
+      <OverlaySurface
+        isMobile={isMobile}
+        maxWidth="980px"
+        paddingMobile="18px 16px 20px"
+        paddingDesktop="20px 22px 22px"
+      >
         <style>{`
           @keyframes extractionSpotlightPulse {
             0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
@@ -207,19 +225,46 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
         </section>
 
         <section style={panelStyle()}>
-          <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
-            Que pasa despues
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
+              Que pasa despues
+            </div>
+            {!extractionTutorialActive && (
+              <button
+                onClick={() => setShowExtractionFlowDetails(previous => !previous)}
+                style={{
+                  border: "1px solid var(--color-border-primary, #e2e8f0)",
+                  background: "var(--color-background-secondary, #ffffff)",
+                  color: "var(--color-text-secondary, #64748b)",
+                  borderRadius: "999px",
+                  width: "28px",
+                  height: "28px",
+                  fontSize: "0.84rem",
+                  fontWeight: "900",
+                  cursor: "pointer",
+                }}
+                aria-label={showExtractionFlowDetails ? "Ocultar detalle" : "Mostrar detalle"}
+              >
+                {showExtractionFlowDetails ? "-" : "+"}
+              </button>
+            )}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "10px" }}>
-            {extractionSteps.map(step => (
-              <div key={step.label} style={{ background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "10px", display: "grid", gap: "4px" }}>
-                <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{step.label}</div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
-                  {step.body}
+          {showExtractionFlowDetails ? (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "10px" }}>
+              {extractionSteps.map(step => (
+                <div key={step.label} style={{ background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "10px", display: "grid", gap: "4px" }}>
+                  <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{step.label}</div>
+                  <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                    {step.body}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+              Rescatas valor, decides un item y conviertes la salida en progreso de cuenta.
+            </div>
+          )}
         </section>
 
         <section style={panelStyle()}>
@@ -303,6 +348,11 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                   <div style={{ fontSize: "0.92rem", fontWeight: "900", marginTop: "2px" }}>
                     {Number(preview.availableSlots?.project || 0) > 0 ? "Guarda una pieza para decidir luego" : "Sin slot disponible"}
                   </div>
+                  {!extractionTutorialActive && Number(preview.availableSlots?.project || 0) > 0 && projectOptions.length > 0 && (
+                    <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.4 }}>
+                      Lente de escrutinio: {projectIntelLensUses} uso(s). Toca otra vez una pieza seleccionada para revelar una linea velada.
+                    </div>
+                  )}
                 </div>
                 <div style={{ fontSize: "0.66rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
                   {preview.availableSlots?.project || 0} slot
@@ -321,10 +371,26 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                 const disabled =
                   Number(preview.availableSlots?.project || 0) <= 0 ||
                   (Boolean(tutorialProjectTargetId) && !spotlight);
+                const intelLines = Array.isArray(option?.intelLines) ? option.intelLines : [];
+                const revealedCount = Math.max(0, Math.min(intelLines.length, Number(option?.intelRevealedCount || 0)));
+                const hiddenCount = Math.max(0, intelLines.length - revealedCount);
+                const canRevealIntel =
+                  active &&
+                  !disabled &&
+                  !extractionTutorialActive &&
+                  hiddenCount > 0 &&
+                  projectIntelLensUses > 0;
                 return (
                     <button
                       key={option.itemId}
-                      onClick={() => !disabled && dispatch({ type: "SELECT_EXTRACTION_PROJECT", itemId: option.itemId })}
+                      onClick={() => {
+                        if (disabled) return;
+                        if (canRevealIntel) {
+                          dispatch({ type: "REVEAL_EXTRACTION_PROJECT_INTEL", itemId: option.itemId });
+                          return;
+                        }
+                        dispatch({ type: "SELECT_EXTRACTION_PROJECT", itemId: option.itemId });
+                      }}
                       disabled={disabled}
                       data-onboarding-target={spotlight ? "tutorial-extraction-item" : undefined}
                       style={{
@@ -345,6 +411,35 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                       <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>
                         {option.rarity} · {option.type} · {option.affixCount} affix
                       </div>
+                      {intelLines.length > 0 && (
+                        <div style={{ display: "grid", gap: "3px", marginTop: "6px" }}>
+                          {intelLines.map((line, index) => {
+                            const revealed = index < revealedCount;
+                            return (
+                              <div
+                                key={`${option.itemId}-intel-${index}`}
+                                style={{
+                                  fontSize: "0.62rem",
+                                  fontWeight: "800",
+                                  color: revealed
+                                    ? "var(--color-text-secondary, #475569)"
+                                    : "var(--color-text-tertiary, #94a3b8)",
+                                  lineHeight: 1.35,
+                                }}
+                              >
+                                {revealed ? `• ${line}` : "• Linea velada"}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {!extractionTutorialActive && active && hiddenCount > 0 && (
+                        <div style={{ fontSize: "0.6rem", fontWeight: "900", marginTop: "6px", color: projectIntelLensUses > 0 ? "var(--tone-accent, #4338ca)" : "var(--tone-danger, #D85A30)" }}>
+                          {projectIntelLensUses > 0
+                            ? `Tocar de nuevo para revelar (${projectIntelLensUses} uso(s) restante(s))`
+                            : "Sin usos de lente en esta salida"}
+                        </div>
+                      )}
                     </button>
                   );
                 })}
@@ -370,6 +465,34 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                   : "El item rescatado no vuelve como gear directo. Luego decides si romperlo o convertirlo en blueprint."}
               </div>
             </div>
+          </div>
+        </section>
+
+        <section style={panelStyle()}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: extractionIsPrestigeReset ? "var(--tone-accent, #4338ca)" : "var(--tone-success, #10b981)" }}>
+              {extractionIsPrestigeReset ? "Contrato de prestige" : "Contrato de salida"}
+            </div>
+            <div style={{ fontSize: "0.66rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
+              version corta
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
+            <QuickOutcomeColumn
+              label="Conservas"
+              tone="var(--tone-success, #10b981)"
+              items={quickKeeps}
+              fallback="Sin conservaciones relevantes en este modo."
+            />
+            <QuickOutcomeColumn
+              label="Se reinicia"
+              tone="var(--tone-danger, #D85A30)"
+              items={quickResets}
+              fallback="Sin reinicios relevantes en este modo."
+            />
+          </div>
+          <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+            Arriba tienes el detalle completo por grupos.
           </div>
         </section>
 
@@ -403,7 +526,7 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
             </button>
           </div>
         </div>
-      </div>
+      </OverlaySurface>
     </OverlayShell>
   );
 }
@@ -440,6 +563,39 @@ function OutcomeGroup({ group }) {
           <li key={item}>{item}</li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function QuickOutcomeColumn({ label, tone, items = [], fallback = "" }) {
+  return (
+    <div
+      style={{
+        background: "var(--color-background-tertiary, #f8fafc)",
+        border: "1px solid var(--color-border-primary, #e2e8f0)",
+        borderTop: `3px solid ${tone}`,
+        borderRadius: "12px",
+        padding: "10px",
+        display: "grid",
+        gap: "6px",
+      }}
+    >
+      <div style={{ fontSize: "0.68rem", fontWeight: "900", color: tone, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        {label}
+      </div>
+      {items.length > 0 ? (
+        <div style={{ display: "grid", gap: "4px" }}>
+          {items.map(item => (
+            <div key={`${label}-${item}`} style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+              • {item}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: "0.66rem", color: "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.45 }}>
+          {fallback}
+        </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { ITEM_STAT_LABELS as STAT_LABELS } from "../../utils/itemPresentation";
 export const FORGE_MODE_TOOLTIPS = {
   reroll: {
     tone: "reroll",
-    text: "Reroll rehace todas las lineas del item. Sirve para rescatar bases prometedoras, no para cerrar una pieza final.",
+    text: "Reroll total vive en el Taller del Santuario como reroll profundo.",
   },
   polish: {
     tone: "polish",
@@ -19,11 +19,11 @@ export const FORGE_MODE_TOOLTIPS = {
   },
   extract: {
     tone: "extract",
-    text: "Extraer rompe items para convertirlos en esencia.",
+    text: "Extraccion tactica de run: rompe piezas que no vas a usar para convertirlas en esencia util inmediata.",
   },
 };
 
-export const FORGE_MODE_ORDER = ["reroll", "extract"];
+export const FORGE_MODE_ORDER = ["extract"];
 
 export const FORGE_MODE_META = {
   reroll: { label: "Reroll", short: "RE", color: "var(--tone-success, #1D9E75)", cta: "APLICAR REROLL" },

@@ -104,8 +104,10 @@ const UNIVERSAL_PRESTIGE_KEYS = new Set([
   "abyssMutatorOffensePct",
 ]);
 
-const FIRST_PRESTIGE_MIN_ECHOES = 2;
+const FIRST_PRESTIGE_MIN_ECHOES = 1;
 const PRESTIGE_BASE_SCORE_PER_ECHO = 15;
+const PRESTIGE_LEVEL_SCORE_WEIGHT = 0.35;
+const PRESTIGE_BOSS_SCORE_WEIGHT = 5;
 const PRESTIGE_RESONANCE_BRACKETS = [
   { upto: 2, effectsPerEcho: { damagePct: 0.025, goldPct: 0.04, xpPct: 0.02 } },
   { upto: 8, effectsPerEcho: { damagePct: 0.01, goldPct: 0.02, xpPct: 0.012, hpPct: 0.008 } },
@@ -243,9 +245,9 @@ export function getPrestigeMomentumMultiplier(currentTier = 0, historicBestTier 
   if (best <= 0) return 1;
 
   const ratio = current / Math.max(1, best);
-  if (current >= best + 5) return 2.5;
-  if (ratio >= 1) return 1.8;
-  if (ratio >= 0.8) return 1.3;
+  if (current >= best + 5) return 2.2;
+  if (ratio >= 1) return 1.65;
+  if (ratio >= 0.8) return 1.22;
   if (ratio >= 0.5) return 1;
   return 0.6;
 }
@@ -297,8 +299,12 @@ export function getPrestigePreview(state = {}) {
   const historicBestTier = Math.max(0, Number(state?.prestige?.bestHistoricTier || 0));
   const totalEchoesEarned = Math.max(0, Number(state?.prestige?.totalEchoesEarned || 0));
   const tierBaseScore = Math.pow(Math.max(1, progress.maxTier), 1.4) * Math.max(0, Number(runSigil.tierEchoMult || 1));
-  const levelBaseScore = Math.max(0, Number(progress.maxLevel || 1)) * 0.5 * Math.max(0, Number(runSigil.levelEchoMult || 1));
-  const rawBaseScore = tierBaseScore + levelBaseScore;
+  const levelBaseScore =
+    Math.max(0, Number(progress.maxLevel || 1)) *
+    PRESTIGE_LEVEL_SCORE_WEIGHT *
+    Math.max(0, Number(runSigil.levelEchoMult || 1));
+  const bossBaseScore = Math.max(0, Number(progress.bossKills || 0)) * PRESTIGE_BOSS_SCORE_WEIGHT;
+  const rawBaseScore = tierBaseScore + levelBaseScore + bossBaseScore;
   const baseEchoes = Math.max(0, Math.floor(rawBaseScore / PRESTIGE_BASE_SCORE_PER_ECHO));
   const momentumMultiplier = getPrestigeMomentumMultiplier(progress.maxTier, historicBestTier);
   const echoedWithMomentum = Math.max(0, Math.floor(baseEchoes * momentumMultiplier));
@@ -311,18 +317,18 @@ export function getPrestigePreview(state = {}) {
   const isFirstPrestige = totalEchoesEarned <= 0;
   const hasMinimumRun = isFirstPrestige
     ? (
-        progress.maxTier >= 5 ||
+        progress.maxTier >= 6 ||
         progress.bossKills >= 1 ||
-        progress.maxLevel >= 12
+        progress.maxLevel >= 14
       )
     : (
-        progress.maxTier >= 3 ||
-        progress.maxLevel >= 10 ||
-        progress.kills >= 50
+        progress.maxTier >= 4 ||
+        progress.maxLevel >= 12 ||
+        progress.kills >= 80
       );
   const minimumRunLabel = isFirstPrestige
-    ? "Primer prestige: Tier 5, 1 boss o Nivel 12"
-    : "Minimo: Tier 3, Nivel 10 o 50 bajas";
+    ? "Primer prestige: Tier 6, 1 boss o Nivel 14"
+    : "Minimo: Tier 4, Nivel 12 o 80 bajas";
 
   return {
     echoes,

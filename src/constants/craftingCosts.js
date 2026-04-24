@@ -9,7 +9,7 @@ export const ESSENCE_COST_MULTIPLIERS = {
   reroll: 8.0,
   polish: 18.0,
   reforge: 18.0,
-  ascend: 8.0,
+  ascend: 7.2,
 };
 
 function scaleEssenceCost(value, multiplier) {
@@ -29,8 +29,8 @@ export const ASCEND_COSTS = Object.fromEntries(
 export const CRAFTING_BASE_COSTS = {
   upgrade: { gold: 180, essence: 0 },
   reroll: { gold: 0, essence: scaleEssenceCost(55, ESSENCE_COST_MULTIPLIERS.reroll) },
-  polish: { gold: 0, essence: scaleEssenceCost(20, ESSENCE_COST_MULTIPLIERS.polish) },
-  reforge: { gold: 0, essence: scaleEssenceCost(45, ESSENCE_COST_MULTIPLIERS.reforge) },
+  polish: { gold: 0, essence: scaleEssenceCost(22, ESSENCE_COST_MULTIPLIERS.polish) },
+  reforge: { gold: 0, essence: scaleEssenceCost(24, ESSENCE_COST_MULTIPLIERS.reforge) },
 };
 
 const UPGRADE_RARITY_MULTIPLIER = {
@@ -52,24 +52,24 @@ export const REROLL_RARITY_MULTIPLIER = {
 export const POLISH_RARITY_MULTIPLIER = {
   common: 0.75,
   magic: 1,
-  rare: 0.9,
-  epic: 4.1,
-  legendary: 6.5,
+  rare: 0.95,
+  epic: 3.9,
+  legendary: 6.6,
 };
 
 export const REFORGE_RARITY_MULTIPLIER = {
   common: 1,
   magic: 1.2,
-  rare: 0.88,
-  epic: 3.85,
-  legendary: 7.2,
+  rare: 1.2,
+  epic: 4.6,
+  legendary: 8.2,
 };
 
 const RARE_HIGH_UPGRADE_MULTIPLIER = 1.5;
 
 const TARGETED_AFFIX_TIER_MULTIPLIER = {
-  1: 1.75,
-  2: 1.3,
+  1: 1.6,
+  2: 1.2,
   3: 1,
 };
 
@@ -152,7 +152,7 @@ export function getPolishCosts(item, player = {}, affix = null) {
       CRAFTING_BASE_COSTS.polish.essence *
       rarityMult *
       tierMult *
-      (1 + craftingState.polishCount * 0.35) *
+      (1 + craftingState.polishCount * 0.32) *
       (1 - reduction)
     ),
   };
@@ -175,7 +175,7 @@ export function getReforgeCosts(item, player = {}, affix = null) {
       CRAFTING_BASE_COSTS.reforge.essence *
       rarityMult *
       tierMult *
-      (1 + craftingState.reforgeCount * 0.38) *
+      (1 + craftingState.reforgeCount * 0.34) *
       (1 - reduction)
     ),
   };

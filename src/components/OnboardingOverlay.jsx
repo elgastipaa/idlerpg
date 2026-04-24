@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
+import useRelativeNow from "../hooks/useRelativeNow";
+import { OVERLAY_Z_INDEX } from "./OverlayShell";
 import {
   getEffectiveOnboardingStep,
   ONBOARDING_STEPS,
@@ -6,6 +8,7 @@ import {
   getOnboardingSpotlightSelectors,
   getOnboardingStepMeta,
   isInfoOnlyOnboardingStep,
+  isPostEchoOnboardingStep,
   shouldShowOnboardingGlossaryHint,
   shouldShowOnboardingSpotlightDuringInfoStep,
 } from "../engine/onboarding/onboardingEngine";
@@ -175,17 +178,23 @@ function getCorridorRetryConfig(step) {
 
 export default function OnboardingOverlay({ state, dispatch, isMobile = false }) {
   const rawStep = state?.onboarding?.step || null;
-  const [liveNow, setLiveNow] = useState(Date.now());
-  const liveState =
+  const needsLiveNow =
     rawStep === ONBOARDING_STEPS.DISTILLERY_READY ||
     rawStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY ||
-    rawStep === ONBOARDING_STEPS.OPEN_DISTILLERY
+    rawStep === ONBOARDING_STEPS.OPEN_DISTILLERY;
+  const liveNow = useRelativeNow({
+    intervalMs: 250,
+    enabled: needsLiveNow,
+  });
+  const liveState =
+    needsLiveNow
       ? { ...state, __liveNow: liveNow }
       : state;
   const step = getEffectiveOnboardingStep(rawStep, liveState);
   const meta = getOnboardingStepMeta(step, liveState);
   const anchor = getOnboardingOverlayAnchor(step, liveState);
   const infoOnly = isInfoOnlyOnboardingStep(step, liveState);
+  const postEchoInfoStep = isPostEchoOnboardingStep(step);
   const showGlossaryHint = shouldShowOnboardingGlossaryHint(step);
   const infoSpotlightAllowed = shouldShowOnboardingSpotlightDuringInfoStep(step, liveState);
   const spotlightSelectors = getOnboardingSpotlightSelectors(step, liveState);
@@ -194,6 +203,8 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
   const backdrop = infoOnly ? "rgba(2,6,23,0.46)" : "rgba(2,6,23,0.24)";
   const [spotlightRects, setSpotlightRects] = useState([]);
   const [spotlightReady, setSpotlightReady] = useState(false);
+  const [spotlightFailure, setSpotlightFailure] = useState(null);
+  const [spotlightRetryNonce, setSpotlightRetryNonce] = useState(0);
   const [cardRect, setCardRect] = useState(null);
   const cardRef = useRef(null);
   const topOffset =
@@ -204,7 +215,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
     Boolean(step) &&
     step !== ONBOARDING_STEPS.CHOOSE_CLASS &&
     step !== ONBOARDING_STEPS.CHOOSE_SPEC &&
-    (infoOnly || spotlightReady);
+    (infoOnly || (spotlightReady && !spotlightFailure));
   const sanctuaryCorridorClickThrough = [
     ONBOARDING_STEPS.OPEN_LABORATORY,
     ONBOARDING_STEPS.RESEARCH_DISTILLERY,
@@ -215,11 +226,8 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
   ].includes(step);
 
   useEffect(() => {
-    if (step !== ONBOARDING_STEPS.DISTILLERY_READY) return undefined;
-    const id = window.setInterval(() => {
-      setLiveNow(Date.now());
-    }, 250);
-    return () => window.clearInterval(id);
+    setSpotlightFailure(null);
+    setSpotlightRetryNonce(0);
   }, [step]);
 
   useEffect(() => {
@@ -260,12 +268,14 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
     if (!step) {
       setSpotlightRects([]);
       setSpotlightReady(false);
+      setSpotlightFailure(null);
       return undefined;
     }
 
     if (!spotlightSelectors.length) {
       setSpotlightRects([]);
       setSpotlightReady(true);
+      setSpotlightFailure(null);
       return undefined;
     }
 
@@ -302,6 +312,9 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
           rx: 16,
         }));
       setSpotlightRects(rects);
+      if (rects.length > 0 && spotlightFailure) {
+        setSpotlightFailure(null);
+      }
     };
 
     const scheduleMeasure = () => {
@@ -329,16 +342,18 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       window.removeEventListener("resize", scheduleMeasure);
       window.removeEventListener("scroll", scheduleMeasure, true);
     };
-  }, [currentTab, infoOnly, infoSpotlightAllowed, sanctuaryCorridorClickThrough, spotlightReady, spotlightSelectorsKey, step]);
+  }, [currentTab, infoOnly, infoSpotlightAllowed, sanctuaryCorridorClickThrough, spotlightFailure, spotlightReady, spotlightRetryNonce, spotlightSelectorsKey, step]);
 
   useEffect(() => {
     if (!step) {
       setSpotlightReady(false);
+      setSpotlightFailure(null);
       return undefined;
     }
 
-    if (!spotlightSelectors.length || (infoOnly && !infoSpotlightAllowed)) {
+    if (!spotlightSelectors.length || postEchoInfoStep || (infoOnly && !infoSpotlightAllowed)) {
       setSpotlightReady(true);
+      setSpotlightFailure(null);
       return undefined;
     }
 
@@ -357,25 +372,44 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
     const retryDelayMs = sanctuaryCorridorClickThrough
       ? corridorRetryConfig.retryDelayMs
       : 90;
+    const maxWaitMs = sanctuaryCorridorClickThrough ? 3200 : 1600;
+    const startedAt = Date.now();
+    const failSpotlight = reason => {
+      setSpotlightFailure(current => {
+        if (current?.step === step && current?.reason === reason) return current;
+        return { step, reason, at: Date.now() };
+      });
+      setSpotlightReady(true);
+    };
+    setSpotlightFailure(null);
     setSpotlightReady(false);
     const scrollTargetIntoView = () => {
+      if (Date.now() - startedAt > maxWaitMs) {
+        failSpotlight("timeout");
+        return;
+      }
+
       const target = sanctuaryCorridorClickThrough
-        ? resolveSanctuaryCorridorTarget(step, spotlightSelectors)
+        ? (
+          resolveSanctuaryCorridorTarget(step, spotlightSelectors, { preferViewport: true }) ||
+          resolveSanctuaryCorridorTarget(step, spotlightSelectors)
+        )
         : getFirstVisibleTargetForSelectors(spotlightSelectors);
       if (!target) {
         attempts += 1;
-        if (attempts < maxAttempts) {
+        if (attempts < maxAttempts && Date.now() - startedAt <= maxWaitMs) {
           timeoutId = window.setTimeout(() => {
             frameId = requestAnimationFrame(scrollTargetIntoView);
           }, retryDelayMs);
         } else {
-          setSpotlightReady(true);
+          failSpotlight("target_not_found");
         }
         return;
       }
 
       const targetStyle = window.getComputedStyle(target);
       if (targetStyle.position === "fixed") {
+        setSpotlightFailure(null);
         setSpotlightReady(true);
         return;
       }
@@ -407,13 +441,13 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       if (targetRect.top < visibleTop) {
         window.scrollBy({
           top: targetRect.top - visibleTop,
-          behavior: attempts === 0 ? "auto" : "smooth",
+          behavior: "auto",
         });
         adjusted = true;
       } else if (targetRect.bottom > visibleBottom) {
         window.scrollBy({
           top: targetRect.bottom - visibleBottom,
-          behavior: attempts === 0 ? "auto" : "smooth",
+          behavior: "auto",
         });
         adjusted = true;
       }
@@ -433,23 +467,24 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       if (targetTooCloseToEdge) {
         window.scrollBy({
           top: targetCenter - comfortCenter,
-          behavior: attempts === 0 ? "auto" : "smooth",
+          behavior: "auto",
         });
         adjusted = true;
       }
 
       if (!adjusted) {
+        setSpotlightFailure(null);
         setSpotlightReady(true);
         return;
       }
 
       attempts += 1;
-      if (attempts < maxAttempts) {
+      if (attempts < maxAttempts && Date.now() - startedAt <= maxWaitMs) {
         timeoutId = window.setTimeout(() => {
           frameId = requestAnimationFrame(scrollTargetIntoView);
         }, retryDelayMs);
       } else {
-        setSpotlightReady(true);
+        failSpotlight("scroll_timeout");
       }
     };
 
@@ -458,7 +493,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
       if (frameId != null) cancelAnimationFrame(frameId);
       if (timeoutId != null) window.clearTimeout(timeoutId);
     };
-  }, [anchor, cardRect?.height, currentTab, infoOnly, infoSpotlightAllowed, isMobile, sanctuaryCorridorClickThrough, spotlightSelectorsKey, step]);
+  }, [anchor, cardRect?.height, currentTab, infoOnly, infoSpotlightAllowed, isMobile, postEchoInfoStep, sanctuaryCorridorClickThrough, spotlightRetryNonce, spotlightSelectorsKey, step]);
 
   const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
   const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
@@ -511,6 +546,14 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
   const gap = 16;
   let cardTop = anchor === "bottom" ? null : parseInt(topOffset, 10);
   let cardBottom = anchor === "bottom" ? (isMobile ? 86 : 24) : null;
+  const overlayPointerEvents = spotlightFailure ? "none" : "auto";
+
+  const handleRetrySpotlight = () => {
+    setSpotlightFailure(null);
+    setSpotlightRects([]);
+    setSpotlightReady(false);
+    setSpotlightRetryNonce(current => current + 1);
+  };
 
   if (spotlightRect && cardRect) {
     const availableAbove = spotlightRect.y - gap;
@@ -544,7 +587,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9800, pointerEvents: "none" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: OVERLAY_Z_INDEX.hard, pointerEvents: "none" }}>
       {spotlightRect && spotlightReady ? (
         <>
           <div
@@ -555,7 +598,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               width: "100%",
               height: `${Math.max(0, spotlightRect.y)}px`,
               background: backdrop,
-              pointerEvents: sanctuaryCorridorClickThrough ? "none" : "auto",
+              pointerEvents: overlayPointerEvents,
             }}
           />
           <div
@@ -566,7 +609,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               width: `${Math.max(0, spotlightRect.x)}px`,
               height: `${Math.max(0, spotlightRect.height)}px`,
               background: backdrop,
-              pointerEvents: sanctuaryCorridorClickThrough ? "none" : "auto",
+              pointerEvents: overlayPointerEvents,
             }}
           />
           <div
@@ -577,7 +620,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               right: 0,
               height: `${Math.max(0, spotlightRect.height)}px`,
               background: backdrop,
-              pointerEvents: sanctuaryCorridorClickThrough ? "none" : "auto",
+              pointerEvents: overlayPointerEvents,
             }}
           />
           <div
@@ -588,7 +631,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               width: "100%",
               bottom: 0,
               background: backdrop,
-              pointerEvents: sanctuaryCorridorClickThrough ? "none" : "auto",
+              pointerEvents: overlayPointerEvents,
             }}
           />
         </>
@@ -598,7 +641,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
             position: "fixed",
             inset: 0,
             background: backdrop,
-            pointerEvents: sanctuaryCorridorClickThrough ? "none" : "auto",
+            pointerEvents: overlayPointerEvents,
           }}
         />
       )}
@@ -620,7 +663,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
           padding: "14px 16px",
           display: "grid",
           gap: "10px",
-          pointerEvents: infoOnly ? "auto" : "none",
+          pointerEvents: infoOnly || Boolean(spotlightFailure) ? "auto" : "none",
           opacity: 1,
         }}
       >
@@ -631,6 +674,30 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
         <div style={{ fontSize: "0.78rem", lineHeight: 1.45, color: "var(--color-text-secondary, #475569)" }}>
           {meta.body}
         </div>
+        {spotlightFailure && !infoOnly && (
+          <div style={{ display: "grid", gap: "8px", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.12)", color: "var(--tone-warning, #f59e0b)", borderRadius: "12px", padding: "8px 10px" }}>
+            <div style={{ fontSize: "0.68rem", lineHeight: 1.35, fontWeight: "800" }}>
+              No pudimos enfocar el objetivo. Puedes continuar manualmente y reintentar cuando quieras.
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                onClick={handleRetrySpotlight}
+                style={{
+                  border: "1px solid rgba(245,158,11,0.45)",
+                  background: "#ffffff",
+                  color: "var(--tone-warning, #b45309)",
+                  borderRadius: "10px",
+                  padding: "7px 10px",
+                  fontSize: "0.64rem",
+                  fontWeight: "900",
+                  cursor: "pointer",
+                }}
+              >
+                Reintentar foco
+              </button>
+            </div>
+          </div>
+        )}
         {infoOnly && showGlossaryHint && (
           <div style={{ fontSize: "0.7rem", lineHeight: 1.45, color: "var(--color-text-tertiary, #64748b)", paddingTop: "2px", borderTop: "1px solid var(--color-border-primary, #e2e8f0)" }}>
             En Mas &gt; Glosario podes ver mas.

@@ -146,6 +146,11 @@ export function createEmptyAccountTelemetry() {
     blueprintAscensions: 0,
     saveRepairs: 0,
     saveResets: 0,
+    runtimeRecoveryCount: 0,
+    runtimeRepairCount: 0,
+    runtimeOfflineJobStallCount: 0,
+    runtimeLastRecoveryAt: null,
+    runtimeLastRecoveryReason: null,
     firstSpecAtOnlineSeconds: null,
     firstBossAtOnlineSeconds: null,
     firstExtractionAtOnlineSeconds: null,
@@ -180,6 +185,13 @@ export function sanitizeAccountTelemetry(rawTelemetry = {}) {
   next.lastSessionStartedAt = next.lastSessionStartedAt
     ? Number(next.lastSessionStartedAt) || null
     : null;
+  next.runtimeLastRecoveryAt = next.runtimeLastRecoveryAt
+    ? Number(next.runtimeLastRecoveryAt) || null
+    : null;
+  next.runtimeLastRecoveryReason =
+    typeof next.runtimeLastRecoveryReason === "string" && next.runtimeLastRecoveryReason.trim()
+      ? next.runtimeLastRecoveryReason.trim().slice(0, 96)
+      : null;
   next.firstSpecAtOnlineSeconds = next.firstSpecAtOnlineSeconds != null ? Number(next.firstSpecAtOnlineSeconds) || 0 : null;
   next.firstBossAtOnlineSeconds = next.firstBossAtOnlineSeconds != null ? Number(next.firstBossAtOnlineSeconds) || 0 : null;
   next.firstExtractionAtOnlineSeconds = next.firstExtractionAtOnlineSeconds != null ? Number(next.firstExtractionAtOnlineSeconds) || 0 : null;
@@ -649,6 +661,11 @@ export function buildAccountTelemetrySections(state) {
         { label: "Ascensiones", value: formatValue(telemetry.blueprintAscensions) },
         { label: "Reparaciones de save", value: formatValue(telemetry.saveRepairs) },
         { label: "Resets de cuenta", value: formatValue(telemetry.saveResets) },
+        { label: "Runtime recoveries", value: formatValue(telemetry.runtimeRecoveryCount) },
+        { label: "Runtime repairs", value: formatValue(telemetry.runtimeRepairCount) },
+        { label: "Offline stalls recuperados", value: formatValue(telemetry.runtimeOfflineJobStallCount) },
+        { label: "Ultima runtime recovery", value: telemetry.runtimeLastRecoveryAt ? formatDateTime(telemetry.runtimeLastRecoveryAt) : "-" },
+        { label: "Ultimo motivo runtime", value: telemetry.runtimeLastRecoveryReason || "-" },
       ],
     },
   ];

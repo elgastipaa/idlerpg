@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import useViewport from "../hooks/useViewport";
 import { ABYSS_PREFIXES, ABYSS_SUFFIXES, PREFIXES, SUFFIXES } from "../data/affixes";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
 import { getAffixTierGlyph, getRarityColor } from "../constants/rarity";
@@ -97,7 +98,7 @@ export default function Crafting({ state, dispatch }) {
   const reforgeSession = state?.combat?.reforgeSession || null;
   const isReforgeLocked = !!reforgeSession;
 
-  const [mode, setMode] = useState("reroll");
+  const [mode, setMode] = useState("extract");
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [selectedAffixIndex, setSelectedAffixIndex] = useState(null);
   const [selectedReforgeOption, setSelectedReforgeOption] = useState(null);
@@ -109,7 +110,7 @@ export default function Crafting({ state, dispatch }) {
   const [selectedActionFeedback, setSelectedActionFeedback] = useState(null);
   const [upgradeTrackFeedback, setUpgradeTrackFeedback] = useState(null);
   const [showSelectedDetails, setShowSelectedDetails] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const { isMobile } = useViewport();
   const [canScrollAffixesLeft, setCanScrollAffixesLeft] = useState(false);
   const [canScrollAffixesRight, setCanScrollAffixesRight] = useState(false);
   const [stickyHeaderHeight, setStickyHeaderHeight] = useState(252);
@@ -118,12 +119,6 @@ export default function Crafting({ state, dispatch }) {
   const selectionPanelRef = useRef(null);
   const selectedAffixCardRefs = useRef({});
   const affixCarouselRef = useRef(null);
-
-  useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
 
   useEffect(() => {
     const node = stickyHeaderRef.current;
@@ -312,8 +307,8 @@ export default function Crafting({ state, dispatch }) {
     }, 0);
   }, [selectedIds, inventory]);
   const modeTooltip = FORGE_MODE_TOOLTIPS[mode] || null;
-  const modeMeta = FORGE_MODE_META[mode] || FORGE_MODE_META.reroll;
-  const isSingleItemMode = mode === "reroll" || mode === "polish" || mode === "reforge" || mode === "ascend";
+  const modeMeta = FORGE_MODE_META[mode] || FORGE_MODE_META.extract;
+  const isSingleItemMode = mode === "polish" || mode === "reforge" || mode === "ascend";
   const selectedCompareItem = selectedItem ? (selectedItem.type === "weapon" ? equipment.weapon : equipment.armor) : null;
   const selectedRelevantStats = selectedItem ? getPrioritizedStatEntries(selectedItem.bonus || {}, Number.MAX_SAFE_INTEGER) : [];
   const selectedImplicitSummary = selectedItem ? formatImplicitSummary(selectedItem) : "";
@@ -640,14 +635,22 @@ export default function Crafting({ state, dispatch }) {
               Contrato actual
             </div>
             <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45, fontWeight: "800" }}>
-              Aqui no existe `Forging Potential`. La tension real de la pieza vive en limites por accion, costo creciente y linea trabajada.
+              Aqui no existe `Forging Potential`. La tension real vive en limites por accion, costo creciente y linea trabajada.
+            </div>
+            <div style={{ fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4, fontWeight: "800" }}>
+              Expedicion = resolver run (`extraer` y rotar inventario). Santuario/Taller = cierre persistente (`reroll profundo`, `pulir`, `reforge`, `ascender`).
             </div>
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              <span style={miniStatPillStyle}>Reroll rehace toda la base</span>
-              <span style={miniStatPillStyle}>Polish mejora solo valor</span>
-              <span style={miniStatPillStyle}>Reforge cambia una linea y luego la fija</span>
-              <span style={miniStatPillStyle}>Ascend sube rareza si la pieza ya llego</span>
+              <span style={miniStatPillStyle}>Run: Extraer y seguir empujando</span>
+              <span style={miniStatPillStyle}>Taller: Reroll profundo</span>
+              <span style={miniStatPillStyle}>Taller: Pulir y Reforge por línea</span>
+              <span style={miniStatPillStyle}>Taller: Ascenso y progreso persistente</span>
             </div>
+          </div>
+        )}
+        {mode === "extract" && (
+          <div style={{ ...stickyInfoBarStyle, background: "var(--tone-accent-soft, #eef2ff)", borderColor: "rgba(67,56,202,0.22)", color: "var(--tone-accent, #4338ca)" }}>
+            Expedición: extracción táctica y rápida. El `reroll total` se movió al Taller como `reroll profundo`.
           </div>
         )}
         {isReforgeLocked && (
@@ -738,7 +741,6 @@ export default function Crafting({ state, dispatch }) {
                 <div style={{ marginBottom: "8px" }}>
                   <div style={{ ...detailTitle, marginBottom: "3px" }}>Limites de forja</div>
                   <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                    <span style={miniStatPillStyle}>Reroll <strong>{selectedCraftUsage.reroll.used}/{selectedCraftUsage.reroll.max}</strong></span>
                     <span style={miniStatPillStyle}>Reforge <strong>{selectedCraftUsage.reforge.used}/{selectedCraftUsage.reforge.max}</strong></span>
                     {selectedAffixIndex != null && (
                       <span style={miniStatPillStyle}>Pulido linea <strong>{selectedCraftUsage.polish.used}/{selectedCraftUsage.polish.max}</strong></span>
@@ -1177,7 +1179,14 @@ export default function Crafting({ state, dispatch }) {
               </div>
 
               <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                {(compareEntries.length > 0 ? compareEntries : topStats.map(([key, currentVal]) => ({ key, currentVal, diff: currentVal }))).map(entry => (
+                {(mode === "extract"
+                  ? ((compareEntries.length > 0
+                    ? compareEntries.slice(0, 1)
+                    : topStats.slice(0, 1).map(([key, currentVal]) => ({ key, currentVal, diff: currentVal }))))
+                  : (compareEntries.length > 0
+                    ? compareEntries
+                    : topStats.map(([key, currentVal]) => ({ key, currentVal, diff: currentVal })))
+                ).map(entry => (
                   <span
                     key={`${normalizedItem.id}-quick-${entry.key}`}
                     style={{
@@ -1191,19 +1200,19 @@ export default function Crafting({ state, dispatch }) {
                 ))}
               </div>
 
-              {economySummary && (mode === "extract" || isSelectedDetail) && (
+              {economySummary && isSelectedDetail && (
                 <div style={{ fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>
                   Eco: {economySummary}
                 </div>
               )}
 
-              {implicitEntries.length > 0 && (
+              {implicitEntries.length > 0 && mode !== "extract" && (
                 <div style={{ fontSize: "0.62rem", color: "var(--color-text-info, #4338ca)", fontWeight: "800" }}>
                   Implicito: {formatImplicitSummary(normalizedItem)}
                 </div>
               )}
 
-              {affixDots.length > 0 && (
+              {affixDots.length > 0 && mode !== "extract" && (
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "1px", flexWrap: "wrap" }}>
                   <span style={{ fontSize: "0.5rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" }}>Affix</span>
                   {affixDots.map(dot => (
@@ -1215,11 +1224,8 @@ export default function Crafting({ state, dispatch }) {
               <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "auto" }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
-                    {craftUsage && (
+                    {craftUsage && mode !== "extract" && (
                       <>
-                        <span style={{ ...miniStatPillStyle, fontSize: "0.54rem" }}>
-                          RR <strong>{craftUsage.reroll.used}/{craftUsage.reroll.max}</strong>
-                        </span>
                         <span style={{ ...miniStatPillStyle, fontSize: "0.54rem" }}>
                           RF <strong>{craftUsage.reforge.used}/{craftUsage.reforge.max}</strong>
                         </span>

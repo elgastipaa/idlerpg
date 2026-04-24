@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import JobProgressBar from "./JobProgressBar";
+import useRelativeNow from "../hooks/useRelativeNow";
+import HorizontalOptionSelector from "./HorizontalOptionSelector";
 import {
   getLaboratoryCatalog,
   getSanctuaryStationState,
@@ -16,6 +18,7 @@ function panelStyle(accent = "var(--tone-accent, #4338ca)") {
     padding: "16px",
     display: "grid",
     gap: "12px",
+    alignSelf: "start",
     boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
   };
 }
@@ -124,24 +127,53 @@ function unlockOrderIndex(researchId = "") {
   return index === -1 ? Number.MAX_SAFE_INTEGER : index;
 }
 
+const RESEARCH_GROUP_ORDER = ["unlock", "capacity", "efficiency"];
+
+function groupTone(group = "") {
+  if (group === "unlock") return "var(--tone-violet, #7c3aed)";
+  if (group === "capacity") return "var(--tone-info, #0369a1)";
+  return "var(--tone-warning, #f59e0b)";
+}
+
+function groupSummary(group = "") {
+  if (group === "unlock") return "Nuevas funciones del Santuario";
+  if (group === "capacity") return "Slots e infraestructura";
+  return "Tiempos y rendimiento";
+}
+
+function getInitialActiveResearchGroup(state = {}) {
+  const sanctuary = state?.sanctuary || {};
+  const catalog = getLaboratoryCatalog(state);
+  const jobs = Array.isArray(sanctuary?.jobs) ? sanctuary.jobs : [];
+  const activeResearchIds = new Set(
+    jobs
+      .filter(
+        job =>
+          job?.station === "laboratory" &&
+          (job?.status === "running" || job?.status === "claimable")
+      )
+      .map(job => job?.input?.researchId)
+      .filter(Boolean)
+  );
+  for (const group of RESEARCH_GROUP_ORDER) {
+    const entries = catalog.filter(entry => entry.group === group);
+    if (entries.some(entry => activeResearchIds.has(entry.id))) return group;
+  }
+  for (const group of RESEARCH_GROUP_ORDER) {
+    const entries = catalog.filter(entry => entry.group === group);
+    if (entries.some(entry => !entry.completed)) return group;
+  }
+  return RESEARCH_GROUP_ORDER.find(group => catalog.some(entry => entry.group === group)) || "unlock";
+}
+
 export default function Laboratory({ state, dispatch, onBack, backDisabled = false, backTarget }) {
-  const [now, setNow] = useState(Date.now());
-  const [expandedResearchCards, setExpandedResearchCards] = useState({});
-  const [expandedGroups, setExpandedGroups] = useState({
-    unlock: false,
-    capacity: false,
-    efficiency: false,
-  });
+  const now = useRelativeNow();
+  const [activeGroup, setActiveGroup] = useState(() => getInitialActiveResearchGroup(state));
   const onboardingStep = getEffectiveOnboardingStep(state?.onboarding?.step || null, { ...state, __liveNow: now });
   const onboardingMode = getOnboardingStepInteractionMode(onboardingStep, { ...state, __liveNow: now });
   const spotlightResearchId =
     onboardingMode === "forced" ? getOnboardingResearchTargetId(onboardingStep) : null;
   const spotlightDistilleryResearch = onboardingStep === ONBOARDING_STEPS.RESEARCH_DISTILLERY;
-
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
 
   const sanctuary = state.sanctuary || {};
   const catalog = useMemo(() => getLaboratoryCatalog(state), [state]);
@@ -207,12 +239,19 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
     }
     return mapped;
   }, [catalog]);
+  const availableGroupOrder = useMemo(
+    () => RESEARCH_GROUP_ORDER.filter(group => Array.isArray(groups?.[group]) && groups[group].length > 0),
+    [groups]
+  );
+  const selectedGroup = availableGroupOrder.includes(activeGroup)
+    ? activeGroup
+    : availableGroupOrder[0] || "unlock";
   const spotlightResearchEntry = useMemo(
     () => (spotlightResearchId ? catalog.find(entry => entry.id === spotlightResearchId) || null : null),
     [catalog, spotlightResearchId]
   );
-  const spotlightGroupExpanded = spotlightResearchEntry?.group
-    ? Boolean(expandedGroups?.[spotlightResearchEntry.group])
+  const spotlightGroupVisible = spotlightResearchEntry?.group
+    ? spotlightResearchEntry.group === selectedGroup
     : false;
   const unlockEntries = useMemo(
     () =>
@@ -230,37 +269,26 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
     .filter(station => station.id !== "laboratory")
     .filter(station => getSanctuaryStationState(sanctuary, station.id).unlocked).length;
 
-  function toggleResearchCard(entryId) {
-    setExpandedResearchCards(current => ({
-      ...current,
-      [entryId]: !current?.[entryId],
-    }));
-  }
-
-  function toggleGroup(group) {
-    setExpandedGroups(current => ({
-      ...current,
-      [group]: !current?.[group],
-    }));
-  }
+  useEffect(() => {
+    if (availableGroupOrder.length <= 0) return undefined;
+    if (!availableGroupOrder.includes(activeGroup)) {
+      setActiveGroup(availableGroupOrder[0]);
+    }
+    return undefined;
+  }, [activeGroup, availableGroupOrder]);
 
   useEffect(() => {
     if (!spotlightResearchId || !spotlightResearchEntry?.group) return undefined;
-    setExpandedGroups(current => (
-      current?.[spotlightResearchEntry.group]
+    setActiveGroup(current => (
+      current === spotlightResearchEntry.group
         ? current
-        : { ...current, [spotlightResearchEntry.group]: true }
-    ));
-    setExpandedResearchCards(current => (
-      current?.[spotlightResearchId]
-        ? current
-        : { ...current, [spotlightResearchId]: true }
+        : spotlightResearchEntry.group
     ));
     return undefined;
   }, [spotlightResearchEntry?.group, spotlightResearchId]);
 
   useEffect(() => {
-    if (!spotlightResearchId) return undefined;
+    if (!spotlightResearchId || !spotlightGroupVisible) return undefined;
 
     let frameId = null;
     let timeoutId = null;
@@ -297,10 +325,18 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
       if (frameId != null) cancelAnimationFrame(frameId);
       if (timeoutId != null) window.clearTimeout(timeoutId);
     };
-  }, [spotlightGroupExpanded, spotlightResearchId]);
+  }, [spotlightGroupVisible, spotlightResearchId]);
 
   return (
-    <div style={{ padding: "1rem", display: "grid", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+    <div style={{
+      padding: "1rem",
+      display: "grid",
+      gap: "1rem",
+      alignItems: "start",
+      alignContent: "start",
+      background: "var(--color-background-primary, #f8fafc)",
+      color: "var(--color-text-primary, #1e293b)",
+    }}>
       <style>{`
         @keyframes laboratorySpotlightPulse {
           0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
@@ -309,7 +345,7 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
         }
       `}</style>
       <section style={panelStyle("var(--tone-accent, #4338ca)")}>
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "12px", alignItems: "start" }}>
+        <div style={{ display: "grid", gap: "12px", alignItems: "start" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
               Laboratorio
@@ -321,16 +357,6 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
               Desbloquea funciones y mejora capacidad con tinta, polvo y esencia.
             </div>
           </div>
-          {onBack && (
-            <button
-              onClick={onBack}
-              disabled={backDisabled}
-              data-onboarding-target={backTarget}
-              style={{ ...buttonStyle({ compact: true, disabled: backDisabled }), opacity: backDisabled ? 0.6 : 1, flex: "0 0 auto" }}
-            >
-              Volver
-            </button>
-          )}
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -360,6 +386,19 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
             <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{claimableJobs.length}</div>
           </div>
         </div>
+
+        {onBack && (
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              onClick={onBack}
+              disabled={backDisabled}
+              data-onboarding-target={backTarget}
+              style={{ ...buttonStyle({ compact: true, disabled: backDisabled }), opacity: backDisabled ? 0.6 : 1, flex: "0 0 auto" }}
+            >
+              Volver
+            </button>
+          </div>
+        )}
       </section>
 
       {(claimableJobs.length > 0 || runningJobs.length > 0) && (
@@ -478,187 +517,183 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
         </section>
       )}
 
-      {Object.entries(groups).map(([group, entries]) => (
-        <section key={group} style={panelStyle(group === "unlock" ? "var(--tone-violet, #7c3aed)" : group === "capacity" ? "var(--tone-info, #0369a1)" : "var(--tone-warning, #f59e0b)")}>
-          <div
-            onClick={() => toggleGroup(group)}
-            style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" }}
-          >
+      <section style={panelStyle(groupTone(selectedGroup))}>
+        <HorizontalOptionSelector
+          header={(
             <div>
-              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: group === "unlock" ? "var(--tone-violet, #7c3aed)" : group === "capacity" ? "var(--tone-info, #0369a1)" : "var(--tone-warning, #f59e0b)" }}>
-                {groupLabel(group)}
+              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: groupTone(selectedGroup) }}>
+                {groupLabel(selectedGroup)}
               </div>
               <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-                {group === "unlock" ? "Nuevas funciones del Santuario" : group === "capacity" ? "Slots e infraestructura" : "Tiempos y rendimiento"}
+                {groupSummary(selectedGroup)}
               </div>
             </div>
-            <button
-              onClick={event => {
-                event.stopPropagation();
-                toggleGroup(group);
-              }}
-              style={{ ...buttonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
-            >
-              {expandedGroups?.[group] ? "-" : "+"}
-            </button>
-          </div>
+          )}
+          options={availableGroupOrder}
+          selectedId={selectedGroup}
+          onSelect={group => setActiveGroup(group)}
+          getOptionId={group => group}
+          getOptionKey={group => `lab-group-tab-${group}`}
+          getArrowButtonStyle={({ disabled }) => ({
+            ...buttonStyle({ compact: true, disabled }),
+            minWidth: "34px",
+            padding: "4px 0",
+          })}
+          getOptionButtonStyle={({ selected }) => ({
+            ...buttonStyle({ compact: true, primary: selected }),
+            display: "grid",
+            gap: "1px",
+            textAlign: "left",
+            minWidth: "118px",
+            flexShrink: 0,
+          })}
+          renderOption={({ option: group, selected }) => {
+            const entries = Array.isArray(groups?.[group]) ? groups[group] : [];
+            const runningCount = entries.filter(entry => entry.running).length;
+            const pendingCount = entries.filter(entry => !entry.completed && !entry.running).length;
+            const compactStatus =
+              runningCount > 0
+                ? `${runningCount} en curso`
+                : pendingCount > 0
+                  ? `${pendingCount} pendiente${pendingCount === 1 ? "" : "s"}`
+                  : `${entries.length} completa${entries.length === 1 ? "" : "s"}`;
+            return (
+              <>
+                <span style={{ fontSize: "0.65rem", fontWeight: "900" }}>{groupLabel(group)}</span>
+                <span style={{ fontSize: "0.58rem", fontWeight: "800", color: selected ? groupTone(group) : "var(--color-text-secondary, #64748b)" }}>
+                  {compactStatus}
+                </span>
+              </>
+            );
+          }}
+        />
 
-          {expandedGroups?.[group] && (
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fit, minmax(${group === "unlock" ? "240px" : "280px"}, 1fr))`, gap: "10px" }}>
-            {[...entries]
-              .sort((left, right) => {
-                const getPriority = entry => {
-                  if (entry.running) return 0;
-                  if (!entry.completed) return 1;
-                  return 2;
-                };
-                const priorityDiff = getPriority(left) - getPriority(right);
-                if (priorityDiff !== 0) return priorityDiff;
-                const completedDiff = Number(left.completed) - Number(right.completed);
-                if (completedDiff !== 0) return completedDiff;
-                if (group === "unlock") return unlockOrderIndex(left.id) - unlockOrderIndex(right.id);
-                return 0;
-              })
-              .map(entry => (
-              <div
-                key={entry.id}
-                data-onboarding-target={spotlightResearchId === entry.id ? `research-card-${entry.id}` : undefined}
-                onClick={() => {
-                  if (spotlightResearchId === entry.id && !spotlightDistilleryResearch) {
-                    dispatch({ type: "ACK_ONBOARDING_STEP" });
-                  }
-                }}
-                style={{
-                  ...metricCardStyle(),
-                  padding: group === "unlock" ? "9px 10px" : "10px 12px",
-                  gap: group === "unlock" ? "6px" : "4px",
-                  position: "relative",
-                }}
-              >
-                {(() => {
-                  const spotlightResearch = spotlightResearchId === entry.id;
-                  const tutorialLocked = spotlightResearchId != null && entry.id !== spotlightResearchId;
-                  const buttonEnabled = entry.canStart && !tutorialLocked;
-                  const isCollapsibleResearch = entry.completed || entry.running;
-                  const collapsedResearchCard = isCollapsibleResearch && !expandedResearchCards?.[entry.id];
-                  const compactMetaStyle = {
-                    fontSize: "0.62rem",
-                    fontWeight: "900",
-                    color: "var(--color-text-secondary, #64748b)",
-                    background: "var(--color-background-primary, #f8fafc)",
-                    border: "1px solid var(--color-border-primary, #e2e8f0)",
-                    borderRadius: "999px",
-                    padding: "3px 7px",
-                  };
-                  return (
-                    <>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fit, minmax(${selectedGroup === "unlock" ? "240px" : "280px"}, 1fr))`, gap: "10px" }}>
+          {[...(groups?.[selectedGroup] || [])]
+            .sort((left, right) => {
+              const getPriority = entry => {
+                if (entry.running) return 0;
+                if (!entry.completed) return 1;
+                return 2;
+              };
+              const priorityDiff = getPriority(left) - getPriority(right);
+              if (priorityDiff !== 0) return priorityDiff;
+              const completedDiff = Number(left.completed) - Number(right.completed);
+              if (completedDiff !== 0) return completedDiff;
+              if (selectedGroup === "unlock") return unlockOrderIndex(left.id) - unlockOrderIndex(right.id);
+              return 0;
+            })
+            .map(entry => {
+              const spotlightResearch = spotlightResearchId === entry.id;
+              const tutorialLocked = spotlightResearchId != null && entry.id !== spotlightResearchId;
+              const buttonEnabled = entry.canStart && !tutorialLocked;
+              const compactMetaStyle = {
+                fontSize: "0.62rem",
+                fontWeight: "900",
+                color: "var(--color-text-secondary, #64748b)",
+                background: "var(--color-background-primary, #f8fafc)",
+                border: "1px solid var(--color-border-primary, #e2e8f0)",
+                borderRadius: "999px",
+                padding: "3px 7px",
+              };
+              return (
                 <div
+                  key={entry.id}
+                  data-onboarding-target={spotlightResearch ? `research-card-${entry.id}` : undefined}
                   onClick={() => {
-                    if (isCollapsibleResearch) {
-                      toggleResearchCard(entry.id);
+                    if (spotlightResearch && !spotlightDistilleryResearch) {
+                      dispatch({ type: "ACK_ONBOARDING_STEP" });
                     }
                   }}
                   style={{
-                    display: "block",
-                    borderRadius: "12px",
-                    padding: spotlightResearch ? "8px 10px" : 0,
-                    background: spotlightResearch ? "var(--tone-accent-soft, #eef2ff)" : "transparent",
-                    boxShadow: spotlightResearch
-                      ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.14)"
-                      : "none",
-                    animation: spotlightResearch ? "laboratorySpotlightPulse 1600ms ease-in-out infinite" : "none",
-                    cursor: isCollapsibleResearch || (spotlightResearch && !spotlightDistilleryResearch) ? "pointer" : "default",
+                    ...metricCardStyle(),
+                    padding: selectedGroup === "unlock" ? "9px 10px" : "10px 12px",
+                    gap: selectedGroup === "unlock" ? "6px" : "4px",
+                    position: "relative",
                   }}
                 >
-                  <div style={{ minWidth: 0, paddingRight: isCollapsibleResearch ? "88px" : "78px" }}>
-                    <div style={{ fontSize: "0.82rem", fontWeight: "900" }}>{entry.label}</div>
-                    {entry.running && (
-                      <div style={{ display: "grid", gap: "4px", marginTop: "4px" }}>
-                        <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.3 }}>
-                          Termina en {formatRemaining(Number(runningResearchEndsAt?.[entry.id] || 0) - now)}
+                  <div
+                    style={{
+                      display: "block",
+                      borderRadius: "12px",
+                      padding: spotlightResearch ? "8px 10px" : 0,
+                      background: spotlightResearch ? "var(--tone-accent-soft, #eef2ff)" : "transparent",
+                      boxShadow: spotlightResearch
+                        ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.14)"
+                        : "none",
+                      animation: spotlightResearch ? "laboratorySpotlightPulse 1600ms ease-in-out infinite" : "none",
+                      cursor: spotlightResearch && !spotlightDistilleryResearch ? "pointer" : "default",
+                    }}
+                  >
+                    <div style={{ minWidth: 0, paddingRight: "78px" }}>
+                      <div style={{ fontSize: "0.82rem", fontWeight: "900" }}>{entry.label}</div>
+                      {entry.running ? (
+                        <div style={{ display: "grid", gap: "4px", marginTop: "4px" }}>
+                          <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.3 }}>
+                            Termina en {formatRemaining(Number(runningResearchEndsAt?.[entry.id] || 0) - now)}
+                          </div>
+                          <JobProgressBar
+                            startedAt={runningResearchTimingById?.[entry.id]?.startedAt}
+                            endsAt={runningResearchTimingById?.[entry.id]?.endsAt}
+                            now={now}
+                            tone="var(--tone-info, #0369a1)"
+                            rightLabel={formatRemaining(Number(runningResearchEndsAt?.[entry.id] || 0) - now)}
+                            compact
+                          />
                         </div>
-                        <JobProgressBar
-                          startedAt={runningResearchTimingById?.[entry.id]?.startedAt}
-                          endsAt={runningResearchTimingById?.[entry.id]?.endsAt}
-                          now={now}
-                          tone="var(--tone-info, #0369a1)"
-                          rightLabel={formatRemaining(Number(runningResearchEndsAt?.[entry.id] || 0) - now)}
-                          compact
-                        />
-                      </div>
-                    )}
-                    {!collapsedResearchCard && !entry.running && (
-                      <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.35 }}>
-                        {entry.description}
-                      </div>
-                    )}
+                      ) : (
+                        <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.35 }}>
+                          {entry.description}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ position: "absolute", top: spotlightResearch ? "17px" : "9px", right: spotlightResearch ? "20px" : "10px", display: "flex", gap: "6px", alignItems: "flex-start", flexWrap: "nowrap", justifyContent: "flex-end" }}>
+                      <span style={chipStyle(entry.completed ? "var(--tone-success, #10b981)" : entry.running ? "var(--tone-info, #0369a1)" : "var(--color-text-secondary, #475569)")}>
+                        {entry.completed ? "Completa" : entry.running ? "En curso" : "Pendiente"}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ position: "absolute", top: spotlightResearch ? "17px" : "9px", right: spotlightResearch ? "20px" : "10px", display: "flex", gap: "6px", alignItems: "flex-start", flexWrap: "nowrap", justifyContent: "flex-end" }}>
-                    <span style={chipStyle(entry.completed ? "var(--tone-success, #10b981)" : entry.running ? "var(--tone-info, #0369a1)" : "var(--color-text-secondary, #475569)")}>
-                      {entry.completed ? "Completa" : entry.running ? "En curso" : "Pendiente"}
-                    </span>
-                    {isCollapsibleResearch && (
+
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                    <span style={compactMetaStyle}>{costLabel(entry.costs)}</span>
+                    <span style={compactMetaStyle}>{formatDuration(entry.durationMs)}</span>
+                  </div>
+                  {!entry.available && (
+                    <div style={{ fontSize: "0.66rem", color: "var(--tone-danger, #D85A30)", lineHeight: 1.35 }}>
+                      {entry.prerequisiteLabel} · Todavia no listo.
+                    </div>
+                  )}
+                  {entry.missingCosts.length > 0 && !entry.completed && !entry.running && (
+                    <div style={{ fontSize: "0.66rem", color: "var(--tone-warning, #f59e0b)", lineHeight: 1.35 }}>
+                      Falta: {entry.missingCosts.join(" · ")}
+                    </div>
+                  )}
+
+                  {!entry.completed && !entry.running && (
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                       <button
                         onClick={event => {
                           event.stopPropagation();
-                          toggleResearchCard(entry.id);
+                          dispatch({ type: "START_LAB_RESEARCH", researchId: entry.id, now });
                         }}
-                        style={{ ...buttonStyle({ compact: true }), minWidth: "34px", padding: "4px 0" }}
+                        disabled={!buttonEnabled}
+                        data-onboarding-target={spotlightResearch ? `research-${entry.id}` : undefined}
+                        style={{
+                          ...buttonStyle({ primary: buttonEnabled, disabled: !buttonEnabled, compact: selectedGroup === "unlock" }),
+                          position: spotlightResearch ? "relative" : "static",
+                          zIndex: spotlightResearch ? 2 : 1,
+                          justifySelf: "start",
+                        }}
                       >
-                        {collapsedResearchCard ? "+" : "-"}
+                        {entry.running ? "En curso" : "Iniciar"}
                       </button>
-                    )}
-                  </div>
-                </div>
-
-                {!collapsedResearchCard && (
-                  <>
-                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                      <span style={compactMetaStyle}>{costLabel(entry.costs)}</span>
-                      <span style={compactMetaStyle}>{formatDuration(entry.durationMs)}</span>
                     </div>
-                    {!entry.available && (
-                      <div style={{ fontSize: "0.66rem", color: "var(--tone-danger, #D85A30)", lineHeight: 1.35 }}>
-                        {entry.prerequisiteLabel} · Todavia no listo.
-                      </div>
-                    )}
-                    {entry.missingCosts.length > 0 && !entry.completed && !entry.running && (
-                      <div style={{ fontSize: "0.66rem", color: "var(--tone-warning, #f59e0b)", lineHeight: 1.35 }}>
-                        Falta: {entry.missingCosts.join(" · ")}
-                      </div>
-                    )}
-
-                    {!entry.completed && !entry.running && (
-                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                        <button
-                          onClick={event => {
-                            event.stopPropagation();
-                            dispatch({ type: "START_LAB_RESEARCH", researchId: entry.id, now });
-                          }}
-                          disabled={!buttonEnabled}
-                          data-onboarding-target={spotlightResearch ? `research-${entry.id}` : undefined}
-                          style={{
-                            ...buttonStyle({ primary: buttonEnabled, disabled: !buttonEnabled, compact: group === "unlock" }),
-                            position: spotlightResearch ? "relative" : "static",
-                            zIndex: spotlightResearch ? 2 : 1,
-                            justifySelf: "start",
-                          }}
-                        >
-                          {entry.running ? "En curso" : "Iniciar"}
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-                    </>
-                  );
-                })()}
-              </div>
-            ))}
-          </div>
-          )}
-        </section>
-      ))}
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      </section>
     </div>
   );
 }

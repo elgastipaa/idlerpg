@@ -1,8 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import useViewport from "../hooks/useViewport";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
 import { getCraftUsageSummary } from "../engine/crafting/craftingEngine";
 import { getLootHighlights } from "../utils/lootHighlights";
-import { AVAILABLE_HUNT_STATS, getHuntProfiles, resolveLootRuleWishlist } from "../utils/lootFilter";
+import {
+  AVAILABLE_HUNT_STATS,
+  getHuntProfiles,
+  resolveLootRuleWishlist,
+  summarizeLootRuleAutomation,
+} from "../utils/lootFilter";
 import { getRarityColor } from "../constants/rarity";
 import {
   ITEM_STAT_LABELS as STAT_LABELS,
@@ -25,6 +31,7 @@ import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 
 const BULK_SELL_RARITIES = ["common", "magic", "rare", "epic"];
 const AUTO_LOOT_RARITIES = ["common", "magic", "rare", "epic"];
+const RARITY_VISIBILITY_OPTIONS = ["common", "magic", "rare", "epic", "legendary"];
 const LOOT_ACTION_OPTIONS = [
   { id: "keep", label: "Guardar" },
   { id: "sell", label: "Vender" },
@@ -51,7 +58,8 @@ const BASIC_LOOT_FILTER_PRESETS = [
   },
 ];
 function getCardHighlights(highlights = []) {
-  return [];
+  const allowed = new Set(["legendary", "epic", "enabler", "perfect", "t1", "wishlist", "hunt", "upgrade", "build"]);
+  return highlights.filter(highlight => allowed.has(highlight?.id)).slice(0, 2);
 }
 
 function sameWishlist(left = [], right = []) {
@@ -91,15 +99,11 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
   const [detailItemId, setDetailItemId] = useState(null);
   const [showLootFilterModal, setShowLootFilterModal] = useState(false);
   const [showOnlyUpgrades, setShowOnlyUpgrades] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const { isMobile } = useViewport();
+  const previewStep = isMobile ? 10 : 16;
+  const [inventoryVisibleCount, setInventoryVisibleCount] = useState(previewStep);
   const [dismissedOverflowEventId, setDismissedOverflowEventId] = useState(null);
   const isDarkMode = state?.settings?.theme === "dark";
-
-  useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
 
   useEffect(() => {
     if (!pendingBulkSell) return undefined;
@@ -122,6 +126,7 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
   const lootRules = state?.settings?.lootRules || {
     autoSellRarities: [],
     autoExtractRarities: [],
+    minVisibleRarity: "common",
     huntPreset: null,
     protectHuntedDrops: true,
     protectUpgradeDrops: true,
@@ -137,11 +142,17 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
     [activeBuildTag, currentEnemy]
   );
   const hasActiveHunt = wishlistAffixes.length > 0;
+  const autoLootSummary = useMemo(
+    () => summarizeLootRuleAutomation(lootRules),
+    [lootRules]
+  );
   const protectionSummary = [
     lootRules.protectHuntedDrops !== false && "Protege caza",
     lootRules.protectUpgradeDrops !== false && "Protege upgrades",
   ].filter(Boolean);
   const overflowEvent = state?.combat?.inventoryOverflowEvent || null;
+  const overflowStats = state?.combat?.inventoryOverflowStats || { total: 0, displaced: 0, lost: 0 };
+  const pendingOpenLootFilter = Boolean(state?.combat?.pendingOpenLootFilter);
   const activeBasicPreset = useMemo(
     () => BASIC_LOOT_FILTER_PRESETS.find(preset => (
       sameRarityList(lootRules.autoSellRarities || [], preset.lootRules.autoSellRarities || []) &&
@@ -168,6 +179,9 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
       return (b.level || 0) - (a.level || 0);
     });
   }, [inventory, showOnlyUpgrades, equipment]);
+  const visibleSortedItems = sortedItems.slice(0, inventoryVisibleCount);
+  const canShowMoreInventory = sortedItems.length > inventoryVisibleCount;
+  const canShowLessInventory = sortedItems.length > previewStep && inventoryVisibleCount > previewStep;
 
   useEffect(() => {
     if (!equipTutorialActive) return undefined;
@@ -180,6 +194,23 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
     if (overflowEvent.id === dismissedOverflowEventId) return;
     setDismissedOverflowEventId(null);
   }, [dismissedOverflowEventId, overflowEvent]);
+
+  useEffect(() => {
+    if (!pendingOpenLootFilter) return;
+    setShowLootFilterModal(true);
+    dispatch({ type: "ACK_LOOT_FILTER_OPEN" });
+  }, [dispatch, pendingOpenLootFilter]);
+
+  useEffect(() => {
+    setInventoryVisibleCount(previewStep);
+  }, [previewStep, showOnlyUpgrades]);
+
+  useEffect(() => {
+    setInventoryVisibleCount(current => {
+      if (sortedItems.length <= 0) return 0;
+      return Math.min(Math.max(previewStep, current), sortedItems.length);
+    });
+  }, [sortedItems.length, previewStep]);
 
   useEffect(() => {
     if (!equipTutorialActive || sortedItems.length === 0) return undefined;
@@ -322,6 +353,12 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
             </div>
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
               <span style={summaryPillStyle("warning", isDarkMode)}>
+                {Math.max(0, Number(overflowStats.total || 0))} overflow
+              </span>
+              <span style={summaryPillStyle("muted", isDarkMode)}>
+                {Math.max(0, Number(overflowStats.lost || 0))} perdidos
+              </span>
+              <span style={summaryPillStyle("warning", isDarkMode)}>
                 Entra {getCompactRarityLabel(visibleOverflowEvent.incomingItemRarity)} · P {formatNumber(visibleOverflowEvent.incomingItemRating || 0)}
               </span>
               <span style={summaryPillStyle("muted", isDarkMode)}>
@@ -331,6 +368,9 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
           </div>
           <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
             Si esto se repite, usa un preset rapido del filtro para vender o extraer rarezas bajas antes de llegar al cap.
+          </div>
+          <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.35 }}>
+            Regla activa: {autoLootSummary}.
           </div>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: isMobile ? "stretch" : "flex-end" }}>
             <button
@@ -399,6 +439,9 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
             {protectionSummary.length > 0 ? protectionSummary.map(label => (
               <span key={label} style={summaryPillStyle("success", isDarkMode)}>{label}</span>
             )) : <span style={summaryPillStyle("muted", isDarkMode)}>Sin protecciones</span>}
+            <span style={summaryPillStyle("accent", isDarkMode)}>
+              Ver desde {getCompactRarityLabel(lootRules.minVisibleRarity || "common")}
+            </span>
           </div>
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
             {BASIC_LOOT_FILTER_PRESETS.map(preset => {
@@ -421,6 +464,9 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
           </div>
           <div style={{ fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.35 }}>
             {activeBasicPreset?.summary || "Ya estas usando una combinacion custom por rareza."}
+          </div>
+          <div style={{ fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", lineHeight: 1.35 }}>
+            {autoLootSummary}.
           </div>
           <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "2px" }}>
             {AUTO_LOOT_RARITIES.map(rarity => (
@@ -499,36 +545,58 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
         {inventory.length === 0 ? (
           <div style={emptyStateStyle}>No tenes objetos en la mochila</div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
-            {sortedItems.map(item => {
-              const isTutorialItem = equipTutorialActive && sortedItems[0]?.id === item.id;
-              return (
-                <InventoryRow
-                  key={item.id}
-                  item={item}
-                  tutorialTarget={isTutorialItem}
-                  equippedCompare={item.type === "weapon" ? equipment.weapon : equipment.armor}
-                  activeBuildTag={activeBuildTag}
-                  wishlistAffixes={wishlistAffixes}
-                  isDarkMode={isDarkMode}
-                  isMobile={isMobile}
-                  pendingSell={pendingSellId === item.id}
-                  onOpen={() => setDetailItemId(item.id)}
-                  onEquip={() => dispatch({ type: "EQUIP_ITEM", item })}
-                  onSell={() => {
-                    if (pendingSellId !== item.id) {
-                      setPendingSellId(item.id);
-                      return;
-                    }
-                    dispatch({ type: "SELL_ITEM", item });
-                    setPendingSellId(null);
-                  }}
-                  lockInteractions={lockInventorySideActions}
-                  spotlightEquip={isTutorialItem}
-                />
-              );
-            })}
-          </div>
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+              {visibleSortedItems.map(item => {
+                const isTutorialItem = equipTutorialActive && sortedItems[0]?.id === item.id;
+                return (
+                  <InventoryRow
+                    key={item.id}
+                    item={item}
+                    tutorialTarget={isTutorialItem}
+                    equippedCompare={item.type === "weapon" ? equipment.weapon : equipment.armor}
+                    activeBuildTag={activeBuildTag}
+                    wishlistAffixes={wishlistAffixes}
+                    isDarkMode={isDarkMode}
+                    isMobile={isMobile}
+                    pendingSell={pendingSellId === item.id}
+                    onOpen={() => setDetailItemId(item.id)}
+                    onEquip={() => dispatch({ type: "EQUIP_ITEM", item })}
+                    onSell={() => {
+                      if (pendingSellId !== item.id) {
+                        setPendingSellId(item.id);
+                        return;
+                      }
+                      dispatch({ type: "SELL_ITEM", item });
+                      setPendingSellId(null);
+                    }}
+                    lockInteractions={lockInventorySideActions}
+                    spotlightEquip={isTutorialItem}
+                  />
+                );
+              })}
+            </div>
+            {(canShowMoreInventory || canShowLessInventory) && (
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" }}>
+                {canShowMoreInventory && (
+                  <button
+                    onClick={() => setInventoryVisibleCount(current => Math.min(sortedItems.length, current + previewStep))}
+                    style={quickActionButtonStyle("#fff", "#1d4ed8", "1px solid #bfdbfe")}
+                  >
+                    Ver mas ({sortedItems.length - inventoryVisibleCount})
+                  </button>
+                )}
+                {canShowLessInventory && (
+                  <button
+                    onClick={() => setInventoryVisibleCount(previewStep)}
+                    style={quickActionButtonStyle("#fff", "#64748b", "1px solid #cbd5e1")}
+                  >
+                    Ver menos
+                  </button>
+                )}
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -555,6 +623,7 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
           }}
           onToggleProtectHunted={() => dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { protectHuntedDrops: !(lootRules.protectHuntedDrops !== false) } })}
           onToggleProtectUpgrade={() => dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { protectUpgradeDrops: !(lootRules.protectUpgradeDrops !== false) } })}
+          onSetMinVisibleRarity={rarity => dispatch({ type: "UPDATE_LOOT_RULES", lootRules: { minVisibleRarity: rarity } })}
         />
       )}
 
@@ -562,7 +631,6 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
         <ItemDetailModal
           item={detailItem}
           equippedCompare={detailItem.type === "weapon" ? equipment.weapon : equipment.armor}
-          activeBuildTag={activeBuildTag}
           wishlistAffixes={wishlistAffixes}
           isDarkMode={isDarkMode}
           onClose={() => setDetailItemId(null)}
@@ -615,6 +683,7 @@ function LootFilterModal({
   onToggleWishlistStat,
   onToggleProtectHunted,
   onToggleProtectUpgrade,
+  onSetMinVisibleRarity,
 }) {
   const dragStateRef = useRef({ active: false, startY: 0, pointerId: null });
   const sheetOffsetRef = useRef(0);
@@ -778,6 +847,24 @@ function LootFilterModal({
             </div>
             <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "8px", lineHeight: 1.4 }}>
               Si una rareza entra en vender o extraer, los drops cazados y las mejoras claras pueden salvarse automaticamente.
+            </div>
+          </section>
+
+          <section style={detailBlockStyle}>
+            <div style={detailTitleStyle}>Visibilidad en combate</div>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              {RARITY_VISIBILITY_OPTIONS.map(rarity => (
+                <button
+                  key={`visibility-${rarity}`}
+                  onClick={() => onSetMinVisibleRarity(rarity)}
+                  style={modalOptionPillStyle((lootRules.minVisibleRarity || "common") === rarity, isDarkMode)}
+                >
+                  Desde {getCompactRarityLabel(rarity)}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "8px", lineHeight: 1.4 }}>
+              Reduce ruido en el log de combate ocultando nombres de drops menores. Los drops importantes siguen visibles.
             </div>
           </section>
         </div>
@@ -964,7 +1051,7 @@ function InventoryRow({ item, tutorialTarget = false, equippedCompare, activeBui
   );
 }
 
-function ItemDetailModal({ item, equippedCompare, activeBuildTag, wishlistAffixes, isDarkMode = false, onClose, onEquip, onSell, canSell = true, spotlightEquip = false }) {
+function ItemDetailModal({ item, equippedCompare, wishlistAffixes = [], isDarkMode = false, onClose, onEquip, onSell, canSell = true, spotlightEquip = false }) {
   const [showAllAffixes, setShowAllAffixes] = useState(false);
   const compareItem = equippedCompare || { bonus: {}, rating: 0 };
   const stats = getItemStats(item);
@@ -1254,7 +1341,16 @@ const highlightBadgeStyle = (tone, isDarkMode = false) => {
   return { fontSize: "0.56rem", fontWeight: "900", color: chosen.color, background: chosen.bg, border: `1px solid ${chosen.border}`, padding: "3px 7px", borderRadius: "999px" };
 };
 const btnBase = { border: "none", borderRadius: "10px", padding: "10px", fontSize: "0.68rem", cursor: "pointer", fontWeight: "900", textAlign: "center" };
-const quickActionButtonStyle = { border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "999px", padding: "7px 10px", fontSize: "0.64rem", fontWeight: "900" };
+const quickActionButtonStyle = (background, color, border) => ({
+  border: border || "1px solid var(--color-border-primary, #e2e8f0)",
+  background,
+  color,
+  borderRadius: "999px",
+  padding: "7px 10px",
+  fontSize: "0.64rem",
+  fontWeight: "900",
+  cursor: "pointer",
+});
 const sectionTitleStyle = { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginBottom: "0.7rem", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: "800" };
 const emptyStateStyle = { textAlign: "center", padding: "2rem 1rem", color: "var(--color-text-tertiary, #94a3b8)", border: "2px dashed var(--color-border-primary, #e2e8f0)", borderRadius: "12px", fontSize: "0.82rem", background: "var(--color-background-tertiary, #f8fafc)" };
 const modalWrapStyle = { position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: "18px", zIndex: 7000 };

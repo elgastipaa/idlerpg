@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import OverlayShell from "./OverlayShell";
+import OverlayShell, { OverlaySurface } from "./OverlayShell";
 import { getRarityColor } from "../constants/rarity";
 import { getProjectUpgradeRule } from "../engine/sanctuary/jobEngine";
 import { getOnboardingTutorialDeepForgeProjectId, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
@@ -24,6 +24,7 @@ function panelStyle() {
     padding: "12px",
     display: "grid",
     gap: "10px",
+    alignSelf: "start",
   };
 }
 
@@ -207,6 +208,9 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
   const polishState = selectedProject && selectedAffixIndex != null
     ? resourceLine(selectedProject, resources, "polish", selectedAffixIndex)
     : { costs: { essence: 0, relicDust: 0 }, enough: false };
+  const rerollState = selectedProject
+    ? resourceLine(selectedProject, resources, "reroll", null)
+    : { costs: { essence: 0, relicDust: 0 }, enough: false };
   const reforgeState = selectedProject && selectedAffixIndex != null
     ? resourceLine(selectedProject, resources, "reforge", selectedAffixIndex)
     : { costs: { essence: 0, relicDust: 0 }, enough: false };
@@ -231,8 +235,13 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
     Number(deepForgeSession.affixIndex) === selectedAffixIndex;
 
   return (
-    <OverlayShell isMobile={isMobile}>
-      <div style={{ width: "100%", maxWidth: "1160px", maxHeight: "100%", overflow: "auto", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", borderRadius: isMobile ? "16px 16px 0 0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", display: "grid", gap: "12px", padding: isMobile ? "18px 16px 20px" : "20px 22px 22px" }}>
+    <OverlayShell isMobile={isMobile} contentLabel="Taller profundo">
+      <OverlaySurface
+        isMobile={isMobile}
+        maxWidth="1160px"
+        paddingMobile="18px 16px 20px"
+        paddingDesktop="20px 22px 22px"
+      >
         <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", alignItems: "start" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
@@ -242,7 +251,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
               Acabado persistente de proyectos
             </div>
             <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.45, maxWidth: "68ch" }}>
-              La expedicion ahora encuentra bases prometedoras. El cierre fino del proyecto vive aca: upgrade persistente, pulido profundo y reforge profunda.
+              La expedicion resuelve la run. El cierre fino del proyecto vive aca: upgrade persistente, pulido profundo, reforge y ascenso.
             </div>
           </div>
           <div style={{ display: "grid", gap: "8px", justifyItems: isMobile ? "stretch" : "end" }}>
@@ -532,6 +541,23 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
 
                   {selectedAffix && (
                     <div style={{ display: "grid", gap: "8px", padding: "10px", borderRadius: "12px", background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
+                      <div style={{ display: "grid", gap: "6px", paddingBottom: "8px", borderBottom: "1px dashed var(--color-border-primary, #e2e8f0)" }}>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                          <button
+                            onClick={() => dispatch({ type: "DEEP_FORGE_REROLL_PROJECT", projectId: selectedProject.id })}
+                            disabled={!rerollState.enough || (!!deepForgeSession && !sessionMatchesSelection)}
+                            style={actionButtonStyle({ disabled: !rerollState.enough || (!!deepForgeSession && !sessionMatchesSelection) })}
+                          >
+                            Reroll profundo
+                          </button>
+                          <span style={{ fontSize: "0.64rem", fontWeight: "900", color: rerollState.enough ? "var(--color-text-secondary, #64748b)" : "var(--tone-danger, #D85A30)" }}>
+                            {rerollState.costs.essence} esencia · {rerollState.costs.relicDust} polvo
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                          Rehace todas las lineas base del proyecto y limpia el foco anterior. Es la version persistente del antiguo reroll de run.
+                        </div>
+                      </div>
                       <div style={{ fontSize: "0.7rem", fontWeight: "900" }}>
                         Linea objetivo: {formatAffixLabel(selectedAffix)}
                       </div>
@@ -600,7 +626,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
             )}
           </div>
         </section>
-      </div>
+      </OverlaySurface>
     </OverlayShell>
   );
 }

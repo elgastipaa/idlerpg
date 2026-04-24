@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import useViewport from "../hooks/useViewport";
 import { ACHIEVEMENTS } from "../data/achievements";
 import { getAchievementProgress } from "../engine/progression/achievementEngine";
 
@@ -20,14 +21,10 @@ function formatValue(value) {
 
 export default function Achievements({ state }) {
   const unlockedIds = state.achievements || [];
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [category, setCategory] = useState("all");
-
-  useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
+  const { isMobile } = useViewport();
+  const [filterMode, setFilterMode] = useState("all");
+  const previewStep = isMobile ? 8 : 12;
+  const [visibleCount, setVisibleCount] = useState(previewStep);
 
   const enriched = useMemo(() => {
     return ACHIEVEMENTS.map(achievement => {
@@ -39,13 +36,24 @@ export default function Achievements({ state }) {
     });
   }, [state, unlockedIds]);
 
-  const categories = ["all", ...new Set(ACHIEVEMENTS.map(item => item.category))];
   const filtered = enriched
-    .filter(item => category === "all" || item.category === category)
+    .filter(item => filterMode === "all" || !item.unlocked)
     .sort((a, b) => {
-      if (a.unlocked !== b.unlocked) return a.unlocked ? -1 : 1;
+      if (a.unlocked !== b.unlocked) return a.unlocked ? 1 : -1;
+      if (!a.unlocked && !b.unlocked && a.percent !== b.percent) return b.percent - a.percent;
       return b.reward - a.reward;
     });
+  const visibleAchievements = filtered.slice(0, visibleCount);
+  const canShowMore = filtered.length > visibleCount;
+  const canShowLess = filtered.length > previewStep && visibleCount > previewStep;
+
+  useEffect(() => {
+    setVisibleCount(previewStep);
+  }, [previewStep, filterMode]);
+
+  useEffect(() => {
+    setVisibleCount(current => Math.min(Math.max(previewStep, current), filtered.length || previewStep));
+  }, [filtered.length, previewStep]);
 
   const unlockedCount = unlockedIds.length;
   const progressPercent = Math.round((unlockedCount / ACHIEVEMENTS.length) * 100);
@@ -70,31 +78,63 @@ export default function Achievements({ state }) {
       </section>
 
       <section style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-        {categories.map(item => (
-          <button
-            key={item}
-            onClick={() => setCategory(item)}
-            style={{
-              border: "1px solid #e2e8f0",
-              borderRadius: "999px",
-              padding: "7px 10px",
-              fontSize: "0.68rem",
-              fontWeight: "900",
-              cursor: "pointer",
-              background: category === item ? "#1e293b" : "var(--color-background-secondary, #fff)",
-              color: category === item ? "#fff" : "#475569",
-            }}
-          >
-            {item.toUpperCase()}
-          </button>
-        ))}
+        <button
+          onClick={() => setFilterMode("all")}
+          style={{
+            border: "1px solid #e2e8f0",
+            borderRadius: "999px",
+            padding: "7px 10px",
+            fontSize: "0.68rem",
+            fontWeight: "900",
+            cursor: "pointer",
+            background: filterMode === "all" ? "#1e293b" : "var(--color-background-secondary, #fff)",
+            color: filterMode === "all" ? "#fff" : "#475569",
+          }}
+        >
+          TODOS
+        </button>
+        <button
+          onClick={() => setFilterMode("pending")}
+          style={{
+            border: "1px solid #e2e8f0",
+            borderRadius: "999px",
+            padding: "7px 10px",
+            fontSize: "0.68rem",
+            fontWeight: "900",
+            cursor: "pointer",
+            background: filterMode === "pending" ? "#1e293b" : "var(--color-background-secondary, #fff)",
+            color: filterMode === "pending" ? "#fff" : "#475569",
+          }}
+        >
+          NO COMPLETADOS
+        </button>
       </section>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(320px, 1fr))", gap: "12px" }}>
-        {filtered.map(achievement => (
+        {visibleAchievements.map(achievement => (
           <AchievementCard key={achievement.id} achievement={achievement} />
         ))}
       </div>
+      {(canShowMore || canShowLess) && (
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          {canShowMore && (
+            <button
+              onClick={() => setVisibleCount(current => Math.min(filtered.length, current + previewStep))}
+              style={previewButtonStyle("#fff", "#1d4ed8", "1px solid #bfdbfe")}
+            >
+              Ver mas ({filtered.length - visibleCount})
+            </button>
+          )}
+          {canShowLess && (
+            <button
+              onClick={() => setVisibleCount(previewStep)}
+              style={previewButtonStyle("#fff", "#64748b", "1px solid #cbd5e1")}
+            >
+              Ver menos
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -179,3 +219,14 @@ const progressBarFill = {
   background: "linear-gradient(90deg, #1D9E75, #34d399)",
   transition: "width 0.4s ease",
 };
+
+const previewButtonStyle = (background, color, border) => ({
+  border: border || "none",
+  background,
+  color,
+  borderRadius: "999px",
+  padding: "7px 10px",
+  fontSize: "0.64rem",
+  fontWeight: "900",
+  cursor: "pointer",
+});

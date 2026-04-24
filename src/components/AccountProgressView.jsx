@@ -1,13 +1,4 @@
 import React, { useMemo } from "react";
-import { ACTIVE_GOALS } from "../data/activeGoals";
-import {
-  getCodexBossEntries,
-  getCodexFamilyEntries,
-  getCodexLegendaryPowerEntries,
-  getCodexUnlockedMilestones,
-} from "../engine/progression/codexEngine";
-import { ABYSS_PORTAL_TIER, getAbyssUnlockEntries } from "../engine/progression/abyssProgression";
-import { getGoalProgress } from "../engine/progression/goalEngine";
 import { getWeeklyLedgerContractsWithProgress } from "../engine/progression/weeklyLedger";
 
 function panelStyle() {
@@ -51,73 +42,6 @@ function formatCount(value = 0) {
   return Math.max(0, Number(value || 0)).toLocaleString();
 }
 
-function findNextGoal(state, category = "") {
-  return ACTIVE_GOALS
-    .filter(goal => goal.category === category)
-    .map(goal => {
-      const progress = getGoalProgress(state, goal);
-      const target = Number(goal?.target?.value || 1);
-      return {
-        ...goal,
-        progress,
-        target,
-        remaining: Math.max(0, target - progress),
-        completed: progress >= target,
-      };
-    })
-    .find(goal => !goal.completed) || null;
-}
-
-function buildBlueprintStep(sanctuary = {}) {
-  const extractedItems = Array.isArray(sanctuary?.extractedItems) ? sanctuary.extractedItems : [];
-  const blueprints = Array.isArray(sanctuary?.blueprints) ? sanctuary.blueprints : [];
-  const activeBlueprintCount = Object.values(sanctuary?.activeBlueprints || {}).filter(Boolean).length;
-
-  if (extractedItems.length > 0) {
-    return `Tienes ${formatCount(extractedItems.length)} pieza(s) rescatada(s) esperando decision en Santuario.`;
-  }
-  if (blueprints.length <= 0) {
-    return "Todavia no tienes blueprints. Rescata una pieza y conviertela para empezar a sesgar futuras runs.";
-  }
-  if (activeBlueprintCount <= 0) {
-    return "Ya tienes planos, pero ninguno activo. Marca arma o armadura para que materialicen en la siguiente salida.";
-  }
-  return `${formatCount(activeBlueprintCount)} blueprint(s) activo(s) ya alimentan la proxima run.`;
-}
-
-function buildCodexStep({ readyResearchCount = 0, unlockedPowers = 0, hiddenPowers = 0, codexInk = 0 } = {}) {
-  if (readyResearchCount > 0) {
-    return `${formatCount(readyResearchCount)} investigacion(es) de Biblioteca lista(s) para reclamar.`;
-  }
-  if (codexInk <= 0) {
-    return "La Biblioteca ya existe, pero falta tinta. Destila `codex_trace` para convertir kills en bonos permanentes.";
-  }
-  if (hiddenPowers > 0) {
-    return `${formatCount(hiddenPowers)} poderes siguen ocultos. Intel y Caza todavia tienen valor real para la cuenta.`;
-  }
-  if (unlockedPowers > 0) {
-    return "Tu Codex ya esta creciendo; ahora el foco es subir maestrias y no solo descubrir.";
-  }
-  return "La cuenta todavia no serializo bien la Biblioteca. Empieza por ver familias, bosses y primeras investigaciones.";
-}
-
-function buildAbyssStep({ nextUnlock = null, highestTier = 1 } = {}) {
-  if (!nextUnlock) {
-    return "Todos los hitos de Abismo actuales ya estan abiertos en esta version.";
-  }
-  return `El siguiente salto fuerte esta en Tier ${nextUnlock.minTier}: ${nextUnlock.name} · ${nextUnlock.reward}. Hoy tu pico es T${formatCount(highestTier)}.`;
-}
-
-function buildPrestigeStep({ nextGoal = null, totalEchoesEarned = 0, nodeCount = 0 } = {}) {
-  if (nextGoal) {
-    return `${nextGoal.name}: ${formatCount(nextGoal.progress)} / ${formatCount(nextGoal.target)}. ${nextGoal.hint}`;
-  }
-  if (nodeCount <= 0 && totalEchoesEarned > 0) {
-    return "Ya ganaste ecos. El siguiente salto obvio es convertirlos en nodos permanentes del tablero.";
-  }
-  return "Prestige ya esta corriendo. El foco ahora es hacer que cada reset cambie mejor la siguiente intencion de run.";
-}
-
 function formatAppearanceLabel(value = "") {
   return String(value || "")
     .split("_")
@@ -125,85 +49,16 @@ function formatAppearanceLabel(value = "") {
     .replace(/\b\w/g, letter => letter.toUpperCase());
 }
 
-function buildAppearanceStep(profile = {}) {
-  return `Banner ${formatAppearanceLabel(profile.banner)} · paleta ${formatAppearanceLabel(profile.palette)} · titulo ${formatAppearanceLabel(profile.title)}. La capa ya existe aunque todavia no sea una feature social.`;
-}
-
-function ProgressCard({ eyebrow, title, summary, metrics = [], detail = "", chips = [] }) {
-  return (
-    <div style={panelStyle()}>
-      <div style={{ display: "grid", gap: "4px" }}>
-        <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-accent, #4338ca)" }}>
-          {eyebrow}
-        </div>
-        <div style={{ fontSize: "0.92rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-          {title}
-        </div>
-        <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
-          {summary}
-        </div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" }}>
-        {metrics.map(metric => (
-          <div key={metric.label} style={metricCardStyle()}>
-            <div style={{ fontSize: "0.54rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              {metric.label}
-            </div>
-            <div style={{ fontSize: "0.9rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-              {metric.value}
-            </div>
-          </div>
-        ))}
-      </div>
-      {chips.length > 0 && (
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-          {chips.map(chip => (
-            <span key={chip.label} style={chipStyle(chip.style || {})}>
-              {chip.label}
-            </span>
-          ))}
-        </div>
-      )}
-      <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
-        {detail}
-      </div>
-    </div>
-  );
-}
-
 export default function AccountProgressView({ state, dispatch }) {
   const sanctuary = state?.sanctuary || {};
-  const codex = state?.codex || {};
   const prestige = state?.prestige || {};
   const abyss = state?.abyss || {};
-  const jobs = Array.isArray(sanctuary?.jobs) ? sanctuary.jobs : [];
-
-  const familyEntries = useMemo(() => getCodexFamilyEntries(codex), [codex]);
-  const bossEntries = useMemo(() => getCodexBossEntries(codex, { maxTier: state?.combat?.maxTier || 1, abyss }), [codex, state?.combat?.maxTier, abyss]);
-  const powerEntries = useMemo(() => getCodexLegendaryPowerEntries(codex, { abyss }), [codex, abyss]);
-  const unlockedCodexMilestones = useMemo(() => getCodexUnlockedMilestones(codex, { abyss }), [codex, abyss]);
-  const abyssUnlocks = useMemo(() => getAbyssUnlockEntries(abyss), [abyss]);
-
-  const familySeenCount = familyEntries.filter(entry => entry.seen).length;
-  const fullyResearchedFamilies = familyEntries.filter(entry => entry.maxResearchRank > 0 && entry.researchedRank >= entry.maxResearchRank).length;
-  const bossSeenCount = bossEntries.filter(entry => entry.seen).length;
-  const fullyResearchedBosses = bossEntries.filter(entry => entry.maxResearchRank > 0 && entry.researchedRank >= entry.maxResearchRank).length;
-  const unlockedPowers = powerEntries.filter(entry => entry.unlocked).length;
-  const masteredPowers = powerEntries.filter(entry => Number(entry?.mastery?.rank || 0) >= 4).length;
-  const hiddenPowers = Math.max(0, powerEntries.length - unlockedPowers);
-  const readyResearchCount = jobs.filter(job => job?.type === "codex_research" && job?.status === "claimable").length;
-  const nextAbyssUnlock = abyssUnlocks.find(entry => !entry.unlocked) || null;
-  const unlockedAbyssCount = abyssUnlocks.filter(entry => entry.unlocked).length;
+  const appearanceProfile = state?.appearanceProfile || {};
   const blueprints = Array.isArray(sanctuary?.blueprints) ? sanctuary.blueprints : [];
-  const extractedItems = Array.isArray(sanctuary?.extractedItems) ? sanctuary.extractedItems : [];
-  const activeBlueprintCount = Object.values(sanctuary?.activeBlueprints || {}).filter(Boolean).length;
-  const prestigeNodeCount = Object.values(prestige?.nodes || {}).filter(level => Number(level || 0) > 0).length;
-  const nextPrestigeGoal = findNextGoal(state, "prestige");
-  const nextTierGoal = findNextGoal(state, "combat");
-  const codexInk = Math.max(0, Number(sanctuary?.resources?.codexInk || 0));
   const highestTier = Math.max(1, Number(state?.combat?.maxTier || 1), Number(abyss?.highestTierReached || 1));
   const highestDepth = Math.max(0, Number(abyss?.highestDepthReached || 0));
-  const appearanceProfile = state?.appearanceProfile || {};
+  const sessionTicks = Number(state?.combat?.analytics?.ticks || 0);
+  const sessionMinutes = Math.floor(sessionTicks / 60);
   const weeklyContracts = useMemo(
     () => getWeeklyLedgerContractsWithProgress(state, state?.weeklyLedger || {}),
     [state]
@@ -219,10 +74,10 @@ export default function AccountProgressView({ state, dispatch }) {
               Cuenta
             </div>
             <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-              Estanteria de maestria
+              Resumen de cuenta
             </div>
-            <div style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45, maxWidth: "68ch" }}>
-              Aqui la cuenta deja de verse como sistemas separados. Junta `Prestige`, `Biblioteca`, `Abismo` y `Blueprints` en una sola lectura.
+            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45, maxWidth: "62ch" }}>
+              Vista compacta de progreso largo sin duplicar detalles de Ecos, Biblioteca, Abismo y Blueprints.
             </div>
           </div>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -233,7 +88,7 @@ export default function AccountProgressView({ state, dispatch }) {
               Abismo {formatCount(highestDepth)}
             </span>
             <span style={chipStyle({ tone: "var(--tone-violet, #7c3aed)", surface: "var(--tone-violet-soft, #f3e8ff)" })}>
-              {formatCount(blueprints.length)} blueprint{blueprints.length === 1 ? "" : "s"}
+              {formatCount(blueprints.length)} plano{blueprints.length === 1 ? "" : "s"}
             </span>
           </div>
         </div>
@@ -247,28 +102,32 @@ export default function AccountProgressView({ state, dispatch }) {
           </div>
           <div style={metricCardStyle()}>
             <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
+              Ecos listos
+            </div>
+            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>{formatCount(prestige.echoes || 0)}</div>
+          </div>
+          <div style={metricCardStyle()}>
+            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
               Tier historico
             </div>
             <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>T{formatCount(highestTier)}</div>
           </div>
           <div style={metricCardStyle()}>
             <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Biblioteca
+              Tiempo sesion
             </div>
-            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>{formatCount(unlockedCodexMilestones.length)} hitos</div>
+            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>{sessionMinutes > 0 ? `${sessionMinutes}m` : "<1m"}</div>
           </div>
           <div style={metricCardStyle()}>
             <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Abismo
+              Weekly listos
             </div>
-            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>{formatCount(unlockedAbyssCount)} / {formatCount(abyssUnlocks.length)}</div>
+            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>{formatCount(claimableWeeklyContracts)}</div>
           </div>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Stash largo
-            </div>
-            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>{formatCount(extractedItems.length)} stash · {formatCount(activeBlueprintCount)} activo(s)</div>
-          </div>
+        </div>
+
+        <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+          Perfil: {formatAppearanceLabel(appearanceProfile.title || "wayfarer")} · {formatAppearanceLabel(appearanceProfile.banner || "ember")} · {formatAppearanceLabel(appearanceProfile.palette || "sanctuary")}.
         </div>
       </section>
 
@@ -300,100 +159,6 @@ export default function AccountProgressView({ state, dispatch }) {
             <WeeklyContractCard key={contract.id} contract={contract} dispatch={dispatch} />
           ))}
         </div>
-      </section>
-
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "10px" }}>
-        <ProgressCard
-          eyebrow="Perfil"
-          title={`${formatAppearanceLabel(appearanceProfile.title || "wayfarer")} · ${formatAppearanceLabel(appearanceProfile.banner || "ember")}`}
-          summary="Seam minimo de identidad de cuenta. No cambia poder ni abre tienda; solo deja lista la capa futura."
-          metrics={[
-            { label: "Banner", value: formatAppearanceLabel(appearanceProfile.banner || "ember") },
-            { label: "Paleta", value: formatAppearanceLabel(appearanceProfile.palette || "sanctuary") },
-            { label: "Badge", value: appearanceProfile.badge ? formatAppearanceLabel(appearanceProfile.badge) : "Ninguno" },
-          ]}
-          chips={[
-            { label: "Preparado para Profile Card", style: { tone: "var(--tone-danger, #D85A30)", surface: "var(--tone-danger-soft, #fff7ed)" } },
-          ]}
-          detail={buildAppearanceStep(appearanceProfile)}
-        />
-
-        <ProgressCard
-          eyebrow="Prestige"
-          title={`P${formatCount(prestige.level || 0)} · ${formatCount(prestigeNodeCount)} nodo(s) activos`}
-          summary="El tablero meta, la resonancia y el ritmo de reset ya forman parte de la cuenta."
-          metrics={[
-            { label: "Disponibles", value: formatCount(prestige.echoes || 0) },
-            { label: "Totales", value: formatCount(prestige.totalEchoesEarned || 0) },
-            { label: "Gastados", value: formatCount(prestige.spentEchoes || 0) },
-          ]}
-          chips={[
-            {
-              label: nextPrestigeGoal ? `${nextPrestigeGoal.name}: ${formatCount(nextPrestigeGoal.progress)} / ${formatCount(nextPrestigeGoal.target)}` : "Prestige goals completos",
-              style: { tone: "var(--tone-accent, #4338ca)", surface: "var(--tone-accent-soft, #eef2ff)" },
-            },
-          ]}
-          detail={buildPrestigeStep({
-            nextGoal: nextPrestigeGoal,
-            totalEchoesEarned: prestige.totalEchoesEarned || 0,
-            nodeCount: prestigeNodeCount,
-          })}
-        />
-
-        <ProgressCard
-          eyebrow="Biblioteca"
-          title={`${formatCount(familySeenCount)} familias · ${formatCount(bossSeenCount)} bosses · ${formatCount(unlockedPowers)} powers`}
-          summary="La cuenta ya guarda familias, bosses, poderes y research; aqui se ve como una sola linea de maestria."
-          metrics={[
-            { label: "Familias full", value: `${formatCount(fullyResearchedFamilies)} / ${formatCount(familyEntries.length)}` },
-            { label: "Bosses full", value: `${formatCount(fullyResearchedBosses)} / ${formatCount(bossEntries.length)}` },
-            { label: "Powers miticos", value: `${formatCount(masteredPowers)} / ${formatCount(powerEntries.length)}` },
-          ]}
-          chips={[
-            { label: `${formatCount(unlockedCodexMilestones.length)} hitos activos`, style: { tone: "var(--tone-info, #0369a1)", surface: "var(--tone-info-soft, #f0f9ff)" } },
-            { label: `${formatCount(codexInk)} tinta`, style: { tone: "var(--tone-warning, #f59e0b)", surface: "var(--tone-warning-soft, #fff7ed)" } },
-          ]}
-          detail={buildCodexStep({
-            readyResearchCount,
-            unlockedPowers,
-            hiddenPowers,
-            codexInk,
-          })}
-        />
-
-        <ProgressCard
-          eyebrow="Abismo"
-          title={`Profundidad ${formatCount(highestDepth)} · Pico T${formatCount(highestTier)}`}
-          summary="El Abismo ya ordena la progresion larga con unlocks claros de cuenta."
-          metrics={[
-            { label: "Portal", value: highestTier > ABYSS_PORTAL_TIER ? "Abierto" : "Cerrado" },
-            { label: "Unlocks", value: `${formatCount(unlockedAbyssCount)} / ${formatCount(abyssUnlocks.length)}` },
-            { label: "Siguiente", value: nextAbyssUnlock ? nextAbyssUnlock.name : "Todo abierto" },
-          ]}
-          chips={abyssUnlocks.filter(entry => entry.unlocked).slice(-2).map(entry => ({
-            label: entry.name,
-            style: { tone: "var(--tone-violet, #7c3aed)", surface: "var(--tone-violet-soft, #f3e8ff)" },
-          }))}
-          detail={buildAbyssStep({
-            nextUnlock: nextAbyssUnlock,
-            highestTier,
-          })}
-        />
-
-        <ProgressCard
-          eyebrow="Blueprints"
-          title={`${formatCount(blueprints.length)} plano(s) · ${formatCount(activeBlueprintCount)} activo(s)`}
-          summary="El Santuario ya conserva direccion entre runs; aqui se ve si esa capa realmente esta viva."
-          metrics={[
-            { label: "Stash", value: formatCount(extractedItems.length) },
-            { label: "Weapon", value: sanctuary?.activeBlueprints?.weapon ? "Activo" : "Libre" },
-            { label: "Armor", value: sanctuary?.activeBlueprints?.armor ? "Activo" : "Libre" },
-          ]}
-          chips={[
-            { label: nextTierGoal ? `${nextTierGoal.name}: ${formatCount(nextTierGoal.progress)} / ${formatCount(nextTierGoal.target)}` : "Push goals completos", style: { tone: "var(--tone-success, #10b981)", surface: "var(--tone-success-soft, #ecfdf5)" } },
-          ]}
-          detail={buildBlueprintStep(sanctuary)}
-        />
       </section>
     </div>
   );

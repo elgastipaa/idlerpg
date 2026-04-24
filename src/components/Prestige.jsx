@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import useViewport from "../hooks/useViewport";
 import { PRESTIGE_BRANCHES, PRESTIGE_TREE_NODES } from "../data/prestige";
 import {
   calculatePrestigeEchoGain,
@@ -10,9 +11,13 @@ import {
   getPrestigeResonanceSummary,
   isPrestigeBranchUnlocked,
 } from "../engine/progression/prestigeEngine";
-import { getAbyssUnlockEntries } from "../engine/progression/abyssProgression";
+import {
+  getAbyssUnlockEntries,
+  getMaxRunSigilSlots,
+} from "../engine/progression/abyssProgression";
 import { getOnboardingFirstEchoNodeId, getOnboardingStepInteractionMode, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 import { buildRunOutcomeSummary } from "../utils/runOutcomeSummary";
+import RunSigilCallout from "./RunSigilCallout";
 
 const PERCENT_KEYS = new Set([
   "damagePct",
@@ -157,19 +162,13 @@ function getNodeTone(node, player) {
 
 export default function Prestige({ state, dispatch }) {
   const { player, prestige } = state;
-  const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < 768 : false);
+  const { isMobile } = useViewport();
   const [activeBranchId, setActiveBranchId] = useState(PRESTIGE_BRANCHES[0]?.id || null);
   const [nodeVisibilityFilter, setNodeVisibilityFilter] = useState("comprables");
   const [showAbyssMilestones, setShowAbyssMilestones] = useState(false);
   const [canScrollBranchesLeft, setCanScrollBranchesLeft] = useState(false);
   const [canScrollBranchesRight, setCanScrollBranchesRight] = useState(false);
   const branchScrollerRef = useRef(null);
-
-  useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
 
   useEffect(() => {
     const node = branchScrollerRef.current;
@@ -213,6 +212,11 @@ export default function Prestige({ state, dispatch }) {
   const abyssUnlocks = useMemo(() => getAbyssUnlockEntries(state?.abyss || {}), [state?.abyss]);
   const highestAbyssDepth = Number(state?.abyss?.highestDepthReached || 0);
   const highestAbyssTier = Number(state?.abyss?.highestTierReached || 1);
+  const runSigilSlotCount = getMaxRunSigilSlots(state?.abyss || {});
+  const activeRunSigilIds =
+    state?.combat?.activeRunSigilIds || state?.combat?.activeRunSigilId || "free";
+  const showRunSigilCallout =
+    Number(prestige.level || 0) >= 1 && !state?.combat?.pendingRunSetup;
   const prestigeMomentum = prestigePreview.momentum || {
     historicBestTier: 0,
     currentTier: prestigePreview.progress?.maxTier || 1,
@@ -280,6 +284,14 @@ export default function Prestige({ state, dispatch }) {
         source: "prestige",
       }),
     [echoesOnNext, state]
+  );
+  const quickPrestigeKeeps = useMemo(
+    () => (prestigeOutcomeSummary.groups.find(group => group.id === "keeps")?.items || []).slice(0, 2),
+    [prestigeOutcomeSummary]
+  );
+  const quickPrestigeResets = useMemo(
+    () => (prestigeOutcomeSummary.groups.find(group => group.id === "resets")?.items || []).slice(0, 2),
+    [prestigeOutcomeSummary]
   );
 
   useEffect(() => {
@@ -366,6 +378,21 @@ export default function Prestige({ state, dispatch }) {
           Reinicias la run, pero conservas ecos, tablero y resonancia de cuenta.
         </div>
 
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px", marginTop: "10px" }}>
+          <QuickPrestigeOutcomeColumn
+            label="Conservas"
+            tone="#10b981"
+            items={quickPrestigeKeeps}
+            fallback="Sin conservaciones adicionales."
+          />
+          <QuickPrestigeOutcomeColumn
+            label="Se reinicia"
+            tone="#D85A30"
+            items={quickPrestigeResets}
+            fallback="Sin reinicios adicionales."
+          />
+        </div>
+
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, minmax(0, 1fr))", gap: "8px", marginTop: "12px" }}>
           <div style={resetMetricCardStyle}>
             <div style={resetMetricLabelStyle}>Tier actual</div>
@@ -389,6 +416,17 @@ export default function Prestige({ state, dispatch }) {
           </div>
         </div>
       </section>
+
+      {showRunSigilCallout && (
+        <RunSigilCallout
+          runSigilIds={activeRunSigilIds}
+          slotCount={runSigilSlotCount}
+          title="Sigilos activos de la run"
+          subtitle="No cambian durante la corrida. Se redefinen en setup al salir desde Santuario."
+          dark
+          showDeltas
+        />
+      )}
 
       <section style={summaryPanelStyle}>
         <div style={{ display: "grid", gap: "4px" }}>
@@ -1008,6 +1046,39 @@ function OutcomeSummaryCard({ group }) {
           <li key={item}>{item}</li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function QuickPrestigeOutcomeColumn({ label, tone, items = [], fallback = "" }) {
+  return (
+    <div
+      style={{
+        background: "rgba(15,23,42,0.36)",
+        border: "1px solid rgba(148,163,184,0.22)",
+        borderTop: `3px solid ${tone}`,
+        borderRadius: "12px",
+        padding: "9px 10px",
+        display: "grid",
+        gap: "6px",
+      }}
+    >
+      <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: tone }}>
+        {label}
+      </div>
+      {items.length > 0 ? (
+        <div style={{ display: "grid", gap: "4px" }}>
+          {items.map(item => (
+            <div key={`${label}-${item}`} style={{ fontSize: "0.64rem", color: "#cbd5e1", lineHeight: 1.4 }}>
+              • {item}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: "0.64rem", color: "#94a3b8", lineHeight: 1.4 }}>
+          {fallback}
+        </div>
+      )}
     </div>
   );
 }

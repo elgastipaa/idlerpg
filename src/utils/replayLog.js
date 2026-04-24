@@ -50,6 +50,7 @@ function summarizeLootRules(lootRules = {}) {
   return {
     autoSell: [...(lootRules.autoSellRarities || [])],
     autoExtract: [...(lootRules.autoExtractRarities || [])],
+    minVisibleRarity: lootRules.minVisibleRarity || "common",
     huntPreset: lootRules.huntPreset || null,
     protectHuntedDrops: lootRules.protectHuntedDrops !== false,
     protectUpgradeDrops: lootRules.protectUpgradeDrops !== false,

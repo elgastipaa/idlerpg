@@ -187,6 +187,8 @@ export function handleRunFlowAction(state, action, dependencies) {
           performanceSnapshot: getEmptyPerformanceSnapshot(),
           latestLootEvent: null,
           inventoryOverflowEvent: null,
+          inventoryOverflowStats: { total: 0, displaced: 0, lost: 0, lastAt: null },
+          pendingOpenLootFilter: false,
           lastRunSummary: null,
           offlineSummary: null,
           reforgeSession: null,
@@ -302,6 +304,43 @@ export function handleRunFlowAction(state, action, dependencies) {
         expedition: {
           ...(state.expedition || createEmptyExpeditionState()),
           selectedProjectItemId: action.itemId || null,
+        },
+      };
+    }
+
+    case "REVEAL_EXTRACTION_PROJECT_INTEL": {
+      if (state.expedition?.phase !== "extraction") return state;
+      const extractionPreview = state.expedition?.extractionPreview || null;
+      if (!extractionPreview) return state;
+      const lensUses = Math.max(0, Number(extractionPreview.projectIntelLensUses || 0));
+      if (lensUses <= 0) return state;
+
+      const targetProjectId = action.itemId || state.expedition?.selectedProjectItemId || null;
+      if (!targetProjectId) return state;
+
+      let consumedUse = false;
+      const nextProjectOptions = (extractionPreview.projectOptions || []).map(option => {
+        if (option?.itemId !== targetProjectId) return option;
+        const intelLines = Array.isArray(option?.intelLines) ? option.intelLines : [];
+        const revealedCount = Math.max(0, Number(option?.intelRevealedCount || 0));
+        if (intelLines.length <= revealedCount) return option;
+        consumedUse = true;
+        return {
+          ...option,
+          intelRevealedCount: revealedCount + 1,
+        };
+      });
+      if (!consumedUse) return state;
+
+      return {
+        ...state,
+        expedition: {
+          ...(state.expedition || createEmptyExpeditionState()),
+          extractionPreview: {
+            ...extractionPreview,
+            projectOptions: nextProjectOptions,
+            projectIntelLensUses: lensUses - 1,
+          },
         },
       };
     }

@@ -46,6 +46,7 @@ export const BLUEPRINT_AFFIX_FAMILIES = {
 const BLUEPRINT_FAMILY_IDS = Object.keys(BLUEPRINT_AFFIX_FAMILIES);
 const AFFIX_TIER_CHARGE_WEIGHTS = { 1: 4, 2: 2, 3: 1 };
 const AFFIX_TIER_AFFINITY_WEIGHTS = { 1: 3, 2: 2, 3: 1 };
+const FAMILY_CHARGE_CAP = 120;
 const PRIMARY_AFFINITY_CAP = 70;
 const SECONDARY_AFFINITY_CAP = 55;
 const OFF_FAMILY_AFFINITY_CAP = 40;
@@ -169,6 +170,18 @@ export function createEmptyFamilyChargeState() {
   return makeEmptyAffinityMap();
 }
 
+export function getBlueprintFamilyChargeCap() {
+  return FAMILY_CHARGE_CAP;
+}
+
+export function normalizeFamilyChargeState(currentCharges = {}) {
+  const next = createEmptyFamilyChargeState();
+  for (const familyId of BLUEPRINT_FAMILY_IDS) {
+    next[familyId] = Math.max(0, Math.min(FAMILY_CHARGE_CAP, Math.floor(Number(currentCharges?.[familyId] || 0))));
+  }
+  return next;
+}
+
 export function createEmptyBlueprintLoadout() {
   return {
     weapon: null,
@@ -212,9 +225,10 @@ export function buildFamilyChargesFromAffixes(affixes = [], { multiplier = 1 } =
 }
 
 function mergeChargeMaps(base = {}, extra = {}) {
-  const next = { ...createEmptyFamilyChargeState(), ...(base || {}) };
+  const next = normalizeFamilyChargeState(base || {});
   for (const familyId of BLUEPRINT_FAMILY_IDS) {
-    next[familyId] = Math.max(0, Number(next[familyId] || 0) + Number(extra?.[familyId] || 0));
+    const addedCharges = Math.max(0, Math.floor(Number(extra?.[familyId] || 0)));
+    next[familyId] = Math.max(0, Math.min(FAMILY_CHARGE_CAP, Number(next[familyId] || 0) + addedCharges));
   }
   return next;
 }
@@ -750,6 +764,14 @@ function getBlueprintStructureBand(multiplier = 1) {
   return "muy fuerte";
 }
 
+export function getBlueprintAffinityStrengthLabel(score = 0) {
+  const value = Math.max(0, Number(score || 0));
+  if (value >= 60) return "muy alta";
+  if (value >= 45) return "alta";
+  if (value >= 25) return "media";
+  return "baja";
+}
+
 export function materializeBlueprintItem(blueprint = {}, { now = Date.now() } = {}) {
   const normalized = normalizeBlueprintRecord(blueprint);
   if (!normalized?.id) return null;
@@ -872,6 +894,7 @@ export function buildBlueprintMaterializationPreview(blueprint = {}) {
     topFamilies: affinityRanking.map(entry => ({
       ...entry,
       meta: BLUEPRINT_AFFIX_FAMILIES[entry.familyId] || null,
+      strengthLabel: getBlueprintAffinityStrengthLabel(entry.score),
     })),
     hasLegendaryPower: !!normalized.legendaryPowerId,
     powerTuneLevel: Math.max(0, Number(normalized.powerTuneLevel || 0)),

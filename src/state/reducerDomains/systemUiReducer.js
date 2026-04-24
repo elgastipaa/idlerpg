@@ -1,5 +1,6 @@
 import { createEmptyOnboardingState, normalizeOnboardingState } from "../../engine/onboarding/onboardingEngine";
 import { SANCTUARY_STATION_DEFAULTS } from "../../engine/sanctuary/laboratoryEngine";
+import { sanitizeLootRules } from "../../utils/lootFilter";
 import { buildReplayLibraryEntry, createEmptyReplayLog, normalizeReplayLibrary } from "../../utils/replayLog";
 import { createEmptySessionAnalytics } from "../../utils/runTelemetry";
 
@@ -123,10 +124,25 @@ export function handleSystemUiAction(state, action) {
         ...state,
         settings: {
           ...state.settings,
-          lootRules: {
-            ...(state.settings?.lootRules || {}),
-            ...(action.lootRules || {}),
-          },
+          lootRules: sanitizeLootRules(action.lootRules, state.settings?.lootRules || {}),
+        },
+      };
+
+    case "REQUEST_LOOT_FILTER_OPEN":
+      return {
+        ...state,
+        combat: {
+          ...state.combat,
+          pendingOpenLootFilter: true,
+        },
+      };
+
+    case "ACK_LOOT_FILTER_OPEN":
+      return {
+        ...state,
+        combat: {
+          ...state.combat,
+          pendingOpenLootFilter: false,
         },
       };
 

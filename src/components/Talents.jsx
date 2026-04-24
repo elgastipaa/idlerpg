@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import useViewport from "../hooks/useViewport";
 import { TALENTS } from "../data/talents";
 import { getNodesForTree } from "../data/talentNodes";
 import {
@@ -785,7 +786,7 @@ export default function Talents({ state, dispatch }) {
     talentLevels = {},
     talentPoints = 0,
   } = player;
-  const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth < 768 : false);
+  const { isMobile } = useViewport();
   const [selectedTreeId, setSelectedTreeId] = useState(null);
   const [visibilityFilter, setVisibilityFilter] = useState("comprables");
   const [recentUnlocks, setRecentUnlocks] = useState({});
@@ -795,12 +796,6 @@ export default function Talents({ state, dispatch }) {
   const spotlightTalentPurchase = onboardingStep === ONBOARDING_STEPS.BUY_TALENT;
   const trackedUnlocksRef = useRef(unlockedTalents || []);
   const treeTabsScrollerRef = useRef(null);
-
-  useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
 
   useEffect(() => {
     const previous = new Set(trackedUnlocksRef.current || []);

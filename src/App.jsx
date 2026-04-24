@@ -1,8 +1,7 @@
-import React, { Suspense, lazy, useState, useEffect, useRef, useCallback } from "react";
+import React, { Suspense, lazy, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import packageJson from "../package.json";
 import { useGame } from "./hooks/useGame";
-import Sanctuary from "./components/Sanctuary";
-import OnboardingOverlay from "./components/OnboardingOverlay";
+import useViewport from "./hooks/useViewport";
 import OverlayShell from "./components/OverlayShell";
 import { getRarityColor } from "./constants/rarity";
 import {
@@ -18,9 +17,9 @@ import { getMaxRunSigilSlots } from "./engine/progression/abyssProgression";
 import {
   canOpenExpedition,
   getEffectiveOnboardingStep,
+  getOnboardingTabBlockMeta,
   getOnboardingRequiredTab,
   isSanctuaryLockedDuringExpeditionTutorial,
-  isOnboardingTabAllowed,
   ONBOARDING_STEPS,
   shouldShowHeroPrimaryTab,
 } from "./engine/onboarding/onboardingEngine";
@@ -30,6 +29,8 @@ const Prestige = lazy(() => import("./components/Prestige"));
 const HeroView = lazy(() => import("./components/HeroView"));
 const ExpeditionView = lazy(() => import("./components/ExpeditionView"));
 const RegistryView = lazy(() => import("./components/RegistryView"));
+const Sanctuary = lazy(() => import("./components/Sanctuary"));
+const OnboardingOverlay = lazy(() => import("./components/OnboardingOverlay"));
 const ExtractionOverlay = lazy(() => import("./components/ExtractionOverlay"));
 
 class TabErrorBoundary extends React.Component {
@@ -234,11 +235,60 @@ function buildActionToastFromLog(logLine = "") {
     };
   }
 
-  if (!text.startsWith("SANTUARIO:")) return null;
+  if (text.startsWith("LOGRO:")) {
+    return {
+      tone: "success",
+      label: text.replace("LOGRO:", "Logro ·"),
+    };
+  }
+
+  if (text.startsWith("HITO DE ABISMO:")) {
+    return {
+      tone: "success",
+      label: text.replace("HITO DE ABISMO:", "Hito de Abismo ·"),
+    };
+  }
+
+  if (text.startsWith("CODEX:")) {
+    return {
+      tone: "success",
+      label: text.replace("CODEX:", "Codex ·"),
+    };
+  }
+
+  if (text.startsWith("LEDGER:")) {
+    return {
+      tone: "info",
+      label: text.replace("LEDGER:", "Ledger ·"),
+    };
+  }
+
+  if (text.startsWith("Seguridad:")) {
+    return {
+      tone: "warning",
+      label: text.replace("Seguridad:", "Accion bloqueada ·"),
+    };
+  }
+
+  if (text.startsWith("EXTRACCION:")) {
+    const label = text.replace("EXTRACCION:", "").trim();
+    const tone = /fall|bloque|pierde|riesgo|cancel/i.test(label) ? "warning" : "info";
+    return { tone, label: `Extraccion · ${label}` };
+  }
+
+  if (!text.startsWith("SANTUARIO:")) {
+    if (/bloquead|fallid|sin recuperacion|pierde/i.test(text)) {
+      return { tone: "warning", label: text };
+    }
+    if (/desbloque|completa|reclama|listo para/i.test(text)) {
+      return { tone: "success", label: text };
+    }
+    return null;
+  }
 
   const label = text.replace("SANTUARIO:", "").trim();
   let tone = "info";
-  if (/reclamad|vuelve|completa|convierte|desguaza|alcanza/i.test(label)) {
+  if (/reclamad|vuelve|completa|convierte|desguaza|alcanza|desbloque/i.test(label)) {
     tone = "success";
   } else if (/retirado|pierde|sin recuperacion/i.test(label)) {
     tone = "warning";
@@ -282,22 +332,20 @@ function isPrimaryTabAllowed(primaryTab = "sanctuary", onboardingStep = null, st
   }
   if (!onboardingStep) return true;
   if (primaryTab === "combat") {
-    return ["combat", "inventory", "crafting", "codex"].some(tab => isOnboardingTabAllowed(onboardingStep, tab));
+    return ["combat", "inventory", "crafting", "codex"].some(tab =>
+      !getOnboardingTabBlockMeta(onboardingStep, tab, state).blocked
+    );
   }
   if (primaryTab === "character") {
-    return ["character", "skills", "talents"].some(tab => isOnboardingTabAllowed(onboardingStep, tab));
+    return ["character", "skills", "talents"].some(tab =>
+      !getOnboardingTabBlockMeta(onboardingStep, tab, state).blocked
+    );
   }
-  return isOnboardingTabAllowed(onboardingStep, getDefaultTabForPrimaryTab(primaryTab));
-}
-
-function renderCurrentTab(currentTab, state, dispatch) {
-  const primaryTab = getVisiblePrimaryTab(currentTab, state);
-  if (primaryTab === "sanctuary") return <Sanctuary state={state} dispatch={dispatch} />;
-  if (primaryTab === "character") return <HeroView state={state} dispatch={dispatch} />;
-  if (primaryTab === "combat") return <ExpeditionView state={state} dispatch={dispatch} />;
-  if (primaryTab === "prestige") return <Prestige state={state} dispatch={dispatch} />;
-  if (primaryTab === "registry") return <RegistryView state={state} dispatch={dispatch} />;
-  return null;
+  return !getOnboardingTabBlockMeta(
+    onboardingStep,
+    getDefaultTabForPrimaryTab(primaryTab),
+    state
+  ).blocked;
 }
 
 const PRIMARY_TAB_CONFIG = {
@@ -307,14 +355,223 @@ const PRIMARY_TAB_CONFIG = {
   prestige:     { label: "Ecos", icon: "🜂" },
   registry:     { label: "Mas", icon: "🗂️" },
 };
+const PRIMARY_TAB_COMPONENTS = {
+  sanctuary: Sanctuary,
+  character: HeroView,
+  combat: ExpeditionView,
+  prestige: Prestige,
+  registry: RegistryView,
+};
+const PRIMARY_TAB_SPOTLIGHT_KEYFRAMES = `
+  @keyframes appPrimaryTabSpotlightPulse {
+    0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
+    70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
+    100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
+  }
+`;
 
 const APP_VERSION = packageJson?.version || "0.0.0";
 const DEBUG_TRIPLE_CLICK_WINDOW_MS = 750;
 const MAX_RECENT_ERROR_ENTRIES = 20;
 
+const AppHeader = React.memo(function AppHeader({
+  isMobile,
+  headerHeight,
+  desktopMaxWidth,
+  currentPrimaryLabel,
+  reforgeLocked,
+  onHeaderDebugTap,
+  resourceSummary,
+  onToggleTheme,
+  theme,
+}) {
+  return (
+    <header style={{ position: "fixed", top: 0, left: 0, width: "100%", height: `${headerHeight}px`, backgroundColor: "var(--color-background-primary, #f8fafc)", borderBottom: "1px solid var(--color-border-secondary, #e2e8f0)", zIndex: 5000, display: "flex", alignItems: "center" }}>
+      <div style={{ maxWidth: `${desktopMaxWidth}px`, width: "100%", margin: "0 auto", padding: isMobile ? "8px 14px" : "10px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+        <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: "8px" }} onClick={onHeaderDebugTap}>
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ margin: 0, fontSize: isMobile ? "1.15rem" : "1.55rem", fontWeight: "800", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.1 }}>
+              {currentPrimaryLabel}
+            </h1>
+          </div>
+          {reforgeLocked && (
+            <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--tone-violet, #6d28d9)", padding: "3px 7px", borderRadius: "999px", background: "var(--tone-violet-soft, #f3e8ff)", border: "1px solid rgba(124,58,237,0.18)", whiteSpace: "nowrap", flexShrink: 0 }}>
+              Reforja
+            </span>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: isMobile ? 1 : "0 1 auto", justifyContent: "flex-end" }}>
+          <div style={{ minWidth: 0, maxWidth: isMobile ? "calc(100vw - 120px)" : "100%" }}>
+            {resourceSummary}
+          </div>
+          <button
+            onClick={onToggleTheme}
+            title="Cambiar tema"
+            aria-label="Cambiar tema"
+            style={themeToggleButtonStyle(isMobile)}
+          >
+            {theme === "dark" ? "☀" : "☾"}
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+});
+
+const DesktopPrimaryTabs = React.memo(function DesktopPrimaryTabs({
+  entries,
+  onTabPress,
+}) {
+  return (
+    <div style={{ marginBottom: "12px", background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-tertiary, #cbd5e1)", borderRadius: "12px", boxShadow: "0 4px 20px var(--color-shadow, rgba(0,0,0,0.05))", padding: "10px 12px" }}>
+      <nav style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        {entries.map(entry => (
+          <button
+            key={entry.id}
+            disabled={entry.hardDisabled}
+            data-onboarding-target={entry.onboardingTarget}
+            onClick={() => onTabPress(entry.id)}
+            style={{
+              padding: "7px 13px",
+              cursor: (entry.hardDisabled || entry.blockedByOnboarding) ? "not-allowed" : "pointer",
+              backgroundColor: entry.isActive ? "var(--color-background-info, #e0e7ff)" : "var(--color-background-secondary, #ffffff)",
+              color: (entry.hardDisabled || entry.blockedByOnboarding) ? "var(--color-text-tertiary, #94a3b8)" : entry.isActive ? "var(--color-text-info, #4338ca)" : "var(--color-text-primary, #1e293b)",
+              border: "1px solid var(--color-border-tertiary, #cbd5e1)",
+              borderRadius: "8px",
+              fontWeight: "700",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              transition: "all 0.2s",
+              opacity: entry.hardDisabled ? 0.5 : entry.blockedByOnboarding ? 0.68 : 1,
+              position: entry.hasSpotlight ? "relative" : "static",
+              zIndex: entry.hasSpotlight ? 2 : 1,
+              boxShadow: entry.hasSpotlight
+                ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 28px rgba(83,74,183,0.18)"
+                : "none",
+              animation: entry.hasSpotlight ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
+            }}
+          >
+            <span>{PRIMARY_TAB_CONFIG[entry.id].icon}</span>
+            {PRIMARY_TAB_CONFIG[entry.id].label}
+            {entry.showTalentBadge && (
+              <span style={{ marginLeft: "4px", minWidth: "18px", height: "18px", padding: "0 6px", borderRadius: "999px", background: "var(--tone-danger, #ef4444)", color: "#fff", fontSize: "0.62rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                {entry.talentBadgeValue}
+              </span>
+            )}
+            {entry.showInventoryBadge && (
+              <span style={{ marginLeft: "4px", minWidth: "18px", height: "18px", padding: "0 6px", borderRadius: "999px", background: "var(--tone-success, #10b981)", color: "#fff", fontSize: "0.62rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                {entry.inventoryBadgeValue}
+              </span>
+            )}
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+});
+
+const MobilePrimaryTabs = React.memo(function MobilePrimaryTabs({
+  entries,
+  navHeight,
+  onTabPress,
+}) {
+  return (
+    <nav style={{ position: "fixed", bottom: 0, left: 0, width: "100%", height: `${navHeight}px`, backgroundColor: "var(--color-background-secondary, #ffffff)", borderTop: "1px solid var(--color-border-secondary, #e2e8f0)", display: "flex", zIndex: 5000, paddingBottom: "env(safe-area-inset-bottom)", boxSizing: "content-box" }}>
+      {entries.map(entry => (
+        <button
+          key={entry.id}
+          disabled={entry.hardDisabled}
+          data-onboarding-target={entry.onboardingTarget}
+          onClick={() => onTabPress(entry.id)}
+          style={{
+            flex: 1,
+            minWidth: "56px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "column",
+            gap: "2px",
+            background: entry.isActive ? "var(--color-background-info, #f1f5f9)" : "transparent",
+            border: "none",
+            outline: "none",
+            position: "relative",
+            paddingTop: "5px",
+            opacity: entry.hardDisabled ? 0.45 : entry.blockedByOnboarding ? 0.66 : 1,
+            boxShadow: entry.hasSpotlight
+              ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.16)"
+              : "none",
+            animation: entry.hasSpotlight ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
+            zIndex: entry.hasSpotlight ? 2 : 1,
+          }}
+        >
+          <span style={{ filter: entry.isActive ? "none" : "grayscale(1) opacity(0.5)", position: "relative", fontSize: "21px", lineHeight: 1 }}>
+            {PRIMARY_TAB_CONFIG[entry.id].icon}
+          </span>
+          <span style={{ fontSize: "0.56rem", fontWeight: "900", color: entry.isActive ? "var(--color-text-info, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            {PRIMARY_TAB_CONFIG[entry.id].label}
+          </span>
+          {entry.showInventoryBadge && (
+            <span style={{ position: "absolute", top: "6px", right: "14px", minWidth: "16px", height: "16px", padding: "0 5px", borderRadius: "999px", background: "var(--tone-success, #10b981)", color: "#fff", fontSize: "0.56rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              {entry.inventoryBadgeValue}
+            </span>
+          )}
+          {entry.showTalentBadge && (
+            <span style={{ position: "absolute", top: "6px", right: "12px", minWidth: "16px", height: "16px", padding: "0 5px", borderRadius: "999px", background: "var(--tone-danger, #ef4444)", color: "#fff", fontSize: "0.56rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              {entry.talentBadgeValue}
+            </span>
+          )}
+        </button>
+      ))}
+    </nav>
+  );
+});
+
+const PrimaryTabPane = React.memo(
+  function PrimaryTabPane({ component: Component, tabState, dispatch }) {
+    return <Component state={tabState} dispatch={dispatch} />;
+  },
+  (prevProps, nextProps) =>
+    prevProps.component === nextProps.component &&
+    prevProps.tabState === nextProps.tabState &&
+    prevProps.dispatch === nextProps.dispatch
+);
+
+const PrimaryTabViewport = React.memo(
+  function PrimaryTabViewport({
+    isMobile,
+    currentPrimaryLabel,
+    recoverToTab,
+    component,
+    tabState,
+    dispatch,
+  }) {
+    return (
+      <main style={{ width: "100%", background: isMobile ? "transparent" : "var(--color-background-secondary, #ffffff)", borderRadius: isMobile ? "0" : "12px", border: isMobile ? "none" : "1px solid var(--color-border-tertiary, #cbd5e1)", boxShadow: isMobile ? "none" : "0 4px 20px var(--color-shadow, rgba(0,0,0,0.05))" }}>
+        <TabErrorBoundary
+          label={currentPrimaryLabel}
+          recoverLabel={recoverToTab === "combat" ? "Ir a Expedicion" : "Ir al Santuario"}
+          onRecover={() => dispatch({ type: "SET_TAB", tab: recoverToTab })}
+        >
+          <Suspense fallback={<TabLoadingCard label={currentPrimaryLabel} />}>
+            <PrimaryTabPane component={component} tabState={tabState} dispatch={dispatch} />
+          </Suspense>
+        </TabErrorBoundary>
+      </main>
+    );
+  },
+  (prevProps, nextProps) =>
+    prevProps.isMobile === nextProps.isMobile &&
+    prevProps.currentPrimaryLabel === nextProps.currentPrimaryLabel &&
+    prevProps.recoverToTab === nextProps.recoverToTab &&
+    prevProps.component === nextProps.component &&
+    prevProps.tabState === nextProps.tabState &&
+    prevProps.dispatch === nextProps.dispatch
+);
+
 export default function App() {
   const { state, dispatch, getRecentActions } = useGame();
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const { isMobile } = useViewport();
   const [showLegacySavePrompt, setShowLegacySavePrompt] = useState(false);
   const [testerToast, setTesterToast] = useState(null);
   const [actionToast, setActionToast] = useState(null);
@@ -324,12 +581,17 @@ export default function App() {
   const headerTapTimesRef = useRef([]);
   const previousCombatLogRef = useRef(null);
   const offlineSummary = state.combat?.offlineSummary;
-  const hasTalentPoints = (state.player?.talentPoints || 0) > 0;
+  const talentPoints = Math.max(0, Number(state.player?.talentPoints || 0));
+  const hasTalentPoints = talentPoints > 0;
   const reforgeLocked = !!state.combat?.reforgeSession;
-  const inventoryUpgrades = (state.player?.inventory || []).filter(item => {
-    const compare = item.type === "weapon" ? state.player?.equipment?.weapon : state.player?.equipment?.armor;
-    return (item?.rating || 0) > (compare?.rating || 0);
-  }).length;
+  const inventoryUpgrades = useMemo(
+    () =>
+      (state.player?.inventory || []).filter(item => {
+        const compare = item.type === "weapon" ? state.player?.equipment?.weapon : state.player?.equipment?.armor;
+        return (item?.rating || 0) > (compare?.rating || 0);
+      }).length,
+    [state.player?.equipment?.armor, state.player?.equipment?.weapon, state.player?.inventory]
+  );
   const theme = state.settings?.theme === "dark" ? "dark" : "light";
   const themeVars = THEMES[theme];
   const runSigilSlotCount = getMaxRunSigilSlots(state?.abyss || {});
@@ -356,12 +618,18 @@ export default function App() {
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
+      @keyframes appActionToastPulseSuccess {
+        0% { transform: translateX(-50%) scale(0.98); box-shadow: 0 10px 22px rgba(15,23,42,0.08); }
+        50% { transform: translateX(-50%) scale(1); box-shadow: 0 14px 30px rgba(16,185,129,0.18); }
+        100% { transform: translateX(-50%) scale(1); box-shadow: 0 12px 24px rgba(15,23,42,0.12); }
+      }
+      @keyframes appActionToastPulseWarning {
+        0% { transform: translateX(-50%) scale(0.98); box-shadow: 0 10px 22px rgba(15,23,42,0.08); }
+        50% { transform: translateX(-50%) scale(1.01); box-shadow: 0 14px 30px rgba(245,158,11,0.22); }
+        100% { transform: translateX(-50%) scale(1); box-shadow: 0 12px 24px rgba(15,23,42,0.12); }
+      }
     `;
     document.head.appendChild(style);
-
-    const handler = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
   }, []);
 
   useEffect(() => {
@@ -386,12 +654,42 @@ export default function App() {
   const NAV_HEIGHT_MOBILE = 72;
   const DESKTOP_MAX_WIDTH = 1180;
   const onboardingStep = state?.onboarding?.step || null;
-  const effectiveOnboardingStep = getEffectiveOnboardingStep(onboardingStep, state);
-  const currentPrimaryTab = getVisiblePrimaryTab(state.currentTab, state);
+  const onboardingTabState = useMemo(
+    () => ({
+      onboarding: state?.onboarding,
+      player: { class: state?.player?.class },
+      expedition: { phase: state?.expedition?.phase },
+      currentTab: state?.currentTab,
+      sanctuary: {
+        jobs: state?.sanctuary?.jobs,
+        stations: { distillery: { unlocked: state?.sanctuary?.stations?.distillery?.unlocked } },
+      },
+      __liveNow: state?.__liveNow,
+    }),
+    [
+      state?.__liveNow,
+      state?.currentTab,
+      state?.expedition?.phase,
+      state?.onboarding,
+      state?.player?.class,
+      state?.sanctuary?.jobs,
+      state?.sanctuary?.stations?.distillery?.unlocked,
+    ]
+  );
+  const onboardingEvaluationState = onboardingStep ? onboardingTabState : null;
+  const effectiveOnboardingStep = useMemo(
+    () => getEffectiveOnboardingStep(onboardingStep, onboardingEvaluationState || {}),
+    [onboardingEvaluationState, onboardingStep]
+  );
+  const currentTab = state.currentTab;
+  const currentPrimaryTab = getVisiblePrimaryTab(currentTab, state);
   const prestigeTabUnlocked = isPrestigeTabUnlocked(state);
   const expeditionUnlocked = canOpenExpedition(state);
   const showHeroPrimaryTab = shouldShowHeroPrimaryTab(state);
-  const visiblePrimaryTabs = ["sanctuary", "combat", ...(showHeroPrimaryTab ? ["character"] : []), ...(prestigeTabUnlocked ? ["prestige"] : []), "registry"];
+  const visiblePrimaryTabs = useMemo(
+    () => ["sanctuary", "combat", ...(showHeroPrimaryTab ? ["character"] : []), ...(prestigeTabUnlocked ? ["prestige"] : []), "registry"],
+    [prestigeTabUnlocked, showHeroPrimaryTab]
+  );
   const sanctuaryOnboardingScrollLocked = [
     ONBOARDING_STEPS.OPEN_LABORATORY,
     ONBOARDING_STEPS.RESEARCH_DISTILLERY,
@@ -399,6 +697,80 @@ export default function App() {
     ONBOARDING_STEPS.OPEN_DISTILLERY,
     ONBOARDING_STEPS.FIRST_DISTILLERY_JOB,
   ].includes(onboardingStep);
+  const sanctuaryPrimaryBlocked = useMemo(
+    () => {
+      if (!onboardingEvaluationState) return false;
+      return !isPrimaryTabAllowed("sanctuary", onboardingStep, onboardingEvaluationState);
+    },
+    [
+      onboardingEvaluationState,
+      onboardingStep,
+    ]
+  );
+  const onboardingPrimaryBlockedMap = useMemo(() => {
+    if (!onboardingEvaluationState) return null;
+    const blockedByTab = {};
+    visiblePrimaryTabs.forEach(tabId => {
+      blockedByTab[tabId] = !isPrimaryTabAllowed(tabId, onboardingStep, onboardingEvaluationState);
+    });
+    return blockedByTab;
+  }, [onboardingEvaluationState, onboardingStep, visiblePrimaryTabs]);
+  const primaryTabEntries = useMemo(
+    () =>
+      visiblePrimaryTabs.map(tabId => {
+        const isActive = currentPrimaryTab === tabId;
+        const blockedByOnboarding = onboardingPrimaryBlockedMap
+          ? Boolean(onboardingPrimaryBlockedMap[tabId])
+          : tabId === "sanctuary"
+            ? sanctuaryPrimaryBlocked
+            : false;
+        const hardDisabled =
+          (reforgeLocked && !isActive) ||
+          (tabId === "combat" && !expeditionUnlocked);
+        const spotlightHeroPrimary =
+          (onboardingStep === ONBOARDING_STEPS.OPEN_HERO || effectiveOnboardingStep === ONBOARDING_STEPS.OPEN_HERO) &&
+          tabId === "character";
+        const spotlightPrestigePrimary =
+          (onboardingStep === ONBOARDING_STEPS.FIRST_ECHOES || effectiveOnboardingStep === ONBOARDING_STEPS.FIRST_ECHOES) &&
+          tabId === "prestige";
+        const spotlightSanctuaryPrimary =
+          (onboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY || effectiveOnboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY) &&
+          tabId === "sanctuary";
+        const hasSpotlight = spotlightHeroPrimary || spotlightPrestigePrimary || spotlightSanctuaryPrimary;
+        const onboardingTarget = spotlightSanctuaryPrimary
+          ? "primary-sanctuary-tab"
+          : spotlightHeroPrimary
+            ? "primary-hero-tab"
+            : spotlightPrestigePrimary
+              ? "primary-prestige-tab"
+              : undefined;
+        return {
+          id: tabId,
+          isActive,
+          blockedByOnboarding,
+          hardDisabled,
+          hasSpotlight,
+          onboardingTarget,
+          showInventoryBadge: tabId === "combat" && inventoryUpgrades > 0,
+          inventoryBadgeValue: inventoryUpgrades > 9 ? "9+" : String(inventoryUpgrades),
+          showTalentBadge: tabId === "character" && hasTalentPoints,
+          talentBadgeValue: String(talentPoints),
+        };
+      }),
+    [
+      currentPrimaryTab,
+      effectiveOnboardingStep,
+      expeditionUnlocked,
+      hasTalentPoints,
+      inventoryUpgrades,
+      onboardingPrimaryBlockedMap,
+      onboardingStep,
+      reforgeLocked,
+      sanctuaryPrimaryBlocked,
+      talentPoints,
+      visiblePrimaryTabs,
+    ]
+  );
 
   const pushRecentError = useCallback((entry) => {
     if (!entry) return;
@@ -517,7 +889,7 @@ export default function App() {
     Boolean(saveDiagnostics.legacyNeedsRepair) &&
     Number(saveDiagnostics.legacyPromptShownCount || 0) < 3;
 
-  function scrollAppToTop(behavior = "auto") {
+  const scrollAppToTop = useCallback((behavior = "auto") => {
     const scrollRoot = document.scrollingElement || document.documentElement || document.body;
     window.scrollTo({ top: 0, behavior });
     if (typeof document.documentElement.scrollTo === "function") {
@@ -542,9 +914,9 @@ export default function App() {
         contentRef.current.scrollTop = 0;
       }
     }
-  }
+  }, []);
 
-  function scrollAppToTopSoon(behavior = "auto") {
+  const scrollAppToTopSoon = useCallback((behavior = "auto") => {
     scrollAppToTop(behavior);
     window.requestAnimationFrame(() => {
       scrollAppToTop(behavior);
@@ -552,14 +924,14 @@ export default function App() {
         scrollAppToTop(behavior);
       });
     });
-  }
+  }, [scrollAppToTop]);
 
   useEffect(() => {
     if (prevTabRef.current !== state.currentTab) {
       scrollAppToTopSoon();
       prevTabRef.current = state.currentTab;
     }
-  }, [state.currentTab]);
+  }, [scrollAppToTopSoon, state.currentTab]);
 
   useEffect(() => {
     if (!shouldOfferLegacyRepair) {
@@ -569,8 +941,8 @@ export default function App() {
     setShowLegacySavePrompt(true);
   }, [shouldOfferLegacyRepair]);
 
-  function getPrimaryTabDestination(tab) {
-    const requiredOnboardingTab = getOnboardingRequiredTab(state?.onboarding?.step || null);
+  const getPrimaryTabDestination = useCallback((tab) => {
+    const requiredOnboardingTab = getOnboardingRequiredTab(onboardingStep);
     if (
       tab === "combat" &&
       ["combat", "inventory", "crafting", "codex"].includes(requiredOnboardingTab)
@@ -584,9 +956,9 @@ export default function App() {
       return requiredOnboardingTab;
     }
     return getDefaultTabForPrimaryTab(tab);
-  }
+  }, [onboardingStep]);
 
-  function handlePrimaryTabPress(tab) {
+  const handlePrimaryTabPress = useCallback((tab) => {
     const destinationTab = getPrimaryTabDestination(tab);
     const isActive = currentPrimaryTab === tab;
     if (isActive) {
@@ -594,23 +966,55 @@ export default function App() {
         return;
       }
       window.dispatchEvent(new CustomEvent("primary-tab-reselected", { detail: { tab } }));
-      if (state.currentTab !== destinationTab) {
+      if (currentTab !== destinationTab) {
         dispatch({ type: "SET_TAB", tab: destinationTab });
       } else {
         scrollAppToTopSoon("smooth");
       }
       return;
     }
-    if (!isPrimaryTabAllowed(tab, onboardingStep, state)) {
+    if (!isPrimaryTabAllowed(tab, onboardingStep, onboardingEvaluationState || {})) {
+      const tabBlockMeta = getOnboardingTabBlockMeta(
+        onboardingStep,
+        destinationTab,
+        onboardingEvaluationState || {}
+      );
+      const requiredTab = tabBlockMeta.requiredTab || getOnboardingRequiredTab(onboardingStep);
+      const requiredPrimary = requiredTab
+        ? getPrimaryTab(requiredTab)
+        : null;
+      const requiredLabel = requiredPrimary
+        ? PRIMARY_TAB_CONFIG[requiredPrimary]?.label || "la seccion requerida"
+        : "la seccion requerida";
+      setActionToast({
+        id: `action-toast-${Date.now()}`,
+        tone: "warning",
+        label: tabBlockMeta.message || `Completa este paso primero en ${requiredLabel}.`,
+      });
       return;
     }
     if (tab === "combat" && !expeditionUnlocked) {
+      setActionToast({
+        id: `action-toast-${Date.now()}`,
+        tone: "info",
+        label: "Primero inicia una expedicion desde Santuario.",
+      });
       dispatch({ type: "SET_TAB", tab: "sanctuary" });
       return;
     }
     dispatch({ type: "SET_TAB", tab: destinationTab });
-  }
-  const resourceSummary = (
+  }, [
+    currentTab,
+    currentPrimaryTab,
+    dispatch,
+    expeditionUnlocked,
+    getPrimaryTabDestination,
+    onboardingEvaluationState,
+    onboardingStep,
+    sanctuaryOnboardingScrollLocked,
+    scrollAppToTopSoon,
+  ]);
+  const resourceSummary = useMemo(() => (
     <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, overflowX: "auto", scrollbarWidth: "none" }}>
       {showActiveRunSigil && (
         <HeaderCompactChip
@@ -637,7 +1041,195 @@ export default function App() {
         compact
       />
     </div>
+  ), [activeRunSigilLabel, showActiveRunSigil, state.player?.essence, state.player?.gold]);
+  const handleThemeToggle = useCallback(() => {
+    dispatch({ type: "TOGGLE_THEME" });
+  }, [dispatch]);
+  const sanctuaryPrimaryState = useMemo(
+    () => ({
+      currentTab,
+      player: state.player,
+      sanctuary: state.sanctuary,
+      onboarding: state.onboarding,
+      expedition: state.expedition,
+      combat: {
+        pendingRunSetup: state.combat?.pendingRunSetup || false,
+        maxTier: state.combat?.maxTier || 1,
+        analytics: state.combat?.analytics || {},
+        prestigeCycle: state.combat?.prestigeCycle || null,
+      },
+      prestige: state.prestige,
+      abyss: state.abyss,
+      __liveNow: state.__liveNow,
+    }),
+    [
+      currentTab,
+      state.__liveNow,
+      state.abyss,
+      state.combat?.analytics,
+      state.combat?.maxTier,
+      state.combat?.pendingRunSetup,
+      state.combat?.prestigeCycle,
+      state.expedition,
+      state.onboarding,
+      state.player,
+      state.prestige,
+      state.sanctuary,
+    ]
   );
+  const characterPrimaryState = useMemo(
+    () => ({
+      currentTab,
+      player: state.player,
+      onboarding: state.onboarding,
+      stats: state.stats,
+      combat: {
+        reforgeSession: state.combat?.reforgeSession || null,
+      },
+    }),
+    [
+      currentTab,
+      state.combat?.reforgeSession,
+      state.onboarding,
+      state.player,
+      state.stats,
+    ]
+  );
+  const expeditionPrimaryState = useMemo(
+    () => ({
+      currentTab,
+      player: state.player,
+      combat: state.combat,
+      onboarding: state.onboarding,
+      settings: state.settings,
+      codex: state.codex,
+      abyss: state.abyss,
+      sanctuary: state.sanctuary,
+      expedition: state.expedition,
+      __liveNow: state.__liveNow,
+    }),
+    [
+      currentTab,
+      state.__liveNow,
+      state.abyss,
+      state.codex,
+      state.combat,
+      state.expedition,
+      state.onboarding,
+      state.player,
+      state.sanctuary,
+      state.settings,
+    ]
+  );
+  const prestigePrimaryState = useMemo(
+    () => ({
+      player: state.player,
+      prestige: state.prestige,
+      onboarding: state.onboarding,
+      abyss: state.abyss,
+      combat: {
+        currentTier: state.combat?.currentTier || 1,
+        maxTier: state.combat?.maxTier || 1,
+        prestigeCycle: state.combat?.prestigeCycle || null,
+        activeRunSigilId: state.combat?.activeRunSigilId || "free",
+        activeRunSigilIds: state.combat?.activeRunSigilIds || [state.combat?.activeRunSigilId || "free"],
+      },
+    }),
+    [
+      state.abyss,
+      state.combat?.activeRunSigilId,
+      state.combat?.activeRunSigilIds,
+      state.combat?.currentTier,
+      state.combat?.maxTier,
+      state.combat?.prestigeCycle,
+      state.onboarding,
+      state.player,
+      state.prestige,
+    ]
+  );
+  const registryPrimaryState = useMemo(
+    () => ({
+      currentTab,
+      player: state.player,
+      onboarding: state.onboarding,
+      expedition: state.expedition,
+      settings: state.settings,
+      achievements: state.achievements,
+      replay: state.replay,
+      replayLibrary: state.replayLibrary,
+      codex: state.codex,
+      sanctuary: state.sanctuary,
+      prestige: state.prestige,
+      abyss: state.abyss,
+      appearanceProfile: state.appearanceProfile,
+      weeklyLedger: state.weeklyLedger,
+      accountTelemetry: state.accountTelemetry,
+      saveDiagnostics: state.saveDiagnostics,
+      goals: state.goals,
+      stats: state.stats,
+      savedAt: state.savedAt,
+      __liveNow: state.__liveNow,
+      combat: {
+        currentTier: state.combat?.currentTier || 1,
+        maxTier: state.combat?.maxTier || 1,
+        ticksInCurrentRun: state.combat?.ticksInCurrentRun || 0,
+        runStats: state.combat?.runStats || {},
+        performanceSnapshot: state.combat?.performanceSnapshot || {},
+        analytics: state.combat?.analytics || {},
+        lastRunSummary: state.combat?.lastRunSummary || null,
+        reforgeSession: state.combat?.reforgeSession || null,
+      },
+    }),
+    [
+      currentTab,
+      state.__liveNow,
+      state.abyss,
+      state.accountTelemetry,
+      state.achievements,
+      state.appearanceProfile,
+      state.codex,
+      state.combat?.analytics,
+      state.combat?.currentTier,
+      state.combat?.lastRunSummary,
+      state.combat?.maxTier,
+      state.combat?.performanceSnapshot,
+      state.combat?.reforgeSession,
+      state.combat?.runStats,
+      state.combat?.ticksInCurrentRun,
+      state.expedition,
+      state.goals,
+      state.onboarding,
+      state.player,
+      state.prestige,
+      state.replay,
+      state.replayLibrary,
+      state.sanctuary,
+      state.saveDiagnostics,
+      state.savedAt,
+      state.settings,
+      state.stats,
+      state.weeklyLedger,
+    ]
+  );
+  const activePrimaryTabState = useMemo(() => {
+    if (currentPrimaryTab === "sanctuary") return sanctuaryPrimaryState;
+    if (currentPrimaryTab === "character") return characterPrimaryState;
+    if (currentPrimaryTab === "combat") return expeditionPrimaryState;
+    if (currentPrimaryTab === "prestige") return prestigePrimaryState;
+    return registryPrimaryState;
+  }, [
+    characterPrimaryState,
+    currentPrimaryTab,
+    expeditionPrimaryState,
+    prestigePrimaryState,
+    registryPrimaryState,
+    sanctuaryPrimaryState,
+  ]);
+  const currentPrimaryLabel = PRIMARY_TAB_CONFIG[currentPrimaryTab].label;
+  const recoverToTab = ["active", "setup"].includes(state.expedition?.phase || "sanctuary")
+    ? "combat"
+    : "sanctuary";
+  const ActivePrimaryTabComponent = PRIMARY_TAB_COMPONENTS[currentPrimaryTab] || Sanctuary;
 
   function dismissLegacySavePrompt() {
     if (!showLegacySavePrompt) return;
@@ -652,116 +1244,21 @@ export default function App() {
 
   return (
     <div style={{ backgroundColor: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", minHeight: "100vh", display: "flex", flexDirection: "column", width: "100%" }}>
-      <header style={{ position: "fixed", top: 0, left: 0, width: "100%", height: isMobile ? `${HEADER_HEIGHT_MOBILE}px` : `${HEADER_HEIGHT_DESKTOP}px`, backgroundColor: "var(--color-background-primary, #f8fafc)", borderBottom: "1px solid var(--color-border-secondary, #e2e8f0)", zIndex: 5000, display: "flex", alignItems: "center" }}>
-        <div style={{ maxWidth: `${DESKTOP_MAX_WIDTH}px`, width: "100%", margin: "0 auto", padding: isMobile ? "8px 14px" : "10px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
-          <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: "8px" }} onClick={handleHeaderDebugTap}>
-            <div style={{ minWidth: 0 }}>
-              <h1 style={{ margin: 0, fontSize: isMobile ? "1.15rem" : "1.55rem", fontWeight: "800", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.1 }}>
-                {PRIMARY_TAB_CONFIG[currentPrimaryTab].label}
-              </h1>
-            </div>
-            {reforgeLocked && (
-              <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--tone-violet, #6d28d9)", padding: "3px 7px", borderRadius: "999px", background: "var(--tone-violet-soft, #f3e8ff)", border: "1px solid rgba(124,58,237,0.18)", whiteSpace: "nowrap", flexShrink: 0 }}>
-                Reforja
-              </span>
-            )}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: isMobile ? 1 : "0 1 auto", justifyContent: "flex-end" }}>
-            <div style={{ minWidth: 0, maxWidth: isMobile ? "calc(100vw - 120px)" : "100%" }}>
-              {resourceSummary}
-            </div>
-            <button
-              onClick={() => dispatch({ type: "TOGGLE_THEME" })}
-              title="Cambiar tema"
-              aria-label="Cambiar tema"
-              style={themeToggleButtonStyle(isMobile)}
-            >
-              {theme === "dark" ? "☀" : "☾"}
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader
+        isMobile={isMobile}
+        headerHeight={isMobile ? HEADER_HEIGHT_MOBILE : HEADER_HEIGHT_DESKTOP}
+        desktopMaxWidth={DESKTOP_MAX_WIDTH}
+        currentPrimaryLabel={currentPrimaryLabel}
+        reforgeLocked={reforgeLocked}
+        onHeaderDebugTap={handleHeaderDebugTap}
+        resourceSummary={resourceSummary}
+        onToggleTheme={handleThemeToggle}
+        theme={theme}
+      />
 
       <div ref={contentRef} style={{ paddingTop: isMobile ? `${HEADER_HEIGHT_MOBILE}px` : `${HEADER_HEIGHT_DESKTOP}px`, paddingBottom: isMobile ? "180px" : "40px", paddingLeft: isMobile ? "0px" : "24px", paddingRight: isMobile ? "0px" : "24px", maxWidth: isMobile ? "100%" : `${DESKTOP_MAX_WIDTH}px`, width: "100%", margin: "0 auto", flex: 1 }}>
-        <style>{`
-          @keyframes appPrimaryTabSpotlightPulse {
-            0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
-            70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
-            100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
-          }
-        `}</style>
-        {!isMobile && (
-          <div style={{ marginBottom: "12px", background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-tertiary, #cbd5e1)", borderRadius: "12px", boxShadow: "0 4px 20px var(--color-shadow, rgba(0,0,0,0.05))", padding: "10px 12px" }}>
-            <nav style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              {visiblePrimaryTabs.map((t) => (
-                (() => {
-                  const disabled =
-                    (reforgeLocked && currentPrimaryTab !== t) ||
-                    (t === "combat" && !expeditionUnlocked) ||
-                    !isPrimaryTabAllowed(t, onboardingStep, state);
-                  const spotlightHeroPrimary =
-                    (onboardingStep === ONBOARDING_STEPS.OPEN_HERO || effectiveOnboardingStep === ONBOARDING_STEPS.OPEN_HERO) &&
-                    t === "character";
-                  const spotlightPrestigePrimary =
-                    (onboardingStep === ONBOARDING_STEPS.FIRST_ECHOES || effectiveOnboardingStep === ONBOARDING_STEPS.FIRST_ECHOES) &&
-                    t === "prestige";
-                  const spotlightSanctuaryPrimary =
-                    (onboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY || effectiveOnboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY) &&
-                    t === "sanctuary";
-                  return (
-                    <button
-                      key={t}
-                      disabled={disabled}
-                      data-onboarding-target={
-                        spotlightSanctuaryPrimary
-                          ? "primary-sanctuary-tab"
-                          : spotlightHeroPrimary
-                          ? "primary-hero-tab"
-                          : spotlightPrestigePrimary
-                            ? "primary-prestige-tab"
-                            : undefined
-                      }
-                      onClick={() => handlePrimaryTabPress(t)}
-                      style={{
-                        padding: "7px 13px",
-                        cursor: disabled ? "not-allowed" : "pointer",
-                        backgroundColor: currentPrimaryTab === t ? "var(--color-background-info, #e0e7ff)" : "var(--color-background-secondary, #ffffff)",
-                        color: disabled ? "var(--color-text-tertiary, #94a3b8)" : currentPrimaryTab === t ? "var(--color-text-info, #4338ca)" : "var(--color-text-primary, #1e293b)",
-                        border: "1px solid var(--color-border-tertiary, #cbd5e1)",
-                        borderRadius: "8px",
-                        fontWeight: "700",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        transition: "all 0.2s",
-                        opacity: disabled ? 0.55 : 1,
-                        position: spotlightHeroPrimary || spotlightPrestigePrimary || spotlightSanctuaryPrimary ? "relative" : "static",
-                        zIndex: spotlightHeroPrimary || spotlightPrestigePrimary || spotlightSanctuaryPrimary ? 2 : 1,
-                        boxShadow: spotlightHeroPrimary || spotlightPrestigePrimary || spotlightSanctuaryPrimary
-                          ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 28px rgba(83,74,183,0.18)"
-                          : "none",
-                        animation: spotlightHeroPrimary || spotlightPrestigePrimary || spotlightSanctuaryPrimary ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
-                      }}
-                    >
-                  <span>{PRIMARY_TAB_CONFIG[t].icon}</span>
-                  {PRIMARY_TAB_CONFIG[t].label}
-                  {t === "character" && hasTalentPoints && (
-                    <span style={{ marginLeft: "4px", minWidth: "18px", height: "18px", padding: "0 6px", borderRadius: "999px", background: "var(--tone-danger, #ef4444)", color: "#fff", fontSize: "0.62rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                      {state.player.talentPoints}
-                    </span>
-                  )}
-                  {t === "combat" && inventoryUpgrades > 0 && (
-                    <span style={{ marginLeft: "4px", minWidth: "18px", height: "18px", padding: "0 6px", borderRadius: "999px", background: "var(--tone-success, #10b981)", color: "#fff", fontSize: "0.62rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                      {inventoryUpgrades > 9 ? "9+" : inventoryUpgrades}
-                    </span>
-                  )}
-                    </button>
-                  );
-                })()
-              ))}
-            </nav>
-          </div>
-        )}
+        <style>{PRIMARY_TAB_SPOTLIGHT_KEYFRAMES}</style>
+        {!isMobile && <DesktopPrimaryTabs entries={primaryTabEntries} onTabPress={handlePrimaryTabPress} />}
         {offlineSummary && (
           <OfflineSummaryPanel
             summary={offlineSummary}
@@ -770,24 +1267,14 @@ export default function App() {
           />
         )}
 
-        <main style={{ width: "100%", background: isMobile ? "transparent" : "var(--color-background-secondary, #ffffff)", borderRadius: isMobile ? "0" : "12px", border: isMobile ? "none" : "1px solid var(--color-border-tertiary, #cbd5e1)", boxShadow: isMobile ? "none" : "0 4px 20px var(--color-shadow, rgba(0,0,0,0.05))" }}>
-          <TabErrorBoundary
-            label={PRIMARY_TAB_CONFIG[currentPrimaryTab].label}
-            recoverLabel={
-              ["active", "setup"].includes(state.expedition?.phase || "sanctuary")
-                ? "Ir a Expedicion"
-                : "Ir al Santuario"
-            }
-            onRecover={() => dispatch({
-              type: "SET_TAB",
-              tab: ["active", "setup"].includes(state.expedition?.phase || "sanctuary") ? "combat" : "sanctuary",
-            })}
-          >
-            <Suspense fallback={<TabLoadingCard label={PRIMARY_TAB_CONFIG[currentPrimaryTab].label} />}>
-              {renderCurrentTab(state.currentTab, state, dispatch)}
-            </Suspense>
-          </TabErrorBoundary>
-        </main>
+        <PrimaryTabViewport
+          isMobile={isMobile}
+          currentPrimaryLabel={currentPrimaryLabel}
+          recoverToTab={recoverToTab}
+          component={ActivePrimaryTabComponent}
+          tabState={activePrimaryTabState}
+          dispatch={dispatch}
+        />
       </div>
 
       {state.combat?.pendingRunSetup && state.player?.class && (
@@ -811,7 +1298,9 @@ export default function App() {
         </Suspense>
       )}
 
-      <OnboardingOverlay state={state} dispatch={dispatch} isMobile={isMobile} />
+      <Suspense fallback={null}>
+        <OnboardingOverlay state={state} dispatch={dispatch} isMobile={isMobile} />
+      </Suspense>
 
       {showLegacySavePrompt && (
         <div
@@ -944,87 +1433,19 @@ export default function App() {
             pointerEvents: "none",
             maxWidth: isMobile ? "calc(100vw - 28px)" : "640px",
             textAlign: "center",
+            animation:
+              actionToast.tone === "warning"
+                ? "appActionToastPulseWarning 980ms ease-out"
+                : actionToast.tone === "success"
+                  ? "appActionToastPulseSuccess 900ms ease-out"
+                  : undefined,
           }}
         >
           {actionToast.label}
         </div>
       )}
 
-      {isMobile && (
-        <>
-          <nav style={{ position: "fixed", bottom: 0, left: 0, width: "100%", height: `${NAV_HEIGHT_MOBILE}px`, backgroundColor: "var(--color-background-secondary, #ffffff)", borderTop: "1px solid var(--color-border-secondary, #e2e8f0)", display: "flex", zIndex: 5000, paddingBottom: "env(safe-area-inset-bottom)", boxSizing: "content-box" }}>
-            {visiblePrimaryTabs.map((t) => {
-              const isActive = currentPrimaryTab === t;
-              const disabled =
-                (reforgeLocked && !isActive) ||
-                (t === "combat" && !expeditionUnlocked) ||
-                !isPrimaryTabAllowed(t, onboardingStep, state);
-              const spotlightHeroPrimary =
-                (onboardingStep === ONBOARDING_STEPS.OPEN_HERO || effectiveOnboardingStep === ONBOARDING_STEPS.OPEN_HERO) &&
-                t === "character";
-              const spotlightPrestigePrimary =
-                (onboardingStep === ONBOARDING_STEPS.FIRST_ECHOES || effectiveOnboardingStep === ONBOARDING_STEPS.FIRST_ECHOES) &&
-                t === "prestige";
-              const spotlightSanctuaryPrimary =
-                (onboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY || effectiveOnboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY) &&
-                t === "sanctuary";
-              return (
-                <button
-                  key={t}
-                  disabled={disabled}
-                  data-onboarding-target={
-                    spotlightSanctuaryPrimary
-                      ? "primary-sanctuary-tab"
-                      : spotlightHeroPrimary
-                      ? "primary-hero-tab"
-                      : spotlightPrestigePrimary
-                        ? "primary-prestige-tab"
-                        : undefined
-                  }
-                  onClick={() => handlePrimaryTabPress(t)}
-                  style={{
-                    flex: 1,
-                    minWidth: "56px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexDirection: "column",
-                    gap: "2px",
-                    background: isActive ? "var(--color-background-info, #f1f5f9)" : "transparent",
-                    border: "none",
-                    outline: "none",
-                    position: "relative",
-                    paddingTop: "5px",
-                    opacity: disabled ? 0.45 : 1,
-                    boxShadow: spotlightHeroPrimary || spotlightPrestigePrimary || spotlightSanctuaryPrimary
-                      ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.16)"
-                      : "none",
-                    animation: spotlightHeroPrimary || spotlightPrestigePrimary || spotlightSanctuaryPrimary ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
-                    zIndex: spotlightHeroPrimary || spotlightPrestigePrimary || spotlightSanctuaryPrimary ? 2 : 1,
-                  }}
-                >
-                  <span style={{ filter: isActive ? "none" : "grayscale(1) opacity(0.5)", position: "relative", fontSize: "21px", lineHeight: 1 }}>
-                    {PRIMARY_TAB_CONFIG[t].icon}
-                  </span>
-                  <span style={{ fontSize: "0.56rem", fontWeight: "900", color: isActive ? "var(--color-text-info, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                    {PRIMARY_TAB_CONFIG[t].label}
-                  </span>
-                  {t === "combat" && inventoryUpgrades > 0 && (
-                    <span style={{ position: "absolute", top: "6px", right: "14px", minWidth: "16px", height: "16px", padding: "0 5px", borderRadius: "999px", background: "var(--tone-success, #10b981)", color: "#fff", fontSize: "0.56rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                      {inventoryUpgrades > 9 ? "9+" : inventoryUpgrades}
-                    </span>
-                  )}
-                  {t === "character" && hasTalentPoints && (
-                    <span style={{ position: "absolute", top: "6px", right: "12px", minWidth: "16px", height: "16px", padding: "0 5px", borderRadius: "999px", background: "var(--tone-danger, #ef4444)", color: "#fff", fontSize: "0.56rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                      {state.player.talentPoints}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-        </>
-      )}
+      {isMobile && <MobilePrimaryTabs entries={primaryTabEntries} navHeight={NAV_HEIGHT_MOBILE} onTabPress={handlePrimaryTabPress} />}
     </div>
   );
 }
@@ -1209,6 +1630,7 @@ function themeToggleButtonStyle(isMobile = false) {
 
 function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, prestigeLevel, sigilSlotCount = 1 }) {
   const [activeSlotIndex, setActiveSlotIndex] = useState(0);
+  const [expandedSigilId, setExpandedSigilId] = useState(null);
   useEffect(() => {
     if (activeSlotIndex < sigilSlotCount) return;
     setActiveSlotIndex(0);
@@ -1218,6 +1640,13 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
   const currentLoadoutName = formatRunSigilLoadout(pendingRunSigilIds);
   const currentLoadoutSummary = summarizeRunSigilLoadout(pendingRunSigilIds);
   const currentLoadoutProfile = buildRunSigilLoadoutProfile(pendingRunSigilIds);
+  const compactLoadoutBoosts = (currentLoadoutProfile.boosts || []).slice(0, 3).map(item => item.label);
+  const compactLoadoutTradeoffs = (currentLoadoutProfile.tradeoffs || []).slice(0, 3).map(item => item.label);
+
+  useEffect(() => {
+    if (RUN_SIGILS.some(sigil => sigil.id === expandedSigilId)) return;
+    setExpandedSigilId(null);
+  }, [expandedSigilId]);
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(2,6,23,0.72)", zIndex: 9000, display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "center", padding: isMobile ? "0" : "24px" }}>
@@ -1240,7 +1669,7 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
         </div>
 
         <div style={{ padding: isMobile ? "14px 16px 0" : "16px 22px 0", display: "grid", gap: "10px" }}>
-          <div style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-tertiary, #f8fafc)", borderRadius: "14px", padding: "12px", display: "grid", gap: "8px" }}>
+          <div style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-tertiary, #f8fafc)", borderRadius: "14px", padding: "10px", display: "grid", gap: "7px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "start" }}>
               <div style={{ display: "grid", gap: "4px" }}>
                 <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-accent, #4338ca)" }}>
@@ -1258,9 +1687,19 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px" }}>
-              <SigilProfileGroup title="Esta run premia" tone="success" items={currentLoadoutProfile.boosts} emptyLabel="Sin sesgo positivo fuerte." />
-              <SigilProfileGroup title="Esta run cede" tone="danger" items={currentLoadoutProfile.tradeoffs} emptyLabel="Sin coste de oportunidad relevante." />
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "8px" }}>
+              <CompactSigilSummaryLine
+                label="Premia"
+                tone="success"
+                items={compactLoadoutBoosts}
+                emptyLabel="Sin sesgo positivo fuerte."
+              />
+              <CompactSigilSummaryLine
+                label="Cede"
+                tone="danger"
+                items={compactLoadoutTradeoffs}
+                emptyLabel="Sin coste de oportunidad relevante."
+              />
             </div>
           </div>
         </div>
@@ -1293,13 +1732,16 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
           </div>
         )}
 
-        <div style={{ padding: isMobile ? "14px 16px 18px" : "18px 22px 22px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "12px" }}>
+        <div style={{ padding: isMobile ? "12px 16px 16px" : "14px 22px 18px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
           {RUN_SIGILS.map(sigil => {
             const active = currentPendingRunSigil.id === sigil.id;
             const selectedSlots = (pendingRunSigilIds || [])
               .map((selectedId, index) => (selectedId === sigil.id ? index + 1 : null))
               .filter(Boolean);
             const sigilProfile = buildRunSigilChoiceProfile(sigil.id);
+            const compactBoosts = (sigilProfile.boosts || []).slice(0, 2).map(item => item.label);
+            const compactTradeoffs = (sigilProfile.tradeoffs || []).slice(0, 2).map(item => item.label);
+            const isExpanded = expandedSigilId === sigil.id;
             return (
               <button
                 key={sigil.id}
@@ -1311,63 +1753,117 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
                   background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-tertiary, #f8fafc)",
                   color: "inherit",
                   borderRadius: "14px",
-                  padding: "14px",
+                  padding: "10px",
                   cursor: "pointer",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontSize: "0.82rem", fontWeight: "900" }}>{sigil.name}</div>
-                    <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", marginTop: "3px" }}>
-                      {sigil.focus}
+                <div style={{ display: "grid", gap: "7px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" }}>
+                    <div>
+                      <div style={{ fontSize: "0.8rem", fontWeight: "900" }}>{sigil.name}</div>
+                      <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", marginTop: "3px" }}>
+                        {sigil.focus}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      {selectedSlots.length > 0 && (
+                        <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", background: "var(--tone-accent-soft, #eef2ff)", border: "1px solid rgba(99,102,241,0.18)", borderRadius: "999px", padding: "2px 6px" }}>
+                          {selectedSlots.map(slot => `S${slot}`).join(" · ")}
+                        </span>
+                      )}
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={event => {
+                          event.stopPropagation();
+                          setExpandedSigilId(current => (current === sigil.id ? null : sigil.id));
+                        }}
+                        onKeyDown={event => {
+                          if (event.key !== "Enter" && event.key !== " ") return;
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setExpandedSigilId(current => (current === sigil.id ? null : sigil.id));
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: "1px solid var(--color-border-primary, #e2e8f0)",
+                          background: "var(--color-background-secondary, #fff)",
+                          color: "var(--color-text-secondary, #64748b)",
+                          borderRadius: "999px",
+                          width: "22px",
+                          height: "22px",
+                          fontSize: "0.74rem",
+                          fontWeight: "900",
+                          cursor: "pointer",
+                          flex: "0 0 auto",
+                        }}
+                        aria-label={isExpanded ? "Colapsar detalle" : "Expandir detalle"}
+                      >
+                        {isExpanded ? "-" : "+"}
+                      </span>
+                      <span style={{ minWidth: "18px", height: "18px", borderRadius: "999px", border: "2px solid", borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-tertiary, #cbd5e1)", background: active ? "var(--tone-accent, #4338ca)" : "transparent" }} />
                     </div>
                   </div>
-                  <div style={{ display: "grid", justifyItems: "end", gap: "4px" }}>
-                    {selectedSlots.length > 0 && (
-                      <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", background: "var(--tone-accent-soft, #eef2ff)", border: "1px solid rgba(99,102,241,0.18)", borderRadius: "999px", padding: "2px 6px" }}>
-                        {selectedSlots.map(slot => `S${slot}`).join(" · ")}
-                      </span>
-                    )}
-                    <span style={{ minWidth: "18px", height: "18px", borderRadius: "999px", border: "2px solid", borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-tertiary, #cbd5e1)", background: active ? "var(--tone-accent, #4338ca)" : "transparent" }} />
+
+                  <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4 }}>
+                    {sigil.summary}
                   </div>
-                </div>
-                <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #475569)", marginTop: "8px", lineHeight: 1.45 }}>
-                  {sigil.summary}
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "8px", marginTop: "10px" }}>
-                  <SigilProfileGroup title="Premia" tone="success" items={sigilProfile.boosts} emptyLabel="Sin premio directo." compact />
-                  <SigilProfileGroup title="Cede" tone="danger" items={sigilProfile.tradeoffs} emptyLabel="Sin coste visible." compact />
-                </div>
-                <div style={{ marginTop: "8px", padding: "8px 9px", borderRadius: "10px", background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
-                  <div style={{ fontSize: "0.54rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                    Cuando elegirlo
+
+                  <div style={{ display: "grid", gap: "4px" }}>
+                    <CompactSigilSummaryLine
+                      label="Premia"
+                      tone="success"
+                      items={compactBoosts}
+                      emptyLabel="Sin premio directo."
+                    />
+                    <CompactSigilSummaryLine
+                      label="Cede"
+                      tone="danger"
+                      items={compactTradeoffs}
+                      emptyLabel="Sin coste visible."
+                    />
                   </div>
-                  <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #475569)", marginTop: "4px", lineHeight: 1.4, fontWeight: "800" }}>
+
+                  <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35, fontWeight: "800" }}>
+                    <span style={{ color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.05em", fontSize: "0.54rem", fontWeight: "900", marginRight: "6px" }}>
+                      Cuándo
+                    </span>
                     {sigil.whenToPick}
                   </div>
                 </div>
-                <div style={{ marginTop: "10px", display: "grid", gap: "6px" }}>
-                  <div style={{ fontSize: "0.6rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-success-strong, #047857)" }}>
-                    Ventajas
+
+                {isExpanded && (
+                  <div style={{ marginTop: "8px", display: "grid", gap: "8px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "8px" }}>
+                      <SigilProfileGroup title="Premia" tone="success" items={sigilProfile.boosts} emptyLabel="Sin premio directo." compact />
+                      <SigilProfileGroup title="Cede" tone="danger" items={sigilProfile.tradeoffs} emptyLabel="Sin coste visible." compact />
+                    </div>
+                    <div style={{ display: "grid", gap: "6px" }}>
+                      <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-success-strong, #047857)" }}>
+                        Ventajas
+                      </div>
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        {(sigil.strengths || []).map(line => (
+                          <span key={`${sigil.id}-plus-${line}`} style={{ fontSize: "0.6rem", fontWeight: "800", color: "var(--tone-success-strong, #047857)", background: "var(--tone-success-soft, #ecfdf5)", border: "1px solid rgba(16,185,129,0.18)", borderRadius: "999px", padding: "3px 6px" }}>
+                            {line}
+                          </span>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-danger, #b91c1c)", marginTop: "2px" }}>
+                        Coste de oportunidad
+                      </div>
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        {(sigil.tradeoffs || []).map(line => (
+                          <span key={`${sigil.id}-minus-${line}`} style={{ fontSize: "0.6rem", fontWeight: "800", color: "var(--tone-danger, #b91c1c)", background: "var(--tone-danger-soft, #fff1f2)", border: "1px solid rgba(244,63,94,0.18)", borderRadius: "999px", padding: "3px 6px" }}>
+                            {line}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                    {(sigil.strengths || []).map(line => (
-                      <span key={`${sigil.id}-plus-${line}`} style={{ fontSize: "0.62rem", fontWeight: "800", color: "var(--tone-success-strong, #047857)", background: "var(--tone-success-soft, #ecfdf5)", border: "1px solid rgba(16,185,129,0.18)", borderRadius: "999px", padding: "4px 7px" }}>
-                        {line}
-                      </span>
-                    ))}
-                  </div>
-                  <div style={{ fontSize: "0.6rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-danger, #b91c1c)", marginTop: "4px" }}>
-                    Coste de oportunidad
-                  </div>
-                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                    {(sigil.tradeoffs || []).map(line => (
-                      <span key={`${sigil.id}-minus-${line}`} style={{ fontSize: "0.62rem", fontWeight: "800", color: "var(--tone-danger, #b91c1c)", background: "var(--tone-danger-soft, #fff1f2)", border: "1px solid rgba(244,63,94,0.18)", borderRadius: "999px", padding: "4px 7px" }}>
-                        {line}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+                )}
               </button>
             );
           })}
@@ -1445,6 +1941,43 @@ function SigilProfileGroup({ title, tone = "success", items = [], emptyLabel = "
             {emptyLabel}
           </span>
         )}
+      </div>
+    </div>
+  );
+}
+
+function CompactSigilSummaryLine({ label, tone = "success", items = [], emptyLabel = "" }) {
+  const palette =
+    tone === "danger"
+      ? {
+          label: "var(--tone-danger, #b91c1c)",
+          text: "var(--tone-danger, #b91c1c)",
+          bg: "var(--tone-danger-soft, #fff1f2)",
+          border: "rgba(244,63,94,0.18)",
+        }
+      : {
+          label: "var(--tone-success-strong, #047857)",
+          text: "var(--tone-success-strong, #047857)",
+          bg: "var(--tone-success-soft, #ecfdf5)",
+          border: "rgba(16,185,129,0.18)",
+        };
+  const compactText = Array.isArray(items) && items.length > 0 ? items.join(" · ") : emptyLabel;
+  return (
+    <div
+      style={{
+        display: "grid",
+        gap: "3px",
+        border: `1px solid ${palette.border}`,
+        background: palette.bg,
+        borderRadius: "10px",
+        padding: "6px 8px",
+      }}
+    >
+      <div style={{ fontSize: "0.52rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: palette.label }}>
+        {label}
+      </div>
+      <div style={{ fontSize: "0.62rem", fontWeight: "800", color: compactText ? palette.text : "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.35 }}>
+        {compactText || emptyLabel}
       </div>
     </div>
   );

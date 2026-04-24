@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import OverlayShell from "./OverlayShell";
+import OverlayShell, { OverlaySurface } from "./OverlayShell";
 import { getRarityColor } from "../constants/rarity";
 import { ITEM_STAT_LABELS } from "../utils/itemPresentation";
 import {
@@ -9,6 +9,7 @@ import {
   buildBlueprintPowerTunePreview,
   buildBlueprintStructurePreview,
   canAscendBlueprint,
+  getBlueprintFamilyChargeCap,
   getBlueprintAscensionCap,
   getBlueprintEffectiveBaseRating,
   getBlueprintEffectiveItemTier,
@@ -24,6 +25,7 @@ function panelStyle() {
     padding: "10px",
     display: "grid",
     gap: "8px",
+    alignSelf: "start",
   };
 }
 
@@ -36,6 +38,7 @@ function sectionPanelStyle(accent = "var(--tone-danger, #D85A30)") {
     padding: "16px",
     display: "grid",
     gap: "12px",
+    alignSelf: "start",
     boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
   };
 }
@@ -137,6 +140,7 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
   const blueprints = Array.isArray(sanctuary?.blueprints) ? sanctuary.blueprints : [];
   const activeBlueprints = sanctuary?.activeBlueprints || {};
   const familyCharges = sanctuary?.familyCharges || {};
+  const familyChargeCap = getBlueprintFamilyChargeCap();
   const totalCharges = Object.values(familyCharges || {}).reduce(
     (total, value) => total + Math.max(0, Number(value || 0)),
     0
@@ -153,8 +157,8 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
   const [selectedBlueprintId, setSelectedBlueprintId] = useState(() => blueprints[0]?.id || null);
   const [expandedSections, setExpandedSections] = useState(() => ({
     stash: extractedItems.length > 0,
-    blueprints: false,
-    details: false,
+    blueprints: true,
+    details: blueprints.length > 0,
     bank: false,
   }));
 
@@ -197,11 +201,19 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
   }
 
   return (
-    <OverlayShell isMobile={isMobile}>
-      <div style={{ width: "100%", maxWidth: "1220px", maxHeight: "100%", overflow: "auto", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", borderRadius: isMobile ? "16px 16px 0 0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", display: "grid", gap: "12px", padding: isMobile ? "12px 10px 16px" : "14px 14px 16px" }}>
-        <div style={{ padding: "1rem", display: "grid", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+    <OverlayShell isMobile={isMobile} contentLabel="Taller">
+      <OverlaySurface isMobile={isMobile}>
+        <div style={{
+          padding: "1rem",
+          display: "grid",
+          gap: "1rem",
+          alignItems: "start",
+          alignContent: "start",
+          background: "var(--color-background-primary, #f8fafc)",
+          color: "var(--color-text-primary, #1e293b)",
+        }}>
           <section style={sectionPanelStyle("var(--tone-danger, #D85A30)")}>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "12px", alignItems: "start" }}>
+            <div style={{ display: "grid", gap: "12px", alignItems: "start" }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
                   Taller
@@ -213,9 +225,6 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                   Ordena piezas rescatadas a largo plazo. El plano guarda dirección de roll, no el item exacto.
                 </div>
               </div>
-              <button onClick={onClose} style={{ ...actionButtonStyle({ compact: true }), flex: "0 0 auto" }}>
-                Volver
-              </button>
             </div>
 
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -224,6 +233,9 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
               </span>
               <span style={chipLabelStyle("var(--tone-accent, #4338ca)")}>
                 {totalCharges} cargas
+              </span>
+              <span style={chipLabelStyle("var(--tone-info, #0369a1)")}>
+                cap {familyChargeCap}/familia
               </span>
               <span style={chipLabelStyle("var(--tone-warning, #f59e0b)")}>
                 {extractedItems.length} rescatado{extractedItems.length === 1 ? "" : "s"}
@@ -253,6 +265,12 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                   {extractedItems.length} / {extractedItemSlots}
                 </div>
               </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button onClick={onClose} style={{ ...actionButtonStyle({ compact: true }), flex: "0 0 auto" }}>
+                Volver
+              </button>
             </div>
           </section>
 
@@ -638,7 +656,7 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                               <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                                 {materializationPreview.topFamilies.map(entry => (
                                   <span key={`top-family-${entry.familyId}`} style={chipLabelStyle(entry.meta?.color || "var(--tone-info, #0369a1)")}>
-                                    {entry.meta?.label || entry.familyId} · sesgo {entry.score}
+                                    {entry.meta?.label || entry.familyId} · {entry.strengthLabel || "baja"} ({entry.score})
                                   </span>
                                 ))}
                               </div>
@@ -716,7 +734,7 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
 
                                 <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                                   <div style={{ fontSize: "0.66rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
-                                    {chargeCount} cargas disponibles
+                                    {chargeCount}/{familyChargeCap} cargas disponibles
                                   </div>
                                   <button
                                     onClick={() => dispatch({ type: "INVEST_BLUEPRINT_AFFINITY", blueprintId: selectedBlueprint.id, familyId: family.id, charges: 1 })}
@@ -777,7 +795,7 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                         </div>
                       </div>
                       <span style={chipLabelStyle(family.color)}>
-                        {Math.max(0, Number(familyCharges?.[family.id] || 0))}
+                        {Math.max(0, Number(familyCharges?.[family.id] || 0))}/{familyChargeCap}
                       </span>
                     </div>
                   </div>
@@ -786,7 +804,7 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
             )}
           </section>
         </div>
-      </div>
+      </OverlaySurface>
     </OverlayShell>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import useViewport from "../hooks/useViewport";
 
 import { TALENTS } from "../data/talents";
 import { ITEM_FAMILIES } from "../data/itemFamilies";
@@ -9,8 +10,11 @@ import { calcStats } from "../engine/combat/statEngine";
 import { computeEffectModifiers } from "../engine/effects/effectEngine";
 import { ITEM_STAT_LABELS as STAT_LABELS } from "../utils/itemPresentation";
 import { getLegendaryStaticBonuses, getTargetedLegendaryDropsForEnemy } from "../utils/legendaryPowers";
+import { summarizeLootRuleAutomation } from "../utils/lootFilter";
 import { getOnboardingStepInteractionMode, isAutoAdvanceUnlocked, isExtractionUnlocked, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
+import { getMaxRunSigilSlots } from "../engine/progression/abyssProgression";
 import CombatGuidanceStrip from "./combat/CombatGuidanceStrip";
+import RunSigilCallout from "./RunSigilCallout";
 
 const COLORS = {
   success: "var(--tone-success, #1D9E75)",
@@ -312,6 +316,11 @@ function getStackedMultiplier(perStackMultiplier = 1, stacks = 0) {
 export default function Combat({ state, dispatch }) {
   const { player, combat } = state;
   const expedition = state.expedition || {};
+  const runSigilSlotCount = getMaxRunSigilSlots(state?.abyss || {});
+  const activeRunSigilIds =
+    state?.combat?.activeRunSigilIds || state?.combat?.activeRunSigilId || "free";
+  const showRunSigilCallout =
+    Number(state?.prestige?.level || 0) >= 1 && !state?.combat?.pendingRunSetup;
   const {
     enemy,
     currentTier,
@@ -320,7 +329,7 @@ export default function Combat({ state, dispatch }) {
     effects = [],
     triggerCounters = {},
   } = combat;
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const { isMobile } = useViewport();
   const [showActivated, setShowActivated] = useState({});
   const [goalIndex, setGoalIndex] = useState(0);
   const [tipIndex, setTipIndex] = useState(0);
@@ -376,8 +385,18 @@ export default function Combat({ state, dispatch }) {
     state?.onboarding?.flags?.firstExtractionCompleted
   );
   const latestLootEvent = combat.latestLootEvent || null;
+  const overflowEvent = combat.inventoryOverflowEvent || null;
+  const overflowStats = combat.inventoryOverflowStats || { total: 0, displaced: 0, lost: 0 };
+  const lootRuleSummary = useMemo(
+    () => summarizeLootRuleAutomation(state?.settings?.lootRules || {}),
+    [state?.settings?.lootRules]
+  );
   const [visibleLootEvent, setVisibleLootEvent] = useState(latestLootEvent);
   const [lootClosing, setLootClosing] = useState(false);
+  const [dismissedOverflowEventId, setDismissedOverflowEventId] = useState(null);
+  const visibleOverflowEvent = overflowEvent?.id && overflowEvent.id !== dismissedOverflowEventId
+    ? overflowEvent
+    : null;
   const [visibleLevelUpToast, setVisibleLevelUpToast] = useState(null);
   const [levelUpToastClosing, setLevelUpToastClosing] = useState(false);
   const isDarkMode = state.settings?.theme === "dark";
@@ -407,6 +426,8 @@ export default function Combat({ state, dispatch }) {
   const expeditionDeathLimit = Math.max(1, Number(expedition.deathLimit || 3));
   const expeditionDeathCount = Math.max(0, Number(expedition.deathCount || 0));
   const remainingSafeDeaths = Math.max(0, expeditionDeathLimit - expeditionDeathCount);
+  const runCargoCount = Array.isArray(expedition.cargoFound) ? expedition.cargoFound.length : 0;
+  const runBossKills = Math.max(0, Number(combat?.runStats?.bossKills || 0));
   const tutorialProtectedExpedition = Boolean(state?.onboarding && !state.onboarding.completed);
   const autoAdvanceUnlocked = isAutoAdvanceUnlocked(state);
   const extractionUnlocked = isExtractionUnlocked(state);
@@ -421,6 +442,29 @@ export default function Combat({ state, dispatch }) {
     ONBOARDING_STEPS.COMBAT_AFTER_TALENT,
     ONBOARDING_STEPS.FIRST_BOSS,
   ].includes(onboardingStep);
+  const extractionDecision = useMemo(() => {
+    if (!extractionUnlocked) return null;
+    const hasSecuredValue = runCargoCount > 0 || runBossKills > 0;
+    if (remainingSafeDeaths <= 1 && hasSecuredValue) {
+      return {
+        label: "Salida recomendada",
+        detail: `${remainingSafeDeaths} vida(s) segura(s) · ${runCargoCount} bundle(s)`,
+        tone: "var(--tone-danger, #D85A30)",
+      };
+    }
+    if (hasSecuredValue) {
+      return {
+        label: "Valor para asegurar",
+        detail: `${runCargoCount} bundle(s) · ${runBossKills} boss(es)`,
+        tone: "var(--tone-success, #10b981)",
+      };
+    }
+    return {
+      label: "Push disponible",
+      detail: "Aun no acumulaste valor persistente fuerte.",
+      tone: "var(--tone-accent, #4338ca)",
+    };
+  }, [extractionUnlocked, remainingSafeDeaths, runBossKills, runCargoCount]);
   const lockFirstBossRetreat = Boolean(enemy?.isBoss && !state?.onboarding?.flags?.firstDeathSeen);
   const combatTips = useMemo(() => ([
     {
@@ -605,6 +649,13 @@ export default function Combat({ state, dispatch }) {
   }, [latestLootEvent]);
 
   useEffect(() => {
+    if (!overflowEvent?.id) return undefined;
+    if (overflowEvent.id === dismissedOverflowEventId) return undefined;
+    setDismissedOverflowEventId(null);
+    return undefined;
+  }, [dismissedOverflowEventId, overflowEvent]);
+
+  useEffect(() => {
     if (!visibleLootEvent) return undefined;
     const timer = setTimeout(() => setLootClosing(true), 3000);
     return () => clearTimeout(timer);
@@ -649,12 +700,6 @@ export default function Combat({ state, dispatch }) {
     }, 240);
     return () => clearTimeout(timer);
   }, [levelUpToastClosing]);
-
-  useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
 
   useEffect(() => {
     if (sessionGoals.length <= 1) return undefined;
@@ -1068,6 +1113,95 @@ export default function Combat({ state, dispatch }) {
       }}
     >
       <style>{COMBAT_ANIMATION_STYLES}</style>
+      {visibleOverflowEvent && (
+        <section
+          style={{
+            border: "1px solid rgba(245,158,11,0.3)",
+            background: isDarkMode ? "rgba(245,158,11,0.14)" : "#fff7ed",
+            borderRadius: "12px",
+            padding: isMobile ? "8px 10px" : "10px 12px",
+            display: "grid",
+            gap: "7px",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: "0.54rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
+                Mochila llena
+              </div>
+              <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", marginTop: "3px", lineHeight: 1.3 }}>
+                {visibleOverflowEvent.incomingItemKept
+                  ? `${visibleOverflowEvent.incomingItemName} entró y desplazó ${visibleOverflowEvent.droppedItemName}.`
+                  : `${visibleOverflowEvent.incomingItemName} no entró y se perdió.`}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => {
+                  dispatch({ type: "REQUEST_LOOT_FILTER_OPEN" });
+                  dispatch({ type: "SET_TAB", tab: "inventory" });
+                }}
+                style={{
+                  border: "1px solid rgba(245,158,11,0.38)",
+                  background: "rgba(245,158,11,0.1)",
+                  color: "var(--tone-warning, #f59e0b)",
+                  borderRadius: "8px",
+                  padding: "5px 8px",
+                  fontSize: "0.58rem",
+                  fontWeight: "900",
+                  cursor: "pointer",
+                }}
+              >
+                Abrir filtro
+              </button>
+              <button
+                onClick={() => setDismissedOverflowEventId(visibleOverflowEvent.id)}
+                style={{
+                  border: "1px solid var(--color-border-primary, #e2e8f0)",
+                  background: "var(--color-background-secondary, #ffffff)",
+                  color: "var(--color-text-secondary, #64748b)",
+                  borderRadius: "8px",
+                  padding: "5px 8px",
+                  fontSize: "0.58rem",
+                  fontWeight: "900",
+                  cursor: "pointer",
+                }}
+              >
+                Ocultar
+              </button>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.12)", color: "var(--tone-warning, #f59e0b)" }}>
+              {Math.max(0, Number(overflowStats.total || 0))} overflow
+            </span>
+            <span style={{ fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #64748b)" }}>
+              {Math.max(0, Number(overflowStats.lost || 0))} perdidos
+            </span>
+            <span style={{ fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.12)", color: "var(--tone-warning, #f59e0b)" }}>
+              Entra {String(visibleOverflowEvent.incomingItemRarity || "common").toUpperCase()} · P {Math.floor(Number(visibleOverflowEvent.incomingItemRating || 0))}
+            </span>
+            <span style={{ fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #64748b)" }}>
+              Sale {String(visibleOverflowEvent.droppedItemRarity || "common").toUpperCase()} · P {Math.floor(Number(visibleOverflowEvent.droppedItemRating || 0))}
+            </span>
+          </div>
+          <div style={{ fontSize: "0.6rem", fontWeight: "800", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.35 }}>
+            Ajustalo en Mochila con filtro de loot si se repite seguido.
+          </div>
+          <div style={{ fontSize: "0.58rem", fontWeight: "800", color: "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.35 }}>
+            Regla activa: {lootRuleSummary}.
+          </div>
+        </section>
+      )}
+      {showRunSigilCallout && (
+        <RunSigilCallout
+          runSigilIds={activeRunSigilIds}
+          slotCount={runSigilSlotCount}
+          title="Sesgo activo de run"
+          subtitle="Si quieres otro perfil, cambialo al iniciar la proxima expedicion."
+          showDeltas
+        />
+      )}
       <section
         style={{
           display: "grid",
@@ -1208,6 +1342,28 @@ export default function Combat({ state, dispatch }) {
             </button>
           )}
         </div>
+        {extractionUnlocked && extractionDecision && (
+          <div style={{ display: "flex", justifyContent: "center", marginTop: "6px" }}>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                flexWrap: "wrap",
+                padding: "5px 8px",
+                borderRadius: "999px",
+                border: "1px solid var(--color-border-primary, #e2e8f0)",
+                background: "var(--color-background-tertiary, #f8fafc)",
+                fontSize: "0.58rem",
+                lineHeight: 1.3,
+                fontWeight: "900",
+              }}
+            >
+              <span style={{ color: extractionDecision.tone }}>{extractionDecision.label}</span>
+              <span style={{ color: "var(--color-text-secondary, #64748b)" }}>{extractionDecision.detail}</span>
+            </div>
+          </div>
+        )}
 
         <div
           data-onboarding-target={spotlightCombatEncounter ? "combat-encounter" : undefined}

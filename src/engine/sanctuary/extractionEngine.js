@@ -7,6 +7,7 @@ import { isBlueprintDecisionUnlocked } from "../onboarding/onboardingEngine";
 const PROJECT_ELIGIBLE_RARITIES = new Set(["rare", "epic", "legendary"]);
 const RARITY_RANK = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
 const TUTORIAL_EXTRACTION_PROJECT_ID = "tutorial_extraction_project";
+const EXTRACTION_INTEL_LENS_USES = 2;
 
 function makeCargoId(type, seed) {
   return `cargo_${type}_${seed}`;
@@ -37,6 +38,30 @@ function shouldForceTutorialProject(state = {}, exitReason = "retire") {
   );
 }
 
+function formatAffixIntelLine(affix = {}) {
+  if (!affix?.stat) return null;
+  const tier = Math.max(0, Number(affix?.tier || 0));
+  return `${affix.stat}${tier > 0 ? ` · T${tier}` : ""}${affix?.source === "abyss" ? " · Abismo" : ""}`;
+}
+
+function buildProjectIntelLines(item = {}) {
+  const affixes = Array.isArray(item?.affixes) ? item.affixes : [];
+  const prioritized = [...affixes]
+    .sort((left, right) => {
+      const tierDelta = Math.max(0, Number(right?.tier || 0)) - Math.max(0, Number(left?.tier || 0));
+      if (tierDelta !== 0) return tierDelta;
+      const valueDelta =
+        Math.abs(Number(right?.rolledValue ?? right?.value ?? 0)) -
+        Math.abs(Number(left?.rolledValue ?? left?.value ?? 0));
+      return valueDelta;
+    })
+    .slice(0, 2)
+    .map(formatAffixIntelLine)
+    .filter(Boolean);
+  if (prioritized.length > 0) return prioritized;
+  return ["base estable"];
+}
+
 function buildTutorialProjectOption(state = {}) {
   const preferredType = state?.player?.equipment?.weapon ? "armor" : "weapon";
   const baseItem =
@@ -56,6 +81,7 @@ function buildTutorialProjectOption(state = {}) {
   if (!tutorialItem) return null;
 
   const rating = calcItemRating(tutorialItem);
+  const intelLines = buildProjectIntelLines(tutorialItem);
   return {
     itemId: TUTORIAL_EXTRACTION_PROJECT_ID,
     name: tutorialItem.name,
@@ -65,6 +91,8 @@ function buildTutorialProjectOption(state = {}) {
     affixCount: Array.isArray(tutorialItem.affixes) ? tutorialItem.affixes.length : 0,
     legendaryPowerId: tutorialItem.legendaryPowerId || null,
     source: "tutorial",
+    intelLines,
+    intelRevealedCount: intelLines.length,
     previewItem: {
       ...tutorialItem,
       rating,
@@ -212,16 +240,21 @@ function buildProjectOptions(state, exitReason = "retire") {
       return Number(right?.rating || 0) - Number(left?.rating || 0);
     })
     .slice(0, 6)
-    .map(item => ({
-      itemId: item.id,
-      name: item.name,
-      rarity: item.rarity,
-      type: item.type,
-      rating: item.rating || 0,
-      affixCount: Array.isArray(item.affixes) ? item.affixes.length : 0,
-      legendaryPowerId: item.legendaryPowerId || null,
-      source: state?.player?.equipment?.weapon?.id === item.id || state?.player?.equipment?.armor?.id === item.id ? "equipment" : "inventory",
-    }));
+    .map(item => {
+      const intelLines = buildProjectIntelLines(item);
+      return {
+        itemId: item.id,
+        name: item.name,
+        rarity: item.rarity,
+        type: item.type,
+        rating: item.rating || 0,
+        affixCount: Array.isArray(item.affixes) ? item.affixes.length : 0,
+        legendaryPowerId: item.legendaryPowerId || null,
+        source: state?.player?.equipment?.weapon?.id === item.id || state?.player?.equipment?.armor?.id === item.id ? "equipment" : "inventory",
+        intelLines,
+        intelRevealedCount: 0,
+      };
+    });
 }
 
 export function buildProjectSnapshot(item, meta = {}) {
@@ -298,6 +331,10 @@ export function buildExtractionPreview(state, { exitReason = "retire" } = {}) {
     relic: Math.max(0, Number(state?.sanctuary?.extractionUpgrades?.relicSlots || 0)),
     insuredCargo: Math.max(0, Number(state?.sanctuary?.extractionUpgrades?.insuredCargoSlots || 0)),
   };
+  const projectIntelLensUses =
+    tutorialProjectRequired || Number(availableSlots.project || 0) <= 0 || projectOptions.length <= 0
+      ? 0
+      : EXTRACTION_INTEL_LENS_USES;
 
   return {
     exitReason,
@@ -312,6 +349,7 @@ export function buildExtractionPreview(state, { exitReason = "retire" } = {}) {
     },
     cargoOptions,
     projectOptions,
+    projectIntelLensUses,
     availableSlots,
     recoveryRules: {
       cargoRecoveryMultiplier: exitReason === "death" ? 0.5 : 1,

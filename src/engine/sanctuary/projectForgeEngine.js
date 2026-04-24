@@ -1,5 +1,5 @@
 import { ABYSS_PREFIXES, ABYSS_SUFFIXES } from "../../data/affixes";
-import { polishAffix } from "../affixesEngine";
+import { polishAffix, rerollAffixes } from "../affixesEngine";
 import { buildReforgePreview } from "../crafting/craftingEngine";
 
 const PROJECT_RARITY_INDEX = { rare: 1, epic: 2, legendary: 3 };
@@ -239,8 +239,15 @@ export function getDeepForgeCosts(project = {}, mode = "polish", affixIndex = nu
 
   if (mode === "reforge") {
     return {
-      essence: Math.floor((28 + rarityIndex * 14 + currentUpgradeLevel * 2) * (1 + crafting.reforgeCount * 0.26)),
+      essence: Math.floor((24 + rarityIndex * 11 + currentUpgradeLevel * 2) * (1 + crafting.reforgeCount * 0.24)),
       relicDust: Math.max(1, rarityIndex + Math.floor(currentUpgradeLevel / 5)),
+    };
+  }
+
+  if (mode === "reroll") {
+    return {
+      essence: Math.floor((44 + rarityIndex * 18 + currentUpgradeLevel * 3) * (1 + crafting.rerollCount * 0.28)),
+      relicDust: Math.max(2, rarityIndex + Math.floor(currentUpgradeLevel / 4)),
     };
   }
 
@@ -319,6 +326,48 @@ export function deepForgePolishProject(project = {}, affixIndex = null) {
   };
   return rebuildProjectProgression(normalized, {
     baseAffixes: nextBaseAffixes,
+    baseRating: Math.max(1, Math.round(Number(normalized?.baseRating || normalized?.rating || 1) * scoreRatio)),
+    crafting: nextCrafting,
+  });
+}
+
+export function deepForgeRerollProject(project = {}) {
+  const normalized = normalizeProjectRecord(project);
+  const currentBaseAffixes = Array.isArray(normalized?.baseAffixes) ? normalized.baseAffixes : [];
+  if (currentBaseAffixes.length <= 0) return null;
+
+  const rerollTier = Math.max(
+    1,
+    Number(normalized?.projectTier || 0) +
+      Number(normalized?.ascensionTier || 0) +
+      1 +
+      Math.floor(Math.max(0, Number(normalized?.upgradeLevel || 0)) / 5)
+  );
+  const rerolledBaseAffixes = rerollAffixes(
+    {
+      rarity: normalized?.rarity,
+      affixes: currentBaseAffixes,
+      baseBonus: {},
+      implicitBonus: {},
+    },
+    rerollTier
+  ).map(cloneAffixRecord);
+  if (!Array.isArray(rerolledBaseAffixes) || rerolledBaseAffixes.length <= 0) return null;
+
+  const currentScore = Math.max(1, currentBaseAffixes.reduce((total, affix) => total + getNumericAffixScore(affix), 0));
+  const nextScore = Math.max(1, rerolledBaseAffixes.reduce((total, affix) => total + getNumericAffixScore(affix), 0));
+  const scoreRatio = Math.max(0.88, Math.min(1.2, nextScore / currentScore));
+  const crafting = buildProjectCraftingState(normalized);
+  const nextCrafting = {
+    ...crafting,
+    rerollCount: crafting.rerollCount + 1,
+    polishCountsByIndex: {},
+    focusedAffixIndex: null,
+    focusedAffixStat: null,
+  };
+
+  return rebuildProjectProgression(normalized, {
+    baseAffixes: rerolledBaseAffixes,
     baseRating: Math.max(1, Math.round(Number(normalized?.baseRating || normalized?.rating || 1) * scoreRatio)),
     crafting: nextCrafting,
   });

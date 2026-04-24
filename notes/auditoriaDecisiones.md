@@ -44,9 +44,9 @@ Notas:
 ### EV-06 - Session Arc visible
 Mostrar objetivo principal y secundarios de la sesion con mejor framing.
 
-Decision: HACER
+Decision: NO HACER
 Prioridad:
-Notas: tenemos qu edesarrollar todo un sistema de session arcs? Porque hoy no está establecido pensando en las sesiones. Hay logros en el aire y punto.
+Notas: Ya esta resuelto en producto actual. No tocar salvo regresion puntual.
 
 ### EV-07 - Loot filter basico
 Exponer `lootRules` como filtro simple y util.
@@ -127,7 +127,7 @@ Mostrar mejor por que un item o craft sirve para tu build.
 
 Decision: NO HACER
 Prioridad:
-Notas: No quiero llenar al usuario de sugerencias
+Notas: Pausado por preferencia de UX. Mantener fuera del flujo por ahora.
 
 ### UX-05 - OverlayShell comun
 Unificar politica visual y de safe area de overlays.
@@ -335,7 +335,6 @@ SY-06
 SY-07
 EV-01
 EV-05
-EV-06
 EV-08 > Dar más detalle de qué cambios haríamos
 EC-02
 EC-03
@@ -351,3 +350,111 @@ RS-01
 RS-04
 RS-05
 
+---
+
+## 6. Lotes de implementacion (Adicionales)
+
+Objetivo: ejecutar estos IDs sin mezclar frentes y con criterios de cierre claros.
+
+### Lote A — Claridad del loop y decisiones visibles (impacto inmediato)
+
+IDs:
+- `RS-01`
+- `SY-07`
+- `EC-07`
+- `EC-08` (ajustado: sin sugerencias intrusivas)
+
+Alcance:
+- `SY-07` + `RS-01`: bajar friccion operativa del Santuario (batch claim/restart donde aplique, menos mantenimiento repetitivo).
+- `EC-07`: terminar surface de reward loop (loot filter basico + overflow visible).
+- `EC-08`: lectura build-aware explicativa (`por que mejora / que pierdes`), sin recomendaciones automáticas.
+
+Criterio de cierre:
+- En una sesion de 10-15 min se entiende claramente: objetivo actual, siguiente decision y motivo del progreso.
+- El jugador no necesita abrir varias vistas para saber `que reclamar` o `que perseguir`.
+- Overflow y calidad de loot quedan visibles fuera del log.
+
+---
+
+### Lote B — Ownership de crafting y tuning de economia
+
+IDs:
+- `EV-05` (ajustado: mover primero `reroll`, no todo de una)
+- `EV-08`
+- `EC-03`
+- `EC-05`
+- `EC-06`
+- `PF-08`
+
+Alcance:
+- `EV-05`: mover `reroll` al `Deep Forge` y simplificar crafting de Expedicion al minimo tactico.
+- `EV-08`: reforzar loop `Santuario -> Expedicion -> Extraccion` sin reintroducir friccion administrativa.
+- `EC-03`: tuning de primer prestige para evitar extracciones demasiado superficiales.
+- `EC-05`: retune de ladder `polish / reforge / ascend` (valor/costo mas legible).
+- `EC-06`: explicitar contrato real de crafting en copy/UI (sin introducir FP global por ahora).
+- `PF-08`: unificar `isMobile`, `resize` y relojes para bajar ruido y drift visual.
+
+Criterio de cierre:
+- `Reroll` deja de estar partido entre run y Santuario.
+- El pacing del primer prestige no premia rutas triviales.
+- La escalera de crafting se siente consistente en costo vs resultado.
+
+---
+
+### Lote C — Hardening de producto y escalabilidad
+
+IDs:
+- `EC-04`
+- `SY-06`
+- `SY-04`
+- `UX-01`
+- `UX-04`
+- `UX-07`
+- `UX-08`
+- `EC-02`
+- `PF-09`
+- `PF-11`
+- `RS-04`
+- `RS-05`
+
+Alcance:
+- `EC-04`: arreglar harness/balanceBot para paridad real con reglas del juego vivo.
+- `SY-06`: telemetria/sampling de loot y affixes antes de rebalancear a ciegas.
+- `SY-04`: politica de migracion legacy de talentos (mensaje o preservacion).
+- `UX-01` + `UX-08`: limpieza de `Mas` + hints mobile sin `title=`.
+- `UX-04`: prototipo de `ContextTray` mobile.
+- `UX-07`: primitives visuales minimas para evitar divergence UI.
+- `EC-02`: suavizar saltos de XP por brackets.
+- `PF-09`: reforzar patrón data-driven en features nuevas.
+- `PF-11`: paginacion/colapsables/gating en `Codex` y `Stats`.
+- `RS-04` + `RS-05`: mitigacion de riesgo de loop ruidoso + fragilidad estructural.
+
+Criterio de cierre:
+- El equipo puede testear balance con tooling confiable.
+- Vistas largas (`Codex/Stats`) no degradan UX al escalar contenido.
+- Se reduce deuda estructural sin frenar delivery de features.
+
+---
+
+## 7. Orden de ejecucion recomendado
+
+1. Ejecutar `Lote A` completo.
+2. Ejecutar `Lote B` completo.
+3. Ejecutar `Lote C` por sub-bloques (`tooling`, `UX`, `performance`).
+
+---
+
+## 8. Plantilla para que decidas rapido
+
+Usar este formato por lote:
+
+```md
+Lote A: HACER | NO HACER | AJUSTAR | DUDA
+Notas:
+
+Lote B: HACER | NO HACER | AJUSTAR | DUDA
+Notas:
+
+Lote C: HACER | NO HACER | AJUSTAR | DUDA
+Notas:
+```

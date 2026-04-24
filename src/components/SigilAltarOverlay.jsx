@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
-import OverlayShell from "./OverlayShell";
+import React, { useMemo, useState } from "react";
+import OverlayShell, { OverlaySurface } from "./OverlayShell";
 import JobProgressBar from "./JobProgressBar";
 import { RUN_SIGILS, getRunSigil } from "../data/runSigils";
 import { getSigilInfusionRecipe } from "../engine/sanctuary/jobEngine";
+import useRelativeNow from "../hooks/useRelativeNow";
 
 function sectionPanelStyle(accent = "var(--tone-success, #10b981)") {
   return {
@@ -13,6 +14,7 @@ function sectionPanelStyle(accent = "var(--tone-success, #10b981)") {
     padding: "16px",
     display: "grid",
     gap: "12px",
+    alignSelf: "start",
     boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
   };
 }
@@ -96,16 +98,21 @@ function formatRemaining(ms = 0) {
 }
 
 export default function SigilAltarOverlay({ state, dispatch, isMobile = false, onClose }) {
-  const [now, setNow] = useState(Date.now());
-  const [expandedSections, setExpandedSections] = useState({
-    infusions: false,
-    storage: false,
+  const now = useRelativeNow();
+  const [expandedSections, setExpandedSections] = useState(() => {
+    const sanctuary = state?.sanctuary || {};
+    const jobs = Array.isArray(sanctuary?.jobs) ? sanctuary.jobs : [];
+    const hasRunningInfusions = jobs.some(
+      job => job?.station === "sigilInfusion" && job?.status === "running"
+    );
+    const hasStoredCharges = Object.values(sanctuary?.sigilInfusions || {}).some(
+      entry => Number(entry?.charges || 0) > 0
+    );
+    return {
+      infusions: true,
+      storage: hasStoredCharges || hasRunningInfusions,
+    };
   });
-
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
 
   const sanctuary = state.sanctuary || {};
   const resources = sanctuary?.resources || {};
@@ -130,11 +137,19 @@ export default function SigilAltarOverlay({ state, dispatch, isMobile = false, o
   }
 
   return (
-    <OverlayShell isMobile={isMobile}>
-      <div style={{ width: "100%", maxWidth: "1220px", maxHeight: "100%", overflow: "auto", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", borderRadius: isMobile ? "16px 16px 0 0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", display: "grid", gap: "12px", padding: isMobile ? "12px 10px 16px" : "14px 14px 16px" }}>
-        <div style={{ padding: "1rem", display: "grid", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+    <OverlayShell isMobile={isMobile} contentLabel="Altar de Sigilos">
+      <OverlaySurface isMobile={isMobile}>
+        <div style={{
+          padding: "1rem",
+          display: "grid",
+          gap: "1rem",
+          alignItems: "start",
+          alignContent: "start",
+          background: "var(--color-background-primary, #f8fafc)",
+          color: "var(--color-text-primary, #1e293b)",
+        }}>
           <section style={sectionPanelStyle("var(--tone-success, #10b981)")}>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "12px", alignItems: "start" }}>
+            <div style={{ display: "grid", gap: "12px", alignItems: "start" }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-success, #10b981)" }}>
                   Altar de Sigilos
@@ -146,9 +161,6 @@ export default function SigilAltarOverlay({ state, dispatch, isMobile = false, o
                   Prepara cargas con tiempo real. La próxima expedición consume automáticamente una carga del sigilo equipado.
                 </div>
               </div>
-              <button onClick={onClose} style={{ ...actionButtonStyle({ compact: true }), flex: "0 0 auto" }}>
-                Volver
-              </button>
             </div>
 
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -176,6 +188,12 @@ export default function SigilAltarOverlay({ state, dispatch, isMobile = false, o
                 <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Cargas</div>
                 <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{totalCharges}</div>
               </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button onClick={onClose} style={{ ...actionButtonStyle({ compact: true }), flex: "0 0 auto" }}>
+                Volver
+              </button>
             </div>
           </section>
 
@@ -339,7 +357,7 @@ export default function SigilAltarOverlay({ state, dispatch, isMobile = false, o
             </div>
           </section>
         </div>
-      </div>
+      </OverlaySurface>
     </OverlayShell>
   );
 }

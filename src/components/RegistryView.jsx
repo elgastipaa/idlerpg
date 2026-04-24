@@ -1,7 +1,5 @@
-import React, { useRef } from "react";
-import AccountProgressView from "./AccountProgressView";
-import Achievements from "./Achievements";
-import Stats from "./Stats";
+import React, { Suspense, lazy, useRef } from "react";
+import useViewport from "../hooks/useViewport";
 
 const SUBVIEW_META = {
   account: {
@@ -30,6 +28,10 @@ const SUBVIEW_META = {
   },
 };
 
+const AccountProgressView = lazy(() => import("./AccountProgressView"));
+const Achievements = lazy(() => import("./Achievements"));
+const Stats = lazy(() => import("./Stats"));
+
 function buttonStyle({ active = false, disabled = false } = {}) {
   return {
     border: "1px solid",
@@ -57,46 +59,6 @@ function buttonStyle({ active = false, disabled = false } = {}) {
   };
 }
 
-function panelStyle() {
-  return {
-    background: "var(--color-background-secondary, #ffffff)",
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    borderRadius: "14px",
-    padding: "12px",
-    display: "grid",
-    gap: "10px",
-  };
-}
-
-function metricCardStyle() {
-  return {
-    background: "var(--color-background-tertiary, #f8fafc)",
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    borderRadius: "12px",
-    padding: "10px 12px",
-    display: "grid",
-    gap: "4px",
-  };
-}
-
-function chipStyle({
-  tone = "var(--tone-accent, #4338ca)",
-  surface = "var(--tone-accent-soft, #eef2ff)",
-} = {}) {
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "6px",
-    border: `1px solid ${tone}`,
-    background: surface,
-    color: tone,
-    borderRadius: "999px",
-    padding: "4px 8px",
-    fontSize: "0.62rem",
-    fontWeight: "900",
-  };
-}
-
 function getRegistrySubview(tab = "registry") {
   if (tab === "registry") return "account";
   if (tab === "account" || tab === "achievements" || tab === "stats") return tab;
@@ -104,16 +66,53 @@ function getRegistrySubview(tab = "registry") {
   return "account";
 }
 
+function SubviewLoadingCard({ label = "Vista" }) {
+  return (
+    <div
+      style={{
+        border: "1px solid var(--color-border-primary, #e2e8f0)",
+        background: "var(--color-background-secondary, #ffffff)",
+        borderRadius: "12px",
+        padding: "14px 12px",
+        fontSize: "0.72rem",
+        fontWeight: "900",
+        color: "var(--color-text-secondary, #64748b)",
+      }}
+    >
+      Cargando {label}...
+    </div>
+  );
+}
+
 export default function RegistryView({ state, dispatch }) {
+  const { isMobile } = useViewport();
   const accountDevGestureRef = useRef({ count: 0, lastClickAt: 0 });
   const activeSubview = getRegistrySubview(state?.currentTab || "registry");
   const reforgeLocked = !!state?.combat?.reforgeSession;
-  const sessionTicks = Number(state?.combat?.analytics?.ticks || 0);
-  const sessionMinutes = Math.floor(sessionTicks / 60);
-  const replayEntries = Array.isArray(state?.replayLibrary?.entries) ? state.replayLibrary.entries.filter(entry => entry?.isActive !== false).length : 0;
-  const currentTier = Math.max(1, Number(state?.combat?.currentTier || 1));
-  const telemetryKills = Math.max(0, Number(state?.combat?.analytics?.kills || 0));
   const DEV_GESTURE_WINDOW_MS = 900;
+  const mobileSubviewCount = Object.keys(SUBVIEW_META).length;
+  const mobileSubtabsScrollable = mobileSubviewCount >= 5;
+  const mobileSubviewDockStyle = {
+    position: "fixed",
+    left: 0,
+    right: 0,
+    bottom: "calc(var(--app-bottom-nav-offset, 72px) + env(safe-area-inset-bottom))",
+    zIndex: 4900,
+    background: "var(--color-background-secondary, #ffffff)",
+    borderTop: "1px solid var(--color-border-secondary, #e2e8f0)",
+    boxShadow: "0 -10px 24px rgba(15,23,42,0.08)",
+    padding: "8px 8px 8px",
+  };
+  const mobileSubviewRowStyle = {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "nowrap",
+    width: "100%",
+    overflowX: mobileSubtabsScrollable ? "auto" : "hidden",
+    overflowY: "hidden",
+    scrollbarWidth: mobileSubtabsScrollable ? "none" : "auto",
+    WebkitOverflowScrolling: "touch",
+  };
 
   function handleSubviewPress(viewId) {
     if (viewId === "account") {
@@ -137,105 +136,7 @@ export default function RegistryView({ state, dispatch }) {
 
   return (
     <div style={{ display: "grid", gap: "10px", padding: "10px" }}>
-      <section style={panelStyle()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "12px", flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
-              Mas
-            </div>
-            <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-              Utilidades y registro
-            </div>
-            <div style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
-              Esta pestaña queda fuera del loop principal. Agrupa consulta, telemetria y herramientas sin competir con Santuario o Expedicion.
-            </div>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
-              <span style={chipStyle({ tone: "var(--tone-success, #10b981)", surface: "var(--tone-success-soft, #ecfdf5)" })}>
-                Consulta
-              </span>
-              <span style={chipStyle({ tone: "var(--tone-info, #0369a1)", surface: "var(--tone-info-soft, #f0f9ff)" })}>
-                Telemetria
-              </span>
-              <span style={chipStyle({ tone: "var(--tone-violet, #7c3aed)", surface: "var(--tone-violet-soft, #f3e8ff)" })}>
-                Herramientas
-              </span>
-            </div>
-          </div>
-          {activeSubview === "system" && (
-            <div style={{ fontSize: "0.64rem", color: "var(--tone-violet, #7c3aed)", fontWeight: "900", maxWidth: "30ch", textAlign: "right", lineHeight: 1.45 }}>
-              Esta vista mezcla replay, save, bot y tooling. Se mantiene separada para no ensuciar la lectura principal del juego.
-            </div>
-          )}
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "8px" }}>
-          {Object.entries(SUBVIEW_META).map(([viewId, meta]) => {
-            const active = activeSubview === viewId;
-            const disabled = reforgeLocked && !active;
-            return (
-              <button
-                key={`summary-${viewId}`}
-                onClick={() => handleSubviewPress(viewId)}
-                disabled={disabled}
-                style={{
-                  ...panelStyle(),
-                  textAlign: "left",
-                  cursor: disabled ? "not-allowed" : "pointer",
-                  opacity: disabled ? 0.6 : 1,
-                  borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
-                  background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #ffffff)",
-                }}
-                title={meta.description}
-              >
-                <div style={{ display: "grid", gap: "4px" }}>
-                  <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)" }}>
-                    {meta.eyebrow}
-                  </div>
-                  <div style={{ fontSize: "0.86rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-                    {meta.label}
-                  </div>
-                  <div style={{ fontSize: "0.67rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
-                    {meta.summary}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Vista activa
-            </div>
-            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>{SUBVIEW_META[activeSubview].label}</div>
-          </div>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Tier sesion
-            </div>
-            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>T{currentTier}</div>
-          </div>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Kills sesion
-            </div>
-            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>{telemetryKills.toLocaleString()}</div>
-          </div>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Tiempo
-            </div>
-            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>{sessionMinutes > 0 ? `${sessionMinutes}m` : "<1m"}</div>
-          </div>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Replays
-            </div>
-            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>{replayEntries}</div>
-          </div>
-        </div>
-
+      {!isMobile && (
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           {Object.entries(SUBVIEW_META).map(([viewId, meta]) => {
             const active = activeSubview === viewId;
@@ -253,26 +154,44 @@ export default function RegistryView({ state, dispatch }) {
             );
           })}
         </div>
+      )}
 
-        {activeSubview !== "system" && (
-          <div style={{ ...panelStyle(), gap: "6px", padding: "10px 12px", background: "var(--color-background-tertiary, #f8fafc)" }}>
-            <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
-              {activeSubview === "account" ? "`Sistema` y `Metricas` quedan separados a proposito" : "`Sistema` queda separado a proposito"}
-            </div>
-            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
-              {activeSubview === "account"
-                ? "Esta vista junta progreso largo de cuenta. Save tools, replay y telemetria cruda viven aparte para no romper esa lectura."
-                : "Save tools, replay y debugging viven aca, pero no deberian contaminar la lectura principal de progreso del jugador."}
-            </div>
+      {isMobile && (
+        <div style={mobileSubviewDockStyle}>
+          <div style={mobileSubviewRowStyle}>
+            {Object.entries(SUBVIEW_META).map(([viewId, meta]) => {
+              const active = activeSubview === viewId;
+              const disabled = reforgeLocked && !active;
+              return (
+                <button
+                  key={`mobile-${viewId}`}
+                  onClick={() => handleSubviewPress(viewId)}
+                  disabled={disabled}
+                  style={{
+                    ...buttonStyle({ active, disabled }),
+                    minWidth: mobileSubtabsScrollable ? "84px" : 0,
+                    flex: mobileSubtabsScrollable ? "0 0 auto" : "1 1 0",
+                    padding: "8px 10px",
+                    fontSize: "0.68rem",
+                    whiteSpace: mobileSubtabsScrollable ? "nowrap" : "normal",
+                  }}
+                  title={meta.description}
+                >
+                  {meta.label}
+                </button>
+              );
+            })}
           </div>
-        )}
-      </section>
+        </div>
+      )}
 
       <div>
-        {activeSubview === "account" && <AccountProgressView state={state} dispatch={dispatch} />}
-        {activeSubview === "achievements" && <Achievements state={state} />}
-        {activeSubview === "stats" && <Stats state={state} dispatch={dispatch} mode="stats" />}
-        {activeSubview === "system" && <Stats state={state} dispatch={dispatch} mode="lab" />}
+        <Suspense fallback={<SubviewLoadingCard label={SUBVIEW_META[activeSubview]?.label || "Vista"} />}>
+          {activeSubview === "account" && <AccountProgressView state={state} dispatch={dispatch} />}
+          {activeSubview === "achievements" && <Achievements state={state} />}
+          {activeSubview === "stats" && <Stats state={state} dispatch={dispatch} mode="stats" />}
+          {activeSubview === "system" && <Stats state={state} dispatch={dispatch} mode="lab" />}
+        </Suspense>
       </div>
     </div>
   );

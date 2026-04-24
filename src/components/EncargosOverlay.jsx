@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import OverlayShell from "./OverlayShell";
+import OverlayShell, { OverlaySurface } from "./OverlayShell";
 import JobProgressBar from "./JobProgressBar";
+import ActionToast from "./ActionToast";
 import { getSanctuaryErrandCatalog } from "../engine/sanctuary/jobEngine";
+import useRelativeNow from "../hooks/useRelativeNow";
 
 function panelStyle(accent = "var(--tone-info, #0369a1)") {
   return {
@@ -12,6 +14,7 @@ function panelStyle(accent = "var(--tone-info, #0369a1)") {
     padding: "16px",
     display: "grid",
     gap: "12px",
+    alignSelf: "start",
     boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
   };
 }
@@ -97,18 +100,30 @@ function getProgressTier(state) {
 }
 
 export default function EncargosOverlay({ state, dispatch, isMobile = false, onClose }) {
-  const [now, setNow] = useState(Date.now());
-  const [expandedSections, setExpandedSections] = useState({
-    catalog: false,
-    claimable: false,
-    running: false,
+  const now = useRelativeNow();
+  const [actionToast, setActionToast] = useState(null);
+  const [expandedSections, setExpandedSections] = useState(() => {
+    const sanctuary = state?.sanctuary || {};
+    const jobs = Array.isArray(sanctuary?.jobs) ? sanctuary.jobs : [];
+    const hasClaimable = jobs.some(job => job?.station === "errands" && job?.status === "claimable");
+    const hasRunning = jobs.some(job => job?.station === "errands" && job?.status === "running");
+    return {
+      catalog: true,
+      claimable: hasClaimable,
+      running: hasRunning,
+    };
   });
-  const [expandedCatalogEntries, setExpandedCatalogEntries] = useState({});
+  const [expandedCatalogEntries, setExpandedCatalogEntries] = useState(() => {
+    const initialCatalog = getSanctuaryErrandCatalog(getProgressTier(state));
+    const firstEntryId = initialCatalog?.[0]?.id;
+    return firstEntryId ? { [firstEntryId]: true } : {};
+  });
 
   useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
+    if (!actionToast?.id) return undefined;
+    const id = window.setTimeout(() => setActionToast(null), 1700);
+    return () => window.clearTimeout(id);
+  }, [actionToast?.id]);
 
   const sanctuary = state.sanctuary || {};
   const jobs = Array.isArray(sanctuary?.jobs) ? sanctuary.jobs : [];
@@ -131,6 +146,38 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
         ? "Un grupo del Santuario esta en mision. Regresara en breve."
         : "El Santuario tiene equipos disponibles. Asigna un encargo y volveran con recursos utiles.";
 
+  function claimErrandJob(job, { restart = false, nowAt = Date.now() } = {}) {
+    if (!job?.id) return;
+    dispatch({ type: "CLAIM_SANCTUARY_JOB", jobId: job.id, now: nowAt });
+    if (!restart || !job?.input?.errandId) return;
+    dispatch({
+      type: "START_SANCTUARY_ERRAND",
+      errandId: job.input.errandId,
+      durationId: job.input.durationId || "short",
+      now: nowAt + 1,
+    });
+  }
+
+  function claimAllErrandJobs({ restart = false } = {}) {
+    if (claimableJobs.length <= 0) return;
+    const claimAt = Date.now();
+    let restartedCount = 0;
+    claimableJobs.forEach((job, index) => {
+      const canRestart = restart && Boolean(job?.input?.errandId);
+      claimErrandJob(job, { restart: canRestart, nowAt: claimAt + (index * 2) });
+      if (canRestart) restartedCount += 1;
+    });
+    setActionToast({
+      id: Date.now(),
+      tone: restart ? "info" : "success",
+      message: restart
+        ? `Reclamaste ${claimableJobs.length} y relanzaste ${restartedCount}.`
+        : `Reclamaste ${claimableJobs.length} encargos.`,
+    });
+  }
+
+  const canRepeatClaimedErrands = claimableJobs.some(job => job?.input?.errandId);
+
   function toggleSection(section) {
     setExpandedSections(current => ({
       ...current,
@@ -146,11 +193,19 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
   }
 
   return (
-    <OverlayShell isMobile={isMobile}>
-      <div style={{ width: "100%", maxWidth: "1220px", maxHeight: "100%", overflow: "auto", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", borderRadius: isMobile ? "16px 16px 0 0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", display: "grid", gap: "12px", padding: isMobile ? "12px 10px 16px" : "14px 14px 16px" }}>
-        <div style={{ padding: "1rem", display: "grid", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+    <OverlayShell isMobile={isMobile} contentLabel="Encargos">
+      <OverlaySurface isMobile={isMobile}>
+        <div style={{
+          padding: "1rem",
+          display: "grid",
+          gap: "1rem",
+          alignItems: "start",
+          alignContent: "start",
+          background: "var(--color-background-primary, #f8fafc)",
+          color: "var(--color-text-primary, #1e293b)",
+        }}>
           <section style={panelStyle("var(--tone-info, #0369a1)")}>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: "12px", alignItems: "start" }}>
+            <div style={{ display: "grid", gap: "12px", alignItems: "start" }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
                   Encargos
@@ -165,9 +220,6 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                   {statusFlavor}
                 </div>
               </div>
-              <button onClick={onClose} style={{ ...actionButtonStyle({ compact: true }), flex: "0 0 auto" }}>
-                Volver
-              </button>
             </div>
 
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -210,6 +262,12 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                 </div>
                 <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{claimableJobs.length}</div>
               </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button onClick={onClose} style={{ ...actionButtonStyle({ compact: true }), flex: "0 0 auto" }}>
+                Volver
+              </button>
             </div>
           </section>
 
@@ -318,15 +376,39 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                       Equipos que ya volvieron
                     </div>
                   </div>
-                  <button
-                    onClick={event => {
-                      event.stopPropagation();
-                      toggleSection("claimable");
-                    }}
-                    style={{ ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
-                  >
-                    {expandedSections?.claimable ? "-" : "+"}
-                  </button>
+                  <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    {claimableJobs.length > 0 && canRepeatClaimedErrands && (
+                      <button
+                        onClick={event => {
+                          event.stopPropagation();
+                          claimAllErrandJobs({ restart: true });
+                        }}
+                        style={actionButtonStyle({ compact: true })}
+                      >
+                        Todo + repetir
+                      </button>
+                    )}
+                    {claimableJobs.length > 1 && (
+                      <button
+                        onClick={event => {
+                          event.stopPropagation();
+                          claimAllErrandJobs();
+                        }}
+                        style={actionButtonStyle({ primary: true, compact: true })}
+                      >
+                        Reclamar todo
+                      </button>
+                    )}
+                    <button
+                      onClick={event => {
+                        event.stopPropagation();
+                        toggleSection("claimable");
+                      }}
+                      style={{ ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
+                    >
+                      {expandedSections?.claimable ? "-" : "+"}
+                    </button>
+                  </div>
                 </div>
 
                 {expandedSections?.claimable && (
@@ -347,12 +429,22 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                             </div>
                             <span style={chipLabelStyle("var(--tone-success, #10b981)")}>Listo</span>
                           </div>
-                          <button
-                            onClick={() => dispatch({ type: "CLAIM_SANCTUARY_JOB", jobId: job.id, now })}
-                            style={actionButtonStyle({ primary: true, compact: true })}
-                          >
-                            Reclamar recompensa
-                          </button>
+                          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                            <button
+                              onClick={() => claimErrandJob(job, { nowAt: now })}
+                              style={actionButtonStyle({ primary: true, compact: true })}
+                            >
+                              Reclamar recompensa
+                            </button>
+                            {job?.input?.errandId && (
+                              <button
+                                onClick={() => claimErrandJob(job, { restart: true, nowAt: now + 1 })}
+                                style={actionButtonStyle({ compact: true })}
+                              >
+                                Reclamar + repetir
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -429,7 +521,8 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
             </div>
           </section>
         </div>
-      </div>
+      </OverlaySurface>
+      <ActionToast toast={actionToast} isMobile={isMobile} />
     </OverlayShell>
   );
 }

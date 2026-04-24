@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
+import useViewport from "../hooks/useViewport";
 import { calcStats } from "../engine/combat/statEngine";
 import { getClassBuildStatGroups } from "../utils/classBuildStats";
 import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
@@ -35,19 +36,13 @@ export default function Skills({ state, dispatch }) {
   const computedStats = calcStats(player);
   const buildGroups = getClassBuildStatGroups(player.class, computedStats);
   const classLabel = player.class ? `${player.class.charAt(0).toUpperCase()}${player.class.slice(1)}` : "Clase";
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const { isMobile } = useViewport();
   const upgradeSections = ATTRIBUTE_SECTIONS.map(section => ({
     ...section,
     upgrades: section.upgradeIds
       .map(id => UPGRADES_UI.find(entry => entry.id === id))
       .filter(Boolean),
   }));
-
-  useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
 
   useEffect(() => {
     if (!spotlightAttributes) return undefined;

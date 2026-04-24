@@ -1,14 +1,16 @@
-import React from "react";
-import Character from "./Character";
-import Skills from "./Skills";
-import Talents from "./Talents";
+import React, { Suspense, lazy } from "react";
 import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
+import useViewport from "../hooks/useViewport";
 
 const SUBVIEW_META = {
   character: { label: "Ficha" },
   skills: { label: "Atributos" },
   talents: { label: "Talentos" },
 };
+
+const Character = lazy(() => import("./Character"));
+const Skills = lazy(() => import("./Skills"));
+const Talents = lazy(() => import("./Talents"));
 
 function buttonStyle({ active = false, disabled = false } = {}) {
   return {
@@ -42,7 +44,26 @@ function getHeroSubview(tab = "character") {
   return "character";
 }
 
+function SubviewLoadingCard({ label = "Vista" }) {
+  return (
+    <div
+      style={{
+        border: "1px solid var(--color-border-primary, #e2e8f0)",
+        background: "var(--color-background-secondary, #ffffff)",
+        borderRadius: "12px",
+        padding: "14px 12px",
+        fontSize: "0.72rem",
+        fontWeight: "900",
+        color: "var(--color-text-secondary, #64748b)",
+      }}
+    >
+      Cargando {label}...
+    </div>
+  );
+}
+
 export default function HeroView({ state, dispatch }) {
+  const { isMobile } = useViewport();
   const activeSubview = getHeroSubview(state?.currentTab || "character");
   const hasClass = Boolean(state?.player?.class);
   const hasSpec = Boolean(state?.player?.specialization);
@@ -58,8 +79,31 @@ export default function HeroView({ state, dispatch }) {
   const resolvedSubview = hasClass ? (allowTutorialSubviews ? activeSubview : "character") : "character";
   const reforgeLocked = !!state?.combat?.reforgeSession;
   const showSubviewButtons = allowTutorialSubviews;
+  const mobileSubviewCount = Object.keys(SUBVIEW_META).length;
+  const mobileSubtabsScrollable = mobileSubviewCount >= 5;
   const onboardingStep = state?.onboarding?.step || null;
   const talentPoints = Math.max(0, Number(state?.player?.talentPoints || 0));
+  const mobileSubviewDockStyle = {
+    position: "fixed",
+    left: 0,
+    right: 0,
+    bottom: "calc(var(--app-bottom-nav-offset, 72px) + env(safe-area-inset-bottom))",
+    zIndex: 4900,
+    background: "var(--color-background-secondary, #ffffff)",
+    borderTop: "1px solid var(--color-border-secondary, #e2e8f0)",
+    boxShadow: "0 -10px 24px rgba(15,23,42,0.08)",
+    padding: "8px 8px 8px",
+  };
+  const mobileSubviewRowStyle = {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "nowrap",
+    width: "100%",
+    overflowX: mobileSubtabsScrollable ? "auto" : "hidden",
+    overflowY: "hidden",
+    scrollbarWidth: mobileSubtabsScrollable ? "none" : "auto",
+    WebkitOverflowScrolling: "touch",
+  };
 
   return (
     <div style={{ display: "grid", gap: "10px", padding: "10px" }}>
@@ -71,70 +115,140 @@ export default function HeroView({ state, dispatch }) {
         }
       `}</style>
       {showSubviewButtons && (
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {Object.entries(SUBVIEW_META).map(([viewId, meta]) => {
-            const active = resolvedSubview === viewId;
-            const disabled = (reforgeLocked && !active) || (!hasClass && viewId !== "character");
-            const spotlight =
-              (onboardingStep === ONBOARDING_STEPS.HERO_CHARACTER_INTRO && viewId === "character") ||
-              (onboardingStep === ONBOARDING_STEPS.HERO_SKILLS_INTRO && viewId === "skills") ||
-              (onboardingStep === ONBOARDING_STEPS.HERO_TALENTS_INTRO && viewId === "talents");
-            return (
-              <button
-                key={viewId}
-                onClick={() => dispatch({ type: "SET_TAB", tab: viewId })}
-                disabled={disabled}
-                data-onboarding-target={
-                  spotlight
-                    ? viewId === "character"
-                      ? "hero-subview-character"
-                      : viewId === "skills"
-                      ? "hero-subview-skills"
-                      : "hero-subview-talents"
-                    : undefined
-                }
-                style={{
-                  ...buttonStyle({ active, disabled }),
-                  position: spotlight ? "relative" : "static",
-                  zIndex: spotlight ? 2 : 1,
-                  boxShadow: spotlight
-                    ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.14)"
-                    : buttonStyle({ active, disabled }).boxShadow,
-                  animation: spotlight ? "heroSubviewSpotlightPulse 1600ms ease-in-out infinite" : "none",
-                }}
-              >
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                  <span>{meta.label}</span>
-                  {viewId === "talents" && talentPoints > 0 && (
-                    <span
-                      style={{
-                        minWidth: "18px",
-                        height: "18px",
-                        padding: "0 6px",
-                        borderRadius: "999px",
-                        background: "var(--tone-danger, #ef4444)",
-                        color: "#fff",
-                        fontSize: "0.62rem",
-                        fontWeight: "900",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {talentPoints > 9 ? "9+" : talentPoints}
+        isMobile ? (
+          <div style={mobileSubviewDockStyle}>
+            <div style={mobileSubviewRowStyle}>
+              {Object.entries(SUBVIEW_META).map(([viewId, meta]) => {
+                const active = resolvedSubview === viewId;
+                const disabled = (reforgeLocked && !active) || (!hasClass && viewId !== "character");
+                const spotlight =
+                  (onboardingStep === ONBOARDING_STEPS.HERO_CHARACTER_INTRO && viewId === "character") ||
+                  (onboardingStep === ONBOARDING_STEPS.HERO_SKILLS_INTRO && viewId === "skills") ||
+                  (onboardingStep === ONBOARDING_STEPS.HERO_TALENTS_INTRO && viewId === "talents");
+                return (
+                  <button
+                    key={viewId}
+                    onClick={() => dispatch({ type: "SET_TAB", tab: viewId })}
+                    disabled={disabled}
+                    data-onboarding-target={
+                      spotlight
+                        ? viewId === "character"
+                          ? "hero-subview-character"
+                          : viewId === "skills"
+                          ? "hero-subview-skills"
+                          : "hero-subview-talents"
+                        : undefined
+                    }
+                    style={{
+                      ...buttonStyle({ active, disabled }),
+                      minWidth: mobileSubtabsScrollable ? "84px" : 0,
+                      flex: mobileSubtabsScrollable ? "0 0 auto" : "1 1 0",
+                      padding: "8px 10px",
+                      fontSize: "0.68rem",
+                      whiteSpace: mobileSubtabsScrollable ? "nowrap" : "normal",
+                      position: spotlight ? "relative" : "static",
+                      zIndex: spotlight ? 2 : 1,
+                      boxShadow: spotlight
+                        ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.14)"
+                        : buttonStyle({ active, disabled }).boxShadow,
+                      animation: spotlight ? "heroSubviewSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                    }}
+                  >
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                      <span>{meta.label}</span>
+                      {viewId === "talents" && talentPoints > 0 && (
+                        <span
+                          style={{
+                            minWidth: "18px",
+                            height: "18px",
+                            padding: "0 6px",
+                            borderRadius: "999px",
+                            background: "var(--tone-danger, #ef4444)",
+                            color: "#fff",
+                            fontSize: "0.62rem",
+                            fontWeight: "900",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {talentPoints > 9 ? "9+" : talentPoints}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {Object.entries(SUBVIEW_META).map(([viewId, meta]) => {
+              const active = resolvedSubview === viewId;
+              const disabled = (reforgeLocked && !active) || (!hasClass && viewId !== "character");
+              const spotlight =
+                (onboardingStep === ONBOARDING_STEPS.HERO_CHARACTER_INTRO && viewId === "character") ||
+                (onboardingStep === ONBOARDING_STEPS.HERO_SKILLS_INTRO && viewId === "skills") ||
+                (onboardingStep === ONBOARDING_STEPS.HERO_TALENTS_INTRO && viewId === "talents");
+              return (
+                <button
+                  key={viewId}
+                  onClick={() => dispatch({ type: "SET_TAB", tab: viewId })}
+                  disabled={disabled}
+                  data-onboarding-target={
+                    spotlight
+                      ? viewId === "character"
+                        ? "hero-subview-character"
+                        : viewId === "skills"
+                        ? "hero-subview-skills"
+                        : "hero-subview-talents"
+                      : undefined
+                  }
+                  style={{
+                    ...buttonStyle({ active, disabled }),
+                    position: spotlight ? "relative" : "static",
+                    zIndex: spotlight ? 2 : 1,
+                    boxShadow: spotlight
+                      ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.14)"
+                      : buttonStyle({ active, disabled }).boxShadow,
+                    animation: spotlight ? "heroSubviewSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                  }}
+                >
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <span>{meta.label}</span>
+                    {viewId === "talents" && talentPoints > 0 && (
+                      <span
+                        style={{
+                          minWidth: "18px",
+                          height: "18px",
+                          padding: "0 6px",
+                          borderRadius: "999px",
+                          background: "var(--tone-danger, #ef4444)",
+                          color: "#fff",
+                          fontSize: "0.62rem",
+                          fontWeight: "900",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {talentPoints > 9 ? "9+" : talentPoints}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )
       )}
 
       <div>
-        {resolvedSubview === "character" && <Character player={state.player} dispatch={dispatch} state={state} />}
-        {resolvedSubview === "skills" && <Skills state={state} dispatch={dispatch} />}
-        {resolvedSubview === "talents" && <Talents state={state} dispatch={dispatch} />}
+        <Suspense fallback={<SubviewLoadingCard label={SUBVIEW_META[resolvedSubview]?.label || "Vista"} />}>
+          {resolvedSubview === "character" && <Character player={state.player} dispatch={dispatch} state={state} />}
+          {resolvedSubview === "skills" && <Skills state={state} dispatch={dispatch} />}
+          {resolvedSubview === "talents" && <Talents state={state} dispatch={dispatch} />}
+        </Suspense>
       </div>
     </div>
   );

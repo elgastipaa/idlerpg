@@ -27,12 +27,14 @@ import { createEmptyAppearanceProfile, normalizeAppearanceProfile } from "./prog
 import { rebuildPlayerProgressionBonuses } from "./progression/progressionEngine";
 import { getRunSigil, getRunSigilPlayerBonuses, normalizeRunSigilIds } from "../data/runSigils";
 import { migrateTalentsToV2, TALENT_SYSTEM_VERSION } from "./migrations/talentsV2Migration";
+import { sanitizeLootRules } from "../utils/lootFilter";
 import {
   convertLegacyProjectToBlueprint,
   createEmptyBlueprintLoadout,
   createEmptyFamilyChargeState,
   ensureValidActiveBlueprints,
   normalizeBlueprintRecord,
+  normalizeFamilyChargeState,
   normalizeExtractedItemRecord,
 } from "./sanctuary/blueprintEngine";
 import { createEmptyItemStashState, syncItemStashState } from "./sanctuary/itemStashSchema";
@@ -124,9 +126,19 @@ const DEFAULT_LOOT_RULES = {
   wishlistAffixes: [],
   protectHuntedDrops: true,
   protectUpgradeDrops: true,
+  minVisibleRarity: "common",
 };
 
 const DEFAULT_RUN_CONTEXT = createRunContext({ firstRun: true });
+
+export function createEmptyInventoryOverflowStats() {
+  return {
+    total: 0,
+    displaced: 0,
+    lost: 0,
+    lastAt: null,
+  };
+}
 
 export function createEmptySaveDiagnostics() {
   return {
@@ -273,13 +285,14 @@ function buildCompletedOnboardingState({
     Number(combat?.analytics?.bossKills || 0) > 0 ||
     Number(stats?.bossKills || 0) > 0;
   const prestigeNodesBought = Object.values(prestige?.nodes || {}).reduce((sum, value) => sum + Number(value || 0), 0);
+  const onboardingTemplate = createEmptyOnboardingState();
 
-  return {
-    ...createEmptyOnboardingState(),
+  return normalizeOnboardingState({
+    ...onboardingTemplate,
     completed: true,
     step: null,
     flags: {
-      ...createEmptyOnboardingState().flags,
+      ...onboardingTemplate.flags,
       classChosen: Boolean(player?.class),
       expeditionIntroSeen: true,
       autoAdvanceUnlocked: true,
@@ -355,7 +368,7 @@ function buildCompletedOnboardingState({
       tier25CapSeen: Boolean(abyss?.tier25BossCleared),
       firstAbyssSeen: Number(abyss?.highestTierReached || 1) >= 26,
     },
-  };
+  });
 }
 
 const freshState = {
@@ -495,6 +508,8 @@ const freshState = {
     offlineSummary: null,
     latestLootEvent: null,
     inventoryOverflowEvent: null,
+    inventoryOverflowStats: createEmptyInventoryOverflowStats(),
+    pendingOpenLootFilter: false,
     reforgeSession: null,
     runContext: DEFAULT_RUN_CONTEXT,
     pendingRunSetup: false,
@@ -567,6 +582,62 @@ export function createFreshState() {
 
 export function createSimulationSeedState() {
   const next = createFreshState();
+  next.onboarding = buildCompletedOnboardingState({
+    player: next.player,
+    stats: next.stats,
+    combat: next.combat,
+    prestige: next.prestige,
+    sanctuary: next.sanctuary,
+    abyss: next.abyss,
+  });
+  return next;
+}
+
+export function createPostOnboardingSimulationState({
+  classId = "warrior",
+  specialization = null,
+  level = 5,
+  gold = 900,
+  essence = 450,
+  currentTier = 5,
+} = {}) {
+  const next = createSimulationSeedState();
+  const safeLevel = Math.max(1, Math.floor(Number(level || 1)));
+  const safeTier = Math.max(1, Math.floor(Number(currentTier || 1)));
+  const safeGold = Math.max(0, Math.floor(Number(gold || 0)));
+  const safeEssence = Math.max(0, Math.floor(Number(essence || 0)));
+  const normalizedClass = classId === "mage" ? "mage" : "warrior";
+
+  next.player.class = normalizedClass;
+  next.player.specialization = specialization || null;
+  next.player.level = safeLevel;
+  next.player.baseDamage = getBaseDamageForLevel(safeLevel);
+  next.player.baseMaxHp = getBaseMaxHpForLevel(safeLevel);
+  next.player.gold = safeGold;
+  next.player.essence = safeEssence;
+  next.player.hp = next.player.baseMaxHp;
+  next.player.maxHp = next.player.baseMaxHp;
+  next.player = refreshStats(next.player);
+  next.stats = {
+    ...next.stats,
+    kills: Math.max(next.stats?.kills || 0, 80),
+    bossKills: Math.max(next.stats?.bossKills || 0, 2),
+  };
+  next.expedition = {
+    ...next.expedition,
+    phase: "setup",
+  };
+  next.combat = {
+    ...next.combat,
+    currentTier: safeTier,
+    maxTier: safeTier,
+    pendingRunSetup: true,
+    pendingRunSigilId: "free",
+    pendingRunSigilIds: ["free"],
+    activeRunSigilId: "free",
+    activeRunSigilIds: ["free"],
+  };
+  next.currentTab = "combat";
   next.onboarding = buildCompletedOnboardingState({
     player: next.player,
     stats: next.stats,
@@ -809,10 +880,10 @@ export function mergeStateWithDefaults(base, incoming) {
       ...createEmptySanctuaryState().resources,
       ...(rawSanctuary.resources || {}),
     },
-    familyCharges: {
+    familyCharges: normalizeFamilyChargeState({
       ...createEmptySanctuaryState().familyCharges,
       ...(rawSanctuary.familyCharges || {}),
-    },
+    }),
     activeBlueprints: ensureValidActiveBlueprints(
       Array.isArray(rawSanctuary.blueprints)
         ? rawSanctuary.blueprints
@@ -1094,10 +1165,10 @@ export function mergeStateWithDefaults(base, incoming) {
       ...base.settings,
       ...(migratedIncoming.settings || {}),
       theme: (migratedIncoming.settings || {}).theme || base.settings.theme,
-      lootRules: {
-        ...DEFAULT_LOOT_RULES,
-        ...((migratedIncoming.settings || {}).lootRules || {}),
-      },
+      lootRules: sanitizeLootRules(
+        (migratedIncoming.settings || {}).lootRules || {},
+        DEFAULT_LOOT_RULES
+      ),
     },
     appearanceProfile: normalizeAppearanceProfile(migratedIncoming.appearanceProfile || base.appearanceProfile),
     combat: {
@@ -1132,6 +1203,13 @@ export function mergeStateWithDefaults(base, incoming) {
       lastRunSummary: shouldResetRuntimeSession ? null : (rawCombat.lastRunSummary || null),
       latestLootEvent: shouldResetRuntimeSession ? null : (rawCombat.latestLootEvent || null),
       inventoryOverflowEvent: shouldResetRuntimeSession ? null : (rawCombat.inventoryOverflowEvent || null),
+      inventoryOverflowStats: shouldResetRuntimeSession
+        ? createEmptyInventoryOverflowStats()
+        : {
+            ...createEmptyInventoryOverflowStats(),
+            ...(rawCombat.inventoryOverflowStats || {}),
+          },
+      pendingOpenLootFilter: shouldResetRuntimeSession ? false : Boolean(rawCombat.pendingOpenLootFilter),
       runContext: normalizedRunContext,
       pendingRunSetup,
       pendingRunSigilId,

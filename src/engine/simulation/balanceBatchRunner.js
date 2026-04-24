@@ -1,4 +1,4 @@
-import { createSimulationSeedState } from "../stateInitializer";
+import { createPostOnboardingSimulationState } from "../stateInitializer";
 import { gameReducer } from "../../state/gameReducer";
 import { runBalanceBotSimulation } from "./balanceBot";
 
@@ -146,21 +146,31 @@ function buildProfileSummary(profile, results = []) {
 }
 
 function buildSimulationProfileSeed(profile) {
-  const selectedClassState = gameReducer(createSimulationSeedState(), {
-    type: "SELECT_CLASS",
+  const seededState = createPostOnboardingSimulationState({
     classId: profile.preferredClass,
-    meta: { source: "simulation" },
+    specialization: null,
+    level: 5,
+    currentTier: 5,
+    gold: 1100,
+    essence: 550,
   });
+  const withPreferredSpec = profile.preferredSpec
+    ? gameReducer(seededState, {
+        type: "SELECT_SPECIALIZATION",
+        specId: profile.preferredSpec,
+        meta: { source: "simulation" },
+      })
+    : seededState;
 
   return {
-    ...selectedClassState,
+    ...withPreferredSpec,
     currentTab: "combat",
     expedition: {
-      ...(selectedClassState.expedition || {}),
+      ...(withPreferredSpec.expedition || {}),
       phase: "setup",
     },
     combat: {
-      ...selectedClassState.combat,
+      ...withPreferredSpec.combat,
       pendingRunSetup: true,
       pendingRunSigilId: "free",
       pendingRunSigilIds: ["free"],

@@ -9,6 +9,7 @@ import { buildExtractedItemRecord } from "../sanctuary/blueprintEngine";
 import { getSigilInfusionRecipe } from "../sanctuary/jobEngine";
 import { getTalentCostForPlayer } from "../talents/treeEngine";
 import { getAvailableNodes, canUnlockNode } from "../talents/talentTreeEngine";
+import { getStaticOnboardingStepCopy, getDynamicOnboardingStepCopy } from "./onboardingCopy";
 
 export const ONBOARDING_STEPS = {
   CHOOSE_CLASS: "choose_class",
@@ -59,6 +60,8 @@ export const ONBOARDING_STEPS = {
   TIER25_CAP: "tier25_cap",
   FIRST_ABYSS: "first_abyss",
 };
+const ONBOARDING_STEP_IDS = Object.freeze(Object.values(ONBOARDING_STEPS));
+const ONBOARDING_STEP_ID_SET = new Set(ONBOARDING_STEP_IDS);
 
 const STATIC_INFO_STEPS = new Set([
   ONBOARDING_STEPS.EXPEDITION_INTRO,
@@ -101,6 +104,7 @@ const LAB_RESEARCH_STEP_TARGETS = {
   [ONBOARDING_STEPS.SIGIL_ALTAR_READY]: "unlock_sigil_altar",
   [ONBOARDING_STEPS.ABYSS_PORTAL_READY]: "unlock_abyss_portal",
 };
+const ONBOARDING_INFO_TABS = ["registry", "account", "system", "stats", "achievements"];
 
 const ONBOARDING_FIRST_TALENT_BY_CLASS = {
   warrior: "warrior_physical_training",
@@ -148,12 +152,118 @@ const BASE_ONBOARDING_FLAGS = {
   tier25CapSeen: false,
   firstAbyssSeen: false,
 };
+const COMPLETED_BEAT_FLAG_MAP = {
+  expeditionIntroSeen: [ONBOARDING_STEPS.EXPEDITION_INTRO],
+  classChosen: [ONBOARDING_STEPS.CHOOSE_CLASS],
+  combatIntroSeen: [ONBOARDING_STEPS.COMBAT_INTRO],
+  autoAdvanceUnlocked: [ONBOARDING_STEPS.AUTO_ADVANCE],
+  firstDeathSeen: [ONBOARDING_STEPS.FIRST_DEATH],
+  heroTabUnlocked: [ONBOARDING_STEPS.OPEN_HERO],
+  heroIntroSeen: [ONBOARDING_STEPS.HERO_INTRO],
+  firstAttributeSpent: [ONBOARDING_STEPS.HERO_SKILLS_INTRO, ONBOARDING_STEPS.SPEND_ATTRIBUTE],
+  firstTalentBought: [ONBOARDING_STEPS.HERO_TALENTS_INTRO, ONBOARDING_STEPS.TALENT_INTRO, ONBOARDING_STEPS.BUY_TALENT],
+  specChosen: [ONBOARDING_STEPS.HERO_CHARACTER_INTRO, ONBOARDING_STEPS.CHOOSE_SPEC, ONBOARDING_STEPS.COMBAT_AFTER_TALENT],
+  inventoryUnlocked: [ONBOARDING_STEPS.EQUIP_INTRO],
+  firstItemEquipped: [ONBOARDING_STEPS.EQUIP_FIRST_ITEM],
+  firstBossSeen: [ONBOARDING_STEPS.FIRST_BOSS],
+  huntUnlocked: [ONBOARDING_STEPS.HUNT_INTRO],
+  extractionUnlocked: [ONBOARDING_STEPS.EXTRACTION_READY],
+  firstExtractionCompleted: [
+    ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO,
+    ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM,
+    ONBOARDING_STEPS.EXTRACTION_CONFIRM,
+  ],
+  firstSanctuaryReturnSeen: [ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN],
+  laboratoryUnlocked: [ONBOARDING_STEPS.OPEN_LABORATORY],
+  distilleryUnlocked: [
+    ONBOARDING_STEPS.RESEARCH_DISTILLERY,
+    ONBOARDING_STEPS.DISTILLERY_READY,
+    ONBOARDING_STEPS.RETURN_TO_SANCTUARY,
+    ONBOARDING_STEPS.OPEN_DISTILLERY,
+  ],
+  distilleryJobStarted: [ONBOARDING_STEPS.FIRST_DISTILLERY_JOB],
+  firstEchoesSeen: [ONBOARDING_STEPS.FIRST_ECHOES],
+  firstEchoNodeBought: [ONBOARDING_STEPS.BUY_FIRST_ECHO_NODE],
+  firstPrestigeCloseSeen: [ONBOARDING_STEPS.FIRST_PRESTIGE_CLOSE],
+  blueprintDecisionUnlocked: [ONBOARDING_STEPS.BLUEPRINT_INTRO],
+  blueprintScrapped: [ONBOARDING_STEPS.BLUEPRINT_DECISION],
+  blueprintConverted: [ONBOARDING_STEPS.BLUEPRINT_DECISION],
+  firstBlueprintMaterializationSeen: [ONBOARDING_STEPS.FIRST_BLUEPRINT_MATERIALIZATION],
+  deepForgeReadySeen: [ONBOARDING_STEPS.DEEP_FORGE_READY],
+  firstDeepForgeUseSeen: [ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE],
+  libraryReadySeen: [ONBOARDING_STEPS.LIBRARY_READY],
+  firstLibraryResearchSeen: [ONBOARDING_STEPS.FIRST_LIBRARY_RESEARCH],
+  errandsReadySeen: [ONBOARDING_STEPS.ERRANDS_READY],
+  firstErrandSeen: [ONBOARDING_STEPS.FIRST_ERRAND],
+  sigilAltarReadySeen: [ONBOARDING_STEPS.SIGIL_ALTAR_READY],
+  firstSigilInfusionSeen: [ONBOARDING_STEPS.FIRST_SIGIL_INFUSION],
+  abyssPortalReadySeen: [ONBOARDING_STEPS.ABYSS_PORTAL_READY],
+  tier25CapSeen: [ONBOARDING_STEPS.TIER25_CAP],
+  firstAbyssSeen: [ONBOARDING_STEPS.FIRST_ABYSS],
+};
+
+function isKnownOnboardingStep(step = null) {
+  return typeof step === "string" && ONBOARDING_STEP_ID_SET.has(step);
+}
+
+function createCompletedBeatsRecord(input = null) {
+  const completedBeats = {};
+  if (!input) return completedBeats;
+
+  if (Array.isArray(input)) {
+    input.forEach(step => {
+      if (isKnownOnboardingStep(step)) completedBeats[step] = true;
+    });
+    return completedBeats;
+  }
+
+  if (typeof input === "object") {
+    Object.entries(input).forEach(([step, value]) => {
+      if (value && isKnownOnboardingStep(step)) completedBeats[step] = true;
+    });
+  }
+  return completedBeats;
+}
+
+function mergeCompletedBeats(...records) {
+  return records.reduce(
+    (merged, record) => ({ ...merged, ...createCompletedBeatsRecord(record) }),
+    {}
+  );
+}
+
+function markOnboardingStepCompleted(completedBeats = {}, step = null) {
+  if (!isKnownOnboardingStep(step)) return createCompletedBeatsRecord(completedBeats);
+  return {
+    ...createCompletedBeatsRecord(completedBeats),
+    [step]: true,
+  };
+}
+
+function markAllOnboardingStepsCompleted(completedBeats = {}) {
+  return ONBOARDING_STEP_IDS.reduce(
+    (record, stepId) => ({ ...record, [stepId]: true }),
+    createCompletedBeatsRecord(completedBeats)
+  );
+}
+
+function buildCompletedBeatsFromFlags(flags = {}) {
+  const completedFromFlags = {};
+  Object.entries(COMPLETED_BEAT_FLAG_MAP).forEach(([flag, steps]) => {
+    if (!flags?.[flag]) return;
+    steps.forEach(stepId => {
+      if (isKnownOnboardingStep(stepId)) completedFromFlags[stepId] = true;
+    });
+  });
+  return completedFromFlags;
+}
 
 export function createEmptyOnboardingState() {
   return {
     completed: false,
     step: ONBOARDING_STEPS.EXPEDITION_INTRO,
     flags: { ...BASE_ONBOARDING_FLAGS },
+    completedBeats: {},
     equipKillTarget: null,
     bossHeroDelayTicks: 0,
     bossHeroQueued: false,
@@ -180,6 +290,13 @@ export function normalizeOnboardingState(onboarding = {}) {
     normalizedFlags.distilleryJobStarted ||
     normalizedFlags.firstEchoesSeen
   );
+  let normalizedCompletedBeats = mergeCompletedBeats(
+    onboarding?.completedBeats,
+    buildCompletedBeatsFromFlags(normalizedFlags)
+  );
+  if (onboarding?.completed) {
+    normalizedCompletedBeats = markAllOnboardingStepsCompleted(normalizedCompletedBeats);
+  }
 
   return {
     ...createEmptyOnboardingState(),
@@ -189,6 +306,7 @@ export function normalizeOnboardingState(onboarding = {}) {
     flags: {
       ...normalizedFlags,
     },
+    completedBeats: normalizedCompletedBeats,
     equipKillTarget:
       onboarding?.equipKillTarget == null
         ? null
@@ -196,6 +314,22 @@ export function normalizeOnboardingState(onboarding = {}) {
     bossHeroDelayTicks: Math.max(0, Math.floor(Number(onboarding?.bossHeroDelayTicks || 0))),
     bossHeroQueued: Boolean(onboarding?.bossHeroQueued),
     extractionReadyDelayTicks: Math.max(0, Math.floor(Number(onboarding?.extractionReadyDelayTicks || 0))),
+  };
+}
+
+export function trackOnboardingCompletedBeats(previousOnboarding = {}, nextOnboarding = {}) {
+  const previous = normalizeOnboardingState(previousOnboarding);
+  const next = normalizeOnboardingState(nextOnboarding);
+  let completedBeats = mergeCompletedBeats(previous.completedBeats, next.completedBeats);
+  if (previous.step && (next.step !== previous.step || next.completed)) {
+    completedBeats = markOnboardingStepCompleted(completedBeats, previous.step);
+  }
+  if (next.completed) {
+    completedBeats = markAllOnboardingStepsCompleted(completedBeats);
+  }
+  return {
+    ...next,
+    completedBeats,
   };
 }
 
@@ -433,13 +567,120 @@ export function getOnboardingRequiredTab(step = null) {
 
 export function isOnboardingTabAllowed(step = null, tab = "sanctuary") {
   if (!step) return true;
-  if (["registry", "account", "system", "stats", "achievements"].includes(tab)) return true;
+  if (ONBOARDING_INFO_TABS.includes(tab)) return true;
   const requiredTab = getOnboardingRequiredTab(step);
   if (!requiredTab) return true;
   if (requiredTab === tab) return true;
   if (requiredTab === "character" && ["character", "skills", "talents"].includes(tab)) return true;
   if (requiredTab === "combat" && ["combat", "inventory", "crafting", "codex"].includes(tab)) return true;
   return false;
+}
+
+function formatOnboardingTabLabel(tab = null) {
+  switch (tab) {
+    case "sanctuary":
+      return "Santuario";
+    case "combat":
+      return "Expedicion";
+    case "character":
+      return "Heroe";
+    case "skills":
+      return "Atributos";
+    case "talents":
+      return "Talentos";
+    case "inventory":
+      return "Mochila";
+    case "prestige":
+      return "Ecos";
+    case "codex":
+      return "Intel";
+    case "crafting":
+      return "Forja";
+    case "registry":
+      return "Mas";
+    default:
+      return "la seccion requerida";
+  }
+}
+
+export function getOnboardingTabBlockMeta(step = null, tab = "sanctuary", state = {}) {
+  const effectiveStep = getEffectiveOnboardingStep(step, state);
+  if (!effectiveStep) {
+    return {
+      blocked: false,
+      reasonCode: null,
+      message: null,
+      requiredTab: null,
+      step: null,
+    };
+  }
+
+  const normalizedTab = tab || "sanctuary";
+  const requiredTab = getOnboardingRequiredTab(effectiveStep);
+  const interactionMode = getOnboardingStepInteractionMode(effectiveStep, state);
+
+  const blockedResponse = (reasonCode, message) => ({
+    blocked: true,
+    reasonCode,
+    message,
+    requiredTab,
+    step: effectiveStep,
+  });
+
+  if (interactionMode === "forced" && ONBOARDING_INFO_TABS.includes(normalizedTab)) {
+    const requiredLabel = formatOnboardingTabLabel(requiredTab);
+    return blockedResponse(
+      "forced_step_no_info_tabs",
+      `Completa este paso primero en ${requiredLabel}.`
+    );
+  }
+
+  if (
+    effectiveStep === ONBOARDING_STEPS.OPEN_HERO &&
+    !["character", "skills", "talents"].includes(normalizedTab)
+  ) {
+    return blockedResponse(
+      "hero_open_required",
+      "Primero abre Heroe para continuar el tutorial."
+    );
+  }
+
+  if (effectiveStep === ONBOARDING_STEPS.HERO_SKILLS_INTRO && normalizedTab !== "skills") {
+    return blockedResponse(
+      "hero_skills_required",
+      "Completa este paso en Atributos."
+    );
+  }
+
+  if (effectiveStep === ONBOARDING_STEPS.HERO_TALENTS_INTRO && normalizedTab !== "talents") {
+    return blockedResponse(
+      "hero_talents_required",
+      "Completa este paso en Talentos."
+    );
+  }
+
+  if (effectiveStep === ONBOARDING_STEPS.HERO_CHARACTER_INTRO && normalizedTab !== "character") {
+    return blockedResponse(
+      "hero_character_required",
+      "Completa este paso en Heroe."
+    );
+  }
+
+  if (!isOnboardingTabAllowed(effectiveStep, normalizedTab)) {
+    const requiredLabel = formatOnboardingTabLabel(requiredTab);
+    return blockedResponse(
+      "required_tab",
+      `Completa este paso primero en ${requiredLabel}.`
+    );
+  }
+
+  return {
+    blocked: false,
+    reasonCode: null,
+    message: null,
+    requiredTab,
+    step: effectiveStep,
+  };
 }
 
 export function getOnboardingResearchTargetId(step = null) {
@@ -515,321 +756,30 @@ export function shouldShowOnboardingGlossaryHint(step = null) {
   return POST_ECHO_INFO_STEPS.has(step);
 }
 
+export function isPostEchoOnboardingStep(step = null) {
+  return POST_ECHO_INFO_STEPS.has(step);
+}
+
 export function getOnboardingStepMeta(step = null, state = {}) {
-  switch (step) {
-    case ONBOARDING_STEPS.EXPEDITION_INTRO:
-      return {
-        title: "Este es tu Santuario",
-        body: "Aqui preparas la cuenta y desde aqui inicias cada expedicion. El primer gesto del juego es salir desde esta base: primero inicias la run, luego eliges una clase y de ahi entras al combate.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.CHOOSE_CLASS:
-      return {
-        title: "Ahora elige una clase",
-        body: "Tu primera run necesita una identidad base. Elige Warrior o Mage y, apenas lo hagas, entraras al combate para arrancar la expedicion.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.COMBAT_INTRO:
-      return {
-        title: "El combate corre solo",
-        body: "Tu heroe pelea automaticamente. Tu trabajo es decidir cuando empujar, cuando mejorar equipo y cuando cerrar la expedicion con una extraccion.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.CHOOSE_SPEC:
-      return {
-        title: "Elige una especializacion",
-        body: "Despues de tus primeros talentos, ya puedes elegir una subclase. Toca una de las opciones resaltadas para definir la direccion de esta build.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.AUTO_ADVANCE:
-      return {
-        title: "Activa el auto-avance",
-        body: "Toca el boton de botas resaltado. Cuando esta activo, tu heroe empuja tiers por su cuenta.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.FIRST_DEATH:
-      return {
-        title: "El tutorial protege esta run",
-        body: "Aqui no puedes perder definitivamente la expedicion. Si caes, retrocedes, el auto-avance se corta y vuelves a pelear sin consumir vidas reales.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.OPEN_HERO:
-      return {
-        title: "Abre la hoja de Heroe",
-        body: "Ya viste que un boss puede frenarte. Abre la tab resaltada de Heroe para empezar a leer tu build y ubicar donde vive cada decision importante de la run.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.HERO_INTRO:
-      return {
-        title: "Esta es tu Ficha",
-        body: "La Ficha resume la identidad de tu heroe: clase, spec, nivel, vida y lectura general de build.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.HERO_SKILLS_INTRO:
-      return {
-        title: "Abre Atributos",
-        body: "Ahora toca la subtab resaltada de Atributos. Ahi gastas oro para reforzar el perfil base de la run.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.SPEND_ATTRIBUTE:
-      return {
-        title: "Compra 1 punto de Fuerza",
-        body: "Empieza por Fuerza para que notes un impacto inmediato al volver a la run. Toca el boton resaltado de esa mejora.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.HERO_TALENTS_INTRO:
-      return {
-        title: "Abre Talentos",
-        body: "La tercera subtab es Talentos. Ahi empiezas a construir la direccion real de la build con nodos persistentes de esta expedicion.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.TALENT_INTRO:
-      return {
-        title: "Ahora veamos talentos",
-        body: "Los talentos definen la direccion real de la build. Primero ubica el arbol y el nodo base; en el siguiente paso vas a comprar el primero.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.BUY_TALENT:
-      return {
-        title: "Compra tu primer talento",
-        body: "Compra el primer nodo resaltado. Ese sera tu primer punto real de build para esta run.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.HERO_CHARACTER_INTRO:
-      return {
-        title: "Ahora vuelve a Ficha",
-        body: "Ya tienes un primer talento. Toca la subtab resaltada de Ficha: ahi vamos a elegir la especializacion de esta build.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.COMBAT_AFTER_TALENT:
-      return {
-        title: "Ahora vuelve al boss",
-        body: "Ya tienes clase, atributo, talento y especializacion. Sigue y vuelve al combate: el siguiente hito es derrotar al boss de Tier 5.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.EQUIP_INTRO:
-      return {
-        title: "Ya puedes equiparte",
-        body: "Toca el boton resaltado de Mochila. Ahi vas a preparar tu primer item de esta run.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.EQUIP_FIRST_ITEM:
-      return {
-        title: "Equipa tu primer item",
-        body: "Baja hasta el primer item resaltado y equipalo para usarlo en esta run.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.FIRST_BOSS:
-      return {
-        title: "Has encontrado un boss",
-        body: "Un boss no es un monstruo normal: aguanta mas, suele tener mecanicas propias, castiga mas los errores y marca los hitos importantes de una expedicion.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.HUNT_INTRO:
-      if (state?.currentTab === "codex") {
-        return {
-          title: "Esto es Intel",
-          body: "Aqui lees familias vistas, pistas y contexto tactico sin ensuciar el combate. Cuando cierres este paso volveras al frente y la run seguira corriendo.",
-          actionLabel: null,
-        };
-      }
-      return {
-        title: "Intel ya esta disponible",
-        body: "Dentro de Expedicion ahora puedes abrir Intel para ver solo informacion tactica y objetivos ya revelados. Toca la subtab real resaltada.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.EXTRACTION_READY:
-      return {
-        title: "Aprendamos Extraccion",
-        body: "Ya pasaste el primer boss. Toca el boton resaltado de Extraer al Santuario para cerrar bien la run y llevar valor de vuelta a tu base.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.EXTRACTION_SELECT_CARGO:
-      return {
-        title: "Elige que cargo rescatar",
-        body: "Toca uno de los bundles resaltados para decidir que recursos vuelven al Santuario. Esa sera la materia prima de tus primeras estaciones.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.EXTRACTION_SELECT_ITEM:
-      return {
-        title: "Elige un item rescatado",
-        body: "Ahora toca una pieza para guardarla temporalmente. Mas adelante decidiremos si se vuelve blueprint o si se desguaza.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.EXTRACTION_CONFIRM:
-      return {
-        title: "Confirma la extraccion",
-        body: "Ya esta todo listo. Confirma la extraccion para volver al Santuario y desbloquear el Laboratorio.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN:
-      return {
-        title: "Volviste al Santuario",
-        body: "Ahora la run ya deja valor persistente. Primero te muestro rapido la base; despues te llevo al Laboratorio para encender la primera estacion real.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.OPEN_LABORATORY:
-      return {
-        title: "Abri el Laboratorio",
-        body: "Aca viven los unlocks de infraestructura del Santuario. Toca el boton real resaltado para abrirlo.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.RESEARCH_DISTILLERY:
-      return {
-        title: "Investiga la Destileria",
-        body: "Este es tu primer research de infraestructura. Toca el boton real resaltado de Calibrar Destileria para convertir bundles en recursos persistentes utiles.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.DISTILLERY_READY:
-      if (getDistilleryResearchOnboardingPhase(state) === "running") {
-        return {
-          title: "La investigacion ya esta corriendo",
-          body: "El Laboratorio ya esta calibrando la Destileria. Espera a que termine y luego reclama el trabajo real desde la misma UI.",
-          actionLabel: null,
-        };
-      }
-      if (getDistilleryResearchOnboardingPhase(state) === "claimable") {
-        return {
-          title: "Reclama la Destileria",
-          body: "La investigacion ya termino. Reclama ese trabajo del Laboratorio para abrir la primera estacion persistente del Santuario.",
-          actionLabel: null,
-        };
-      }
-      return {
-        title: "La Destileria ya esta lista",
-        body: "Cuando refines cargo, el Santuario empezara a devolver tinta, flux, polvo y esencia. Toca el control real resaltado para abrir la estacion.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.RETURN_TO_SANCTUARY:
-      return {
-        title: "Volvamos al Santuario",
-        body: "Ya reclamaste la investigacion. Cierra el Laboratorio con el boton real resaltado y volvamos al hub para abrir la Destileria desde ahi.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.OPEN_DISTILLERY:
-      return {
-        title: "Abri la Destileria",
-        body: "La estacion ya esta disponible. Toca el boton real resaltado para abrirla y ver el cargo que vas a procesar.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.FIRST_DISTILLERY_JOB:
-      return {
-        title: "Inicia tu primera destilacion",
-        body: "Elige el bundle marcado y mandalo a destilar. No hace falta esperar el resultado ahora: con eso ya habras aprendido el loop base de la estacion.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.FIRST_ECHOES:
-      if (state?.currentTab !== "prestige") {
-        return {
-          title: "Ahora aprende Ecos",
-          body: "Ya viste una estacion persistente. El siguiente sistema meta vive en Ecos: toca la tab primaria real resaltada para abrirla.",
-          actionLabel: null,
-        };
-      }
-      return {
-        title: "Ecos ya esta activo",
-        body: "Acabas de hacer tu primer prestige real. Aqui ves cuantos Ecos tienes disponibles y por que la siguiente run ya arranca distinta. Sigue y en el proximo beat haras tu primera inversion.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.BUY_FIRST_ECHO_NODE:
-      return {
-        title: "Compra tu primer nodo",
-        body: "Invierte al menos un Eco en el nodo base resaltado. No hace falta optimizar ahora: lo importante es sentir que la siguiente run ya arranca distinta.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.FIRST_PRESTIGE_CLOSE:
-      return {
-        title: "Loop completo",
-        body: "Listo: ya cerraste una run, aprendiste Santuario y ya invertiste tus primeros Ecos. Puedes volver al Santuario e iniciar otra expedicion; nos vemos de nuevo en tu segunda extraccion.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.BLUEPRINT_INTRO:
-      return {
-        title: "Ahora tambien puedes rescatar items",
-        body: "Desde Prestige 2, una extraccion puede traer una pieza temporal. El Stash temporal vive aqui: desde este panel decides si una pieza se vuelve plano o si se desguaza por retorno inmediato.",
-        actionLabel: null,
-      };
-    case ONBOARDING_STEPS.BLUEPRINT_DECISION:
-      return {
-        title: "Dos salidas, dos objetivos",
-        body: "Cuando rescatas una pieza temporal tienes dos caminos: blueprint si quieres sesgar futuras materializaciones, o desguace si quieres retorno inmediato en cargas y recursos. No compiten: cumplen funciones distintas.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.FIRST_BLUEPRINT_MATERIALIZATION:
-      return {
-        title: "Que materializa un blueprint",
-        body: "Un blueprint no clona exactamente el item viejo: materializa una pieza nueva sesgada por ese perfil. Sirve para empujar una direccion de build entre runs sin depender de repetir el mismo drop.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.DEEP_FORGE_READY:
-      return {
-        title: "El Taller ya puede investigarse",
-        body: "Desde Prestige 3, el Santuario ya puede abrir la ruta al Taller. Ahi mejoras proyectos persistentes: no buscas un pico inmediato para esta run, sino una base mejor para muchas runs futuras.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE:
-      return {
-        title: "Para que sirve el Taller",
-        body: "El Taller toma una base prometedora y la convierte en progreso persistente real. Es donde una buena pieza deja de ser solo loot de una run y pasa a formar parte del crecimiento largo de tu cuenta.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.LIBRARY_READY:
-      return {
-        title: "Biblioteca lista para investigar",
-        body: "La Biblioteca convierte kills, copias frescas e investigacion en bonus permanentes. Su valor no esta en mirar datos, sino en consolidar progreso historico de la cuenta.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.FIRST_LIBRARY_RESEARCH:
-      return {
-        title: "Cuando vale la pena investigar",
-        body: "La Biblioteca gasta tinta para convertir progreso fresco en bonus permanentes. El criterio sano es simple: investiga cuando ya desbloqueaste un hito real y quieres fijarlo a nivel cuenta.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.ERRANDS_READY:
-      return {
-        title: "Encargos ya pueden organizarse",
-        body: "Los Encargos usan equipos auxiliares del Santuario. Tu heroe principal no se detiene: mientras una run empuja tiers, el hub puede seguir trayendo materiales, tinta o cargas en paralelo.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.FIRST_ERRAND:
-      return {
-        title: "Que esperar de Encargos",
-        body: "Encargos no reemplaza el farmeo principal: lo complementa. Sirve para orientar retornos del Santuario entre runs y sostener materiales paralelos sin frenar a tu heroe.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.SIGIL_ALTAR_READY:
-      return {
-        title: "Altar de Sigilos listo",
-        body: "El Altar no mejora la run actual: prepara la siguiente. Ahi conviertes flux en cargas de sigilo para salir con una intencion mas clara desde el primer tier.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.FIRST_SIGIL_INFUSION:
-      return {
-        title: "Como pensar una infusion",
-        body: "Una infusion es preparacion, no reaccion. Conviene verla como una apuesta previa: eliges el sesgo de la siguiente expedicion antes de salir, no como parche para la run en curso.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.ABYSS_PORTAL_READY:
-      return {
-        title: "Ya puedes abrir el Portal al Abismo",
-        body: "Derrotaste al boss de Tier 25 y el Santuario ya domina Biblioteca, Encargos y Altar. El siguiente gran salto de cuenta es investigar el Portal al Abismo.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.TIER25_CAP:
-      return {
-        title: "El mundo base termina en Tier 25",
-        body: "No vas a empujar mas arriba desde combate normal. Para romper ese techo debes investigar Portal al Abismo en el Laboratorio cuando el Santuario ya tenga la infraestructura necesaria.",
-        actionLabel: "Seguir",
-      };
-    case ONBOARDING_STEPS.FIRST_ABYSS:
-      return {
-        title: "Entraste al Abismo",
-        body: "Desde aqui cambian la presion y los techos del run. El Portal rompe Tier 25 y el Abismo pasa a ser tu progresion profunda de cuenta. Sigue empujando y vuelve al Santuario cuando quieras capitalizar el avance.",
-        actionLabel: "Seguir",
-      };
-    default:
-      return null;
+  if (!step) return null;
+
+  if (step === ONBOARDING_STEPS.HUNT_INTRO) {
+    const variant = state?.currentTab === "codex" ? "codex" : "default";
+    return getDynamicOnboardingStepCopy(step, variant);
   }
+
+  if (step === ONBOARDING_STEPS.DISTILLERY_READY) {
+    const phase = getDistilleryResearchOnboardingPhase(state);
+    const variant = phase === "running" || phase === "claimable" ? phase : "default";
+    return getDynamicOnboardingStepCopy(step, variant);
+  }
+
+  if (step === ONBOARDING_STEPS.FIRST_ECHOES) {
+    const variant = state?.currentTab === "prestige" ? "prestige" : "default";
+    return getDynamicOnboardingStepCopy(step, variant);
+  }
+
+  return getStaticOnboardingStepCopy(step);
 }
 
 function countUpgradeLevels(player = {}) {
@@ -1033,24 +983,7 @@ export function getBlockedOnboardingAction(step = null, action = {}, state = {})
     return true;
   }
   if (type === "SET_TAB") {
-    if (["registry", "account", "system", "stats", "achievements"].includes(action?.tab)) {
-      return false;
-    }
-    if (effectiveStep === ONBOARDING_STEPS.OPEN_HERO) {
-      return !["character", "skills", "talents"].includes(action?.tab);
-    }
-    if (effectiveStep === ONBOARDING_STEPS.HERO_SKILLS_INTRO) {
-      return action?.tab !== "skills";
-    }
-    if (effectiveStep === ONBOARDING_STEPS.HERO_TALENTS_INTRO) {
-      return action?.tab !== "talents";
-    }
-    if (effectiveStep === ONBOARDING_STEPS.HERO_CHARACTER_INTRO) {
-      return action?.tab !== "character";
-    }
-  }
-  if (type === "SET_TAB") {
-    return !isOnboardingTabAllowed(effectiveStep, action?.tab || "sanctuary");
+    return getOnboardingTabBlockMeta(step, action?.tab || "sanctuary", state).blocked;
   }
 
   switch (effectiveStep) {
@@ -1141,6 +1074,25 @@ export function getBlockedOnboardingAction(step = null, action = {}, state = {})
     default:
       return false;
   }
+}
+
+export function getOnboardingBlockedActionMessage(step = null, action = {}, state = {}) {
+  if (!step) return null;
+  const effectiveStep = getEffectiveOnboardingStep(step, state);
+  if (!effectiveStep) return null;
+
+  if (action?.type === "SET_TAB") {
+    const tabBlock = getOnboardingTabBlockMeta(step, action?.tab || "sanctuary", state);
+    return tabBlock.blocked ? tabBlock.message : null;
+  }
+
+  if (!getBlockedOnboardingAction(step, action, state)) return null;
+
+  const requiredTab = getOnboardingRequiredTab(effectiveStep);
+  if (requiredTab) {
+    return `Completa este paso primero en ${formatOnboardingTabLabel(requiredTab)}.`;
+  }
+  return "Completa este paso del tutorial para continuar.";
 }
 
 export function advanceOnboarding(prevState, nextState, action = {}) {
@@ -2598,6 +2550,8 @@ export function getOnboardingOverlayAnchor(step = null, state = {}) {
 }
 
 export function getOnboardingSpotlightSelectors(step = null, state = {}) {
+  if (isPostEchoOnboardingStep(step)) return [];
+
   if (step === ONBOARDING_STEPS.DISTILLERY_READY) {
     const distilleryResearchPhase = getDistilleryResearchOnboardingPhase(state);
     if (distilleryResearchPhase === "claimable") {

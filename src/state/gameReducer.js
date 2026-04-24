@@ -32,6 +32,7 @@ import {
   deepForgeAscendProject,
   deepForgeApplyReforge,
   deepForgePolishProject,
+  deepForgeRerollProject,
   deepForgeUpgradeProject,
   normalizeProjectRecord,
 } from "../engine/sanctuary/projectForgeEngine";
@@ -113,9 +114,11 @@ import {
   ONBOARDING_STEPS,
   createEmptyOnboardingState,
   getBlockedOnboardingAction,
+  getOnboardingBlockedActionMessage,
   isExtractionUnlocked,
   isSanctuaryLockedDuringExpeditionTutorial,
   normalizeOnboardingState,
+  trackOnboardingCompletedBeats,
 } from "../engine/onboarding/onboardingEngine";
 import { createEmptySaveDiagnostics, createFreshState, mergeStateWithDefaults } from "../engine/stateInitializer";
 
@@ -179,6 +182,41 @@ function buildBlockedOperationState(state, { analyticsKey, message }) {
         message,
       ].slice(-20),
     },
+  };
+}
+
+function hasExpeditionRunEvidence(state = {}) {
+  const expedition = state?.expedition || {};
+  const combat = state?.combat || {};
+  const telemetry = state?.accountTelemetry || {};
+  const hasRunIdentity = Boolean(expedition.id && expedition.startedAt);
+  return (
+    hasRunIdentity ||
+    Number(combat.ticksInCurrentRun || 0) > 0 ||
+    Number(combat.sessionKills || 0) > 0 ||
+    Number(telemetry.currentExpeditionSeconds || 0) > 0
+  );
+}
+
+function markRuntimeRecoveryTelemetry(
+  telemetry = {},
+  {
+    now = Date.now(),
+    reason = "runtime_guard",
+    repaired = false,
+    offlineJobStall = false,
+  } = {}
+) {
+  const baseTelemetry = sanitizeAccountTelemetry(telemetry || createEmptyAccountTelemetry());
+  return {
+    ...baseTelemetry,
+    runtimeRecoveryCount: Math.max(0, Number(baseTelemetry.runtimeRecoveryCount || 0)) + 1,
+    runtimeRepairCount: Math.max(0, Number(baseTelemetry.runtimeRepairCount || 0)) + (repaired ? 1 : 0),
+    runtimeOfflineJobStallCount:
+      Math.max(0, Number(baseTelemetry.runtimeOfflineJobStallCount || 0)) + (offlineJobStall ? 1 : 0),
+    runtimeLastRecoveryAt: Number(now || Date.now()) || Date.now(),
+    runtimeLastRecoveryReason: reason || "runtime_guard",
+    lastActiveAt: Number(now || Date.now()) || Date.now(),
   };
 }
 
@@ -594,6 +632,8 @@ function buildPostExtractionExpeditionReset(state, { exitReason = "retire", gold
       performanceSnapshot: getEmptyPerformanceSnapshot(),
       latestLootEvent: null,
       inventoryOverflowEvent: null,
+      inventoryOverflowStats: { total: 0, displaced: 0, lost: 0, lastAt: null },
+      pendingOpenLootFilter: false,
       lastRunSummary: null,
       offlineSummary: null,
       reforgeSession: null,
@@ -686,6 +726,8 @@ function buildPrestigeResetState(state, { echoesGained, nextPrestigeLevel, nextP
       performanceSnapshot: getEmptyPerformanceSnapshot(),
       latestLootEvent: null,
       inventoryOverflowEvent: null,
+      inventoryOverflowStats: { total: 0, displaced: 0, lost: 0, lastAt: null },
+      pendingOpenLootFilter: false,
       reforgeSession: null,
       runContext: nextRunContext,
       pendingRunSetup: false,
@@ -832,6 +874,7 @@ function resolveDomainAction(state, action) {
     deepForgeApplyReforge,
     deepForgeAscendProject,
     deepForgePolishProject,
+    deepForgeRerollProject,
     ensureValidActiveBlueprints,
     getAccountTelemetry,
     getLegendaryPowerImprintReduction,
@@ -891,6 +934,27 @@ function baseGameReducer(state, action) {
   if (resolvedDomainState) return resolvedDomainState;
 
   if (getBlockedOnboardingAction(state?.onboarding?.step, action, state)) {
+    if (action?.meta?.source === "ui") {
+      const blockedMessage = getOnboardingBlockedActionMessage(
+        state?.onboarding?.step,
+        action,
+        state
+      );
+      if (blockedMessage) {
+        const currentLog = state?.combat?.log || [];
+        const lastEntry = currentLog[currentLog.length - 1] || "";
+        const logEntry = `Seguridad: ${blockedMessage}`;
+        if (lastEntry !== logEntry) {
+          return {
+            ...state,
+            combat: {
+              ...state.combat,
+              log: [...currentLog, logEntry].slice(-20),
+            },
+          };
+        }
+      }
+    }
     return state;
   }
 
@@ -904,20 +968,118 @@ function baseGameReducer(state, action) {
         return {
           ...state,
           currentTab: "sanctuary",
+          combat: {
+            ...state.combat,
+            pendingOpenLootFilter: false,
+          },
         };
       }
       if (action.tab === "sanctuary" && isSanctuaryLockedDuringExpeditionTutorial(state)) {
         return {
           ...state,
           currentTab: "combat",
+          combat: {
+            ...state.combat,
+            pendingOpenLootFilter: false,
+          },
         };
       }
+      {
+        const nextTab = action.tab === "lab"
+          ? (["active", "setup"].includes(state.expedition?.phase || "sanctuary") ? "combat" : "sanctuary")
+          : action.tab;
       return {
         ...state,
-        currentTab: action.tab === "lab"
-          ? (["active", "setup"].includes(state.expedition?.phase || "sanctuary") ? "combat" : "sanctuary")
-          : action.tab,
+        currentTab: nextTab,
+        combat: {
+          ...state.combat,
+          pendingOpenLootFilter: nextTab === "inventory" ? Boolean(state.combat?.pendingOpenLootFilter) : false,
+        },
       };
+      }
+
+    case "REPAIR_EXPEDITION_STATE": {
+      const expedition = state?.expedition || createEmptyExpeditionState();
+      const combat = state?.combat || {};
+      const phase = expedition?.phase || "sanctuary";
+      const hasRunEvidence = hasExpeditionRunEvidence(state);
+      const reason = action?.reason || "runtime_guard";
+      const repairedAt = Number(action?.now || Date.now());
+      const telemetryOnly = Boolean(action?.telemetryOnly);
+      const offlineJobStall = reason === "offline_job_stall";
+
+      if (!state?.player?.class) return state;
+      if (phase === "extraction") return state;
+
+      const needsPhaseRepair =
+        phase !== "active" &&
+        !combat?.pendingRunSetup &&
+        hasRunEvidence;
+      const needsEnemyRepair =
+        phase === "active" &&
+        !combat?.enemy;
+      const needsSetupRepair =
+        phase === "active" &&
+        Boolean(combat?.pendingRunSetup);
+      const needsIdentityRepair =
+        phase === "active" &&
+        hasRunEvidence &&
+        (!expedition?.id || !expedition?.startedAt);
+      const repaired = needsPhaseRepair || needsEnemyRepair || needsSetupRepair || needsIdentityRepair;
+
+      if (!repaired && !telemetryOnly) {
+        return state;
+      }
+
+      const repairedStartedAt =
+        Number(expedition?.startedAt || 0) > 0
+          ? Number(expedition.startedAt)
+          : repairedAt;
+      const repairedId =
+        expedition?.id ||
+        `expedition_recovered_${repairedStartedAt}`;
+      const repairedEnemy =
+        combat?.enemy ||
+        spawnEnemy(
+          Math.max(1, Number(combat?.currentTier || 1)),
+          combat?.runContext || createRunContext()
+        );
+      const recoveryReason = reason;
+      const recoveryLog = `RECOVERY: expedicion restaurada (${recoveryReason}).`;
+      const combatLog = Array.isArray(combat?.log) ? combat.log : [];
+      const lastLogEntry = combatLog[combatLog.length - 1] || "";
+      const nextTelemetry = markRuntimeRecoveryTelemetry(getAccountTelemetry(state), {
+        now: repairedAt,
+        reason: recoveryReason,
+        repaired,
+        offlineJobStall,
+      });
+
+      if (!repaired && telemetryOnly) {
+        return {
+          ...state,
+          accountTelemetry: nextTelemetry,
+        };
+      }
+
+      return {
+        ...state,
+        expedition: {
+          ...expedition,
+          phase: needsPhaseRepair ? "active" : phase,
+          id: needsPhaseRepair || needsIdentityRepair ? repairedId : expedition.id,
+          startedAt: needsPhaseRepair || needsIdentityRepair ? repairedStartedAt : expedition.startedAt,
+          exitReason: needsPhaseRepair ? null : expedition.exitReason,
+        },
+        combat: {
+          ...combat,
+          pendingRunSetup: needsSetupRepair || needsPhaseRepair ? false : Boolean(combat?.pendingRunSetup),
+          enemy: needsEnemyRepair || needsPhaseRepair ? repairedEnemy : combat.enemy,
+          log: lastLogEntry === recoveryLog ? combatLog : [...combatLog, recoveryLog].slice(-20),
+        },
+        accountTelemetry: nextTelemetry,
+      };
+    }
 
     case "SET_QA_ONBOARDING_STEP": {
       const onboarding = normalizeOnboardingState(state.onboarding || createEmptyOnboardingState());
@@ -1103,6 +1265,8 @@ function baseGameReducer(state, action) {
           },
           latestLootEvent: null,
           inventoryOverflowEvent: null,
+          inventoryOverflowStats: { total: 0, displaced: 0, lost: 0, lastAt: null },
+          pendingOpenLootFilter: false,
           reforgeSession: null,
           analytics: state.combat.analytics || createEmptySessionAnalytics(),
           log:               [],
@@ -1724,7 +1888,14 @@ export function gameReducer(state, action) {
     withExpeditionState(state, baseNextState),
     action
   );
-  const telemetryState = applyDerivedAccountTelemetry(state, onboardingState);
+  const trackedOnboardingState = {
+    ...onboardingState,
+    onboarding: trackOnboardingCompletedBeats(
+      state?.onboarding || {},
+      onboardingState?.onboarding || {}
+    ),
+  };
+  const telemetryState = applyDerivedAccountTelemetry(state, trackedOnboardingState);
   const stashSyncedState = {
     ...telemetryState,
     sanctuary: {
