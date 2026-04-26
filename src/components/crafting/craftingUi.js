@@ -19,7 +19,7 @@ export const FORGE_MODE_TOOLTIPS = {
   },
   extract: {
     tone: "extract",
-    text: "Extraccion tactica de run: rompe piezas que no vas a usar para convertirlas en esencia util inmediata.",
+    text: "Extraccion de Santuario: convierte piezas no equipadas en esencia para seguir forjando.",
   },
 };
 

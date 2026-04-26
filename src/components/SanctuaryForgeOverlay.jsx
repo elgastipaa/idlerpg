@@ -7,13 +7,37 @@ function closeButtonStyle() {
     border: "1px solid var(--color-border-primary, #e2e8f0)",
     background: "var(--color-background-secondary, #ffffff)",
     color: "var(--color-text-primary, #1e293b)",
-    borderRadius: "10px",
+    borderRadius: "12px",
     padding: "8px 12px",
     fontSize: "0.68rem",
     fontWeight: "900",
     cursor: "pointer",
   };
 }
+
+const forgeHeaderStyle = {
+  background: "var(--color-background-secondary, #ffffff)",
+  border: "1px solid var(--color-border-primary, #e2e8f0)",
+  borderTop: "3px solid var(--tone-danger, #D85A30)",
+  borderRadius: "16px",
+  padding: "14px 16px",
+  boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "10px",
+  flexWrap: "wrap",
+};
+
+const forgeBodyStyle = {
+  padding: "1rem",
+  display: "grid",
+  gap: "1rem",
+  alignItems: "start",
+  alignContent: "start",
+  background: "var(--color-background-primary, #f8fafc)",
+  color: "var(--color-text-primary, #1e293b)",
+};
 
 export default function SanctuaryForgeOverlay({ state, dispatch, isMobile = false, onClose }) {
   return (
@@ -27,44 +51,29 @@ export default function SanctuaryForgeOverlay({ state, dispatch, isMobile = fals
       <OverlaySurface
         isMobile={isMobile}
         maxWidth="1200px"
-        paddingMobile="10px 8px 12px"
-        paddingDesktop="12px 12px 14px"
-        gap="10px"
-        style={{
-          display: "grid",
-          gap: "8px",
-          background: "transparent",
-          border: "none",
-          boxShadow: "none",
-        }}
+        paddingMobile="0"
+        paddingDesktop="0"
+        gap="0"
       >
-        <div
-          style={{
-            border: "1px solid var(--color-border-primary, #e2e8f0)",
-            borderRadius: "12px",
-            padding: "10px 12px",
-            background: "var(--color-background-secondary, #ffffff)",
-            boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "10px",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <div style={{ fontSize: "0.6rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
-              Santuario
+        <div style={forgeBodyStyle}>
+          <section style={forgeHeaderStyle}>
+            <div>
+              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
+                Forja
+              </div>
+              <div style={{ fontSize: "1.02rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", marginTop: "4px" }}>
+                Items persistentes del Santuario
+              </div>
+              <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" }}>
+                Mejora, afina, reconfigura y extrae piezas fuera de la expedicion.
+              </div>
             </div>
-            <div style={{ fontSize: "0.9rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", marginTop: "2px" }}>
-              Taller de Forja
-            </div>
-          </div>
-          <button onClick={onClose} style={closeButtonStyle()}>
-            Cerrar
-          </button>
+            <button onClick={onClose} style={closeButtonStyle()}>
+              Volver
+            </button>
+          </section>
+          <Crafting state={state} dispatch={dispatch} />
         </div>
-        <Crafting state={state} dispatch={dispatch} />
       </OverlaySurface>
     </OverlayShell>
   );

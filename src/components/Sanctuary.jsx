@@ -1066,9 +1066,9 @@ export default function Sanctuary({ state, dispatch }) {
       return {
         tone: "danger",
         eyebrow: "Decision clave",
-        title: "Decide que hacer con tu primera pieza del Taller",
-        body: "La pieza rescatada no vuelve equipada. Elige si entra al stash del Taller o si la desguazas para recuperar recursos.",
-        cta: "Abrir Taller",
+        title: "Decide que hacer con tu primera pieza de Forja",
+        body: "La pieza rescatada no vuelve equipada. Elige si la guardas para trabajarla o si la desguazas para recuperar recursos.",
+        cta: "Abrir Forja",
         action: () => setShowSanctuaryForge(true),
       };
     }
@@ -1076,7 +1076,7 @@ export default function Sanctuary({ state, dispatch }) {
       return {
         tone: "accent",
         eyebrow: "Proyecto persistente",
-        title: "Ya puedes investigar el Taller",
+        title: "Ya puedes investigar la Forja",
         body: "Desde Prestige 3, el Laboratorio puede abrir la estacion donde se trabajan piezas persistentes del Santuario.",
         cta: "Ir al Laboratorio",
         action: () => openLaboratoryFromSanctuary("next-step"),
@@ -1155,7 +1155,7 @@ export default function Sanctuary({ state, dispatch }) {
       eyebrow: "Santuario activo",
       title: "Ya tienes el loop principal funcionando",
       body: "Ahora el foco es sostener la Forja del Santuario, mantener jobs corriendo y convertir una buena expedicion en mejor cuenta, no solo en mejor run.",
-      cta: "Abrir Taller",
+      cta: "Abrir Forja",
       action: () => setShowSanctuaryForge(true),
     };
   }, [
@@ -1263,7 +1263,7 @@ export default function Sanctuary({ state, dispatch }) {
     if (blueprintDecisionUnlocked && deepForgeStation.unlocked && projectCount <= 0 && extractedItems.length <= 0) {
       rows.push({
         id: "forge-no-input",
-        title: "Taller",
+        title: "Forja",
         detail: "Sin piezas en stash ni rescates listos para trabajar.",
         chip: "Sin base",
       });
@@ -1393,7 +1393,7 @@ export default function Sanctuary({ state, dispatch }) {
     ...(blueprintDecisionUnlocked
       ? [{
           id: "forge",
-          title: "Taller",
+          title: "Forja",
           status: "Operativa",
           detail: "Forja de items persistentes.",
           tone: "var(--tone-danger, #D85A30)",
@@ -1951,7 +1951,7 @@ export default function Sanctuary({ state, dispatch }) {
         </Suspense>
       )}
       {showSanctuaryForge && (
-        <Suspense fallback={<OverlayLoadingFallback label="Taller de Forja" isMobile={isMobileViewport} />}>
+        <Suspense fallback={<OverlayLoadingFallback label="Forja" isMobile={isMobileViewport} />}>
           <SanctuaryForgeOverlay
             state={state}
             dispatch={dispatch}
