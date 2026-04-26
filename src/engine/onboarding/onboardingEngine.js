@@ -3,7 +3,7 @@ import { RUN_SIGILS } from "../../data/runSigils";
 import { PRESTIGE_TREE_NODES } from "../../data/prestige";
 import { PLAYER_UPGRADES } from "../../data/playerUpgrades";
 import { addToInventory } from "../inventory/inventoryEngine";
-import { canPurchasePrestigeNode } from "../progression/prestigeEngine";
+import { canPurchasePrestigeNode, isPrestigeNodeActiveForPlayer } from "../progression/prestigeEngine";
 import { materializeItem } from "../../utils/loot";
 import { buildExtractedItemRecord } from "../sanctuary/blueprintEngine";
 import { getSigilInfusionRecipe } from "../sanctuary/jobEngine";
@@ -66,7 +66,6 @@ const ONBOARDING_STEP_ID_SET = new Set(ONBOARDING_STEP_IDS);
 const STATIC_INFO_STEPS = new Set([
   ONBOARDING_STEPS.EXPEDITION_INTRO,
   ONBOARDING_STEPS.COMBAT_INTRO,
-  ONBOARDING_STEPS.FIRST_DEATH,
   ONBOARDING_STEPS.HERO_INTRO,
   ONBOARDING_STEPS.TALENT_INTRO,
   ONBOARDING_STEPS.COMBAT_AFTER_TALENT,
@@ -157,7 +156,6 @@ const COMPLETED_BEAT_FLAG_MAP = {
   classChosen: [ONBOARDING_STEPS.CHOOSE_CLASS],
   combatIntroSeen: [ONBOARDING_STEPS.COMBAT_INTRO],
   autoAdvanceUnlocked: [ONBOARDING_STEPS.AUTO_ADVANCE],
-  firstDeathSeen: [ONBOARDING_STEPS.FIRST_DEATH],
   heroTabUnlocked: [ONBOARDING_STEPS.OPEN_HERO],
   heroIntroSeen: [ONBOARDING_STEPS.HERO_INTRO],
   firstAttributeSpent: [ONBOARDING_STEPS.HERO_SKILLS_INTRO, ONBOARDING_STEPS.SPEND_ATTRIBUTE],
@@ -384,6 +382,9 @@ function getDistilleryResearchOnboardingPhase(state = {}) {
 }
 
 export function getEffectiveOnboardingStep(step = null, state = {}) {
+  if (step === ONBOARDING_STEPS.FIRST_DEATH) {
+    return null;
+  }
   const distilleryUnlocked = Boolean(
     state?.onboarding?.flags?.distilleryUnlocked ||
     state?.sanctuary?.stations?.distillery?.unlocked
@@ -551,7 +552,6 @@ export function getOnboardingRequiredTab(step = null) {
       return "prestige";
     case ONBOARDING_STEPS.COMBAT_INTRO:
     case ONBOARDING_STEPS.AUTO_ADVANCE:
-    case ONBOARDING_STEPS.FIRST_DEATH:
     case ONBOARDING_STEPS.COMBAT_AFTER_TALENT:
     case ONBOARDING_STEPS.EQUIP_INTRO:
     case ONBOARDING_STEPS.FIRST_BOSS:
@@ -688,8 +688,9 @@ export function getOnboardingResearchTargetId(step = null) {
 }
 
 export function getOnboardingFirstEchoNodeId(state = {}) {
-  const purchasableNode = PRESTIGE_TREE_NODES.find(node => canPurchasePrestigeNode(state, node).ok);
-  return purchasableNode?.id || null;
+  const purchasableNodes = PRESTIGE_TREE_NODES.filter(node => canPurchasePrestigeNode(state, node).ok);
+  const activeBuildNode = purchasableNodes.find(node => isPrestigeNodeActiveForPlayer(node, state?.player || {}));
+  return (activeBuildNode || purchasableNodes[0] || null)?.id || null;
 }
 
 export function getOnboardingTutorialTalentNodeId(state = {}) {
@@ -995,8 +996,6 @@ export function getBlockedOnboardingAction(step = null, action = {}, state = {})
       return type !== "ACK_ONBOARDING_STEP";
     case ONBOARDING_STEPS.AUTO_ADVANCE:
       return type !== "TOGGLE_AUTO_ADVANCE";
-    case ONBOARDING_STEPS.FIRST_DEATH:
-      return type !== "ACK_ONBOARDING_STEP";
     case ONBOARDING_STEPS.CHOOSE_SPEC:
       return type !== "SELECT_SPECIALIZATION";
     case ONBOARDING_STEPS.HERO_INTRO:
@@ -1256,32 +1255,6 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
         flags: {
           ...onboarding.flags,
           combatIntroSeen: true,
-        },
-      };
-    } else if (onboarding.step === ONBOARDING_STEPS.FIRST_DEATH) {
-      if (onboarding.bossHeroQueued && canOpenHeroAfterBoss) {
-        return {
-          ...nextState,
-          onboarding: {
-            ...onboarding,
-            step: null,
-            bossHeroDelayTicks: 2,
-            bossHeroQueued: false,
-            flags: {
-              ...onboarding.flags,
-              firstDeathSeen: true,
-            },
-          },
-          currentTab: "combat",
-        };
-      }
-      onboarding = {
-        ...onboarding,
-        step: null,
-        bossHeroQueued: false,
-        flags: {
-          ...onboarding.flags,
-          firstDeathSeen: true,
         },
       };
     } else if (onboarding.step === ONBOARDING_STEPS.HERO_INTRO) {
@@ -1594,15 +1567,15 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
   }
 
   if (!onboarding.flags.firstDeathSeen && nextDeaths > prevDeaths) {
-    return withNextStep(
-      nextState,
-      {
-        ...onboarding,
-        bossHeroQueued: bossPhaseUnlocked || prevEnemyWasBoss,
+    onboarding = {
+      ...onboarding,
+      flags: {
+        ...onboarding.flags,
+        firstDeathSeen: true,
       },
-      ONBOARDING_STEPS.FIRST_DEATH,
-      { currentTab: "combat" }
-    );
+      bossHeroQueued: bossPhaseUnlocked || prevEnemyWasBoss,
+      bossHeroDelayTicks: Math.max(2, Number(onboarding?.bossHeroDelayTicks || 0)),
+    };
   }
 
   if (canOpenHeroAfterBoss && prevEnemyWasBoss && nextDeaths > prevDeaths && !onboarding.step) {
@@ -1672,7 +1645,6 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
     canOpenHeroAfterBoss &&
     !onboarding.step &&
     onboarding.bossHeroDelayTicks <= 0 &&
-    onboarding.flags.firstDeathSeen &&
     !onboarding.flags.heroTabUnlocked &&
     nextExpeditionPhase === "active"
   ) {
@@ -2283,6 +2255,37 @@ export function advanceOnboarding(prevState, nextState, action = {}) {
 
   if (
     onboarding.step === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
+    (
+      action.type === "SET_EXTRACTION_PROJECT_DECISION" ||
+      action.type === "CONFIRM_EXTRACTION"
+    )
+  ) {
+    const extractionDecision =
+      action.type === "SET_EXTRACTION_PROJECT_DECISION"
+        ? (action?.decision === "discard" ? "discard" : "keep")
+        : (state?.expedition?.selectedProjectDecision === "discard" ? "discard" : "keep");
+    const nextFlags = {
+      ...onboarding.flags,
+      blueprintConverted: onboarding.flags.blueprintConverted || extractionDecision !== "discard",
+      blueprintScrapped: onboarding.flags.blueprintScrapped || extractionDecision === "discard",
+    };
+    if (nextFlags.blueprintConverted && nextFlags.blueprintScrapped) {
+      return withNextStep(nextState, { ...onboarding, flags: nextFlags }, ONBOARDING_STEPS.FIRST_BLUEPRINT_MATERIALIZATION, {
+        currentTab: "sanctuary",
+      });
+    }
+    return {
+      ...nextState,
+      onboarding: {
+        ...onboarding,
+        step: ONBOARDING_STEPS.BLUEPRINT_DECISION,
+        flags: nextFlags,
+      },
+    };
+  }
+
+  if (
+    onboarding.step === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
     action.type === "START_SCRAP_EXTRACTED_ITEM_JOB"
   ) {
     const nextFlags = {
@@ -2632,8 +2635,6 @@ export function getOnboardingSpotlightSelectors(step = null, state = {}) {
       return ['[data-onboarding-target="hero-overview"]'];
     case ONBOARDING_STEPS.AUTO_ADVANCE:
       return ['[data-onboarding-target="auto-advance"]'];
-    case ONBOARDING_STEPS.FIRST_DEATH:
-      return ['[data-onboarding-target="expedition-lives"]'];
     case ONBOARDING_STEPS.EXTRACTION_READY:
       return ['[data-onboarding-target="open-extraction"]'];
     case ONBOARDING_STEPS.HERO_SKILLS_INTRO:

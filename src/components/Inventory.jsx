@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import useViewport from "../hooks/useViewport";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
-import { getCraftUsageSummary } from "../engine/crafting/craftingEngine";
 import { getLootHighlights } from "../utils/lootHighlights";
 import {
   AVAILABLE_HUNT_STATS,
   getHuntProfiles,
   resolveLootRuleWishlist,
+  sanitizeLootRules,
   summarizeLootRuleAutomation,
 } from "../utils/lootFilter";
 import { getRarityColor } from "../constants/rarity";
@@ -35,13 +35,12 @@ const RARITY_VISIBILITY_OPTIONS = ["common", "magic", "rare", "epic", "legendary
 const LOOT_ACTION_OPTIONS = [
   { id: "keep", label: "Guardar" },
   { id: "sell", label: "Vender" },
-  { id: "extract", label: "Extraer" },
 ];
 const BASIC_LOOT_FILTER_PRESETS = [
   {
     id: "keep_all",
     label: "Guardar todo",
-    summary: "No vende ni extrae nada automaticamente.",
+    summary: "No vende nada automaticamente.",
     lootRules: { autoSellRarities: [], autoExtractRarities: [] },
   },
   {
@@ -50,15 +49,9 @@ const BASIC_LOOT_FILTER_PRESETS = [
     summary: "Limpia common y magic. Rare+ queda manual.",
     lootRules: { autoSellRarities: ["common", "magic"], autoExtractRarities: [] },
   },
-  {
-    id: "extract_low",
-    label: "Extraer C/M",
-    summary: "Convierte common y magic en esencia. Rare+ queda manual.",
-    lootRules: { autoSellRarities: [], autoExtractRarities: ["common", "magic"] },
-  },
 ];
 function getCardHighlights(highlights = []) {
-  const allowed = new Set(["legendary", "epic", "enabler", "perfect", "t1", "wishlist", "hunt", "upgrade", "build"]);
+  const allowed = new Set(["legendary", "epic", "enabler", "excellent", "perfect", "wishlist", "hunt", "upgrade", "build"]);
   return highlights.filter(highlight => allowed.has(highlight?.id)).slice(0, 2);
 }
 
@@ -75,25 +68,22 @@ function sameRarityList(left = [], right = []) {
 }
 
 function getLootAction(lootRules = {}, rarity) {
-  if ((lootRules.autoExtractRarities || []).includes(rarity)) return "extract";
   if ((lootRules.autoSellRarities || []).includes(rarity)) return "sell";
   return "keep";
 }
 
 function buildLootRuleUpdateForRarity(lootRules = {}, rarity, nextAction) {
   const nextSell = new Set((lootRules.autoSellRarities || []).filter(item => item !== rarity));
-  const nextExtract = new Set((lootRules.autoExtractRarities || []).filter(item => item !== rarity));
 
   if (nextAction === "sell") nextSell.add(rarity);
-  if (nextAction === "extract") nextExtract.add(rarity);
 
   return {
     autoSellRarities: [...nextSell],
-    autoExtractRarities: [...nextExtract],
+    autoExtractRarities: [],
   };
 }
 
-export default function Inventory({ state, player, dispatch, canOpenCrafting = false, onOpenCrafting = null }) {
+export default function Inventory({ state, player, dispatch }) {
   const [pendingBulkSell, setPendingBulkSell] = useState(null);
   const [pendingSellId, setPendingSellId] = useState(null);
   const [detailItemId, setDetailItemId] = useState(null);
@@ -123,7 +113,7 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
   const equipTutorialActive = onboardingStep === ONBOARDING_STEPS.EQUIP_FIRST_ITEM;
   const lockInventorySideActions = equipTutorialActive;
   const activeBuildTag = getPlayerBuildTag(player);
-  const lootRules = state?.settings?.lootRules || {
+  const lootRules = sanitizeLootRules(state?.settings?.lootRules || {
     autoSellRarities: [],
     autoExtractRarities: [],
     minVisibleRarity: "common",
@@ -131,7 +121,7 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
     protectHuntedDrops: true,
     protectUpgradeDrops: true,
     wishlistAffixes: [],
-  };
+  });
   const currentEnemy = state?.combat?.enemy || null;
   const wishlistAffixes = useMemo(
     () => resolveLootRuleWishlist(lootRules, { activeBuildTag, enemy: currentEnemy }),
@@ -305,26 +295,6 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
               {upgradeCount > 0 ? `${upgradeCount} upgrades potenciales · ordenado por poder` : "Ordenado por poder · toca un item para verlo completo"}
             </div>
           </div>
-          {canOpenCrafting && typeof onOpenCrafting === "function" && (
-            <button
-              onClick={onOpenCrafting}
-              disabled={lockInventorySideActions}
-              style={{
-                border: "1px solid var(--tone-accent, #4338ca)",
-                background: "var(--tone-accent-soft, #eef2ff)",
-                color: "var(--tone-accent, #4338ca)",
-                borderRadius: "999px",
-                padding: "8px 12px",
-                fontSize: "0.68rem",
-                fontWeight: "900",
-                cursor: lockInventorySideActions ? "not-allowed" : "pointer",
-                opacity: lockInventorySideActions ? 0.55 : 1,
-                whiteSpace: "nowrap",
-              }}
-            >
-              Abrir Forja
-            </button>
-          )}
         </div>
       </header>
 
@@ -367,7 +337,7 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
             </div>
           </div>
           <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
-            Si esto se repite, usa un preset rapido del filtro para vender o extraer rarezas bajas antes de llegar al cap.
+            Si esto se repite, usa un preset rapido del filtro para vender rarezas bajas antes de llegar al cap.
           </div>
           <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.35 }}>
             Regla activa: {autoLootSummary}.
@@ -376,7 +346,7 @@ export default function Inventory({ state, player, dispatch, canOpenCrafting = f
             <button
               onClick={() => setShowLootFilterModal(true)}
               style={{
-                ...lootActionButtonStyle(true, "extract", isDarkMode),
+                ...lootActionButtonStyle(true, "sell", isDarkMode),
                 padding: "8px 12px",
               }}
             >
@@ -844,7 +814,7 @@ function LootFilterModal({
               </button>
             </div>
             <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "8px", lineHeight: 1.4 }}>
-              Si una rareza entra en vender o extraer, los drops cazados y las mejoras claras pueden salvarse automaticamente.
+              Si una rareza entra en vender, los drops cazados y las mejoras claras pueden salvarse automaticamente.
             </div>
           </section>
 
@@ -877,7 +847,7 @@ function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode
   }
 
   const stats = getItemStats(item);
-  const hasPerfect = (item.affixes || []).some(affix => affix.perfectRoll);
+  const hasExcellent = (item.affixes || []).some(affix => affix?.quality === "excellent");
   const affixDots = getAffixDots(item);
   const implicitEntries = getImplicitEntries(item);
   const topStats = getPrioritizedStatEntries(stats, 2);
@@ -890,8 +860,8 @@ function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode
       style={{ ...compactCardStyle, borderLeft: `4px solid ${getRarityColor(item.rarity)}`, cursor: "pointer", gap: "8px" }}
       title="Ver detalle"
     >
-      {hasPerfect && (
-        <div style={{ position: "absolute", top: "6px", right: "8px", fontSize: "0.8rem", color: "var(--tone-warning, #f59e0b)", textShadow: "0 1px 8px rgba(245,158,11,0.4)" }}>★</div>
+      {hasExcellent && (
+        <div style={{ position: "absolute", top: "6px", right: "8px", fontSize: "0.8rem", color: "var(--tone-warning, #f59e0b)", textShadow: "0 1px 8px rgba(245,158,11,0.4)" }}>◆</div>
       )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "8px" }}>
         <div style={{ minWidth: 0 }}>
@@ -948,7 +918,7 @@ function InventoryRow({ item, tutorialTarget = false, equippedCompare, activeBui
   const color = getRarityColor(item.rarity);
   const compareItem = equippedCompare || { bonus: {}, rating: 0 };
   const isBetter = (item.rating || 0) > (compareItem.rating || 0);
-  const hasPerfect = (item.affixes || []).some(affix => affix.perfectRoll);
+  const hasExcellent = (item.affixes || []).some(affix => affix?.quality === "excellent");
   const affixDots = getAffixDots(item);
   const implicitEntries = getImplicitEntries(item);
   const highlights = getCardHighlights(getLootHighlights({ item, equippedItem: equippedCompare, activeBuildTag, wishlistAffixes })).slice(0, 1);
@@ -968,8 +938,8 @@ function InventoryRow({ item, tutorialTarget = false, equippedCompare, activeBui
         animation: tutorialTarget ? "inventorySpotlightPulse 1600ms ease-in-out infinite" : "none",
       }}
     >
-      {hasPerfect && (
-        <div style={{ position: "absolute", top: "6px", right: "8px", fontSize: "0.8rem", color: "var(--tone-warning, #f59e0b)", textShadow: "0 1px 8px rgba(245,158,11,0.4)" }}>★</div>
+      {hasExcellent && (
+        <div style={{ position: "absolute", top: "6px", right: "8px", fontSize: "0.8rem", color: "var(--tone-warning, #f59e0b)", textShadow: "0 1px 8px rgba(245,158,11,0.4)" }}>◆</div>
       )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px" }}>
         <button onClick={lockInteractions ? undefined : onOpen} disabled={lockInteractions} style={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", background: "none", padding: 0, cursor: lockInteractions ? "default" : "pointer" }}>
@@ -1056,7 +1026,6 @@ function ItemDetailModal({ item, equippedCompare, wishlistAffixes = [], isDarkMo
   const affixes = getAffixEntries(item);
   const legendaryPower = getLegendaryPowerSummary(item);
   const visibleAffixes = showAllAffixes ? affixes : affixes.slice(0, 4);
-  const forgeUsage = getCraftUsageSummary(item);
 
   return (
     <div style={modalWrapStyle} onClick={onClose}>
@@ -1130,38 +1099,28 @@ function ItemDetailModal({ item, equippedCompare, wishlistAffixes = [], isDarkMo
                   <div
                     key={`${affix.id}-${index}`}
                     style={{
-                      border: affix.perfectRoll ? (isDarkMode ? "1px solid rgba(245,158,11,0.52)" : "1px solid #f59e0b") : "1px solid var(--color-border-primary, #e2e8f0)",
+                      border: affix?.quality === "excellent" ? (isDarkMode ? "1px solid rgba(245,158,11,0.52)" : "1px solid #f59e0b") : "1px solid var(--color-border-primary, #e2e8f0)",
                       borderRadius: "10px",
                       padding: "8px",
-                      background: affix.perfectRoll ? (isDarkMode ? "rgba(217,119,6,0.18)" : "#fffbeb") : affix.tier === 1 ? (isDarkMode ? "rgba(148,163,184,0.12)" : "#f8fafc") : "var(--color-background-secondary, #ffffff)",
+                      background: affix?.quality === "excellent" ? (isDarkMode ? "rgba(217,119,6,0.18)" : "#fffbeb") : "var(--color-background-secondary, #ffffff)",
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
                       <div style={{ fontSize: "0.74rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>{STAT_LABELS[affix.stat] || affix.stat}</div>
                       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                        <span style={{ fontSize: "0.58rem", fontWeight: "900", color: affix.tier === 1 ? (isDarkMode ? "#fcd34d" : "#b45309") : "var(--color-text-secondary, #475569)", background: affix.tier === 1 ? (isDarkMode ? "rgba(217,119,6,0.24)" : "#fef3c7") : "var(--color-background-tertiary, #f1f5f9)", padding: "2px 6px", borderRadius: "999px" }}>T{affix.tier}</span>
-                        {affix.perfectRoll && <span style={{ fontSize: "0.58rem", fontWeight: "900", color: isDarkMode ? "#fde68a" : "#a16207", background: isDarkMode ? "rgba(161,98,7,0.28)" : "#fefce8", padding: "2px 6px", borderRadius: "999px" }}>PERFECT</span>}
+                        {affix?.quality === "excellent" && <span style={{ fontSize: "0.58rem", fontWeight: "900", color: isDarkMode ? "#fcd34d" : "#b45309", background: isDarkMode ? "rgba(217,119,6,0.24)" : "#fef3c7", padding: "2px 6px", borderRadius: "999px" }}>EXCELENTE</span>}
                         {wishlistAffixes.includes(affix.stat) && <span style={{ fontSize: "0.58rem", fontWeight: "900", color: isDarkMode ? "#5eead4" : "#0f766e", background: isDarkMode ? "rgba(13,148,136,0.24)" : "#ccfbf1", padding: "2px 6px", borderRadius: "999px" }}>WISHLIST</span>}
                       </div>
                     </div>
-                    <div style={{ fontSize: "0.78rem", color: affix.perfectRoll ? "#b45309" : "var(--color-text-primary, #0f172a)", fontWeight: "900", marginTop: "4px" }}>+{formatStatValue(affix.stat, affix.rolledValue ?? affix.value ?? 0)}</div>
-                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>Rango del tier: {formatStatValue(affix.stat, affix.range?.min ?? 0)} - {formatStatValue(affix.stat, affix.range?.max ?? 0)}</div>
-                    <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "3px" }}>{affix.kind === "prefix" ? "Prefijo" : "Sufijo"} · {affix.label || affix.tierLabel || `T${affix.tier}`}</div>
+                    <div style={{ fontSize: "0.78rem", color: affix?.quality === "excellent" ? "#b45309" : "var(--color-text-primary, #0f172a)", fontWeight: "900", marginTop: "4px" }}>+{formatStatValue(affix.stat, affix.rolledValue ?? affix.value ?? 0)}</div>
+                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>Rango: {formatStatValue(affix.stat, affix.range?.min ?? 0)} - {formatStatValue(affix.stat, affix.range?.max ?? 0)}</div>
+                    <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "3px" }}>{affix.kind === "prefix" ? "Prefijo" : "Sufijo"} · {affix.qualityLabel || (affix?.quality === "excellent" ? "Excelente" : "Normal")}</div>
                   </div>
                 ))}
               </div>
             </section>
           )}
 
-          <section style={detailBlockStyle}>
-            <div style={detailTitleStyle}>Limites de la Forja</div>
-            <div style={detailRowStyle}><span>Rerolls</span><span style={{ fontWeight: "900" }}>{forgeUsage.reroll.used}/{forgeUsage.reroll.max}</span></div>
-            <div style={detailRowStyle}><span>Reforjas</span><span style={{ fontWeight: "900" }}>{forgeUsage.reforge.used}/{forgeUsage.reforge.max}</span></div>
-            <div style={detailRowStyle}><span>Pulido por linea</span><span style={{ fontWeight: "900" }}>{forgeUsage.polish.used}/{forgeUsage.polish.max}</span></div>
-            <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "8px", lineHeight: 1.4 }}>
-              El pulido consume el limite de la linea que estes mirando. Reroll y reforja comparten sus propios topes por item.
-            </div>
-          </section>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
@@ -1263,9 +1222,6 @@ const lootActionButtonStyle = (active, action, isDarkMode = false) => {
     sell: isDarkMode
       ? { activeBg: "rgba(154,52,18,0.28)", activeColor: "#fdba74", activeBorder: "rgba(251,146,60,0.4)" }
       : { activeBg: "#fff7ed", activeColor: "#c2410c", activeBorder: "#fdba74" },
-    extract: isDarkMode
-      ? { activeBg: "rgba(91,33,182,0.28)", activeColor: "#ddd6fe", activeBorder: "rgba(196,181,253,0.38)" }
-      : { activeBg: "#faf5ff", activeColor: "#7c3aed", activeBorder: "#ddd6fe" },
   };
   const chosen = palette[action] || palette.keep;
   return {
@@ -1381,7 +1337,6 @@ const sheetDragHandleStyle = {
 };
 const detailBlockStyle = { background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "10px" };
 const detailTitleStyle = { fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", fontWeight: "900", letterSpacing: "0.06em", marginBottom: "8px" };
-const detailRowStyle = { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", padding: "3px 0" };
 const diffBadgeStyle = diff => ({ fontSize: "0.62rem", color: diff > 0 ? "var(--tone-success, #1D9E75)" : diff < 0 ? "var(--tone-danger, #D85A30)" : "var(--color-text-tertiary, #94a3b8)", background: diff > 0 ? "var(--tone-success-soft, #ecfdf5)" : diff < 0 ? "var(--tone-danger-soft, #fff1f2)" : "var(--color-background-tertiary, #f1f5f9)", padding: "2px 5px", borderRadius: "6px", fontWeight: "900" });
 
 

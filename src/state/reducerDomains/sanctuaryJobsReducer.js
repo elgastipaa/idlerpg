@@ -6,6 +6,7 @@ export function handleSanctuaryJobsAction(state, action, dependencies) {
     applyLaboratoryResearch,
     buildBlueprintChargeReward,
     createCodexResearchJob,
+    createDeepForgeMasterProjectJob,
     createDeepForgeProjectJob,
     createDistillJob,
     createEmptyFamilyChargeState,
@@ -15,17 +16,21 @@ export function handleSanctuaryJobsAction(state, action, dependencies) {
     createSanctuaryErrandJob,
     createScrapExtractedItemJob,
     createSigilInfusionJob,
+    craftAscend,
     deepForgeUpgradeProject,
     ensureTutorialCargoBundle,
     ensureValidActiveBlueprints,
     getAccountTelemetry,
+    getLegendaryPowerImprintReduction,
     getRunSigil,
     getSanctuaryProgressTier,
+    isCodexResearchTypeUnlocked,
     normalizeAbyssState,
     normalizeBlueprintRecord,
     normalizeCodexState,
     normalizeExtractedItemRecord,
     normalizeProjectRecord,
+    refreshStats,
     syncCodexBonuses,
     syncSanctuaryJobs,
     withAchievementProgress,
@@ -253,6 +258,18 @@ export function handleSanctuaryJobsAction(state, action, dependencies) {
     case "START_CODEX_RESEARCH": {
       const researchType = action.researchType || action.payload?.researchType || "";
       const targetId = action.targetId || action.payload?.targetId || "";
+      if (!isCodexResearchTypeUnlocked(state, researchType)) {
+        return {
+          ...state,
+          combat: {
+            ...state.combat,
+            log: [
+              ...(state.combat?.log || []),
+              "SANTUARIO: Esa capa de Biblioteca aun no esta desbloqueada.",
+            ].slice(-20),
+          },
+        };
+      }
       const job = createCodexResearchJob(
         state.sanctuary || createEmptySanctuaryState(),
         state.codex || {},
@@ -445,6 +462,10 @@ export function handleSanctuaryJobsAction(state, action, dependencies) {
       const dustCost = Math.max(0, Number(job.input?.dustCost || 0));
       return {
         ...state,
+        accountTelemetry: {
+          ...getAccountTelemetry(state),
+          forgeJobsStarted: Math.max(0, Number(state?.accountTelemetry?.forgeJobsStarted || 0)) + 1,
+        },
         sanctuary: {
           ...createEmptySanctuaryState(),
           ...(state.sanctuary || {}),
@@ -465,6 +486,47 @@ export function handleSanctuaryJobsAction(state, action, dependencies) {
           log: [
             ...(state.combat?.log || []),
             `SANTUARIO: Forja Profunda inicia sobre ${job.input?.project?.name || "proyecto"} (+${job.input?.project?.upgradeLevel || 0} -> +${job.output?.nextUpgradeLevel || 1}).`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    case "START_DEEP_FORGE_MASTER_PROJECT": {
+      const job = createDeepForgeMasterProjectJob(
+        state.sanctuary || createEmptySanctuaryState(),
+        action.projectId,
+        action.now || Date.now()
+      );
+      if (!job) return state;
+      const dustCost = Math.max(0, Number(job.input?.dustCost || 0));
+      const inkCost = Math.max(0, Number(job.input?.inkCost || 0));
+      return {
+        ...state,
+        accountTelemetry: {
+          ...getAccountTelemetry(state),
+          forgeJobsStarted: Math.max(0, Number(state?.accountTelemetry?.forgeJobsStarted || 0)) + 1,
+        },
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          stash: (state.sanctuary?.stash || []).filter(project => project?.id !== job.input?.projectId),
+          deepForgeSession:
+            state.sanctuary?.deepForgeSession?.projectId === job.input?.projectId
+              ? null
+              : state.sanctuary?.deepForgeSession || null,
+          resources: {
+            ...createEmptySanctuaryState().resources,
+            ...(state.sanctuary?.resources || {}),
+            relicDust: Math.max(0, Number(state.sanctuary?.resources?.relicDust || 0) - dustCost),
+            codexInk: Math.max(0, Number(state.sanctuary?.resources?.codexInk || 0) - inkCost),
+          },
+          jobs: [...(state.sanctuary?.jobs || []), job],
+        },
+        combat: {
+          ...state.combat,
+          log: [
+            ...(state.combat?.log || []),
+            `SANTUARIO: Proyecto Maestro iniciado sobre ${job.input?.project?.name || "proyecto"} (+${job.input?.baseUpgradeLevel || 0} -> +${job.output?.nextUpgradeLevel || 0}) en 24h.`,
           ].slice(-20),
         },
       };
@@ -508,6 +570,8 @@ export function handleSanctuaryJobsAction(state, action, dependencies) {
         ...(state.sanctuary?.familyCharges || {}),
       };
       let logLine = "SANTUARIO: Job reclamado.";
+      let imbueJobClaimed = false;
+      let imbuePowerClaimed = false;
 
       if (job.type === "distill_bundle") {
         const outputType = job.output?.type;
@@ -648,11 +712,46 @@ export function handleSanctuaryJobsAction(state, action, dependencies) {
           };
         }
         logLine = `SANTUARIO: Laboratorio completa ${job.input?.label || "investigacion"} y mejora ${job.input?.targetLabel || SANCTUARY_STATION_DEFAULTS[job.input?.stationId]?.label || "el Santuario"}.`;
-      } else if (job.type === "forge_project") {
+      } else if (job.type === "imbue_item") {
+        const targetPowerId = job.input?.legendaryPowerId || null;
+        const unlockedLegendaryPowerIds = Object.entries(state.codex?.powerDiscoveries || {})
+          .filter(([, discoveries]) => Number(discoveries || 0) > 0)
+          .map(([powerId]) => powerId);
+        const ascendResult = craftAscend({
+          player: nextPlayer,
+          itemId: job.input?.itemId,
+          currentTier: Number(job.input?.startedAtTier || state?.combat?.currentTier || 1),
+          refreshStats,
+          legendaryPowerId: targetPowerId,
+          unlockedLegendaryPowerIds,
+          legendaryPowerImprintReduction: getLegendaryPowerImprintReduction(state.codex || {}, targetPowerId),
+          skipCost: true,
+          requireEpicOnly: true,
+        });
+
+        if (ascendResult?.newPlayer && !ascendResult?.blocked) {
+          nextPlayer = ascendResult.newPlayer;
+          imbueJobClaimed = true;
+          imbuePowerClaimed = Boolean(targetPowerId);
+          logLine = `SANTUARIO: Imbuir completado · ${job.input?.itemName || "item"} ahora es legendario.`;
+        } else {
+          const refundedGold = Math.max(0, Number(job.input?.goldCost || 0));
+          const refundedEssence = Math.max(0, Number(job.input?.essenceCost || 0));
+          nextPlayer = {
+            ...nextPlayer,
+            gold: Math.max(0, Number(nextPlayer?.gold || 0) + refundedGold),
+            essence: Math.max(0, Number(nextPlayer?.essence || 0) + refundedEssence),
+          };
+          logLine = `SANTUARIO: Imbuir cancelado · ${job.input?.itemName || "item"} ya no era elegible y se devolvieron recursos.`;
+        }
+      } else if (job.type === "forge_project" || job.type === "forge_master_project") {
         const sourceProject = job.input?.project || {};
         const nextUpgradeLevel = Math.max(0, Number(job.output?.nextUpgradeLevel || (Number(sourceProject?.upgradeLevel || 0) + 1)));
         const forgedProject = normalizeProjectRecord({
           ...deepForgeUpgradeProject(sourceProject, nextUpgradeLevel),
+          masterProjectLevel:
+            Math.max(0, Number(sourceProject?.masterProjectLevel || 0)) +
+            (job.type === "forge_master_project" ? 1 : 0),
           forgedAt: action.now || Date.now(),
           forgeHistory: [
             ...(Array.isArray(sourceProject?.forgeHistory) ? sourceProject.forgeHistory : []),
@@ -660,11 +759,15 @@ export function handleSanctuaryJobsAction(state, action, dependencies) {
               at: action.now || Date.now(),
               upgradeLevel: nextUpgradeLevel,
               dustCost: Math.max(0, Number(job.input?.dustCost || 0)),
+              inkCost: Math.max(0, Number(job.input?.inkCost || 0)),
+              mode: job.type === "forge_master_project" ? "master_project" : "upgrade",
             },
           ],
         });
         nextStash = [...nextStash, forgedProject].sort((left, right) => Number(right?.rating || 0) - Number(left?.rating || 0));
-        logLine = `SANTUARIO: Forja Profunda completa · ${forgedProject.name} sube a +${nextUpgradeLevel}.`;
+        logLine = job.type === "forge_master_project"
+          ? `SANTUARIO: Proyecto Maestro completo · ${forgedProject.name} llega a +${nextUpgradeLevel}.`
+          : `SANTUARIO: Forja Profunda completa · ${forgedProject.name} sube a +${nextUpgradeLevel}.`;
       }
 
       const nextAccountTelemetry = {
@@ -679,6 +782,11 @@ export function handleSanctuaryJobsAction(state, action, dependencies) {
           Math.max(0, Number(state?.accountTelemetry?.errandJobsCompleted || 0)) + (job.type === "sanctuary_errand" ? 1 : 0),
         sigilJobsCompleted:
           Math.max(0, Number(state?.accountTelemetry?.sigilJobsCompleted || 0)) + (job.type === "infuse_sigil" ? 1 : 0),
+        forgeJobsCompleted:
+          Math.max(0, Number(state?.accountTelemetry?.forgeJobsCompleted || 0)) +
+          (job.type === "forge_project" || job.type === "forge_master_project" || job.type === "imbue_item" ? 1 : 0),
+        imbueJobsCompleted:
+          Math.max(0, Number(state?.accountTelemetry?.imbueJobsCompleted || 0)) + (imbueJobClaimed ? 1 : 0),
         blueprintsScrapped:
           Math.max(0, Number(state?.accountTelemetry?.blueprintsScrapped || 0)) + (job.type === "scrap_extracted_item" ? 1 : 0),
       };
@@ -691,7 +799,8 @@ export function handleSanctuaryJobsAction(state, action, dependencies) {
         accountTelemetry: nextAccountTelemetry,
         stats: {
           ...state.stats,
-          upgradesCrafted: (state.stats?.upgradesCrafted || 0) + (job.type === "forge_project" ? 1 : 0),
+          upgradesCrafted: (state.stats?.upgradesCrafted || 0) + (job.type === "forge_project" || job.type === "forge_master_project" ? 1 : 0),
+          ascendsCrafted: (state.stats?.ascendsCrafted || 0) + (imbueJobClaimed ? 1 : 0),
         },
         sanctuary: {
           ...createEmptySanctuaryState(),
@@ -712,7 +821,14 @@ export function handleSanctuaryJobsAction(state, action, dependencies) {
           ...state.combat,
           analytics: {
             ...(state.combat.analytics || createEmptySessionAnalytics()),
-            upgradesCrafted: (state.combat.analytics?.upgradesCrafted || 0) + (job.type === "forge_project" ? 1 : 0),
+            upgradesCrafted: (state.combat.analytics?.upgradesCrafted || 0) + (job.type === "forge_project" || job.type === "forge_master_project" ? 1 : 0),
+            forgeJobsClaimed:
+              (state.combat.analytics?.forgeJobsClaimed || 0) +
+              (job.type === "forge_project" || job.type === "forge_master_project" || job.type === "imbue_item" ? 1 : 0),
+            imbueJobsClaimed: (state.combat.analytics?.imbueJobsClaimed || 0) + (imbueJobClaimed ? 1 : 0),
+            ascendsCrafted: (state.combat.analytics?.ascendsCrafted || 0) + (imbueJobClaimed ? 1 : 0),
+            powerAscendsCrafted:
+              (state.combat.analytics?.powerAscendsCrafted || 0) + (imbuePowerClaimed ? 1 : 0),
           },
           log: [
             ...(state.combat?.log || []),

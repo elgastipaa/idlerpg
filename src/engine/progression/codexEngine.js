@@ -164,6 +164,29 @@ const BOSS_BY_ID = new Map(BOSSES.map(boss => [boss.id, boss]));
 const FAMILY_IDS = Object.keys(ENEMY_FAMILIES);
 const BOSS_IDS = BOSSES.map(boss => boss.id);
 const POWER_IDS = LEGENDARY_POWERS.map(power => power.id);
+const LIBRARY_LAYER_DEFINITIONS = {
+  power: {
+    id: "power",
+    researchType: "power",
+    label: "Poderes legendarios",
+    unlockResearchId: "unlock_library",
+    fallbackUnlock: sanctuary => Boolean(sanctuary?.stations?.codexResearch?.unlocked),
+  },
+  family: {
+    id: "family",
+    researchType: "family",
+    label: "Familias",
+    unlockResearchId: "library_slots_1",
+    fallbackUnlock: sanctuary => Number(sanctuary?.stations?.codexResearch?.slots || 0) >= 2,
+  },
+  boss: {
+    id: "boss",
+    researchType: "boss",
+    label: "Bosses",
+    unlockResearchId: "library_speed_1",
+    fallbackUnlock: sanctuary => Number(sanctuary?.stations?.codexResearch?.timeReductionPct || 0) > 0,
+  },
+};
 
 function emptyBonuses() {
   return BONUS_KEYS.reduce((acc, key) => {
@@ -270,6 +293,35 @@ export function createEmptyCodexState() {
     powerDiscoveries: {},
     research: createEmptyResearchState(),
   };
+}
+
+export function getLibraryLayerUnlockState(state = {}) {
+  const sanctuary = state?.sanctuary || {};
+  const completed = sanctuary?.laboratory?.completed || {};
+  const layers = {};
+
+  for (const [layerId, definition] of Object.entries(LIBRARY_LAYER_DEFINITIONS)) {
+    const unlockedByResearch = Boolean(completed?.[definition.unlockResearchId]);
+    const unlockedByFallback = typeof definition.fallbackUnlock === "function"
+      ? Boolean(definition.fallbackUnlock(sanctuary))
+      : false;
+    layers[layerId] = {
+      ...definition,
+      unlocked: unlockedByResearch || unlockedByFallback,
+      unlockResearchId: definition.unlockResearchId,
+    };
+  }
+
+  return {
+    libraryUnlocked: Boolean(layers.power?.unlocked),
+    layers,
+  };
+}
+
+export function isCodexResearchTypeUnlocked(state = {}, researchType = "") {
+  const layerState = getLibraryLayerUnlockState(state);
+  const targetLayer = Object.values(layerState.layers).find(layer => layer.researchType === researchType);
+  return targetLayer ? Boolean(targetLayer.unlocked) : true;
 }
 
 export function normalizeCodexState(codex = {}, discoveredPowerIds = []) {

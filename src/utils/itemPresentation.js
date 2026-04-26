@@ -240,9 +240,9 @@ export function getWorkedLabel(item) {
   if ((item?.level ?? 0) >= 9) return "OBRA";
   if ((item?.level ?? 0) >= 6) return "FORJADO";
   const craftingTouches =
-    (item?.crafting?.rerollCount || 0) +
     (item?.crafting?.polishCount || 0) +
-    (item?.crafting?.reforgeCount || 0);
+    (item?.crafting?.reforgeCount || 0) +
+    (item?.crafting?.ascendCount || 0);
   if (craftingTouches > 0) return "TRABAJADO";
   return null;
 }

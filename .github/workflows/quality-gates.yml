@@ -1,0 +1,38 @@
+name: Quality Gates
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  smoke-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Contracts + Weekly Smoke
+        run: npm run smoke:contracts-weekly
+
+      - name: Process Tick Stage Smoke
+        run: npm run smoke:tick-stages
+
+      - name: MVP KPI Smoke
+        run: npm run smoke:kpi-mvp
+
+      - name: Relic Balance Audit
+        run: npm run balance:relic
+
+      - name: Production Build
+        run: npm run build

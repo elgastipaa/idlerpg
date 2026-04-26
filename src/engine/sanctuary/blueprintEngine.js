@@ -2,7 +2,7 @@ import { ITEM_FAMILIES } from "../../data/itemFamilies";
 import { ITEMS, ITEM_RARITY_BLUEPRINT } from "../../data/items";
 import { rollAffixes } from "../affixesEngine";
 import { calcItemRating } from "../inventory/inventoryEngine";
-import { materializeItem, normalizeLegacyBonusMap, normalizeLegacyStatKey } from "../../utils/loot";
+import { materializeItem, normalizeAffixQualityRecord, normalizeLegacyBonusMap, normalizeLegacyStatKey } from "../../utils/loot";
 
 export const BLUEPRINT_AFFIX_FAMILIES = {
   bleed_dot: {
@@ -152,14 +152,15 @@ function buildBlueprintSeedPayload(blueprint = {}, phase = "materialize") {
 }
 
 function normalizeAffixRecord(affix = {}) {
-  return {
+  const normalized = normalizeAffixQualityRecord({
     ...affix,
     stat: normalizeLegacyStatKey(affix?.stat),
     tier: Math.max(1, Number(affix?.tier || 3)),
     value: Number(affix?.value ?? affix?.rolledValue ?? 0) || 0,
     rolledValue: Number(affix?.rolledValue ?? affix?.value ?? 0) || 0,
     perfectRoll: !!affix?.perfectRoll,
-  };
+  });
+  return normalized;
 }
 
 function makeEmptyAffinityMap() {

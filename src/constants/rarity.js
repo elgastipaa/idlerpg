@@ -13,8 +13,8 @@ export function getRarityColor(rarity) {
 }
 
 export function getAffixTierGlyph(affix) {
-  if (affix?.perfectRoll) return { symbol: "★", color: "#f59e0b", label: "Perfect" };
-  if (affix?.tier === 1) return { symbol: "◆", color: "#f59e0b", label: "T1" };
-  if (affix?.tier === 2) return { symbol: "●", color: "#3b82f6", label: "T2" };
-  return { symbol: "■", color: "#9ca3af", label: "T3" };
+  if (affix?.quality === "excellent" || affix?.lootOnlyQuality) {
+    return { symbol: "◆", color: "#f59e0b", label: "Excelente" };
+  }
+  return { symbol: "■", color: "#9ca3af", label: "Normal" };
 }

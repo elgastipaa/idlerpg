@@ -11,9 +11,14 @@ import {
   getRunSigil,
   normalizeRunSigilIds,
   RUN_SIGILS,
-  summarizeRunSigilLoadout,
 } from "./data/runSigils";
+import { CLASSES } from "./data/classes";
 import { getMaxRunSigilSlots } from "./engine/progression/abyssProgression";
+import {
+  getActiveExpeditionContractWithProgress,
+  getExpeditionContractRerollCost,
+  getExpeditionContractsWithProgress,
+} from "./engine/progression/expeditionContracts";
 import {
   canOpenExpedition,
   getEffectiveOnboardingStep,
@@ -33,6 +38,58 @@ const Sanctuary = lazy(() => import("./components/Sanctuary"));
 const OnboardingOverlay = lazy(() => import("./components/OnboardingOverlay"));
 const ExtractionOverlay = lazy(() => import("./components/ExtractionOverlay"));
 
+const CHUNK_RELOAD_SIGNATURE_KEY = "idlerpg:chunk-reload-signature";
+const CHUNK_LOAD_ERROR_PATTERNS = [
+  "failed to fetch dynamically imported module",
+  "importing a module script failed",
+  "loading chunk",
+  "chunkloaderror",
+  "chunk script load failed",
+];
+
+function getErrorMessage(error) {
+  if (!error) return "";
+  if (typeof error === "string") return error;
+  if (typeof error?.message === "string") return error.message;
+  try {
+    return String(error);
+  } catch {
+    return "";
+  }
+}
+
+function getChunkErrorSignature(error) {
+  const message = getErrorMessage(error);
+  const stack = typeof error?.stack === "string" ? error.stack : "";
+  const payload = `${message}\n${stack}`;
+  const absoluteUrlMatch = payload.match(/https?:\/\/[^\s)'"]+/i);
+  if (absoluteUrlMatch) return absoluteUrlMatch[0];
+  const assetPathMatch = payload.match(/\/assets\/[^\s)'"]+\.js/i);
+  if (assetPathMatch) return assetPathMatch[0];
+  return message.slice(0, 180) || "dynamic-import";
+}
+
+function isChunkLoadError(error) {
+  const message = getErrorMessage(error).toLowerCase();
+  if (!message) return false;
+  return CHUNK_LOAD_ERROR_PATTERNS.some(pattern => message.includes(pattern));
+}
+
+function recoverFromChunkLoadError(error, source = "unknown") {
+  if (typeof window === "undefined") return false;
+  if (!isChunkLoadError(error)) return false;
+  const signature = getChunkErrorSignature(error);
+  const previousSignature = window.sessionStorage?.getItem(CHUNK_RELOAD_SIGNATURE_KEY) || "";
+  if (previousSignature === signature) {
+    console.error(`[chunk-reload] ${source}: already retried for ${signature}`);
+    return false;
+  }
+  window.sessionStorage?.setItem(CHUNK_RELOAD_SIGNATURE_KEY, signature);
+  console.warn(`[chunk-reload] ${source}: hard reload for ${signature}`);
+  window.location.reload();
+  return true;
+}
+
 class TabErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -44,6 +101,7 @@ class TabErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error) {
+    if (recoverFromChunkLoadError(error, `tab:${this.props.label || "tab"}`)) return;
     console.error(`Tab render error: ${this.props.label || "tab"}`, error);
   }
 
@@ -87,6 +145,22 @@ class TabErrorBoundary extends React.Component {
               {this.props.recoverLabel || "Recuperar"}
             </button>
           )}
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              width: "fit-content",
+              border: "1px solid var(--color-border-primary, #e2e8f0)",
+              background: "var(--color-background-secondary, #ffffff)",
+              color: "var(--color-text-primary, #1e293b)",
+              borderRadius: "10px",
+              padding: "8px 12px",
+              fontSize: "0.72rem",
+              fontWeight: "900",
+              cursor: "pointer",
+            }}
+          >
+            Recargar cliente
+          </button>
         </div>
       );
     }
@@ -257,9 +331,20 @@ function buildActionToastFromLog(logLine = "") {
   }
 
   if (text.startsWith("LEDGER:")) {
+    const label = text.replace("LEDGER:", "Ledger ·");
+    const tone = /reclamad|listo para reclamar|complet/i.test(label) ? "success" : "info";
     return {
-      tone: "info",
-      label: text.replace("LEDGER:", "Ledger ·"),
+      tone,
+      label,
+    };
+  }
+
+  if (text.startsWith("CONTRATO:")) {
+    const label = text.replace("CONTRATO:", "Contrato ·");
+    const tone = /reclamad|listo para reclamar|complet/i.test(label) ? "success" : "info";
+    return {
+      tone,
+      label,
     };
   }
 
@@ -457,6 +542,11 @@ const DesktopPrimaryTabs = React.memo(function DesktopPrimaryTabs({
                 {entry.talentBadgeValue}
               </span>
             )}
+            {entry.showSanctuaryBadge && (
+              <span style={{ marginLeft: "4px", minWidth: "18px", height: "18px", padding: "0 6px", borderRadius: "999px", background: "var(--tone-warning, #f59e0b)", color: "#fff", fontSize: "0.62rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                {entry.sanctuaryBadgeValue}
+              </span>
+            )}
             {entry.showInventoryBadge && (
               <span style={{ marginLeft: "4px", minWidth: "18px", height: "18px", padding: "0 6px", borderRadius: "999px", background: "var(--tone-success, #10b981)", color: "#fff", fontSize: "0.62rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                 {entry.inventoryBadgeValue}
@@ -509,6 +599,11 @@ const MobilePrimaryTabs = React.memo(function MobilePrimaryTabs({
           <span style={{ fontSize: "0.56rem", fontWeight: "900", color: entry.isActive ? "var(--color-text-info, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
             {PRIMARY_TAB_CONFIG[entry.id].label}
           </span>
+          {entry.showSanctuaryBadge && (
+            <span style={{ position: "absolute", top: "6px", left: "12px", minWidth: "16px", height: "16px", padding: "0 5px", borderRadius: "999px", background: "var(--tone-warning, #f59e0b)", color: "#fff", fontSize: "0.56rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              {entry.sanctuaryBadgeValue}
+            </span>
+          )}
           {entry.showInventoryBadge && (
             <span style={{ position: "absolute", top: "6px", right: "14px", minWidth: "16px", height: "16px", padding: "0 5px", borderRadius: "999px", background: "var(--tone-success, #10b981)", color: "#fff", fontSize: "0.56rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
               {entry.inventoryBadgeValue}
@@ -588,6 +683,16 @@ export default function App() {
       }).length,
     [state.player?.equipment?.armor, state.player?.equipment?.weapon, state.player?.inventory]
   );
+  const sanctuaryPendingActions = useMemo(
+    () => {
+      const claimableJobs = Array.isArray(state?.sanctuary?.jobs)
+        ? state.sanctuary.jobs.filter(job => job?.status === "claimable").length
+        : 0;
+      const extractionPending = state?.expedition?.phase === "extraction" ? 1 : 0;
+      return claimableJobs + extractionPending;
+    },
+    [state?.expedition?.phase, state?.sanctuary?.jobs]
+  );
   const theme = state.settings?.theme === "dark" ? "dark" : "light";
   const themeVars = THEMES[theme];
   const runSigilSlotCount = getMaxRunSigilSlots(state?.abyss || {});
@@ -601,6 +706,26 @@ export default function App() {
   );
   const activeRunSigilLabel = formatRunSigilLoadout(activeRunSigilIds, { short: true });
   const showActiveRunSigil = Number(state.prestige?.level || 0) >= 1 && !state.combat?.pendingRunSetup;
+
+  useEffect(() => {
+    const handleUnhandledRejection = event => {
+      if (recoverFromChunkLoadError(event?.reason, "unhandledrejection")) {
+        if (typeof event?.preventDefault === "function") event.preventDefault();
+      }
+    };
+    const handleWindowError = event => {
+      const targetSrc = event?.target?.src;
+      if (typeof targetSrc === "string" && /\/assets\/.+\.js($|\?)/i.test(targetSrc)) {
+        recoverFromChunkLoadError(new Error(`Chunk script load failed: ${targetSrc}`), "window.error");
+      }
+    };
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+    window.addEventListener("error", handleWindowError, true);
+    return () => {
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+      window.removeEventListener("error", handleWindowError, true);
+    };
+  }, []);
 
   useEffect(() => {
     document.body.style.margin = "0";
@@ -751,6 +876,8 @@ export default function App() {
           inventoryBadgeValue: inventoryUpgrades > 9 ? "9+" : String(inventoryUpgrades),
           showTalentBadge: tabId === "character" && hasTalentPoints,
           talentBadgeValue: String(talentPoints),
+          showSanctuaryBadge: tabId === "sanctuary" && sanctuaryPendingActions > 0,
+          sanctuaryBadgeValue: sanctuaryPendingActions > 9 ? "9+" : String(sanctuaryPendingActions),
         };
       }),
     [
@@ -762,6 +889,7 @@ export default function App() {
       onboardingPrimaryBlockedMap,
       onboardingStep,
       reforgeLocked,
+      sanctuaryPendingActions,
       sanctuaryPrimaryBlocked,
       talentPoints,
       visiblePrimaryTabs,
@@ -961,6 +1089,10 @@ export default function App() {
       if (tab === "sanctuary" && sanctuaryOnboardingScrollLocked) {
         return;
       }
+      if (state.expedition?.phase === "extraction") {
+        dispatch({ type: "SET_TAB", tab: destinationTab });
+        return;
+      }
       window.dispatchEvent(new CustomEvent("primary-tab-reselected", { detail: { tab } }));
       if (currentTab !== destinationTab) {
         dispatch({ type: "SET_TAB", tab: destinationTab });
@@ -1008,6 +1140,7 @@ export default function App() {
     onboardingEvaluationState,
     onboardingStep,
     sanctuaryOnboardingScrollLocked,
+    state.expedition?.phase,
     scrollAppToTopSoon,
   ]);
   const resourceSummary = useMemo(() => (
@@ -1095,12 +1228,16 @@ export default function App() {
     () => ({
       currentTab,
       player: state.player,
+      stats: state.stats,
       combat: state.combat,
       onboarding: state.onboarding,
       settings: state.settings,
       codex: state.codex,
       abyss: state.abyss,
       sanctuary: state.sanctuary,
+      expeditionContracts: state.expeditionContracts,
+      weeklyLedger: state.weeklyLedger,
+      weeklyBoss: state.weeklyBoss,
       expedition: state.expedition,
       __liveNow: state.__liveNow,
     }),
@@ -1111,10 +1248,14 @@ export default function App() {
       state.codex,
       state.combat,
       state.expedition,
+      state.expeditionContracts,
       state.onboarding,
       state.player,
+      state.stats,
       state.sanctuary,
       state.settings,
+      state.weeklyBoss,
+      state.weeklyLedger,
     ]
   );
   const prestigePrimaryState = useMemo(
@@ -1270,11 +1411,15 @@ export default function App() {
         />
       </div>
 
-      {state.combat?.pendingRunSetup && state.player?.class && (
+      {state.combat?.pendingRunSetup && (
         <RunSigilOverlay
           isMobile={isMobile}
+          state={state}
           pendingRunSigilIds={pendingRunSigilIds}
+          onSelectClass={classId => dispatch({ type: "SELECT_CLASS", classId })}
           onSelect={(sigilId, slotIndex) => dispatch({ type: "SELECT_RUN_SIGIL", sigilId, slotIndex })}
+          onSelectContract={contractId => dispatch({ type: "SELECT_EXPEDITION_CONTRACT", contractId, now: Date.now() })}
+          onRerollContracts={() => dispatch({ type: "REROLL_EXPEDITION_CONTRACTS", now: Date.now() })}
           onStart={() => dispatch({ type: "START_RUN" })}
           prestigeLevel={state.prestige?.level || 0}
           sigilSlotCount={runSigilSlotCount}
@@ -1621,9 +1766,36 @@ function themeToggleButtonStyle() {
   };
 }
 
-function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, prestigeLevel, sigilSlotCount = 1 }) {
+function RunSigilOverlay({
+  isMobile,
+  state,
+  pendingRunSigilIds,
+  onSelectClass,
+  onSelect,
+  onStart,
+  onSelectContract,
+  onRerollContracts,
+  prestigeLevel,
+  sigilSlotCount = 1,
+}) {
+  const SIGIL_CARD_COPY_LINES = 4;
+  const SIGIL_CARD_COPY_FONT_REM = 0.6;
+  const SIGIL_CARD_COPY_LINE_HEIGHT = 1.4;
+  const SIGIL_CARD_COPY_HEIGHT_REM =
+    SIGIL_CARD_COPY_LINES * SIGIL_CARD_COPY_FONT_REM * SIGIL_CARD_COPY_LINE_HEIGHT;
+  const denseMobileLayout = isMobile;
+  const preRunCardPadding = denseMobileLayout ? "8px" : "10px";
+  const preRunCardGap = denseMobileLayout ? "6px" : "8px";
+  const preRunProgressHeight = denseMobileLayout ? "4px" : "6px";
+  const preRunOptionPadding = denseMobileLayout ? "8px" : "10px";
+  const preRunOptionGap = denseMobileLayout ? "5px" : "7px";
+  const preRunOptionTitleSize = denseMobileLayout ? "0.68rem" : "0.72rem";
+  const preRunOptionMetaSize = denseMobileLayout ? "0.56rem" : "0.58rem";
+  const preRunOptionCopySize = denseMobileLayout ? "0.58rem" : "0.6rem";
+  const preRunOptionChipSize = denseMobileLayout ? "0.52rem" : "0.54rem";
+  const preRunSelectorColWidth = denseMobileLayout ? "34px" : "40px";
   const [activeSlotIndex, setActiveSlotIndex] = useState(0);
-  const [expandedSigilId, setExpandedSigilId] = useState(null);
+  const [sigilCarouselIndex, setSigilCarouselIndex] = useState(0);
   const runSigilsUnlocked = Number(prestigeLevel || 0) >= 1;
   const availableRunSigils = useMemo(
     () => (runSigilsUnlocked ? RUN_SIGILS : [getRunSigil("free")]),
@@ -1635,23 +1807,82 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
   }, [activeSlotIndex, sigilSlotCount]);
 
   const currentPendingRunSigil = getRunSigil(pendingRunSigilIds?.[activeSlotIndex] || "free");
-  const currentLoadoutName = formatRunSigilLoadout(pendingRunSigilIds);
-  const currentLoadoutSummary = summarizeRunSigilLoadout(pendingRunSigilIds);
   const currentLoadoutProfile = buildRunSigilLoadoutProfile(pendingRunSigilIds);
   const compactLoadoutBoosts = (currentLoadoutProfile.boosts || []).slice(0, 3).map(item => item.label);
   const compactLoadoutTradeoffs = (currentLoadoutProfile.tradeoffs || []).slice(0, 3).map(item => item.label);
-
+  const selectedClass = useMemo(
+    () => CLASSES.find(clase => clase.id === state?.player?.class) || null,
+    [state?.player?.class]
+  );
+  const selectedSpec = useMemo(
+    () => selectedClass?.specializations?.find(spec => spec.id === state?.player?.specialization) || null,
+    [selectedClass, state?.player?.specialization]
+  );
+  const expeditionContracts = state?.expeditionContracts || {};
+  const expeditionContractEntries = useMemo(
+    () => getExpeditionContractsWithProgress(state, expeditionContracts),
+    [state, expeditionContracts]
+  );
+  const activeExpeditionContract = useMemo(
+    () => getActiveExpeditionContractWithProgress(state, expeditionContracts),
+    [state, expeditionContracts]
+  );
+  const featuredExpeditionContract =
+    activeExpeditionContract ||
+    expeditionContractEntries.find(contract => !contract?.claimed) ||
+    expeditionContractEntries[0] ||
+    null;
+  const contractRerollCost = useMemo(
+    () => getExpeditionContractRerollCost(expeditionContracts),
+    [expeditionContracts]
+  );
+  const canRerollExpeditionContracts = useMemo(() => {
+    const relicDust = Number(state?.sanctuary?.resources?.relicDust || 0);
+    const sigilFlux = Number(state?.sanctuary?.resources?.sigilFlux || 0);
+    return (
+      relicDust >= Number(contractRerollCost?.relicDust || 0) &&
+      sigilFlux >= Number(contractRerollCost?.sigilFlux || 0)
+    );
+  }, [
+    contractRerollCost?.relicDust,
+    contractRerollCost?.sigilFlux,
+    state?.sanctuary?.resources?.relicDust,
+    state?.sanctuary?.resources?.sigilFlux,
+  ]);
   useEffect(() => {
-    if (availableRunSigils.some(sigil => sigil.id === expandedSigilId)) return;
-    setExpandedSigilId(null);
-  }, [availableRunSigils, expandedSigilId]);
+    const selectedIndex = availableRunSigils.findIndex(sigil => sigil.id === currentPendingRunSigil.id);
+    if (selectedIndex >= 0) {
+      setSigilCarouselIndex(selectedIndex);
+      return;
+    }
+    setSigilCarouselIndex(0);
+  }, [activeSlotIndex, availableRunSigils, currentPendingRunSigil.id]);
+  const canStartRun = Boolean(selectedClass);
+  const currentCarouselSigil =
+    availableRunSigils[sigilCarouselIndex] ||
+    availableRunSigils[0] ||
+    getRunSigil("free");
+  const currentCarouselProfile = useMemo(
+    () => buildRunSigilChoiceProfile(currentCarouselSigil?.id || "free"),
+    [currentCarouselSigil?.id]
+  );
+
+  function handleCycleSigil(direction = 1) {
+    const total = availableRunSigils.length;
+    if (total <= 0) return;
+    const normalizedDirection = direction < 0 ? -1 : 1;
+    const nextIndex = (sigilCarouselIndex + normalizedDirection + total) % total;
+    const nextSigil = availableRunSigils[nextIndex];
+    setSigilCarouselIndex(nextIndex);
+    if (nextSigil) onSelect(nextSigil.id, activeSlotIndex);
+  }
 
   return (
     <OverlayShell
       isMobile={isMobile}
       mode="hard"
       zIndex={9000}
-      contentLabel="Preparacion de Sigilos"
+      contentLabel="Preparacion Pre-Run"
       backdrop="rgba(2,6,23,0.72)"
     >
       <OverlaySurface
@@ -1674,13 +1905,13 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
       >
         <div style={{ padding: isMobile ? "18px 16px 12px" : "20px 22px 14px", borderBottom: "1px solid var(--color-border-primary, #e2e8f0)" }}>
           <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
-            {prestigeLevel <= 1 ? "Sigilos Desbloqueados" : "Proxima Run"}
+            {prestigeLevel <= 1 ? "Preparacion de salida" : "Pre-Run"}
           </div>
           <div style={{ fontSize: isMobile ? "1.05rem" : "1.18rem", fontWeight: "900", marginTop: "4px" }}>
-            Elegi como queres sesgar esta corrida
+            Clase, contrato y sigilos para esta expedicion
           </div>
           <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.45 }}>
-            El sigilo queda fijo hasta el proximo prestigio. Si no queres sesgar la corrida, elegi <strong>Libre</strong>.
+            El contrato se fija al iniciar la run. Los sigilos definen el sesgo de drop y riesgo para esta salida.
           </div>
           {sigilSlotCount > 1 && (
             <div style={{ fontSize: "0.72rem", color: "var(--tone-accent, #4338ca)", marginTop: "8px", fontWeight: "900" }}>
@@ -1689,26 +1920,228 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
           )}
         </div>
 
-        <div style={{ padding: isMobile ? "14px 16px 0" : "16px 22px 0", display: "grid", gap: "10px" }}>
-          <div style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-tertiary, #f8fafc)", borderRadius: "14px", padding: "10px", display: "grid", gap: "7px" }}>
+        <div style={{ padding: isMobile ? "12px 14px 0" : "16px 22px 0", display: "grid", gap: denseMobileLayout ? "8px" : "10px" }}>
+          <div style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-tertiary, #f8fafc)", borderRadius: "14px", padding: preRunCardPadding, display: "grid", gap: preRunCardGap }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "start" }}>
+              <div style={{ fontSize: denseMobileLayout ? "0.54rem" : "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-accent, #4338ca)" }}>
+                Clase
+              </div>
+            </div>
+
+            {selectedClass && (
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                <span style={{ fontSize: "0.62rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", background: "var(--tone-accent-soft, #eef2ff)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: "999px", padding: "3px 7px" }}>
+                  {selectedClass.icon} {selectedClass.name}
+                </span>
+                {selectedSpec && (
+                  <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "999px", padding: "3px 7px" }}>
+                    {selectedSpec.name}
+                  </span>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: denseMobileLayout ? "6px" : "8px" }}>
+              {CLASSES.map(clase => {
+                const selected = selectedClass?.id === clase.id;
+                return (
+                  <button
+                    key={clase.id}
+                    onClick={() => {
+                      if (typeof onSelectClass === "function") onSelectClass(clase.id);
+                    }}
+                    style={{
+                      border: selected ? "1px solid rgba(99,102,241,0.4)" : "1px solid var(--color-border-primary, #e2e8f0)",
+                      background: selected ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #ffffff)",
+                      color: selected ? "var(--tone-accent, #4338ca)" : "var(--color-text-primary, #1e293b)",
+                      borderRadius: "10px",
+                      padding: denseMobileLayout ? "7px 9px" : "8px 10px",
+                      fontSize: "0.62rem",
+                      fontWeight: "900",
+                      cursor: "pointer",
+                      display: "grid",
+                      gap: "2px",
+                      textAlign: "left",
+                    }}
+                  >
+                    <span style={{ fontSize: denseMobileLayout ? "0.68rem" : "0.72rem", fontWeight: "900" }}>
+                      {clase.icon} {clase.name}
+                    </span>
+                    <span style={{ fontSize: denseMobileLayout ? "0.54rem" : "0.56rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", lineHeight: 1.35 }}>
+                      {clase.description}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-tertiary, #f8fafc)", borderRadius: "14px", padding: preRunCardPadding, display: "grid", gap: preRunCardGap }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "start" }}>
+              <div style={{ fontSize: denseMobileLayout ? "0.54rem" : "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-danger, #ef4444)" }}>
+                Contrato
+              </div>
+              <button
+                onClick={() => {
+                  if (typeof onRerollContracts === "function") onRerollContracts();
+                }}
+                disabled={!canRerollExpeditionContracts}
+                style={{
+                  border: "1px solid var(--color-border-primary, #e2e8f0)",
+                  background: canRerollExpeditionContracts ? "var(--color-background-secondary, #ffffff)" : "var(--color-background-tertiary, #f8fafc)",
+                  color: canRerollExpeditionContracts ? "var(--color-text-secondary, #475569)" : "var(--color-text-tertiary, #94a3b8)",
+                  borderRadius: "999px",
+                  padding: denseMobileLayout ? "5px 9px" : "6px 10px",
+                  fontSize: denseMobileLayout ? "0.56rem" : "0.58rem",
+                  fontWeight: "900",
+                  cursor: canRerollExpeditionContracts ? "pointer" : "not-allowed",
+                }}
+              >
+                {`Reroll (${Number(contractRerollCost?.relicDust || 0)} polvo · ${Number(contractRerollCost?.sigilFlux || 0)} flux)`}
+              </button>
+            </div>
+
+            <div style={{ fontSize: denseMobileLayout ? "0.6rem" : "0.62rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35 }}>
+              {featuredExpeditionContract
+                ? `${featuredExpeditionContract.title || featuredExpeditionContract.goal?.name || "Objetivo"}`
+                : "No hay contrato activo. Selecciona uno antes de iniciar."}
+            </div>
+
+            {featuredExpeditionContract && (
+              <div style={{ height: preRunProgressHeight, borderRadius: "999px", overflow: "hidden", background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
+                <div
+                  style={{
+                    width: `${Math.max(0, Math.min(100, Number(featuredExpeditionContract.progress?.percent || 0)))}%`,
+                    height: "100%",
+                    background: featuredExpeditionContract.progress?.completed ? "var(--tone-success, #10b981)" : "var(--tone-warning, #f59e0b)",
+                  }}
+                />
+              </div>
+            )}
+
+            {expeditionContractEntries.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: denseMobileLayout ? "6px" : "8px" }}>
+                {expeditionContractEntries.map(contract => {
+                  const selected = contract?.id === (expeditionContracts?.activeContractId || null);
+                  const claimed = Boolean(contract?.claimed);
+                  const optionDisabled = claimed;
+                  const progressCurrent = Number(contract.progress?.current || 0);
+                  const progressTarget = Number(contract.progress?.target || 1);
+                  const statusLabel = claimed
+                    ? "Reclamado"
+                    : contract.progress?.completed
+                      ? "Listo"
+                      : `${progressCurrent}/${progressTarget}`;
+                  const missionDetail =
+                    contract?.objectiveDescription ||
+                    contract?.goal?.description ||
+                    contract?.goal?.name ||
+                    contract?.title ||
+                    "Completa el objetivo del contrato.";
+                  const rewardParts = [];
+                  if (Number(contract?.reward?.essence || 0) > 0) rewardParts.push(`+${Number(contract.reward.essence)} esencia`);
+                  if (Number(contract?.reward?.codexInk || 0) > 0) rewardParts.push(`+${Number(contract.reward.codexInk)} tinta`);
+                  if (Number(contract?.reward?.sigilFlux || 0) > 0) rewardParts.push(`+${Number(contract.reward.sigilFlux)} flux`);
+                  if (Number(contract?.reward?.relicDust || 0) > 0) rewardParts.push(`+${Number(contract.reward.relicDust)} polvo`);
+                  return (
+                    <button
+                      key={contract.id}
+                      onClick={() => {
+                        if (typeof onSelectContract === "function") onSelectContract(contract.id);
+                      }}
+                      disabled={optionDisabled}
+                      style={{
+                        textAlign: "left",
+                        display: "grid",
+                        gap: preRunOptionGap,
+                        padding: preRunOptionPadding,
+                        borderRadius: "12px",
+                        background: selected
+                          ? "var(--tone-accent-soft, #eef2ff)"
+                          : claimed
+                            ? "rgba(16,185,129,0.1)"
+                            : "var(--color-background-secondary, #ffffff)",
+                        border: selected ? "1px solid rgba(99,102,241,0.4)" : "1px solid var(--color-border-primary, #e2e8f0)",
+                        color: selected
+                          ? "var(--tone-accent, #4338ca)"
+                          : claimed
+                            ? "var(--tone-success-strong, #047857)"
+                            : "var(--color-text-secondary, #475569)",
+                        fontSize: "0.62rem",
+                        fontWeight: "800",
+                        cursor: optionDisabled ? "not-allowed" : "pointer",
+                        opacity: optionDisabled ? 0.72 : 1,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: denseMobileLayout ? "6px" : "8px", alignItems: "start" }}>
+                        <span style={{ fontSize: preRunOptionTitleSize, fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                          {contract.title || contract.goal?.name || "Contrato"}
+                        </span>
+                        <span style={{ fontSize: preRunOptionMetaSize, fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                          {statusLabel}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: preRunOptionCopySize,
+                          lineHeight: 1.35,
+                          color: "var(--color-text-secondary, #475569)",
+                          display: "-webkit-box",
+                          WebkitLineClamp: denseMobileLayout ? 2 : 3,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {missionDetail}
+                      </div>
+                      <div style={{ fontSize: preRunOptionMetaSize, fontWeight: "900", color: "var(--tone-info, #0369a1)" }}>
+                        Objetivo: {progressCurrent}/{progressTarget}
+                      </div>
+                      <div style={{ display: "flex", gap: denseMobileLayout ? "3px" : "4px", flexWrap: "wrap" }}>
+                        {rewardParts.length > 0 ? rewardParts.map(reward => (
+                          <span
+                            key={`${contract.id}-${reward}`}
+                            style={{
+                              fontSize: preRunOptionChipSize,
+                              fontWeight: "900",
+                              color: "var(--tone-success-strong, #047857)",
+                              background: "var(--tone-success-soft, #ecfdf5)",
+                              border: "1px solid rgba(16,185,129,0.18)",
+                              borderRadius: "999px",
+                              padding: denseMobileLayout ? "2px 5px" : "2px 6px",
+                            }}
+                          >
+                            {reward}
+                          </span>
+                        )) : (
+                          <span style={{ fontSize: preRunOptionChipSize, fontWeight: "800", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                            Sin recompensa definida
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-tertiary, #f8fafc)", borderRadius: "14px", padding: preRunCardPadding, display: "grid", gap: denseMobileLayout ? "6px" : "7px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "start" }}>
               <div style={{ display: "grid", gap: "4px" }}>
-                <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-accent, #4338ca)" }}>
-                  Loadout actual
+                <div style={{ fontSize: denseMobileLayout ? "0.54rem" : "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-accent, #4338ca)" }}>
+                  Sigilo
                 </div>
-                <div style={{ fontSize: "0.94rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-                  {currentLoadoutName}
-                </div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
-                  {currentLoadoutSummary}
+                <div style={{ fontSize: denseMobileLayout ? "0.9rem" : "0.94rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                  Sesgo de expedicion
                 </div>
               </div>
-              <div style={{ fontSize: "0.64rem", fontWeight: "900", color: "var(--tone-info, #0369a1)" }}>
+              <div style={{ fontSize: denseMobileLayout ? "0.62rem" : "0.64rem", fontWeight: "900", color: "var(--tone-info, #0369a1)" }}>
                 Slot activo: {activeSlotIndex + 1} · {currentPendingRunSigil.shortName || currentPendingRunSigil.name}
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "8px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: denseMobileLayout ? "6px" : "8px" }}>
               <CompactSigilSummaryLine
                 label="Premia"
                 tone="success"
@@ -1722,194 +2155,134 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
                 emptyLabel="Sin coste de oportunidad relevante."
               />
             </div>
-          </div>
-        </div>
 
-        {sigilSlotCount > 1 && (
-          <div style={{ padding: isMobile ? "12px 16px 0" : "14px 22px 0", display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {pendingRunSigilIds.map((sigilId, index) => {
-              const sigil = getRunSigil(sigilId);
-              const active = index === activeSlotIndex;
-              return (
-                <button
-                  key={`sigil-slot-${index + 1}`}
-                  onClick={() => setActiveSlotIndex(index)}
-                  style={{
-                    border: "1px solid",
-                    borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
-                    background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #fff)",
-                    color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #475569)",
-                    borderRadius: "999px",
-                    padding: "7px 11px",
-                    fontSize: "0.68rem",
-                    fontWeight: "900",
-                    cursor: "pointer",
-                  }}
-                >
-                  {`Slot ${index + 1}: ${sigil.shortName || sigil.name}`}
-                </button>
-              );
-            })}
-          </div>
-        )}
+            {sigilSlotCount > 1 && (
+              <div style={{ display: "flex", gap: denseMobileLayout ? "6px" : "8px", flexWrap: "wrap" }}>
+                {pendingRunSigilIds.map((sigilId, index) => {
+                  const sigil = getRunSigil(sigilId);
+                  const active = index === activeSlotIndex;
+                  return (
+                    <button
+                      key={`sigil-slot-${index + 1}`}
+                      onClick={() => setActiveSlotIndex(index)}
+                      style={{
+                        border: "1px solid",
+                        borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
+                        background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #fff)",
+                        color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #475569)",
+                        borderRadius: "999px",
+                        padding: denseMobileLayout ? "6px 10px" : "7px 11px",
+                        fontSize: denseMobileLayout ? "0.64rem" : "0.68rem",
+                        fontWeight: "900",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {`Slot ${index + 1}: ${sigil.shortName || sigil.name}`}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
-        <div style={{ padding: isMobile ? "12px 16px 16px" : "14px 22px 18px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
-          {availableRunSigils.map(sigil => {
-            const active = currentPendingRunSigil.id === sigil.id;
-            const selectedSlots = (pendingRunSigilIds || [])
-              .map((selectedId, index) => (selectedId === sigil.id ? index + 1 : null))
-              .filter(Boolean);
-            const sigilProfile = buildRunSigilChoiceProfile(sigil.id);
-            const compactBoosts = (sigilProfile.boosts || []).slice(0, 2).map(item => item.label);
-            const compactTradeoffs = (sigilProfile.tradeoffs || []).slice(0, 2).map(item => item.label);
-            const isExpanded = expandedSigilId === sigil.id;
-            return (
+            <div style={{ display: "grid", gridTemplateColumns: `${preRunSelectorColWidth} minmax(0, 1fr) ${preRunSelectorColWidth}`, gap: denseMobileLayout ? "6px" : "8px", alignItems: "stretch" }}>
               <button
-                key={sigil.id}
-                onClick={() => onSelect(sigil.id, activeSlotIndex)}
+                onClick={() => handleCycleSigil(-1)}
+                disabled={availableRunSigils.length <= 1}
                 style={{
-                  textAlign: "left",
-                  border: "1px solid",
-                  borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
-                  background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-tertiary, #f8fafc)",
-                  color: "inherit",
-                  borderRadius: "14px",
-                  padding: "10px",
-                  cursor: "pointer",
+                  border: "1px solid var(--color-border-primary, #e2e8f0)",
+                  background: availableRunSigils.length > 1 ? "var(--color-background-secondary, #ffffff)" : "var(--color-background-tertiary, #f8fafc)",
+                  color: availableRunSigils.length > 1 ? "var(--color-text-secondary, #475569)" : "var(--color-text-tertiary, #94a3b8)",
+                  borderRadius: "10px",
+                  padding: denseMobileLayout ? "7px 5px" : "8px 6px",
+                  fontSize: denseMobileLayout ? "0.74rem" : "0.8rem",
+                  fontWeight: "900",
+                  cursor: availableRunSigils.length > 1 ? "pointer" : "not-allowed",
                 }}
               >
-                <div style={{ display: "grid", gap: "7px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" }}>
-                    <div>
-                      <div style={{ fontSize: "0.8rem", fontWeight: "900" }}>{sigil.name}</div>
-                      <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", marginTop: "3px" }}>
-                        {sigil.focus}
+                {"<"}
+              </button>
+              {currentCarouselSigil && (
+                <button
+                  onClick={() => onSelect(currentCarouselSigil.id, activeSlotIndex)}
+                  style={{
+                    textAlign: "left",
+                    border: "1px solid",
+                    borderColor: currentPendingRunSigil.id === currentCarouselSigil.id ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
+                    background: currentPendingRunSigil.id === currentCarouselSigil.id ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #ffffff)",
+                    color: "inherit",
+                    borderRadius: "12px",
+                    padding: preRunOptionPadding,
+                    cursor: "pointer",
+                    display: "grid",
+                    gap: preRunOptionGap,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
+                    <div style={{ display: "grid", gap: "2px" }}>
+                      <div style={{ fontSize: preRunOptionTitleSize, fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                        {currentCarouselSigil.name}
+                      </div>
+                      <div style={{ fontSize: preRunOptionChipSize, fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: currentPendingRunSigil.id === currentCarouselSigil.id ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)" }}>
+                        {currentCarouselSigil.focus}
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      {selectedSlots.length > 0 && (
-                        <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", background: "var(--tone-accent-soft, #eef2ff)", border: "1px solid rgba(99,102,241,0.18)", borderRadius: "999px", padding: "2px 6px" }}>
-                          {selectedSlots.map(slot => `S${slot}`).join(" · ")}
-                        </span>
-                      )}
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        onClick={event => {
-                          event.stopPropagation();
-                          setExpandedSigilId(current => (current === sigil.id ? null : sigil.id));
-                        }}
-                        onKeyDown={event => {
-                          if (event.key !== "Enter" && event.key !== " ") return;
-                          event.preventDefault();
-                          event.stopPropagation();
-                          setExpandedSigilId(current => (current === sigil.id ? null : sigil.id));
-                        }}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          border: "1px solid var(--color-border-primary, #e2e8f0)",
-                          background: "var(--color-background-secondary, #fff)",
-                          color: "var(--color-text-secondary, #64748b)",
-                          borderRadius: "999px",
-                          width: "22px",
-                          height: "22px",
-                          fontSize: "0.74rem",
-                          fontWeight: "900",
-                          cursor: "pointer",
-                          flex: "0 0 auto",
-                        }}
-                        aria-label={isExpanded ? "Colapsar detalle" : "Expandir detalle"}
-                      >
-                        {isExpanded ? "-" : "+"}
+                      <span style={{ fontSize: preRunOptionChipSize, fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                        {availableRunSigils.length > 0
+                          ? `${sigilCarouselIndex + 1}/${availableRunSigils.length}`
+                          : "0/0"}
                       </span>
-                      <span style={{ minWidth: "18px", height: "18px", borderRadius: "999px", border: "2px solid", borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-tertiary, #cbd5e1)", background: active ? "var(--tone-accent, #4338ca)" : "transparent" }} />
+                      <span style={{ minWidth: "18px", height: "18px", borderRadius: "999px", border: "2px solid", borderColor: currentPendingRunSigil.id === currentCarouselSigil.id ? "var(--tone-accent, #4338ca)" : "var(--color-border-tertiary, #cbd5e1)", background: currentPendingRunSigil.id === currentCarouselSigil.id ? "var(--tone-accent, #4338ca)" : "transparent" }} />
                     </div>
                   </div>
-
-                  <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4 }}>
-                    {sigil.summary}
+                  <div style={{
+                    fontSize: preRunOptionCopySize,
+                    color: "var(--color-text-secondary, #475569)",
+                    lineHeight: SIGIL_CARD_COPY_LINE_HEIGHT,
+                    minHeight: `${SIGIL_CARD_COPY_HEIGHT_REM}rem`,
+                    maxHeight: `${SIGIL_CARD_COPY_HEIGHT_REM}rem`,
+                    display: "-webkit-box",
+                    WebkitLineClamp: SIGIL_CARD_COPY_LINES,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}>
+                    {currentCarouselSigil.summary}
                   </div>
-
-                  <div style={{ display: "grid", gap: "4px" }}>
-                    <CompactSigilSummaryLine
-                      label="Premia"
-                      tone="success"
-                      items={compactBoosts}
-                      emptyLabel="Sin premio directo."
-                    />
-                    <CompactSigilSummaryLine
-                      label="Cede"
-                      tone="danger"
-                      items={compactTradeoffs}
-                      emptyLabel="Sin coste visible."
-                    />
-                  </div>
-
-                  <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35, fontWeight: "800" }}>
-                    <span style={{ color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.05em", fontSize: "0.54rem", fontWeight: "900", marginRight: "6px" }}>
-                      Cuándo
-                    </span>
-                    {sigil.whenToPick}
-                  </div>
-                </div>
-
-                {isExpanded && (
-                  <div style={{ marginTop: "8px", display: "grid", gap: "8px" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "8px" }}>
-                      <SigilProfileGroup title="Premia" tone="success" items={sigilProfile.boosts} emptyLabel="Sin premio directo." compact />
-                      <SigilProfileGroup title="Cede" tone="danger" items={sigilProfile.tradeoffs} emptyLabel="Sin coste visible." compact />
-                    </div>
-                    <div style={{ display: "grid", gap: "6px" }}>
-                      <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-success-strong, #047857)" }}>
-                        Ventajas
-                      </div>
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                        {(sigil.strengths || []).map(line => (
-                          <span key={`${sigil.id}-plus-${line}`} style={{ fontSize: "0.6rem", fontWeight: "800", color: "var(--tone-success-strong, #047857)", background: "var(--tone-success-soft, #ecfdf5)", border: "1px solid rgba(16,185,129,0.18)", borderRadius: "999px", padding: "3px 6px" }}>
-                            {line}
-                          </span>
-                        ))}
-                      </div>
-                      <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-danger, #b91c1c)", marginTop: "2px" }}>
-                        Coste de oportunidad
-                      </div>
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                        {(sigil.tradeoffs || []).map(line => (
-                          <span key={`${sigil.id}-minus-${line}`} style={{ fontSize: "0.6rem", fontWeight: "800", color: "var(--tone-danger, #b91c1c)", background: "var(--tone-danger-soft, #fff1f2)", border: "1px solid rgba(244,63,94,0.18)", borderRadius: "999px", padding: "3px 6px" }}>
-                            {line}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
+                </button>
+              )}
+              <button
+                onClick={() => handleCycleSigil(1)}
+                disabled={availableRunSigils.length <= 1}
+                style={{
+                  border: "1px solid var(--color-border-primary, #e2e8f0)",
+                  background: availableRunSigils.length > 1 ? "var(--color-background-secondary, #ffffff)" : "var(--color-background-tertiary, #f8fafc)",
+                  color: availableRunSigils.length > 1 ? "var(--color-text-secondary, #475569)" : "var(--color-text-tertiary, #94a3b8)",
+                  borderRadius: "10px",
+                  padding: denseMobileLayout ? "7px 5px" : "8px 6px",
+                  fontSize: denseMobileLayout ? "0.74rem" : "0.8rem",
+                  fontWeight: "900",
+                  cursor: availableRunSigils.length > 1 ? "pointer" : "not-allowed",
+                }}
+              >
+                {">"}
               </button>
-            );
-          })}
-        </div>
-
-        <div style={{ padding: isMobile ? "0 16px 18px" : "0 22px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-          <div style={{ display: "grid", gap: "3px" }}>
-            <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)" }}>
-              Seleccion actual: <strong style={{ color: "var(--color-text-primary, #1e293b)" }}>{currentLoadoutName}</strong>
-            </div>
-            <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
-              {currentLoadoutSummary}
             </div>
           </div>
+        </div>
+
+        <div style={{ padding: isMobile ? "0 14px 16px" : "0 22px 22px", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: denseMobileLayout ? "10px" : "12px", flexWrap: "wrap" }}>
           <button
             onClick={onStart}
+            disabled={!canStartRun}
             style={{
-              border: "1px solid var(--tone-accent, #4338ca)",
-              background: "var(--tone-accent, #4338ca)",
-              color: "#fff",
+              border: canStartRun ? "1px solid var(--tone-accent, #4338ca)" : "1px solid var(--color-border-primary, #e2e8f0)",
+              background: canStartRun ? "var(--tone-accent, #4338ca)" : "var(--color-background-tertiary, #f8fafc)",
+              color: canStartRun ? "#fff" : "var(--color-text-tertiary, #94a3b8)",
               borderRadius: "12px",
-              padding: "10px 14px",
-              fontSize: "0.72rem",
+              padding: denseMobileLayout ? "9px 12px" : "10px 14px",
+              fontSize: denseMobileLayout ? "0.68rem" : "0.72rem",
               fontWeight: "900",
-              cursor: "pointer",
+              cursor: canStartRun ? "pointer" : "not-allowed",
             }}
           >
             Empezar corrida
@@ -1917,53 +2290,6 @@ function RunSigilOverlay({ isMobile, pendingRunSigilIds, onSelect, onStart, pres
         </div>
       </OverlaySurface>
     </OverlayShell>
-  );
-}
-
-function SigilProfileGroup({ title, tone = "success", items = [], emptyLabel = "", compact = false }) {
-  const palette =
-    tone === "danger"
-      ? {
-          label: "var(--tone-danger, #b91c1c)",
-          bg: "var(--tone-danger-soft, #fff1f2)",
-          border: "rgba(244,63,94,0.18)",
-          text: "var(--tone-danger, #b91c1c)",
-        }
-      : {
-          label: "var(--tone-success-strong, #047857)",
-          bg: "var(--tone-success-soft, #ecfdf5)",
-          border: "rgba(16,185,129,0.18)",
-          text: "var(--tone-success-strong, #047857)",
-        };
-
-  return (
-    <div style={{ display: "grid", gap: compact ? "5px" : "6px" }}>
-      <div style={{ fontSize: compact ? "0.56rem" : "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: palette.label }}>
-        {title}
-      </div>
-      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-        {items.length > 0 ? items.map(item => (
-          <span
-            key={item.label}
-            style={{
-              fontSize: compact ? "0.58rem" : "0.62rem",
-              fontWeight: "800",
-              color: palette.text,
-              background: palette.bg,
-              border: `1px solid ${palette.border}`,
-              borderRadius: "999px",
-              padding: compact ? "3px 6px" : "4px 7px",
-            }}
-          >
-            {item.label}
-          </span>
-        )) : (
-          <span style={{ fontSize: compact ? "0.58rem" : "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
-            {emptyLabel}
-          </span>
-        )}
-      </div>
-    </div>
   );
 }
 

@@ -24,11 +24,6 @@ const ONBOARDING_STATIC_COPY = Object.freeze({
     body: "Toca el boton de botas resaltado. Cuando esta activo, tu heroe empuja tiers por su cuenta.",
     actionLabel: null,
   }),
-  first_death: Object.freeze({
-    title: "El tutorial protege esta run",
-    body: "Aqui no puedes perder definitivamente la expedicion. Si caes, retrocedes, el auto-avance se corta y vuelves a pelear sin consumir vidas reales.",
-    actionLabel: "Seguir",
-  }),
   open_hero: Object.freeze({
     title: "Abre la hoja de Heroe",
     body: "Ya viste que un boss puede frenarte. Abre la tab resaltada de Heroe para empezar a leer tu build y ubicar donde vive cada decision importante de la run.",
@@ -100,8 +95,8 @@ const ONBOARDING_STATIC_COPY = Object.freeze({
     actionLabel: null,
   }),
   extraction_select_item: Object.freeze({
-    title: "Elige un item rescatado",
-    body: "Ahora toca una pieza para guardarla temporalmente. Mas adelante decidiremos si se vuelve blueprint o si se desguaza.",
+    title: "Elige una reliquia",
+    body: "Ahora toca una pieza para guardarla en el Arsenal de Reliquias. Queda disponible para equiparla al iniciar futuras runs.",
     actionLabel: null,
   }),
   extraction_confirm: Object.freeze({

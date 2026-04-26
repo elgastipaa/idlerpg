@@ -4,7 +4,13 @@ import useViewport from "../hooks/useViewport";
 import { TALENTS } from "../data/talents";
 import { ITEM_FAMILIES } from "../data/itemFamilies";
 import { xpRequired } from "../engine/leveling";
-import { getActiveGoals } from "../engine/progression/goalEngine";
+import {
+  getActiveExpeditionContractWithProgress,
+  getExpeditionContractsWithProgress,
+} from "../engine/progression/expeditionContracts";
+import { getObjectiveStatusMeta, resolveObjectiveStatus } from "../engine/progression/objectiveStatus";
+import { getWeeklyBossOverview } from "../engine/progression/weeklyBoss";
+import { getWeeklyLedgerContractsWithProgress } from "../engine/progression/weeklyLedger";
 import { getRarityColor, getAffixTierGlyph } from "../constants/rarity";
 import { calcStats } from "../engine/combat/statEngine";
 import { computeEffectModifiers } from "../engine/effects/effectEngine";
@@ -13,8 +19,8 @@ import { getLegendaryStaticBonuses, getTargetedLegendaryDropsForEnemy } from "..
 import { summarizeLootRuleAutomation } from "../utils/lootFilter";
 import { getOnboardingStepInteractionMode, isAutoAdvanceUnlocked, isExtractionUnlocked, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 import { getMaxRunSigilSlots } from "../engine/progression/abyssProgression";
-import CombatGuidanceStrip from "./combat/CombatGuidanceStrip";
 import RunSigilCallout from "./RunSigilCallout";
+import { CardHeader, InlineAction, ProgressBar, StatusChip } from "./ui/ProgressPrimitives";
 
 const COLORS = {
   success: "var(--tone-success, #1D9E75)",
@@ -29,6 +35,8 @@ const ENEMY_FINISH_ZONE_PCT = 20;
 const CRIT_STREAK_TIMEOUT_MS = 2600;
 const BOSS_PHASE_THRESHOLDS = [75, 50, 25];
 const LEVEL_UP_TOAST_VISIBLE_MS = 3200;
+const ACCOUNT_SCROLL_TARGET_STORAGE_KEY = "idlerpg.accountScrollTarget";
+const ACCOUNT_SCROLL_TARGET_WEEKLY = "weekly";
 const COMBAT_ANIMATION_STYLES = `
 @keyframes lootOverlayEnter {
   0% { opacity: 0; transform: translateY(26px) scale(0.98); }
@@ -261,6 +269,15 @@ function formatGoalReward(reward = {}) {
   return chunks.join(" · ");
 }
 
+function formatExpeditionContractReward(reward = {}) {
+  const chunks = [];
+  if (reward.essence) chunks.push(`+${reward.essence} esencia`);
+  if (reward.codexInk) chunks.push(`+${reward.codexInk} tinta`);
+  if (reward.sigilFlux) chunks.push(`+${reward.sigilFlux} flux`);
+  if (reward.relicDust) chunks.push(`+${reward.relicDust} polvo`);
+  return chunks.join(" · ");
+}
+
 function formatPercent(value = 0, digits = 0) {
   const numeric = Number(value || 0) * 100;
   const rounded = Math.round(numeric * Math.pow(10, digits)) / Math.pow(10, digits);
@@ -281,6 +298,16 @@ function formatMultiplierBonus(multiplier = 1, digits = 0) {
 function formatTickCount(ticks = 0) {
   const value = Math.max(0, Number(ticks || 0));
   return `${value} tick${value === 1 ? "" : "s"}`;
+}
+
+function formatRemainingMs(ms = 0) {
+  const safeMs = Math.max(0, Number(ms || 0));
+  const totalSeconds = Math.ceil(safeMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return `${totalSeconds}s`;
 }
 
 function applyMitigationPreview(value = 0, mitigation = 0) {
@@ -331,8 +358,7 @@ export default function Combat({ state, dispatch }) {
   } = combat;
   const { isMobile } = useViewport();
   const [showActivated, setShowActivated] = useState({});
-  const [goalIndex, setGoalIndex] = useState(0);
-  const [tipIndex, setTipIndex] = useState(0);
+  const [selectedWeeklyContractId, setSelectedWeeklyContractId] = useState(null);
   const [logExpanded, setLogExpanded] = useState(false);
   const [collapsedPanels, setCollapsedPanels] = useState({
     enemyIntel: true,
@@ -376,10 +402,128 @@ export default function Combat({ state, dispatch }) {
   );
 
   const activeTalentEffects = useMemo(() => buildActiveTalentEffects(effects), [effects]);
-  const activeGoals = useMemo(() => getActiveGoals(state, 3), [state]);
-  const sessionGoals = activeGoals.slice(0, 3);
-  const primarySessionGoal = sessionGoals[0] || null;
-  const secondarySessionGoals = sessionGoals.slice(1, 3);
+  const expeditionContracts = state?.expeditionContracts || {};
+  const expeditionContractEntries = useMemo(
+    () => getExpeditionContractsWithProgress(state, expeditionContracts),
+    [state, expeditionContracts]
+  );
+  const activeExpeditionContract = useMemo(
+    () => getActiveExpeditionContractWithProgress(state, expeditionContracts),
+    [state, expeditionContracts]
+  );
+  const featuredExpeditionContract =
+    activeExpeditionContract ||
+    expeditionContractEntries.find(contract => !contract?.claimed) ||
+    expeditionContractEntries[0] ||
+    null;
+  const canClaimExpeditionContract = Boolean(
+    featuredExpeditionContract?.progress?.completed && !featuredExpeditionContract?.claimed
+  );
+  const expeditionStatusMeta = useMemo(() => {
+    if (!featuredExpeditionContract) {
+      return getObjectiveStatusMeta("in_progress", {
+        inProgressLabel: "Sin contrato activo",
+      });
+    }
+    const status = resolveObjectiveStatus({
+      completed: featuredExpeditionContract?.progress?.completed,
+      claimed: featuredExpeditionContract?.claimed,
+    });
+    return getObjectiveStatusMeta(status, {
+      inProgressLabel: "En progreso",
+      claimableLabel: "Listo para reclamar",
+      claimedLabel: "Reclamado",
+    });
+  }, [featuredExpeditionContract]);
+  const weeklyContracts = useMemo(
+    () => getWeeklyLedgerContractsWithProgress(state, state?.weeklyLedger || {}),
+    [state]
+  );
+  const claimableWeeklyContracts = useMemo(
+    () => weeklyContracts.filter(contract => contract?.progress?.completed && !contract?.claimed),
+    [weeklyContracts]
+  );
+  const weeklyTotalContracts = weeklyContracts.length;
+  const claimedWeeklyContracts = useMemo(
+    () => weeklyContracts.filter(contract => contract?.claimed).length,
+    [weeklyContracts]
+  );
+  const weeklyAllClaimed = weeklyTotalContracts > 0 && claimedWeeklyContracts >= weeklyTotalContracts;
+  const visibleWeeklyContracts = useMemo(
+    () => weeklyContracts.filter(contract => !contract?.claimed),
+    [weeklyContracts]
+  );
+  const orderedWeeklyContracts = useMemo(() => {
+    if (!Array.isArray(visibleWeeklyContracts) || visibleWeeklyContracts.length === 0) return [];
+    const rank = contract => {
+      if (contract?.progress?.completed && !contract?.claimed) return 0;
+      if (!contract?.claimed) return 1;
+      return 2;
+    };
+    return [...visibleWeeklyContracts].sort((left, right) => {
+      const rankDiff = rank(left) - rank(right);
+      if (rankDiff !== 0) return rankDiff;
+      return Number(right?.progress?.percent || 0) - Number(left?.progress?.percent || 0);
+    });
+  }, [visibleWeeklyContracts]);
+  const featuredWeeklyContract = useMemo(() => {
+    if (orderedWeeklyContracts.length <= 0) return null;
+    if (!selectedWeeklyContractId) return orderedWeeklyContracts[0];
+    return orderedWeeklyContracts.find(contract => contract?.id === selectedWeeklyContractId) || orderedWeeklyContracts[0];
+  }, [orderedWeeklyContracts, selectedWeeklyContractId]);
+  const weeklyStatusMeta = useMemo(() => {
+    if (weeklyAllClaimed) {
+      return getObjectiveStatusMeta("claimed", {
+        inProgressLabel: "En progreso",
+        claimableLabel: "Listo para reclamar",
+        claimedLabel: "Todo reclamado",
+      });
+    }
+    if (!featuredWeeklyContract) {
+      return getObjectiveStatusMeta("in_progress", {
+        inProgressLabel: "Sin contrato activo",
+      });
+    }
+    const status = resolveObjectiveStatus({
+      completed: featuredWeeklyContract?.progress?.completed,
+      claimed: featuredWeeklyContract?.claimed,
+    });
+    return getObjectiveStatusMeta(status, {
+      inProgressLabel: "En progreso",
+      claimableLabel: "Listo para reclamar",
+      claimedLabel: "Reclamado",
+    });
+  }, [featuredWeeklyContract, weeklyAllClaimed]);
+  const featuredWeeklyIndex = useMemo(() => {
+    if (!featuredWeeklyContract || orderedWeeklyContracts.length <= 0) return 0;
+    const index = orderedWeeklyContracts.findIndex(contract => contract?.id === featuredWeeklyContract?.id);
+    return index >= 0 ? index : 0;
+  }, [featuredWeeklyContract, orderedWeeklyContracts]);
+  const showWeeklyLedgerCard = Boolean(state?.weeklyLedger);
+  const showWeeklySelectorArrows = orderedWeeklyContracts.length > 1;
+  const showWeeklyCardEdgeArrows = showWeeklySelectorArrows && isMobile;
+  const isSessionDenseMobile = isMobile;
+  const sessionCardCompactStyle = isSessionDenseMobile ? { padding: "8px", gap: "6px" } : undefined;
+  const sessionProgressBarHeight = isSessionDenseMobile ? "4px" : "6px";
+  const sessionSectionTagSize = isSessionDenseMobile ? "0.54rem" : "0.58rem";
+  const sessionTitleSize = isSessionDenseMobile ? "0.76rem" : "0.82rem";
+  const sessionCopySize = isSessionDenseMobile ? "0.6rem" : "0.62rem";
+  const sessionMetaSize = isSessionDenseMobile ? "0.58rem" : "0.62rem";
+  const sessionHintSize = isSessionDenseMobile ? "0.54rem" : "0.58rem";
+  const sessionActionPadding = isSessionDenseMobile ? "6px 9px" : "7px 10px";
+  const weeklyBossOverview = useMemo(
+    () => getWeeklyBossOverview(state, state?.weeklyBoss || {}),
+    [state]
+  );
+  const weeklyBossDifficulties = Array.isArray(weeklyBossOverview?.difficulties)
+    ? weeklyBossOverview.difficulties
+    : [];
+  const weeklyBossCycleRemainingLabel = formatRemainingMs(weeklyBossOverview?.cycleRemainingMs || 0);
+  const showWeeklyBossCard = Boolean(weeklyBossOverview?.boss);
+  const activeWeeklyBossEncounter =
+    state?.combat?.weeklyBossEncounter && state.combat.weeklyBossEncounter.active
+      ? state.combat.weeklyBossEncounter
+      : null;
   const showSessionFraming = Boolean(
     state?.onboarding?.completed ||
     state?.onboarding?.flags?.firstExtractionCompleted
@@ -423,19 +567,13 @@ export default function Combat({ state, dispatch }) {
   );
   const effectiveCritChanceInCombat = Math.min(0.75, (baseStats.critChance || 0) + (combatEffectMods.critBonus || 0));
   const effectiveAttackSpeedInCombat = Math.min(0.7, (baseStats.attackSpeed || 0) + (combatEffectMods.attackSpeedFlat || 0));
-  const expeditionDeathLimit = Math.max(1, Number(expedition.deathLimit || 3));
-  const expeditionDeathCount = Math.max(0, Number(expedition.deathCount || 0));
-  const remainingSafeDeaths = Math.max(0, expeditionDeathLimit - expeditionDeathCount);
   const runCargoCount = Array.isArray(expedition.cargoFound) ? expedition.cargoFound.length : 0;
   const runBossKills = Math.max(0, Number(combat?.runStats?.bossKills || 0));
-  const tutorialProtectedExpedition = Boolean(state?.onboarding && !state.onboarding.completed);
   const autoAdvanceUnlocked = isAutoAdvanceUnlocked(state);
   const extractionUnlocked = isExtractionUnlocked(state);
   const onboardingStep = state?.onboarding?.step || null;
   const onboardingMode = getOnboardingStepInteractionMode(onboardingStep, state);
   const spotlightAutoAdvance = onboardingStep === ONBOARDING_STEPS.AUTO_ADVANCE;
-  const spotlightLives =
-    onboardingStep === ONBOARDING_STEPS.FIRST_DEATH && onboardingMode === "forced";
   const spotlightExtraction = onboardingStep === ONBOARDING_STEPS.EXTRACTION_READY;
   const spotlightCombatEncounter = onboardingMode === "forced" && [
     ONBOARDING_STEPS.COMBAT_INTRO,
@@ -445,13 +583,6 @@ export default function Combat({ state, dispatch }) {
   const extractionDecision = useMemo(() => {
     if (!extractionUnlocked) return null;
     const hasSecuredValue = runCargoCount > 0 || runBossKills > 0;
-    if (remainingSafeDeaths <= 1 && hasSecuredValue) {
-      return {
-        label: "Salida recomendada",
-        detail: `${remainingSafeDeaths} vida(s) segura(s) · ${runCargoCount} bundle(s)`,
-        tone: "var(--tone-danger, #D85A30)",
-      };
-    }
     if (hasSecuredValue) {
       return {
         label: "Valor para asegurar",
@@ -464,34 +595,7 @@ export default function Combat({ state, dispatch }) {
       detail: "Aun no acumulaste valor persistente fuerte.",
       tone: "var(--tone-accent, #4338ca)",
     };
-  }, [extractionUnlocked, remainingSafeDeaths, runBossKills, runCargoCount]);
-  const lockFirstBossRetreat = Boolean(enemy?.isBoss && !state?.onboarding?.flags?.firstDeathSeen);
-  const combatTips = useMemo(() => ([
-    {
-      title: "Arma primero",
-      body: "Si queres pushear, casi siempre conviene mejorar o cambiar el arma antes que la armadura.",
-    },
-    {
-      title: "No guardes TP",
-      body: "Los puntos de talento sin gastar suelen rendir mas que esperar el nodo perfecto.",
-    },
-    {
-      title: "Reforge con criterio",
-      body: "La reforja sirve para perseguir una linea clave. El reroll total es para resetear una pieza floja.",
-    },
-    {
-      title: "Extraccion corta tambien vale",
-      body: "Si la run se estanca, una extraccion temprana para asegurar ecos y cargo puede rendir mas que forzar otra hora.",
-    },
-    {
-      title: "Auto-avance no siempre",
-      body: "Si moris seguido, apagalo un rato y estabiliza equipo, talentos o crafting antes de volver a subir.",
-    },
-    {
-      title: "Economia util",
-      body: "Si un drop no mejora ni sirve para tu plan, vendelo o extraelo rapido y segui rotando.",
-    },
-  ]), []);
+  }, [extractionUnlocked, runBossKills, runCargoCount]);
 
   useEffect(() => {
     const activated = {};
@@ -642,7 +746,10 @@ export default function Combat({ state, dispatch }) {
 
   useEffect(() => {
     if (!latestLootEvent) return undefined;
-    if (!latestLootEvent.highlight) return undefined;
+    const shouldShowWithoutHighlight = ["protected_hunt", "protected_upgrade"].includes(
+      latestLootEvent?.decisionReason
+    );
+    if (!latestLootEvent.highlight && !shouldShowWithoutHighlight) return undefined;
     setLootClosing(false);
     setVisibleLootEvent(latestLootEvent);
     return undefined;
@@ -702,20 +809,21 @@ export default function Combat({ state, dispatch }) {
   }, [levelUpToastClosing]);
 
   useEffect(() => {
-    if (sessionGoals.length <= 1) return undefined;
-    const timer = setInterval(() => {
-      setGoalIndex(current => (current + 1) % sessionGoals.length);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [sessionGoals.length]);
+    if (orderedWeeklyContracts.length <= 0) {
+      if (selectedWeeklyContractId != null) setSelectedWeeklyContractId(null);
+      return;
+    }
 
-  useEffect(() => {
-    if (combatTips.length <= 1) return undefined;
-    const timer = setInterval(() => {
-      setTipIndex(current => (current + 1) % combatTips.length);
-    }, 5200);
-    return () => clearInterval(timer);
-  }, [combatTips]);
+    const selectedContract = orderedWeeklyContracts.find(
+      contract => contract?.id === selectedWeeklyContractId
+    );
+    if (selectedContract) return;
+
+    const preferred = orderedWeeklyContracts[0];
+    if (preferred?.id && preferred.id !== selectedWeeklyContractId) {
+      setSelectedWeeklyContractId(preferred.id);
+    }
+  }, [orderedWeeklyContracts, selectedWeeklyContractId]);
 
   useEffect(() => {
     if (!spotlightAutoAdvance) return undefined;
@@ -1047,6 +1155,27 @@ export default function Combat({ state, dispatch }) {
   if (!enemy) return null;
 
   const enemyHpPct = Math.max(0, (enemy.hp / enemy.maxHp) * 100);
+  const weeklySegmentCount = Math.max(1, Number(activeWeeklyBossEncounter?.segmentCount || enemy?.weeklyBoss?.segmentCount || 1));
+  const weeklySegmentMaxHp = Math.max(1, Number(activeWeeklyBossEncounter?.segmentMaxHp || enemy?.weeklyBoss?.segmentMaxHp || enemy.maxHp || 1));
+  const showWeeklySegmentBars = weeklySegmentCount > 1 && Boolean(activeWeeklyBossEncounter);
+  const weeklySegments = showWeeklySegmentBars
+    ? Array.from({ length: weeklySegmentCount }, (_, index) => {
+        const segmentIndex = weeklySegmentCount - index;
+        const segmentFloor = (segmentIndex - 1) * weeklySegmentMaxHp;
+        const segmentHp = Math.max(0, Math.min(weeklySegmentMaxHp, Number(enemy.hp || 0) - segmentFloor));
+        const pct = Math.max(0, Math.min(100, (segmentHp / weeklySegmentMaxHp) * 100));
+        const cleared = Number(enemy.hp || 0) <= segmentFloor;
+        return {
+          id: `${segmentIndex}`,
+          label: `Barra ${segmentIndex}`,
+          pct,
+          cleared,
+        };
+      })
+    : [];
+  const weeklyBarsRemaining = showWeeklySegmentBars
+    ? Math.max(0, Math.min(weeklySegmentCount, Math.ceil(Math.max(0, Number(enemy.hp || 0)) / weeklySegmentMaxHp)))
+    : 0;
   const playerHpPct = Math.max(0, (player.hp / player.maxHp) * 100);
   const inEnemyFinishZone = enemyHpPct <= ENEMY_FINISH_ZONE_PCT;
   const critStreakAgeMs = Date.now() - Number(critStreak.lastCritAt || 0);
@@ -1084,7 +1213,6 @@ export default function Combat({ state, dispatch }) {
     if (text.includes("nivel")) return { color: "var(--tone-violet, #a855f7)", fontWeight: "bold" };
     return { color: "var(--color-text-tertiary, #94a3b8)" };
   };
-  const rotatingTip = combatTips[tipIndex % Math.max(1, combatTips.length)] || null;
   const floatingCombatEvents = (combat.floatEvents || []).slice(-10);
   const combatDamageFloatEvents = floatingCombatEvents.filter(event => event.kind !== "xp");
   const combatXpFloatEvents = floatingCombatEvents.filter(event => event.kind === "xp");
@@ -1094,6 +1222,17 @@ export default function Combat({ state, dispatch }) {
       ...current,
       [panel]: !current[panel],
     }));
+  };
+  const cycleWeeklyContract = delta => {
+    if (orderedWeeklyContracts.length <= 1) return;
+    const currentIndex = Math.max(
+      0,
+      orderedWeeklyContracts.findIndex(contract => contract?.id === featuredWeeklyContract?.id)
+    );
+    const nextIndex =
+      (currentIndex + delta + orderedWeeklyContracts.length) % orderedWeeklyContracts.length;
+    const nextContract = orderedWeeklyContracts[nextIndex];
+    if (nextContract?.id) setSelectedWeeklyContractId(nextContract.id);
   };
 
   return (
@@ -1199,9 +1338,8 @@ export default function Combat({ state, dispatch }) {
         >
           <button
             onClick={() => dispatch({ type: "SET_TIER", tier: currentTier - 1 })}
-            disabled={currentTier <= 1 || lockFirstBossRetreat}
-            style={navBtnStyle(currentTier > 1 && !lockFirstBossRetreat)}
-            title={lockFirstBossRetreat ? "No puedes retroceder antes de ver tu primera muerte del tutorial" : undefined}
+            disabled={currentTier <= 1}
+            style={navBtnStyle(currentTier > 1)}
           >
             {"<"}
           </button>
@@ -1551,6 +1689,11 @@ export default function Combat({ state, dispatch }) {
                   {highlight.label}
                 </span>
               ))}
+              {visibleLootEvent.decisionLabel && (
+                <span style={eventBadgeStyle(getLootDecisionBadgeTone(visibleLootEvent.decisionReason), isDarkMode)}>
+                  {visibleLootEvent.decisionLabel}
+                </span>
+              )}
               {visibleLootEvent.ratingMargin >= 8 && (
                 <span style={eventBadgeStyle("upgrade", isDarkMode)}>
                   +{Math.round(visibleLootEvent.ratingMargin)} poder
@@ -1573,6 +1716,11 @@ export default function Combat({ state, dispatch }) {
             {visibleLootEvent.hasActiveHuntObjectives && visibleLootEvent.wishlistMatches?.length > 0 && (
               <div style={{ marginTop: "6px", fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)" }}>
                 Coincide con tu caza · {visibleLootEvent.wishlistMatches.slice(0, 3).map(stat => STAT_LABELS[stat] || stat).join(", ")}
+              </div>
+            )}
+            {visibleLootEvent.decisionDetail && (
+              <div style={{ marginTop: "5px", fontSize: "0.56rem", fontWeight: "800", color: "var(--color-text-secondary, #64748b)" }}>
+                {visibleLootEvent.decisionDetail}
               </div>
             )}
           </section>
@@ -1708,7 +1856,10 @@ export default function Combat({ state, dispatch }) {
                   {activeBossPhasePing.threshold}%
                 </span>
               )}
-              <span>{Math.ceil(enemy.hp).toLocaleString()} HP</span>
+              <span>
+                {Math.ceil(enemy.hp).toLocaleString()} HP
+                {showWeeklySegmentBars ? ` · ${weeklyBarsRemaining}/${weeklySegmentCount} barras` : ""}
+              </span>
             </span>
           </div>
           <div style={{ ...barContainerStyle, position: "relative" }}>
@@ -1750,6 +1901,28 @@ export default function Combat({ state, dispatch }) {
               }}
             />
           </div>
+          {showWeeklySegmentBars && (
+            <div style={{ display: "grid", gap: "4px", marginTop: "6px" }}>
+              {weeklySegments.map(segment => (
+                <div key={segment.id} style={{ display: "grid", gap: "2px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", fontSize: "0.52rem", fontWeight: "900", color: segment.cleared ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #ef4444)" }}>
+                    <span>{segment.label}</span>
+                    <span>{Math.round(segment.pct)}%</span>
+                  </div>
+                  <div style={{ width: "100%", height: "4px", borderRadius: "999px", overflow: "hidden", background: "var(--color-background-tertiary, #f1f5f9)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
+                    <div
+                      style={{
+                        width: `${segment.pct}%`,
+                        height: "100%",
+                        background: segment.cleared ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #ef4444)",
+                        transition: "width 0.2s ease-out",
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           <InlineStatusTray statuses={enemyStatusPills} emptyLabel="Sin estados" isMobile={isMobile} />
         </div>
         <div>
@@ -1770,57 +1943,6 @@ export default function Combat({ state, dispatch }) {
             />
           </div>
           <InlineStatusTray statuses={playerStatusPills} emptyLabel="Sin estados" isMobile={isMobile} />
-          <div
-            data-onboarding-target={spotlightLives ? "expedition-lives" : undefined}
-            onClick={() => spotlightLives && dispatch({ type: "ACK_ONBOARDING_STEP" })}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: "8px",
-              alignItems: "center",
-              flexWrap: "wrap",
-              marginTop: "6px",
-              borderRadius: "12px",
-              padding: spotlightLives ? "6px 8px" : 0,
-              background: spotlightLives ? "var(--tone-warning-soft, #fff7ed)" : "transparent",
-              boxShadow: spotlightLives ? "0 0 0 2px rgba(245,158,11,0.16), 0 10px 24px rgba(245,158,11,0.12)" : "none",
-              animation: spotlightLives ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
-              cursor: spotlightLives ? "pointer" : "default",
-            }}
-          >
-            <span style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              {tutorialProtectedExpedition ? "Seguridad del tutorial" : "Vidas de expedicion"}
-            </span>
-            <span
-              style={{
-                fontSize: "0.62rem",
-                fontWeight: "900",
-                borderRadius: "999px",
-                padding: "2px 8px",
-                background:
-                  tutorialProtectedExpedition
-                    ? "var(--tone-info-soft, #f0f9ff)"
-                    : remainingSafeDeaths <= 0
-                    ? "var(--tone-danger-soft, #fff1f2)"
-                    : remainingSafeDeaths === 1
-                      ? "var(--tone-warning-soft, #fff7ed)"
-                      : "var(--tone-success-soft, #ecfdf5)",
-                color:
-                  tutorialProtectedExpedition
-                    ? "var(--tone-info, #0369a1)"
-                    : remainingSafeDeaths <= 0
-                    ? "var(--tone-danger, #D85A30)"
-                    : remainingSafeDeaths === 1
-                      ? "var(--tone-warning, #f59e0b)"
-                      : "var(--tone-success-strong, #047857)",
-                border: "1px solid var(--color-border-primary, #e2e8f0)",
-              }}
-            >
-              {tutorialProtectedExpedition
-                ? "Sin muerte definitiva"
-                : `${remainingSafeDeaths}/${expeditionDeathLimit} seguras`}
-            </span>
-          </div>
         </div>
         {combatDamageFloatEvents.length > 0 && (
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible", zIndex: 8 }}>
@@ -1946,12 +2068,345 @@ export default function Combat({ state, dispatch }) {
         />
       </section>
 
-      {showSessionFraming && primarySessionGoal && (
+      {showSessionFraming && (
+        <section className="combat-session-panel" style={sessionCardCompactStyle}>
+          <CardHeader
+            tag="Contrato activo"
+            title={featuredExpeditionContract?.title || featuredExpeditionContract?.goal?.name || "Selecciona un contrato"}
+            badge={featuredExpeditionContract?.laneLabel || "Sin contrato"}
+            badgeTone="var(--tone-accent, #4338ca)"
+            badgeSurface="var(--tone-accent-soft, #eef2ff)"
+            dense={isSessionDenseMobile}
+          />
+
+          <div
+            style={{
+              fontSize: sessionCopySize,
+              color: "var(--color-text-secondary, #475569)",
+              lineHeight: 1.35,
+              display: "-webkit-box",
+              WebkitLineClamp: isSessionDenseMobile ? 2 : 3,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {featuredExpeditionContract
+              ? (featuredExpeditionContract.objectiveDescription || featuredExpeditionContract.goal?.hint || featuredExpeditionContract.goal?.description || "Cumple el objetivo antes de extraer para cobrar recursos de Santuario.")
+              : "El tablon rota cada 8 horas. Elige uno de los contratos visibles antes de salir."}
+          </div>
+
+          {featuredExpeditionContract && (
+            <ProgressBar
+              percent={featuredExpeditionContract.progress?.percent || 0}
+              tone={expeditionStatusMeta.progressTone}
+              dense={isSessionDenseMobile}
+            />
+          )}
+
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontSize: sessionMetaSize, color: "var(--color-text-secondary, #64748b)", fontWeight: "900" }}>
+              {featuredExpeditionContract
+                ? `${Number(featuredExpeditionContract.progress?.current || 0)}/${Number(featuredExpeditionContract.progress?.target || 1)} · ${formatExpeditionContractReward(featuredExpeditionContract.reward || {}) || "Sin recompensa definida."}`
+                : "Sin contrato seleccionado."}
+            </span>
+            <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+              {canClaimExpeditionContract ? (
+                <InlineAction
+                  onClick={() => dispatch({ type: "CLAIM_EXPEDITION_CONTRACT", contractId: featuredExpeditionContract.id })}
+                  tone="var(--tone-success, #10b981)"
+                  surface="var(--tone-success-soft, #ecfdf5)"
+                  dense={isSessionDenseMobile}
+                  filled
+                >
+                  Reclamar contrato
+                </InlineAction>
+              ) : (
+                <StatusChip label={expeditionStatusMeta.label} tone={expeditionStatusMeta.tone} surface={expeditionStatusMeta.surface} dense={isSessionDenseMobile} />
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {showWeeklyLedgerCard && (
+        <section
+          className="combat-session-panel"
+          style={{
+            position: "relative",
+            ...(sessionCardCompactStyle || {}),
+          }}
+        >
+          {showWeeklyCardEdgeArrows && (
+            <>
+              <button
+                onClick={() => cycleWeeklyContract(-1)}
+                style={{
+                  position: "absolute",
+                  top: isSessionDenseMobile ? "4px" : "6px",
+                  left: isSessionDenseMobile ? "6px" : "8px",
+                  width: isSessionDenseMobile ? "26px" : "30px",
+                  height: isSessionDenseMobile ? "26px" : "30px",
+                  borderRadius: "999px",
+                  border: "1px solid var(--color-border-primary, #e2e8f0)",
+                  background: "var(--color-background-tertiary, #f8fafc)",
+                  color: "var(--color-text-secondary, #475569)",
+                  fontWeight: "900",
+                  cursor: "pointer",
+                  zIndex: 2,
+                }}
+                aria-label="Weekly anterior"
+                title="Weekly anterior"
+              >
+                {"<"}
+              </button>
+              <button
+                onClick={() => cycleWeeklyContract(1)}
+                style={{
+                  position: "absolute",
+                  top: isSessionDenseMobile ? "4px" : "6px",
+                  right: isSessionDenseMobile ? "6px" : "8px",
+                  width: isSessionDenseMobile ? "26px" : "30px",
+                  height: isSessionDenseMobile ? "26px" : "30px",
+                  borderRadius: "999px",
+                  border: "1px solid var(--color-border-primary, #e2e8f0)",
+                  background: "var(--color-background-tertiary, #f8fafc)",
+                  color: "var(--color-text-secondary, #475569)",
+                  fontWeight: "900",
+                  cursor: "pointer",
+                  zIndex: 2,
+                }}
+                aria-label="Weekly siguiente"
+                title="Weekly siguiente"
+              >
+                {">"}
+              </button>
+            </>
+          )}
+          {showWeeklyCardEdgeArrows && (
+            <div
+              style={{
+                minHeight: isSessionDenseMobile ? "26px" : "30px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-start",
+                paddingLeft: isSessionDenseMobile ? "34px" : "38px",
+                paddingRight: isSessionDenseMobile ? "34px" : "38px",
+                marginBottom: "2px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: sessionSectionTagSize,
+                  fontWeight: "900",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  color: "var(--tone-warning, #f59e0b)",
+                }}
+              >
+                Weekly ledger
+              </div>
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: "6px" }}>
+              {showWeeklySelectorArrows && !showWeeklyCardEdgeArrows && (
+                <button
+                  onClick={() => cycleWeeklyContract(-1)}
+                  style={{
+                    width: isSessionDenseMobile ? "22px" : "24px",
+                    height: isSessionDenseMobile ? "22px" : "24px",
+                    borderRadius: "999px",
+                    border: "1px solid var(--color-border-primary, #e2e8f0)",
+                    background: "var(--color-background-tertiary, #f8fafc)",
+                    color: "var(--color-text-secondary, #475569)",
+                    fontWeight: "900",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                >
+                  {"<"}
+                </button>
+              )}
+              <div style={{ minWidth: 0 }}>
+              {!showWeeklyCardEdgeArrows && (
+                <div style={{ fontSize: sessionSectionTagSize, fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
+                  Weekly ledger
+                </div>
+              )}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  flexWrap: "wrap",
+                  marginTop: showWeeklyCardEdgeArrows ? "0" : "4px",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "0.5rem",
+                    fontWeight: "900",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    color: "var(--tone-warning, #f59e0b)",
+                    background: "var(--tone-warning-soft, #fff7ed)",
+                    border: "1px solid rgba(245,158,11,0.25)",
+                    borderRadius: "999px",
+                    padding: "3px 7px",
+                  }}
+                >
+                  {featuredWeeklyContract?.laneLabel || (weeklyAllClaimed ? "Ledger semanal" : "Contrato semanal")}
+                </span>
+                <span style={{ fontSize: sessionTitleSize, fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                  {featuredWeeklyContract?.goal?.name || (weeklyAllClaimed ? "Todos los contratos reclamados" : "Sin contrato activo")}
+                </span>
+              </div>
+              </div>
+              {showWeeklySelectorArrows && !showWeeklyCardEdgeArrows && (
+                <button
+                  onClick={() => cycleWeeklyContract(1)}
+                  style={{
+                    width: isSessionDenseMobile ? "22px" : "24px",
+                    height: isSessionDenseMobile ? "22px" : "24px",
+                    borderRadius: "999px",
+                    border: "1px solid var(--color-border-primary, #e2e8f0)",
+                    background: "var(--color-background-tertiary, #f8fafc)",
+                    color: "var(--color-text-secondary, #475569)",
+                    fontWeight: "900",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                >
+                  {">"}
+                </button>
+              )}
+            </div>
+            <span
+              style={{
+                fontSize: sessionMetaSize,
+                fontWeight: "900",
+                color: weeklyStatusMeta.tone,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {claimableWeeklyContracts.length > 0
+                ? `${claimableWeeklyContracts.length} para reclamar`
+                : weeklyAllClaimed
+                  ? "Weekly completada"
+                : `Semana ${state?.weeklyLedger?.weekKey || "-"}`}
+            </span>
+          </div>
+
+          <div style={{ fontSize: isSessionDenseMobile ? "0.56rem" : "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900" }}>
+            {orderedWeeklyContracts.length > 0
+              ? `${featuredWeeklyIndex + 1} / ${orderedWeeklyContracts.length}`
+              : weeklyAllClaimed
+                ? `${claimedWeeklyContracts}/${weeklyTotalContracts} reclamados`
+                : "0 / 0"}
+          </div>
+
+          <div
+            style={{
+              fontSize: sessionCopySize,
+              color: "var(--color-text-secondary, #475569)",
+              lineHeight: 1.35,
+              display: "-webkit-box",
+              WebkitLineClamp: isSessionDenseMobile ? 2 : 3,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {featuredWeeklyContract
+              ? (featuredWeeklyContract.objectiveDescription || featuredWeeklyContract.goal?.hint || featuredWeeklyContract.goal?.description || "Avanza jugando normal; el contrato acumula progreso semanal.")
+              : weeklyAllClaimed
+                ? "Ledger semanal cerrado: ya reclamaste todos los contratos de esta semana. El proximo set llega en el siguiente reset semanal."
+              : "No hay contratos disponibles en este momento. Se refrescan automaticamente por semana."}
+          </div>
+
+          {(featuredWeeklyContract || weeklyAllClaimed) && (
+            <div style={{ height: sessionProgressBarHeight, borderRadius: "999px", overflow: "hidden", background: "var(--color-background-tertiary, #f1f5f9)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
+              <div
+                style={{
+                  width: weeklyAllClaimed
+                    ? "100%"
+                    : `${Math.max(0, Math.min(100, Number(featuredWeeklyContract?.progress?.percent || 0)))}%`,
+                  height: "100%",
+                  background: weeklyStatusMeta.progressTone,
+                }}
+              />
+            </div>
+          )}
+
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontSize: sessionMetaSize, color: "var(--color-text-secondary, #64748b)", fontWeight: "900" }}>
+              {featuredWeeklyContract
+                ? `${Number(featuredWeeklyContract.progress?.current || 0)}/${Number(featuredWeeklyContract.progress?.target || 1)} · ${formatGoalReward(featuredWeeklyContract.reward || {})}`
+                : weeklyAllClaimed
+                  ? `${claimedWeeklyContracts}/${weeklyTotalContracts} reclamados · Weekly cerrada`
+                : "Sin progreso semanal para mostrar."}
+            </span>
+            <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+              {featuredWeeklyContract?.progress?.completed && !featuredWeeklyContract?.claimed ? (
+                <button
+                  onClick={() => dispatch({ type: "CLAIM_WEEKLY_LEDGER_CONTRACT", contractId: featuredWeeklyContract.id })}
+                  style={{
+                    border: "none",
+                    background: "var(--tone-success, #10b981)",
+                    color: "#fff",
+                    borderRadius: "999px",
+                    padding: sessionActionPadding,
+                    fontSize: sessionMetaSize,
+                    fontWeight: "900",
+                    cursor: "pointer",
+                  }}
+                >
+                  Reclamar weekly
+                </button>
+              ) : (
+                <span style={{ fontSize: sessionHintSize, fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                  {featuredWeeklyContract
+                    ? weeklyStatusMeta.label
+                    : (weeklyAllClaimed ? "Todo reclamado" : "Sin datos")}
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    try {
+                      window.sessionStorage.setItem(
+                        ACCOUNT_SCROLL_TARGET_STORAGE_KEY,
+                        ACCOUNT_SCROLL_TARGET_WEEKLY
+                      );
+                    } catch {
+                      // noop: fallback to plain tab change if storage is not available
+                    }
+                  }
+                  dispatch({ type: "SET_TAB", tab: "account" });
+                }}
+                style={{
+                  border: "1px solid var(--color-border-primary, #e2e8f0)",
+                  background: "var(--color-background-secondary, #ffffff)",
+                  color: "var(--color-text-secondary, #475569)",
+                  borderRadius: "999px",
+                  padding: sessionActionPadding,
+                  fontSize: sessionMetaSize,
+                  fontWeight: "900",
+                  cursor: "pointer",
+                }}
+              >
+                Ver weekly
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {showWeeklyBossCard && (
         <section className="combat-session-panel">
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
-                Sesion actual
+              <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #ef4444)" }}>
+                Boss semanal
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
                 <span
@@ -1960,101 +2415,99 @@ export default function Combat({ state, dispatch }) {
                     fontWeight: "900",
                     textTransform: "uppercase",
                     letterSpacing: "0.08em",
-                    color: "var(--tone-accent, #4338ca)",
-                    background: "var(--tone-accent-soft, #eef2ff)",
-                    border: "1px solid rgba(99,102,241,0.18)",
+                    color: "var(--tone-danger, #ef4444)",
+                    background: "rgba(239,68,68,0.12)",
+                    border: "1px solid rgba(239,68,68,0.26)",
                     borderRadius: "999px",
                     padding: "3px 7px",
                   }}
                 >
-                  {primarySessionGoal.sessionArc}
+                  Ciclo 22h · {weeklyBossOverview?.cycleKey || weeklyBossOverview?.weekKey || "-"}
                 </span>
                 <span style={{ fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-                  {primarySessionGoal.name}
+                  {weeklyBossOverview?.boss?.name || "Sin jefe"}
                 </span>
               </div>
             </div>
-            {primarySessionGoal.completed ? (
+            <span style={{ fontSize: "0.62rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", whiteSpace: "nowrap" }}>
+              {Math.max(0, Number(weeklyBossOverview?.attemptsRemaining || 0))} intento(s) · reset {weeklyBossCycleRemainingLabel}
+            </span>
+          </div>
+
+          <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4 }}>
+            {activeWeeklyBossEncounter
+              ? `${activeWeeklyBossEncounter.bossName || weeklyBossOverview?.boss?.name || "Boss"} en combate (${activeWeeklyBossEncounter.difficultyLabel || "dificultad"}).`
+              : (weeklyBossOverview?.boss?.intro || "Evento cíclico (22h) con mutaciones por dificultad.")}
+          </div>
+
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            {weeklyBossDifficulties.map(difficulty => (
               <button
-                onClick={() => dispatch({ type: "CLAIM_GOAL", goalId: primarySessionGoal.id })}
+                key={difficulty.id}
+                onClick={() => {
+                  dispatch({ type: "START_WEEKLY_BOSS_ENCOUNTER", difficultyId: difficulty.id, now: Date.now() });
+                  if (typeof window !== "undefined") {
+                    window.requestAnimationFrame(() => {
+                      const shell = document.querySelector(".app-shell-content");
+                      if (shell && typeof shell.scrollTo === "function") {
+                        shell.scrollTo({ top: 0, behavior: "smooth" });
+                      }
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    });
+                  }
+                }}
+                disabled={!difficulty.canAttempt || difficulty.completed || Boolean(activeWeeklyBossEncounter)}
                 style={{
-                  border: "none",
-                  background: "var(--tone-success, #10b981)",
-                  color: "#fff",
-                  borderRadius: "999px",
-                  padding: "7px 10px",
-                  fontSize: "0.62rem",
-                  fontWeight: "900",
-                  cursor: "pointer",
+                  display: "grid",
+                  gap: "2px",
+                  textAlign: "left",
+                  borderRadius: "10px",
+                  border: activeWeeklyBossEncounter?.difficultyId === difficulty.id
+                    ? "1px solid rgba(239,68,68,0.42)"
+                    : difficulty.completed
+                    ? "1px solid rgba(16,185,129,0.36)"
+                    : "1px solid var(--color-border-primary, #e2e8f0)",
+                  background: activeWeeklyBossEncounter?.difficultyId === difficulty.id
+                    ? "rgba(239,68,68,0.14)"
+                    : difficulty.completed
+                    ? "rgba(16,185,129,0.12)"
+                    : "var(--color-background-tertiary, #f8fafc)",
+                  color: activeWeeklyBossEncounter?.difficultyId === difficulty.id
+                    ? "var(--tone-danger, #ef4444)"
+                    : difficulty.completed
+                    ? "var(--tone-success-strong, #047857)"
+                    : "var(--color-text-secondary, #475569)",
+                  padding: "7px 9px",
+                  cursor: (!difficulty.canAttempt || difficulty.completed || activeWeeklyBossEncounter) ? "not-allowed" : "pointer",
+                  opacity: (!difficulty.canAttempt || difficulty.completed || activeWeeklyBossEncounter) ? 0.7 : 1,
+                  minWidth: "128px",
                 }}
               >
-                Reclamar
+                <span style={{ fontSize: "0.62rem", fontWeight: "900" }}>{difficulty.label}</span>
+                <span style={{ fontSize: "0.56rem", fontWeight: "800", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                  {activeWeeklyBossEncounter?.difficultyId === difficulty.id
+                    ? `En curso · ${Math.max(1, Number(activeWeeklyBossEncounter?.segmentCount || 1))} barras`
+                    : difficulty.completed
+                    ? "Completado"
+                    : `${Math.round(Number(difficulty.projectedWinChance || 0) * 100)}% aprox · ${formatGoalReward(difficulty.reward || {})}`}
+                </span>
               </button>
-            ) : (
-              <span
-                style={{
-                  fontSize: "0.62rem",
-                  fontWeight: "900",
-                  color: "var(--color-text-secondary, #64748b)",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {primarySessionGoal.progress}/{primarySessionGoal.targetValue}
-              </span>
-            )}
+            ))}
           </div>
 
-          <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4 }}>
-            {primarySessionGoal.hint || primarySessionGoal.description}
-          </div>
-
-          <div style={{ height: "6px", borderRadius: "999px", overflow: "hidden", background: "var(--color-background-tertiary, #f1f5f9)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
-            <div
-              style={{
-                width: `${primarySessionGoal.percent}%`,
-                height: "100%",
-                background: primarySessionGoal.completed ? "var(--tone-success, #10b981)" : "var(--tone-accent, #4338ca)",
-              }}
-            />
-          </div>
-
-          {secondarySessionGoals.length > 0 && (
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              {secondarySessionGoals.map(goal => (
-                <div
-                  key={goal.id}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "5px 8px",
-                    borderRadius: "999px",
-                    background: "var(--color-background-tertiary, #f8fafc)",
-                    border: "1px solid var(--color-border-primary, #e2e8f0)",
-                    color: "var(--color-text-secondary, #475569)",
-                    fontSize: "0.58rem",
-                    fontWeight: "900",
-                  }}
-                >
-                  <span style={{ color: "var(--tone-accent, #4338ca)" }}>{goal.sessionArc}</span>
-                  <span>{goal.name}</span>
-                  <span style={{ color: "var(--color-text-tertiary, #94a3b8)" }}>
-                    {goal.completed ? "Listo" : `${goal.progress}/${goal.targetValue}`}
-                  </span>
-                </div>
-              ))}
+          {activeWeeklyBossEncounter && (
+            <div style={{ fontSize: "0.6rem", color: "var(--tone-danger, #ef4444)", fontWeight: "900", lineHeight: 1.35 }}>
+              Encuentro activo: {activeWeeklyBossEncounter.bossName || "Boss semanal"} · {activeWeeklyBossEncounter.difficultyLabel || "dificultad"} · {Math.max(1, Number(activeWeeklyBossEncounter.segmentCount || 1))} barras de HP.
             </div>
           )}
+
+          <div style={{ fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.35 }}>
+            {weeklyBossDifficulties
+              .map(difficulty => `${difficulty.label}: ${difficulty.mutation}`)
+              .join(" · ")}
+          </div>
         </section>
       )}
-
-      <CombatGuidanceStrip
-        sessionGoals={sessionGoals}
-        goalIndex={goalIndex}
-        setGoalIndex={setGoalIndex}
-        rotatingTip={rotatingTip}
-        dispatch={dispatch}
-      />
 
       {player.class && myTalents.length > 0 && (
         <section style={{ background: "var(--color-background-secondary, #fff)", borderRadius: "16px", padding: "10px", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
@@ -2362,6 +2815,8 @@ function eventBadgeStyle(tone, isDarkMode = false) {
         upgrade: { bg: "rgba(4,120,87,0.22)", color: "var(--tone-success, #6ee7b7)", border: "rgba(16,185,129,0.42)" },
         build: { bg: "rgba(3,105,161,0.22)", color: "var(--tone-info, #7dd3fc)", border: "rgba(56,189,248,0.4)" },
         offense: { bg: "rgba(190,24,93,0.2)", color: "var(--tone-danger, #fda4af)", border: "rgba(244,114,182,0.42)" },
+        wishlist: { bg: "rgba(13,148,136,0.22)", color: "var(--tone-success, #5eead4)", border: "rgba(45,212,191,0.42)" },
+        hunt: { bg: "rgba(13,148,136,0.22)", color: "var(--tone-success, #5eead4)", border: "rgba(45,212,191,0.42)" },
       }
     : {
         legendary: { bg: "var(--tone-warning-soft, #fff8f1)", color: "var(--tone-danger, #9a3412)", border: "var(--tone-warning, #fed7aa)" },
@@ -2371,6 +2826,8 @@ function eventBadgeStyle(tone, isDarkMode = false) {
         upgrade: { bg: "var(--tone-success-soft, #f0fdf7)", color: "var(--tone-success-strong, #065f46)", border: "var(--tone-success, #bbf7d0)" },
         build: { bg: "var(--tone-info-soft, #f0f9ff)", color: "var(--tone-info, #075985)", border: "var(--tone-info, #bae6fd)" },
         offense: { bg: "var(--tone-danger-soft, #fff5f7)", color: "var(--tone-danger-strong, #9f1239)", border: "var(--tone-danger, #fecdd3)" },
+        wishlist: { bg: "var(--tone-success-soft, #f0fdfa)", color: "var(--tone-success-strong, #115e59)", border: "var(--tone-success, #99f6e4)" },
+        hunt: { bg: "var(--tone-success-soft, #f0fdfa)", color: "var(--tone-success-strong, #115e59)", border: "var(--tone-success, #99f6e4)" },
       };
   const selected = palette[tone] || (isDarkMode
     ? { bg: "rgba(148,163,184,0.16)", color: "var(--color-text-tertiary, #cbd5e1)", border: "rgba(148,163,184,0.35)" }
@@ -2384,6 +2841,21 @@ function eventBadgeStyle(tone, isDarkMode = false) {
     padding: "3px 7px",
     borderRadius: "999px",
   };
+}
+
+function getLootDecisionBadgeTone(decisionReason = "") {
+  switch (decisionReason) {
+    case "protected_hunt":
+      return "hunt";
+    case "protected_upgrade":
+      return "upgrade";
+    case "auto_extract":
+      return "t1";
+    case "auto_sell":
+      return "offense";
+    default:
+      return "build";
+  }
 }
 
 function StatCard({ label, value, hint = null }) {

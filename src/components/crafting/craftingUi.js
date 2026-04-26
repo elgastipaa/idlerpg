@@ -1,21 +1,21 @@
 import { ITEM_STAT_LABELS as STAT_LABELS } from "../../utils/itemPresentation";
 
 export const FORGE_MODE_TOOLTIPS = {
-  reroll: {
-    tone: "reroll",
-    text: "Reroll total vive en el Taller del Santuario como reroll profundo.",
+  upgrade: {
+    tone: "upgrade",
+    text: "Mejorar sube +1 el item hasta +15. No falla ni degrada.",
   },
   polish: {
     tone: "polish",
-    text: "Pulir ajusta solo el valor de una linea. No fija la pieza a esa linea.",
+    text: "Afinar ajusta solo el valor de una linea. No cambia su stat ni su calidad.",
   },
   reforge: {
     tone: "reforge",
-    text: "Reforge cambia una sola linea. La pieza queda enfocada en esa linea para perseguir una version casi perfecta.",
+    text: "Reforjar reemplaza una linea: mantener actual + 2 opciones nuevas.",
   },
   ascend: {
     tone: "ascend",
-    text: "Ascender eleva la rareza sin perder sus lineas ni la linea trabajada. Si salta a legendario, puede injertar un poder ya descubierto en Biblioteca.",
+    text: "Imbuir convierte Epic en Legendary y puede injertar un poder desbloqueado.",
   },
   extract: {
     tone: "extract",
@@ -23,13 +23,14 @@ export const FORGE_MODE_TOOLTIPS = {
   },
 };
 
-export const FORGE_MODE_ORDER = ["extract"];
+export const FORGE_MODE_ORDER = ["upgrade", "polish", "reforge", "ascend", "extract"];
+export const RUN_MODE_ORDER = ["extract"];
 
 export const FORGE_MODE_META = {
-  reroll: { label: "Reroll", short: "RE", color: "var(--tone-success, #1D9E75)", cta: "APLICAR REROLL" },
-  polish: { label: "Pulir", short: "PO", color: "var(--tone-info, #0ea5e9)", cta: "PULIR LINEA" },
-  reforge: { label: "Reforge", short: "RF", color: "var(--tone-violet, #7c3aed)", cta: "PAGAR REFORJA" },
-  ascend: { label: "Ascender", short: "AS", color: "var(--tone-accent, #3b82f6)", cta: "ASCENDER ITEM" },
+  upgrade: { label: "Mejorar", short: "UP", color: "var(--tone-warning, #f59e0b)", cta: "MEJORAR ITEM" },
+  polish: { label: "Afinar", short: "AF", color: "var(--tone-info, #0ea5e9)", cta: "AFINAR LINEA" },
+  reforge: { label: "Reforjar", short: "RF", color: "var(--tone-violet, #7c3aed)", cta: "PAGAR REFORJA" },
+  ascend: { label: "Imbuir", short: "IM", color: "var(--tone-accent, #3b82f6)", cta: "IMBUIR ITEM" },
   extract: { label: "Extraer", short: "EX", color: "var(--tone-danger, #ef4444)", cta: "EXTRAER ITEM" },
 };
 
@@ -37,8 +38,8 @@ export function getHighlightStyle(tone) {
   const palette = {
     legendary: { bg: "var(--tone-warning-soft, #fff7ed)", color: "var(--tone-danger, #c2410c)", border: "var(--tone-warning, #fdba74)" },
     epic: { bg: "var(--tone-violet-soft, #faf5ff)", color: "var(--tone-violet, #7c3aed)", border: "var(--tone-accent, #c4b5fd)" },
+    excellent: { bg: "var(--tone-warning-soft, #fefce8)", color: "#a16207", border: "var(--tone-warning, #fde68a)" },
     perfect: { bg: "var(--tone-warning-soft, #fefce8)", color: "#a16207", border: "var(--tone-warning, #fde68a)" },
-    t1: { bg: "var(--tone-info-soft, #eff6ff)", color: "var(--tone-info, #1d4ed8)", border: "var(--tone-info, #93c5fd)" },
     upgrade: { bg: "var(--tone-success-soft, #ecfdf5)", color: "var(--tone-success-strong, #047857)", border: "var(--tone-success, #86efac)" },
     build: { bg: "var(--tone-info-soft, #f0f9ff)", color: "var(--tone-info, #0369a1)", border: "var(--tone-info, #7dd3fc)" },
     offense: { bg: "var(--tone-danger-soft, #fff1f2)", color: "var(--tone-danger-strong, #be123c)", border: "var(--tone-danger, #fda4af)" },
@@ -54,6 +55,7 @@ export function formatCraftCostLabel(costs = {}) {
   const parts = [];
   if ((costs.gold || 0) > 0) parts.push(`G ${costs.gold.toLocaleString()}`);
   if ((costs.essence || 0) > 0) parts.push(`E ${costs.essence.toLocaleString()}`);
+  if ((costs.entropy || 0) > 0) parts.push(`Ent ${costs.entropy.toLocaleString()}`);
   return parts.length > 0 ? parts.join(" · ") : "GRATIS";
 }
 
@@ -72,17 +74,23 @@ export function getCraftActionHint(req = {}, mode) {
     case "essence":
       return "Falta esencia para esta accion.";
     case "missing_affix":
-      return mode === "polish" ? "Elegi una linea antes de pulir." : "Elegi una linea antes de reforjar.";
+      return mode === "polish" ? "Elegi una linea antes de afinar." : "Elegi una linea antes de reforjar.";
     case "focused_line":
       return "La pieza ya quedo fijada a otra linea.";
     case "limit":
       return `Limite alcanzado: ${Math.round(req.usedUses || 0)} / ${Math.round(req.maxUses || 0)} usos.`;
+    case "stabilized":
+      return "La pieza ya esta estabilizada.";
+    case "deprecated":
+      return "Esta accion fue retirada.";
     case "min_level":
-      return `Requiere upgrade +${req.minLevel || 0} antes de ascender.`;
+      return `Requiere upgrade +${req.minLevel || 0} antes de imbuir.`;
+    case "epic_only":
+      return "Imbuir solo aplica sobre piezas Epic.";
     case "max_rarity":
       return "La pieza ya esta en rareza maxima.";
     case "max_level":
-      return `La pieza ya llego a +${req.maxLevel || 10}.`;
+      return `La pieza ya llego a +${req.maxLevel || 15}.`;
     default:
       return "";
   }
@@ -103,12 +111,18 @@ export function getCraftActionBadge(req = {}, mode) {
       return "LINEA FIJADA";
     case "limit":
       return `${Math.round(req.usedUses || 0)}/${Math.round(req.maxUses || 0)}`;
+    case "stabilized":
+      return "ESTABLE";
+    case "deprecated":
+      return "RETIRADO";
     case "min_level":
       return `REQ +${req.minLevel || 0}`;
+    case "epic_only":
+      return "SOLO EPIC";
     case "max_rarity":
       return "LEGENDARY";
     case "max_level":
-      return `+${req.maxLevel || 10}`;
+      return `+${req.maxLevel || 15}`;
     default:
       return "BLOQUEADO";
   }
@@ -116,5 +130,5 @@ export function getCraftActionBadge(req = {}, mode) {
 
 export function formatRecommendationAffix(affix) {
   if (!affix) return "";
-  return `${STAT_LABELS[affix.stat] || affix.stat} (T${affix.tier || "?"})`;
+  return `${STAT_LABELS[affix.stat] || affix.stat}${affix?.quality === "excellent" ? " · Excelente" : ""}`;
 }

@@ -37,6 +37,8 @@ const PROJECT_UPGRADE_RULES = {
   legendary: { baseDurationMs: 75 * 60 * 1000, baseDustCost: 3, ratingStepMult: 1.045, affixStepMult: 1.03 },
 };
 const PROJECT_UPGRADE_CAP = 15;
+const MASTER_PROJECT_BASE_DURATION_MS = 24 * 60 * 60 * 1000;
+const MASTER_PROJECT_STEP_SIZE = 3;
 const SCRAP_DURATION_BY_RARITY = {
   rare: 8 * 60 * 1000,
   epic: 16 * 60 * 1000,
@@ -600,6 +602,40 @@ export function getProjectUpgradeRule(project = {}) {
   return PROJECT_UPGRADE_RULES[project?.rarity] || PROJECT_UPGRADE_RULES.rare;
 }
 
+export function getForgeMasterProjectPlan(sanctuary = {}, project = null) {
+  const safeProject = project || {};
+  const currentUpgradeLevel = Math.max(0, Number(safeProject?.upgradeLevel || 0));
+  const upgradeCap = Math.max(1, Number(safeProject?.upgradeCap || PROJECT_UPGRADE_CAP));
+  const rule = getProjectUpgradeRule(safeProject);
+  const nextUpgradeLevel = Math.min(upgradeCap, currentUpgradeLevel + MASTER_PROJECT_STEP_SIZE);
+  const upgradeSteps = Math.max(0, nextUpgradeLevel - currentUpgradeLevel);
+  const dustCost = Math.max(
+    4,
+    Math.round((Number(rule.baseDustCost || 1) + 2.2) * Math.max(1, upgradeSteps) + currentUpgradeLevel * 0.55)
+  );
+  const inkCost = Math.max(10, Math.round(18 + currentUpgradeLevel * 1.8 + upgradeSteps * 7));
+  const durationMs = Math.round(
+    MASTER_PROJECT_BASE_DURATION_MS * getSanctuaryStationDurationMultiplier(sanctuary, "deepForge")
+  );
+  const availableDust = Math.max(0, Number(sanctuary?.resources?.relicDust || 0));
+  const availableInk = Math.max(0, Number(sanctuary?.resources?.codexInk || 0));
+  const enoughDust = availableDust >= dustCost;
+  const enoughInk = availableInk >= inkCost;
+  const capReached = currentUpgradeLevel >= upgradeCap || upgradeSteps <= 0;
+  return {
+    ok: !capReached && enoughDust && enoughInk,
+    capReached,
+    enoughDust,
+    enoughInk,
+    dustCost,
+    inkCost,
+    durationMs,
+    currentUpgradeLevel,
+    nextUpgradeLevel,
+    upgradeSteps,
+  };
+}
+
 export function createForgeProjectJob(sanctuary = {}, projectId, now = Date.now()) {
   if (!isSanctuaryStationUnlocked(sanctuary, "deepForge")) return null;
   const jobs = Array.isArray(sanctuary.jobs) ? sanctuary.jobs : [];
@@ -639,6 +675,43 @@ export function createForgeProjectJob(sanctuary = {}, projectId, now = Date.now(
       affixMult: rule.affixStepMult,
       nextUpgradeLevel,
       summary: "Sube el +N persistente del proyecto. Esta mejora ya no vive dentro de una sola expedicion.",
+    },
+  };
+}
+
+export function createForgeMasterProjectJob(sanctuary = {}, projectId, now = Date.now()) {
+  if (!isSanctuaryStationUnlocked(sanctuary, "deepForge")) return null;
+  const jobs = Array.isArray(sanctuary.jobs) ? sanctuary.jobs : [];
+  const stash = Array.isArray(sanctuary.stash) ? sanctuary.stash : [];
+  const runningByStation = getRunningJobsByStation(jobs);
+  const slots = Math.max(1, Number(sanctuary?.stations?.deepForge?.slots || 1));
+  if ((runningByStation.deepForge || 0) >= slots) return null;
+
+  const project = stash.find(entry => entry?.id === projectId);
+  if (!project?.id) return null;
+
+  const plan = getForgeMasterProjectPlan(sanctuary, project);
+  if (!plan.ok) return null;
+
+  return {
+    id: `job_forge_master_${project.id}_${now}`,
+    type: "forge_master_project",
+    station: "deepForge",
+    status: "running",
+    startedAt: now,
+    endsAt: now + plan.durationMs,
+    input: {
+      projectId: project.id,
+      project,
+      dustCost: plan.dustCost,
+      inkCost: plan.inkCost,
+      baseUpgradeLevel: plan.currentUpgradeLevel,
+    },
+    output: {
+      projectId: project.id,
+      nextUpgradeLevel: plan.nextUpgradeLevel,
+      upgradeSteps: plan.upgradeSteps,
+      summary: "Proyecto Maestro: trabajo de 24h que acelera varios niveles de una sola vez.",
     },
   };
 }

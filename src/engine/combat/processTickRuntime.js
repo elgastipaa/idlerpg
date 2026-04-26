@@ -17,8 +17,8 @@ import { createEmptySessionAnalytics } from "../../utils/runTelemetry";
 import { recordCodexKill, recordCodexSighting, recordLegendaryPowerDiscovery, syncCodexBonuses } from "../progression/codexEngine";
 import { createEmptyPrestigeCycleProgress } from "../progression/prestigeEngine";
 import { ABYSS_PORTAL_TIER, getAbyssTierCap, normalizeAbyssState } from "../progression/abyssProgression";
+import { settleWeeklyBossEncounter } from "../progression/weeklyBoss";
 import { getRunSigilCodexModifiers } from "../../data/runSigils";
-import { buildExtractionPreview } from "../sanctuary/extractionEngine";
 import {
   tickEffects,
   applyEffects,
@@ -45,9 +45,7 @@ const VOID_FRACTURE_STACK_CAP = 3;
 const VOID_FRACTURE_DURATION_TICKS = 4;
 const FRACTURE_DEFENSE_REDUCTION_PER_STACK = 0.1;
 const ENEMY_DEFENSE_SCALING = 260;
-const EXPEDITION_DEATH_LIMIT = 3;
 const EXPEDITION_DEATH_REVIVE_HP_PCT = 0.5;
-const EXPEDITION_DEATH_TIER_RETREAT = 5;
 let floatEventSequence = 0;
 
 function appendSeenFamilyIds(expedition = {}, enemy = null) {
@@ -175,6 +173,25 @@ function getAnalyticsBase(analytics = {}) {
   };
 }
 
+const TACTICAL_COUNTER_KEYS = Object.freeze([
+  "blocksDone",
+  "evadesDone",
+  "bossKillsWithBleed",
+  "bossKillsWithFracture",
+  "bossKillsWithDualStatus",
+  "bossKillsWithGuardPlay",
+]);
+
+function applyTacticalCounterPatch(previous = {}, patch = {}) {
+  const next = { ...(previous || {}) };
+  for (const key of TACTICAL_COUNTER_KEYS) {
+    const baseValue = Math.max(0, Math.floor(Number(previous?.[key] || 0)));
+    const delta = Math.max(0, Math.floor(Number(patch?.[key] || 0)));
+    next[key] = baseValue + delta;
+  }
+  return next;
+}
+
 function incrementMapValue(map = {}, key, amount = 1) {
   return {
     ...(map || {}),
@@ -214,18 +231,20 @@ function normalizeInventoryOverflowStats(stats = {}) {
 
 function buildLootRuleSet(rules = {}, player = {}, enemy = null) {
   const activeBuildTag = getPlayerBuildTag(player);
+  const wishlistAffixes = resolveLootRuleWishlist(rules, { activeBuildTag, enemy });
   const minVisibleRarity = VALID_LOOT_RARITIES.has(rules?.minVisibleRarity)
     ? rules.minVisibleRarity
     : "common";
   return {
     autoSell: new Set(rules.autoSellRarities || []),
-    autoExtract: new Set(rules.autoExtractRarities || []),
+    autoExtract: new Set(),
     protectHuntedDrops: rules.protectHuntedDrops !== false,
     protectUpgradeDrops: rules.protectUpgradeDrops !== false,
     minVisibleRarity,
     minVisibleRarityRank: RARITY_RANK[minVisibleRarity] || RARITY_RANK.common,
     huntPreset: rules.huntPreset || null,
-    wishlistAffixes: resolveLootRuleWishlist(rules, { activeBuildTag, enemy }),
+    wishlistAffixes,
+    hasActiveHuntObjectives: Array.isArray(wishlistAffixes) && wishlistAffixes.length > 0,
   };
 }
 
@@ -392,6 +411,10 @@ export function processTick(state) {
   if (state.combat?.pendingRunSetup) return state;
   const enemy = state.combat.enemy;
   if (!enemy) return state;
+  const weeklyBossEncounter =
+    state?.combat?.weeklyBossEncounter && state.combat.weeklyBossEncounter.active
+      ? state.combat.weeklyBossEncounter
+      : null;
   const activeRunSigilIds = state.combat?.activeRunSigilIds || state.combat?.activeRunSigilId || "free";
   const runSigilCodexModifiers = getRunSigilCodexModifiers(activeRunSigilIds);
   const sightedCodex = recordCodexSighting(state.codex || {}, enemy);
@@ -974,6 +997,14 @@ export function processTick(state) {
     !evaded &&
     enemyDamageBase > 0 &&
     Math.random() < Math.min(CRIT_CAP, Math.max(0, (s.blockChance || 0) + (legendaryBonuses.blockChance || 0)));
+  nextEnemyRuntime.playerBlockedDuringFight =
+    Boolean(enemyRuntime?.playerBlockedDuringFight) || blocked;
+  nextEnemyRuntime.playerEvadedDuringFight =
+    Boolean(enemyRuntime?.playerEvadedDuringFight) || evaded;
+  const tacticalTickCounterPatch = {
+    blocksDone: blocked ? 1 : 0,
+    evadesDone: evaded ? 1 : 0,
+  };
   const rawEnemyDmgTotal = enemyRawHit * enemyStrikeCount;
   const preBlockEnemyDmg = enemyDamageBase * enemyStrikeCount;
   let enemyDmg = blocked ? 0 : preBlockEnemyDmg;
@@ -1318,15 +1349,249 @@ export function processTick(state) {
   ]);
   const momentumStacks = countEffectsBySourceId(nextEffects, "juggernaut_titanic_momentum");
   const flowStacks = Math.max(0, Number(nextEnemyRuntime.flowStacks || 0));
+  const damageTakenThisTick = enemyDmg + reflectedToPlayer + spellMirrorDamage + playerPoisonTickDamage;
+
+  if (weeklyBossEncounter) {
+    const weeklyDifficultyId = weeklyBossEncounter?.difficultyId || "normal";
+    const baseAnalytics = applyTacticalCounterPatch({
+      ...sessionAnalytics,
+      ticks: (sessionAnalytics.ticks || 0) + 1,
+      weeklyBossTicks: (sessionAnalytics.weeklyBossTicks || 0) + 1,
+      weeklyBossDamageDealt: (sessionAnalytics.weeklyBossDamageDealt || 0) + totalOutgoingDamage,
+      weeklyBossDamageTaken: (sessionAnalytics.weeklyBossDamageTaken || 0) + damageTakenThisTick,
+      damageDealt: (sessionAnalytics.damageDealt || 0) + totalOutgoingDamage,
+      damageTaken: (sessionAnalytics.damageTaken || 0) + damageTakenThisTick,
+    }, tacticalTickCounterPatch);
+
+    if (newEnemyHp > 0 && newPlayerHp > 0) {
+      const weeklyCombatLog = `WEEKLY: Golpeas por ${playerDmg}${comboText}${critText}${thornsText}${bleedText}${voidFractureText} · ${enemy.name}: ${Math.max(0, newEnemyHp)} HP | recibes ${enemyDmg}${evadeText}${blockText}${reflectText}${poisonText}${spellMirrorText} · vos: ${Math.max(0, newPlayerHp)} HP${survivalLabel}`;
+      return {
+        ...state,
+        stats: applyTacticalCounterPatch(state.stats, tacticalTickCounterPatch),
+        player: {
+          ...state.player,
+          hp: newPlayerHp,
+        },
+        combat: {
+          ...state.combat,
+          effects: nextEffects,
+          triggerCounters: nextTriggerCounters,
+          pendingOnKillDamage: 0,
+          pendingMageVolatileMult,
+          floatEvents: nextFloatEvents,
+          enemy: {
+            ...enemy,
+            hp: newEnemyHp,
+            runtime: {
+              ...nextEnemyRuntime,
+              absorbFirstCritUsed: enemyRuntime.absorbFirstCritUsed || consumedFirstCritShield,
+            },
+          },
+          ticksInCurrentRun: (state.combat.ticksInCurrentRun || 0) + 1,
+          latestLootEvent: null,
+          analytics: baseAnalytics,
+          log: [
+            ...state.combat.log,
+            ...(survivalLog ? [survivalLog] : []),
+            ...preTriggerLogs,
+            ...preLegendaryLogs,
+            ...postTriggerLogs,
+            ...postLegendaryLogs,
+            weeklyCombatLog,
+          ].slice(-20),
+        },
+      };
+    }
+
+    const resolvedAt = Date.now();
+    const success = newEnemyHp <= 0 && newPlayerHp > 0;
+    const weeklyBossTacticalStatusCount =
+      (nextEnemyRuntime.bleedStacks > 0 ? 1 : 0) +
+      (nextEnemyRuntime.fractureStacks > 0 ? 1 : 0) +
+      (nextEnemyRuntime.markStacks > 0 ? 1 : 0);
+    const weeklyBossKillCounterPatch = success
+      ? {
+          bossKillsWithBleed: (nextEnemyRuntime.bleedStacks || 0) > 0 ? 1 : 0,
+          bossKillsWithFracture: (nextEnemyRuntime.fractureStacks || 0) > 0 ? 1 : 0,
+          bossKillsWithDualStatus: weeklyBossTacticalStatusCount >= 2 ? 1 : 0,
+          bossKillsWithGuardPlay:
+            (
+              nextEnemyRuntime.playerBlockedDuringFight ||
+              nextEnemyRuntime.playerEvadedDuringFight ||
+              blocked ||
+              evaded
+            )
+              ? 1
+              : 0,
+        }
+      : {};
+    const weeklySettlementTacticalPatch = {
+      ...tacticalTickCounterPatch,
+      ...weeklyBossKillCounterPatch,
+    };
+    const settlement = settleWeeklyBossEncounter(
+      state,
+      state?.weeklyBoss || {},
+      weeklyBossEncounter,
+      {
+        success,
+        now: resolvedAt,
+      }
+    );
+    if (!settlement?.ok) {
+      return {
+        ...state,
+        stats: applyTacticalCounterPatch(state.stats, tacticalTickCounterPatch),
+        combat: {
+          ...state.combat,
+          weeklyBossEncounter: null,
+          analytics: baseAnalytics,
+          log: [
+            ...state.combat.log,
+            `BOSS SEMANAL: ${settlement?.reason || "No se pudo cerrar el encuentro semanal."}`,
+          ].slice(-20),
+        },
+      };
+    }
+
+    const reward = settlement?.reward || { gold: 0, essence: 0, codexInk: 0, relicDust: 0, sigilFlux: 0 };
+    const snapshot = weeklyBossEncounter?.snapshot || {};
+    const restoredTier = Math.max(1, Number(snapshot?.currentTier || state.combat?.currentTier || 1));
+    const restoredEnemy = snapshot?.enemy
+      ? {
+          ...snapshot.enemy,
+          runtime: snapshot.enemy?.runtime ? { ...snapshot.enemy.runtime } : {},
+        }
+      : spawnEnemy(restoredTier, state.combat?.runContext || createRunContext());
+    const currentDifficultyWins = baseAnalytics?.weeklyBossDifficultyWins || {};
+    const currentDifficultyLosses = baseAnalytics?.weeklyBossDifficultyLosses || {};
+    const currentGoldBySource = baseAnalytics?.goldBySource || createEmptySessionAnalytics().goldBySource;
+    const currentEssenceBySource = baseAnalytics?.essenceBySource || createEmptySessionAnalytics().essenceBySource;
+    const nextAnalytics = applyTacticalCounterPatch({
+      ...baseAnalytics,
+      goldEarned: (baseAnalytics.goldEarned || 0) + (success ? reward.gold : 0),
+      essenceEarned: (baseAnalytics.essenceEarned || 0) + (success ? reward.essence : 0),
+      weeklyBossEncountersWon: (baseAnalytics.weeklyBossEncountersWon || 0) + (success ? 1 : 0),
+      weeklyBossEncountersLost: (baseAnalytics.weeklyBossEncountersLost || 0) + (success ? 0 : 1),
+      weeklyBossRewardsClaimed: (baseAnalytics.weeklyBossRewardsClaimed || 0) + (success ? 1 : 0),
+      weeklyBossDifficultyWins: success
+        ? {
+            ...currentDifficultyWins,
+            [weeklyDifficultyId]: Math.max(0, Number(currentDifficultyWins?.[weeklyDifficultyId] || 0)) + 1,
+          }
+        : currentDifficultyWins,
+      weeklyBossDifficultyLosses: !success
+        ? {
+            ...currentDifficultyLosses,
+            [weeklyDifficultyId]: Math.max(0, Number(currentDifficultyLosses?.[weeklyDifficultyId] || 0)) + 1,
+          }
+        : currentDifficultyLosses,
+      goldBySource: {
+        ...currentGoldBySource,
+        weeklyBoss: (currentGoldBySource?.weeklyBoss || 0) + (success ? reward.gold : 0),
+      },
+      essenceBySource: {
+        ...currentEssenceBySource,
+        weeklyBoss: (currentEssenceBySource?.weeklyBoss || 0) + (success ? reward.essence : 0),
+      },
+    }, weeklyBossKillCounterPatch);
+    const attemptsRemaining = Math.max(
+      0,
+      Number(settlement?.weeklyBoss?.maxAttempts || 3) - Number(settlement?.weeklyBoss?.attemptsUsed || 0)
+    );
+    const rewardLabel = [
+      reward.gold > 0 ? `+${reward.gold} oro` : null,
+      reward.essence > 0 ? `+${reward.essence} esencia` : null,
+      reward.codexInk > 0 ? `+${reward.codexInk} tinta` : null,
+      reward.relicDust > 0 ? `+${reward.relicDust} polvo` : null,
+      reward.sigilFlux > 0 ? `+${reward.sigilFlux} flux` : null,
+    ].filter(Boolean).join(", ");
+    const telemetryDifficultyWins = state?.accountTelemetry?.weeklyBossDifficultyWins || {};
+    const telemetryDifficultyLosses = state?.accountTelemetry?.weeklyBossDifficultyLosses || {};
+    const nextAccountTelemetry = {
+      ...(state?.accountTelemetry || {}),
+      weeklyBossEncountersWon: Math.max(0, Number(state?.accountTelemetry?.weeklyBossEncountersWon || 0)) + (success ? 1 : 0),
+      weeklyBossEncountersLost: Math.max(0, Number(state?.accountTelemetry?.weeklyBossEncountersLost || 0)) + (success ? 0 : 1),
+      weeklyBossRewardClaims: Math.max(0, Number(state?.accountTelemetry?.weeklyBossRewardClaims || 0)) + (success ? 1 : 0),
+      weeklyBossDifficultyWins: success
+        ? {
+            ...telemetryDifficultyWins,
+            [weeklyDifficultyId]: Math.max(0, Number(telemetryDifficultyWins?.[weeklyDifficultyId] || 0)) + 1,
+          }
+        : telemetryDifficultyWins,
+      weeklyBossDifficultyLosses: !success
+        ? {
+            ...telemetryDifficultyLosses,
+            [weeklyDifficultyId]: Math.max(0, Number(telemetryDifficultyLosses?.[weeklyDifficultyId] || 0)) + 1,
+          }
+        : telemetryDifficultyLosses,
+      lastActiveAt: resolvedAt,
+    };
+
+    return {
+      ...state,
+      stats: applyTacticalCounterPatch(state.stats, weeklySettlementTacticalPatch),
+      weeklyBoss: settlement.weeklyBoss,
+      accountTelemetry: nextAccountTelemetry,
+      player: {
+        ...state.player,
+        hp: Math.max(1, Number(snapshot?.playerHp || state.player?.maxHp || 1)),
+        gold: Math.max(0, Number(snapshot?.playerGold != null ? snapshot.playerGold : state.player?.gold || 0)) + (success ? reward.gold : 0),
+        essence: Math.max(0, Number(snapshot?.playerEssence != null ? snapshot.playerEssence : state.player?.essence || 0)) + (success ? reward.essence : 0),
+      },
+      sanctuary: {
+        ...(state.sanctuary || {}),
+        resources: {
+          ...(state.sanctuary?.resources || {}),
+          codexInk: Math.max(0, Number(state.sanctuary?.resources?.codexInk || 0) + (success ? reward.codexInk : 0)),
+          relicDust: Math.max(0, Number(state.sanctuary?.resources?.relicDust || 0) + (success ? reward.relicDust : 0)),
+          sigilFlux: Math.max(0, Number(state.sanctuary?.resources?.sigilFlux || 0) + (success ? reward.sigilFlux : 0)),
+        },
+      },
+      combat: {
+        ...state.combat,
+        enemy: restoredEnemy,
+        currentTier: restoredTier,
+        maxTier: Math.max(restoredTier, Number(snapshot?.maxTier || state.combat?.maxTier || restoredTier)),
+        autoAdvance: Boolean(snapshot?.autoAdvance),
+        ticksInCurrentRun: Math.max(0, Number(snapshot?.ticksInCurrentRun || 0)),
+        sessionKills: Math.max(0, Number(snapshot?.sessionKills || 0)),
+        effects: Array.isArray(snapshot?.effects) ? snapshot.effects.map(effect => ({ ...effect })) : [],
+        talentBuffs: Array.isArray(snapshot?.talentBuffs) ? snapshot.talentBuffs.map(effect => ({ ...effect })) : [],
+        triggerCounters: {
+          kills: Math.max(0, Number(snapshot?.triggerCounters?.kills || 0)),
+          onHit: Math.max(0, Number(snapshot?.triggerCounters?.onHit || 0)),
+          crit: Math.max(0, Number(snapshot?.triggerCounters?.crit || 0)),
+          onDamageTaken: Math.max(0, Number(snapshot?.triggerCounters?.onDamageTaken || 0)),
+        },
+        pendingOnKillDamage: Math.max(0, Number(snapshot?.pendingOnKillDamage || 0)),
+        pendingMageVolatileMult: Math.max(0.2, Number(snapshot?.pendingMageVolatileMult || 1)),
+        floatEvents: [],
+        runStats: {
+          ...(snapshot?.runStats || getEmptyRunStats()),
+        },
+        performanceSnapshot: {
+          ...(snapshot?.performanceSnapshot || getEmptyPerformanceSnapshot()),
+        },
+        latestLootEvent: snapshot?.latestLootEvent || null,
+        inventoryOverflowEvent: snapshot?.inventoryOverflowEvent || null,
+        inventoryOverflowStats: normalizeInventoryOverflowStats(snapshot?.inventoryOverflowStats || {}),
+        pendingOpenLootFilter: Boolean(snapshot?.pendingOpenLootFilter),
+        weeklyBossEncounter: null,
+        analytics: nextAnalytics,
+        log: [
+          ...state.combat.log,
+          success
+            ? `BOSS SEMANAL: ${settlement.boss?.name || "Boss"} (${settlement.difficulty?.label || "dificultad"}) derrotado${rewardLabel ? ` · ${rewardLabel}` : ""}.`
+            : `BOSS SEMANAL: ${settlement.boss?.name || "Boss"} (${settlement.difficulty?.label || "dificultad"}) resiste. Quedan ${attemptsRemaining} intento(s).`,
+        ].slice(-20),
+      },
+    };
+  }
 
   if (newPlayerHp <= 0) {
-    const tutorialProtectedExpedition = Boolean(state?.onboarding && !state.onboarding.completed);
-    const expeditionDeathCount = Math.max(0, Number(state.expedition?.deathCount || 0));
-    const expeditionDeathLimit = Math.max(1, Number(state.expedition?.deathLimit || EXPEDITION_DEATH_LIMIT));
-    const nextExpeditionDeathCount = tutorialProtectedExpedition ? 0 : expeditionDeathCount + 1;
-    const shouldEmergencyExtract = !tutorialProtectedExpedition && nextExpeditionDeathCount > expeditionDeathLimit;
     const lastRunSummary = buildLastRunSummary(state, enemy, "death");
-    const nextAnalytics = {
+    const nextAnalytics = applyTacticalCounterPatch({
       ...sessionAnalytics,
       ticks: (sessionAnalytics.ticks || 0) + 1,
       deaths: (sessionAnalytics.deaths || 0) + 1,
@@ -1338,7 +1603,7 @@ export function processTick(state) {
       damageTaken: (sessionAnalytics.damageTaken || 0) + enemyDmg + reflectedToPlayer + spellMirrorDamage + playerPoisonTickDamage,
       maxTierReached: Math.max(sessionAnalytics.maxTierReached || 1, state.combat.maxTier || state.combat.currentTier || 1),
       maxLevelReached: Math.max(sessionAnalytics.maxLevelReached || 1, state.player.level || 1),
-    };
+    }, tacticalTickCounterPatch);
     const previewState = {
       ...state,
       currentTab: "sanctuary",
@@ -1347,117 +1612,74 @@ export function processTick(state) {
         ...state.player,
         hp: 0,
       },
-      stats: {
+      stats: applyTacticalCounterPatch({
         ...state.stats,
         deaths: (state.stats?.deaths || 0) + 1,
-      },
+      }, tacticalTickCounterPatch),
       combat: {
         ...state.combat,
         analytics: nextAnalytics,
         lastRunSummary,
       },
     };
+    const retreatTier = 1;
+    const retreatEnemy = spawnEnemy(retreatTier, state.combat?.runContext || createRunContext());
+    const revivedHp = Math.max(1, Math.floor(s.maxHp * EXPEDITION_DEATH_REVIVE_HP_PCT));
+    const retreatLog = `Tu heroe cayo frente a ${enemy.name}. Vuelves a T${retreatTier}, auto-avance se apaga y puedes reintentar con ${revivedHp} HP.`;
 
-    if (!shouldEmergencyExtract) {
-      let retreatTier = Math.max(1, Number(currentCombatTier || 1) - EXPEDITION_DEATH_TIER_RETREAT);
-      if (retreatTier > 1 && retreatTier % 5 === 0) {
-        retreatTier = Math.max(1, retreatTier - 1);
-      }
-      const retreatEnemy = spawnEnemy(retreatTier, state.combat?.runContext || createRunContext());
-      const revivedHp = Math.max(1, Math.floor(s.maxHp * EXPEDITION_DEATH_REVIVE_HP_PCT));
-      const remainingSafeDeaths = Math.max(0, expeditionDeathLimit - nextExpeditionDeathCount);
-      const retreatLog = tutorialProtectedExpedition
-        ? `Tu heroe cayo frente a ${enemy.name}, pero el tutorial protege esta expedicion. No consumes vidas: retrocedes a T${retreatTier}, auto-avance se apaga y vuelves con ${revivedHp} HP.`
-        : `Tu heroe cayo frente a ${enemy.name}, pero la expedicion sigue. Auto-avance apagado, retrocedes a T${retreatTier} y vuelves con ${revivedHp} HP. Quedan ${remainingSafeDeaths} margen(es) antes de una extraccion de emergencia.`;
-
-      return {
-        ...previewState,
-        codex: sightedCodex,
-        currentTab: "combat",
-        player: {
-          ...previewState.player,
-          hp: revivedHp,
-        },
-        combat: {
-          ...state.combat,
-          analytics: nextAnalytics,
-          lastRunSummary,
-          enemy: retreatEnemy,
-          currentTier: retreatTier,
-          autoAdvance: false,
-          ticksInCurrentRun: 0,
-          sessionKills: 0,
-          effects: [],
-          talentBuffs: [],
-          triggerCounters: {
-            kills: 0,
-            onHit: 0,
-            crit: 0,
-            onDamageTaken: 0,
-          },
-          pendingOnKillDamage: 0,
-          pendingMageVolatileMult: 1,
-          floatEvents: [],
-          latestLootEvent: null,
-          log: [
-            ...state.combat.log,
-            ...preTriggerLogs,
-            ...preLegendaryLogs,
-            ...postTriggerLogs,
-            ...postLegendaryLogs,
-            retreatLog,
-          ].slice(-20),
-        },
-        expedition: {
-          ...(state.expedition || {}),
-          phase: "active",
-          exitReason: null,
-          deathCount: nextExpeditionDeathCount,
-          deathLimit: expeditionDeathLimit,
-          seenFamilyIds: appendSeenFamilyIds(state.expedition || {}, retreatEnemy),
-          selectedCargoIds: [],
-          selectedProjectItemId: null,
-          extractionPreview: null,
-        },
-      };
-    }
-
-    const extractionPreview = buildExtractionPreview(previewState, { exitReason: "death" });
-    const defaultCargoIds = (extractionPreview.cargoOptions || [])
-      .slice(0, Math.max(0, Number(extractionPreview.availableSlots?.cargo || 0)))
-      .map(option => option.id);
     return {
       ...previewState,
       codex: sightedCodex,
+      currentTab: "combat",
+      player: {
+        ...previewState.player,
+        hp: revivedHp,
+      },
       combat: {
         ...state.combat,
         analytics: nextAnalytics,
         lastRunSummary,
+        enemy: retreatEnemy,
+        currentTier: retreatTier,
+        autoAdvance: false,
+        ticksInCurrentRun: 0,
+        sessionKills: 0,
+        effects: [],
+        talentBuffs: [],
+        triggerCounters: {
+          kills: 0,
+          onHit: 0,
+          crit: 0,
+          onDamageTaken: 0,
+        },
+        pendingOnKillDamage: 0,
+        pendingMageVolatileMult: 1,
+        floatEvents: [],
+        latestLootEvent: null,
         log: [
           ...state.combat.log,
           ...preTriggerLogs,
           ...preLegendaryLogs,
           ...postTriggerLogs,
           ...postLegendaryLogs,
-          `Tu heroe cayo frente a ${enemy.name} por cuarta vez en esta expedicion. Se abre la extraccion de emergencia; al confirmar se arriesga un cuarto del oro.`,
+          retreatLog,
         ].slice(-20),
       },
       expedition: {
         ...(state.expedition || {}),
-        phase: "extraction",
-        exitReason: "death",
-        deathCount: nextExpeditionDeathCount,
-        deathLimit: expeditionDeathLimit,
-        extractionPreview,
-        selectedCargoIds: defaultCargoIds,
+        phase: "active",
+        exitReason: null,
+        seenFamilyIds: appendSeenFamilyIds(state.expedition || {}, retreatEnemy),
+        selectedCargoIds: [],
         selectedProjectItemId: null,
+        extractionPreview: null,
       },
     };
   }
 
   if (newEnemyHp > 0) {
     const previousRunStats = state.combat.runStats || getEmptyRunStats();
-    const nextAnalytics = {
+    const nextAnalytics = applyTacticalCounterPatch({
       ...sessionAnalytics,
       ticks: (sessionAnalytics.ticks || 0) + 1,
       couldAdvanceMoments: (sessionAnalytics.couldAdvanceMoments || 0) + (canAdvanceThisTick ? 1 : 0),
@@ -1467,7 +1689,7 @@ export function processTick(state) {
       damageTaken: (sessionAnalytics.damageTaken || 0) + enemyDmg + reflectedToPlayer + spellMirrorDamage + playerPoisonTickDamage,
       maxTierReached: Math.max(sessionAnalytics.maxTierReached || 1, state.combat.maxTier || state.combat.currentTier || 1),
       maxLevelReached: Math.max(sessionAnalytics.maxLevelReached || 1, state.player.level || 1),
-    };
+    }, tacticalTickCounterPatch);
     const combatNotes = [
       bossShieldActive ? " [ESCUDO]" : "",
       consumedFirstCritShield ? " [CRIT ABSORBIDO]" : "",
@@ -1501,6 +1723,7 @@ export function processTick(state) {
     return {
       ...state,
       codex: sightedCodex,
+      stats: applyTacticalCounterPatch(state.stats, tacticalTickCounterPatch),
       player: { ...state.player, hp: newPlayerHp, gold: playerGoldAfterCombat },
       combat: {
         ...state.combat,
@@ -1586,6 +1809,7 @@ export function processTick(state) {
   let latestLootEvent = null;
   let inventoryOverflowEvent = state.combat?.inventoryOverflowEvent || null;
   let inventoryOverflowStats = normalizeInventoryOverflowStats(state.combat?.inventoryOverflowStats || {});
+  let nextAccountTelemetry = state?.accountTelemetry || {};
   let inventoryOverflowLogLine = null;
   let newlyUnlockedLegendaryPower = null;
   let legendaryPowerUnlocks = 0;
@@ -1598,10 +1822,43 @@ export function processTick(state) {
 
   if (loot) {
     const previousPowerDiscoveries = Number(sightedCodex?.powerDiscoveries?.[loot.legendaryPowerId] || 0);
-    const equippedItem = loot.type === "weapon" ? state.player.equipment?.weapon : state.player.equipment?.armor;
+    const comparableSlot =
+      loot?.type === "weapon"
+        ? "weapon"
+        : loot?.type === "armor"
+          ? "armor"
+          : null;
+    const equippedItem = comparableSlot ? state.player.equipment?.[comparableSlot] || null : null;
+    const inventoryComparableItems = comparableSlot
+      ? (state?.player?.inventory || []).filter(item => item?.type === comparableSlot)
+      : [];
+    let bestInventoryComparableItem = null;
+    let bestInventoryComparableRating = 0;
+    for (const candidate of inventoryComparableItems) {
+      const candidateRating = Math.max(0, Number(candidate?.rating || calcItemRating(candidate) || 0));
+      if (candidateRating > bestInventoryComparableRating) {
+        bestInventoryComparableRating = candidateRating;
+        bestInventoryComparableItem = candidate;
+      }
+    }
+    const lootRating = Math.max(0, Number(loot?.rating || calcItemRating(loot) || 0));
+    const equippedComparableRating = equippedItem
+      ? Math.max(0, Number(equippedItem?.rating || calcItemRating(equippedItem) || 0))
+      : 0;
+    const referenceComparableRating = Math.max(equippedComparableRating, bestInventoryComparableRating);
+    const referenceComparableItem =
+      bestInventoryComparableRating > equippedComparableRating
+        ? bestInventoryComparableItem
+        : equippedItem;
+    const isComparableUpgrade = Boolean(comparableSlot) && lootRating > referenceComparableRating;
+    const lootForHighlight = Number(loot?.rating || 0) > 0 ? loot : { ...loot, rating: lootRating };
+    const comparisonItemForHighlight =
+      referenceComparableItem && Number(referenceComparableItem?.rating || 0) <= 0
+        ? { ...referenceComparableItem, rating: referenceComparableRating }
+        : referenceComparableItem;
     latestLootEvent = summarizeLootEvent({
-      item: loot,
-      equippedItem,
+      item: lootForHighlight,
+      equippedItem: comparisonItemForHighlight,
       activeBuildTag,
       wishlistAffixes: lootRuleSet.wishlistAffixes,
       huntContext: enemy,
@@ -1620,20 +1877,50 @@ export function processTick(state) {
         : null;
     legendaryPowerUnlocks = loot?.legendaryPowerId && previousPowerDiscoveries <= 0 ? 1 : 0;
     legendaryPowerDuplicates = loot?.legendaryPowerId && previousPowerDiscoveries > 0 ? 1 : 0;
-    const isProtectedDrop =
-      (lootRuleSet.protectHuntedDrops && (
+    const isHuntProtectedDrop =
+      lootRuleSet.protectHuntedDrops &&
+      lootRuleSet.hasActiveHuntObjectives &&
+      (
         (latestLootEvent?.wishlistMatches?.length || 0) > 0 ||
         !!latestLootEvent?.huntMatches?.isMatch
-      )) ||
-      (lootRuleSet.protectUpgradeDrops && (latestLootEvent?.ratingMargin || 0) > 0);
-    const shouldAutoExtract = !isProtectedDrop && lootRuleSet.autoExtract.has(loot.rarity);
+      );
+    const isProtectedDrop =
+      isHuntProtectedDrop ||
+      (lootRuleSet.protectUpgradeDrops && isComparableUpgrade);
+    const shouldAutoExtract = false;
     const shouldAutoSell = !isProtectedDrop && !shouldAutoExtract && lootRuleSet.autoSell.has(loot.rarity);
+    const isUpgradeProtectedDrop =
+      Boolean(lootRuleSet.protectUpgradeDrops) &&
+      Boolean(isComparableUpgrade) &&
+      !isHuntProtectedDrop;
+    let lootDecisionReason = "inventory_keep";
+    let lootDecisionLabel = "GUARDADO";
+    let lootDecisionDetail = "Se guardo en mochila.";
+
+    if (isHuntProtectedDrop) {
+      lootDecisionReason = "protected_hunt";
+      lootDecisionLabel = "CAZA";
+      lootDecisionDetail = "Protegido por regla de caza.";
+    } else if (isUpgradeProtectedDrop) {
+      lootDecisionReason = "protected_upgrade";
+      lootDecisionLabel = "MEJOR";
+      lootDecisionDetail = "Protegido por mejora vs comparable.";
+    } else if (shouldAutoExtract) {
+      lootDecisionReason = "auto_extract";
+      lootDecisionLabel = "AUTO-EXTRACT";
+      lootDecisionDetail = "Convertido automaticamente en esencia.";
+    } else if (shouldAutoSell) {
+      lootDecisionReason = "auto_sell";
+      lootDecisionLabel = "AUTO-SELL";
+      lootDecisionDetail = "Vendido automaticamente por reglas.";
+    }
 
     if (shouldAutoExtract) {
       const essenceFromLoot = getExtractYield(loot);
       newPlayer.essence = sanitizeCurrencyValue((newPlayer.essence || 0) + essenceFromLoot, SAFE_RUNTIME_ESSENCE_CAP);
       autoExtractEssence = essenceFromLoot;
       autoLootLog = ` [AUTO-EXTRACT ${loot.rarity}: +${essenceFromLoot} esencia]`;
+      lootDecisionDetail = `Auto-extract activo: +${essenceFromLoot} esencia.`;
       lootStatsPatch = {
         itemsExtracted: 1,
         autoExtractedItems: 1,
@@ -1643,6 +1930,7 @@ export function processTick(state) {
       newPlayer.gold = sanitizeCurrencyValue((newPlayer.gold || 0) + sellValue, SAFE_RUNTIME_GOLD_CAP);
       autoSellGold = sellValue;
       autoLootLog = ` [AUTO-SELL ${loot.rarity}: +${sellValue} oro]`;
+      lootDecisionDetail = `Auto-sell activo: +${sellValue} oro.`;
       lootStatsPatch = {
         itemsSold: 1,
         autoSoldItems: 1,
@@ -1678,7 +1966,29 @@ export function processTick(state) {
         inventoryOverflowLogLine = inventoryOverflowEvent.incomingItemKept
           ? `MOCHILA LLENA: entra ${inventoryOverflowEvent.incomingItemName} y sale ${inventoryOverflowEvent.droppedItemName}.`
           : `MOCHILA LLENA: ${inventoryOverflowEvent.incomingItemName} no entra y se pierde.`;
+        nextAccountTelemetry = {
+          ...(state?.accountTelemetry || {}),
+          inventoryOverflowEvents: Math.max(0, Number(state?.accountTelemetry?.inventoryOverflowEvents || 0)) + 1,
+          inventoryOverflowDisplaced:
+            Math.max(0, Number(state?.accountTelemetry?.inventoryOverflowDisplaced || 0)) +
+            (inventoryOverflowEvent.incomingItemKept ? 1 : 0),
+          inventoryOverflowLost:
+            Math.max(0, Number(state?.accountTelemetry?.inventoryOverflowLost || 0)) +
+            (inventoryOverflowEvent.incomingItemKept ? 0 : 1),
+        };
+        lootDecisionDetail = inventoryOverflowEvent.incomingItemKept
+          ? "Mochila llena: entra el drop y desplaza otra pieza."
+          : "Mochila llena: el drop no pudo entrar.";
       }
+    }
+
+    if (latestLootEvent) {
+      latestLootEvent = {
+        ...latestLootEvent,
+        decisionReason: lootDecisionReason,
+        decisionLabel: lootDecisionLabel,
+        decisionDetail: lootDecisionDetail,
+      };
     }
 
     const candidateDropScore = Number(latestLootEvent?.score || 0);
@@ -1691,7 +2001,7 @@ export function processTick(state) {
       bestDropName = loot.name;
       bestDropRarity = loot.rarity;
       bestDropHighlight = latestLootEvent?.topHighlight || latestLootEvent?.highlight || null;
-      bestDropPerfectRolls = latestLootEvent?.perfectRollCount || 0;
+      bestDropPerfectRolls = (latestLootEvent?.excellentAffixCount ?? latestLootEvent?.perfectRollCount) || 0;
       bestDropScore = candidateDropScore;
     }
   }
@@ -1715,7 +2025,31 @@ export function processTick(state) {
         }
       : abyssState;
 
-  const newStats = {
+  const activeBossTacticalStatusCount =
+    (nextEnemyRuntime.bleedStacks > 0 ? 1 : 0) +
+    (nextEnemyRuntime.fractureStacks > 0 ? 1 : 0) +
+    (nextEnemyRuntime.markStacks > 0 ? 1 : 0);
+  const tacticalKillCounterPatch = {
+    ...tacticalTickCounterPatch,
+    bossKillsWithBleed: enemy.isBoss && (nextEnemyRuntime.bleedStacks || 0) > 0 ? 1 : 0,
+    bossKillsWithFracture: enemy.isBoss && (nextEnemyRuntime.fractureStacks || 0) > 0 ? 1 : 0,
+    bossKillsWithDualStatus: enemy.isBoss && activeBossTacticalStatusCount >= 2 ? 1 : 0,
+    bossKillsWithGuardPlay:
+      enemy.isBoss &&
+      (
+        nextEnemyRuntime.playerBlockedDuringFight ||
+        nextEnemyRuntime.playerEvadedDuringFight ||
+        blocked ||
+        evaded
+      )
+        ? 1
+        : 0,
+  };
+  const lootExcellentAffixCount = ((loot?.affixes || []).filter(
+    affix => affix?.quality === "excellent" || affix?.lootOnlyQuality || affix?.tier === 1 || affix?.perfectRoll
+  ).length) || 0;
+
+  const newStats = applyTacticalCounterPatch({
     ...state.stats,
     kills: (state.stats?.kills || 0) + 1,
     bossKills: (state.stats?.bossKills || 0) + (enemy.isBoss ? 1 : 0),
@@ -1725,20 +2059,18 @@ export function processTick(state) {
     rareItemsFound: (state.stats?.rareItemsFound || 0) + (loot?.rarity === "rare" ? 1 : 0),
     epicItemsFound: (state.stats?.epicItemsFound || 0) + (loot?.rarity === "epic" ? 1 : 0),
     legendaryItemsFound: (state.stats?.legendaryItemsFound || 0) + (loot?.rarity === "legendary" ? 1 : 0),
-    perfectRollsFound:
-      (state.stats?.perfectRollsFound || 0) +
-      ((loot?.affixes || []).filter(affix => affix.perfectRoll).length || 0),
+    perfectRollsFound: (state.stats?.perfectRollsFound || 0) + lootExcellentAffixCount,
     t1AffixesFound:
       (state.stats?.t1AffixesFound || 0) +
-      ((loot?.affixes || []).filter(affix => affix.tier === 1).length || 0),
+      lootExcellentAffixCount,
     bestItemRating: Math.max(state.stats?.bestItemRating || 0, loot?.rating || calcItemRating(loot)),
     itemsSold: (state.stats?.itemsSold || 0) + (lootStatsPatch.itemsSold || 0),
     itemsExtracted: (state.stats?.itemsExtracted || 0) + (lootStatsPatch.itemsExtracted || 0),
     autoSoldItems: (state.stats?.autoSoldItems || 0) + (lootStatsPatch.autoSoldItems || 0),
     autoExtractedItems: (state.stats?.autoExtractedItems || 0) + (lootStatsPatch.autoExtractedItems || 0),
-  };
+  }, tacticalKillCounterPatch);
 
-  const nextAnalytics = {
+  const nextAnalytics = applyTacticalCounterPatch({
     ...sessionAnalytics,
     ticks: (sessionAnalytics.ticks || 0) + 1,
     kills: (sessionAnalytics.kills || 0) + 1,
@@ -1774,17 +2106,17 @@ export function processTick(state) {
     legendaryItemsFound: (sessionAnalytics.legendaryItemsFound || 0) + (loot?.rarity === "legendary" ? 1 : 0),
     legendaryPowerUnlocks: (sessionAnalytics.legendaryPowerUnlocks || 0) + legendaryPowerUnlocks,
     legendaryPowerDuplicates: (sessionAnalytics.legendaryPowerDuplicates || 0) + legendaryPowerDuplicates,
-    perfectRollsFound: (sessionAnalytics.perfectRollsFound || 0) + (((loot?.affixes || []).filter(affix => affix.perfectRoll).length) || 0),
-    t1AffixesFound: (sessionAnalytics.t1AffixesFound || 0) + (((loot?.affixes || []).filter(affix => affix.tier === 1).length) || 0),
+    perfectRollsFound: (sessionAnalytics.perfectRollsFound || 0) + lootExcellentAffixCount,
+    t1AffixesFound: (sessionAnalytics.t1AffixesFound || 0) + lootExcellentAffixCount,
     perfectByTier: incrementMapValue(
       sessionAnalytics.perfectByTier,
       currentTier,
-      ((loot?.affixes || []).filter(affix => affix.perfectRoll).length) || 0
+      lootExcellentAffixCount
     ),
     t1ByTier: incrementMapValue(
       sessionAnalytics.t1ByTier,
       currentTier,
-      ((loot?.affixes || []).filter(affix => affix.tier === 1).length) || 0
+      lootExcellentAffixCount
     ),
     rarityByTier: loot
       ? incrementNestedMapValue(sessionAnalytics.rarityByTier, currentTier, loot.rarity, 1)
@@ -1817,7 +2149,7 @@ export function processTick(state) {
     bestDropHighlight: bestDropHighlight?.label || null,
     bestDropPerfectRolls,
     bestDropScore,
-  };
+  }, tacticalKillCounterPatch);
 
   const { newAchievements, bonusGold, unlocked } = checkAchievements({
     ...state,
@@ -1885,6 +2217,7 @@ export function processTick(state) {
   return {
     ...state,
     player: newPlayer,
+    accountTelemetry: nextAccountTelemetry,
     codex: nextCodex,
     abyss: nextAbyssState,
     stats: newStats,

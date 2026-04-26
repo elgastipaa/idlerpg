@@ -329,7 +329,6 @@ export function findSimilarReplayActions(replay = {}, current = {}, options = {}
 export function deriveReplayDecisionHints(replay = {}, current = {}) {
   const craftActionTypes = [
     "CRAFT_UPGRADE_ITEM",
-    "CRAFT_REROLL_ITEM",
     "CRAFT_POLISH_ITEM",
     "CRAFT_REFORGE_ITEM",
     "CRAFT_ASCEND_ITEM",
@@ -416,7 +415,6 @@ const RECORDED_ACTION_TYPES = new Set([
   "START_RUN",
   "BUY_PRESTIGE_NODE",
   "PRESTIGE",
-  "CRAFT_REROLL_ITEM",
   "CRAFT_POLISH_ITEM",
   "CRAFT_REFORGE_PREVIEW",
   "CRAFT_REFORGE_ITEM",
@@ -612,7 +610,6 @@ export function deriveHumanReplayProfile(replay = {}) {
   const autoOff = relevant.filter(entry => entry.summary?.type === "TOGGLE_AUTO_ADVANCE" && !entry.after?.autoAdvance).length;
   const craftCounts = {
     upgrade: relevant.filter(entry => entry.summary?.type === "CRAFT_UPGRADE_ITEM").length,
-    reroll: relevant.filter(entry => entry.summary?.type === "CRAFT_REROLL_ITEM").length,
     polish: relevant.filter(entry => entry.summary?.type === "CRAFT_POLISH_ITEM").length,
     reforge: relevant.filter(entry => entry.summary?.type === "CRAFT_REFORGE_ITEM").length,
     ascend: relevant.filter(entry => entry.summary?.type === "CRAFT_ASCEND_ITEM").length,

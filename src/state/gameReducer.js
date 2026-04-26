@@ -1,13 +1,14 @@
-import { processTick }              from "../engine/combat/processTickRuntime";
+import { processTick }              from "../engine/combat/processTickPipeline";
 import { spawnEnemy }               from "../engine/combat/enemyEngine";
 import { createRunContext } from "../engine/combat/encounterRouting";
 import { refreshStats }             from "../engine/combat/statEngine";
 import { calcStats }                from "../engine/combat/statEngine";
 import { addToInventory, syncEquipment } from "../engine/inventory/inventoryEngine";
 import { sellItem, sellItems }      from "../engine/inventory/economyEngine";
-import { craftReroll, craftPolish, craftReforge, craftReforgePreview, craftUpgrade, craftAscend, craftExtract } from "../engine/crafting/craftingEngine";
+import { craftPolish, craftReforge, craftReforgePreview, craftUpgrade, craftAscend, craftExtract } from "../engine/crafting/craftingEngine";
 import { checkAchievements } from "../engine/progression/achievementEngine";
 import {
+  isCodexResearchTypeUnlocked,
   getLegendaryPowerImprintReduction,
   getUnlockedLegendaryPowers,
   normalizeCodexState,
@@ -16,10 +17,11 @@ import {
 } from "../engine/progression/codexEngine";
 import { createEmptyAccountTelemetry, createEmptySessionAnalytics, sanitizeAccountTelemetry } from "../utils/runTelemetry";
 import { recordReplayState } from "../utils/replayLog";
-import { buildExtractionPreview, isMaterializedBlueprintItem } from "../engine/sanctuary/extractionEngine";
+import { buildExtractionPreview, buildProjectSnapshot, isMaterializedBlueprintItem } from "../engine/sanctuary/extractionEngine";
 import {
   createCodexResearchJob,
   createDistillJob,
+  createForgeMasterProjectJob,
   createForgeProjectJob,
   createSanctuaryErrandJob,
   createScrapExtractedItemJob,
@@ -43,7 +45,6 @@ import {
   buildBlueprintChargeReward,
   buildBlueprintFromExtractedItem,
   buildBlueprintPowerTunePreview,
-  buildExtractedItemRecord,
   buildBlueprintStructurePreview,
   canAscendBlueprint,
   canUpgradeBlueprintStructure,
@@ -59,16 +60,32 @@ import {
   tuneBlueprintPower,
   upgradeBlueprintStructure,
 } from "../engine/sanctuary/blueprintEngine";
+import {
+  buildRelicContextRunBonuses,
+  buildRelicFromItem,
+  calculateRelicAttunementCost,
+  calculateRelicAttunementEntropyGain,
+  calculateRelicEntropyStabilizePlan,
+  createEmptyRelicLoadout,
+  ensureValidActiveRelics,
+  getRelicContextLabel,
+  materializeRelicLoadout,
+  normalizeRelicContextAttunement,
+  normalizeRelicRecord,
+} from "../engine/sanctuary/relicArmoryEngine";
 import { createEmptyItemStashState, syncItemStashState } from "../engine/sanctuary/itemStashSchema";
 import {
   applyLaboratoryResearch,
   createEmptyLaboratoryState,
   createLaboratoryResearchJob,
+  getSanctuaryStationDurationMultiplier,
   isSanctuaryStationUnlocked,
   SANCTUARY_STATION_DEFAULTS,
 } from "../engine/sanctuary/laboratoryEngine";
 
 import { ensureWeeklyLedger } from "../engine/progression/weeklyLedger";
+import { ensureExpeditionContracts, rerollExpeditionContracts } from "../engine/progression/expeditionContracts";
+import { createWeeklyBossEncounter, ensureWeeklyBossState } from "../engine/progression/weeklyBoss";
 import { handleAccountStateAction } from "./reducerDomains/accountStateReducer";
 import { handleBlueprintForgeAction } from "./reducerDomains/blueprintForgeReducer";
 import { handleClassProgressionAction } from "./reducerDomains/classProgressionReducer";
@@ -124,6 +141,8 @@ import { createEmptySaveDiagnostics, createFreshState, mergeStateWithDefaults } 
 
 const CRIT_CAP         = 0.75;
 const ATTACK_SPEED_CAP = 0.70;
+const IMBUE_JOB_BASE_DURATION_MS = 4 * 60 * 60 * 1000;
+const IMBUE_JOB_RUSH_COST = { relicDust: 3, sigilFlux: 2 };
 
 function withAchievementProgress(state) {
   const { newAchievements, bonusGold, unlocked } = checkAchievements(state);
@@ -166,6 +185,28 @@ function isEquippedItemId(player, itemId) {
   if (!itemId) return false;
   const equipment = player?.equipment || {};
   return equipment.weapon?.id === itemId || equipment.armor?.id === itemId;
+}
+
+function findPlayerItem(player = {}, itemId = null) {
+  if (!itemId) return null;
+  const inventory = Array.isArray(player?.inventory) ? player.inventory : [];
+  const inventoryItem = inventory.find(item => item?.id === itemId);
+  if (inventoryItem) return inventoryItem;
+  if (player?.equipment?.weapon?.id === itemId) return player.equipment.weapon;
+  if (player?.equipment?.armor?.id === itemId) return player.equipment.armor;
+  return null;
+}
+
+function getPendingImbueJobForItem(state = {}, itemId = null, statuses = ["running", "claimable"]) {
+  if (!itemId) return null;
+  const statusSet = new Set(statuses);
+  const jobs = Array.isArray(state?.sanctuary?.jobs) ? state.sanctuary.jobs : [];
+  return jobs.find(
+    job =>
+      job?.type === "imbue_item" &&
+      job?.input?.itemId === itemId &&
+      statusSet.has(job?.status)
+  ) || null;
 }
 
 function buildBlockedOperationState(state, { analyticsKey, message }) {
@@ -253,10 +294,12 @@ function createEmptySanctuaryState() {
     stash: [],
     extractedItems: [],
     itemStash: createEmptyItemStashState(),
+    relicArmory: [],
     blueprints: [],
     cargoInventory: [],
     jobs: [],
     deepForgeSession: null,
+    pendingOpenForgeOverlay: false,
     resources: {
       codexInk: 0,
       sigilFlux: 0,
@@ -264,6 +307,7 @@ function createEmptySanctuaryState() {
     },
     familyCharges: createEmptyFamilyChargeState(),
     activeBlueprints: createEmptyBlueprintLoadout(),
+    activeRelics: createEmptyRelicLoadout(),
     sigilInfusions: {},
     laboratory: createEmptyLaboratoryState(),
     stations: Object.fromEntries(
@@ -276,7 +320,7 @@ function createEmptySanctuaryState() {
       cargoSlots: 2,
       projectSlots: 1,
       extractedItemSlots: 3,
-      relicSlots: 0,
+      relicSlots: 8,
       insuredCargoSlots: 0,
     },
   };
@@ -288,17 +332,20 @@ function createEmptyExpeditionState() {
     id: null,
     startedAt: null,
     exitReason: null,
-    deathCount: 0,
-    deathLimit: 3,
     seenFamilyIds: [],
     cargoFound: [],
     projectCandidates: [],
     selectedCargoIds: [],
     selectedProjectItemId: null,
+    selectedProjectDecision: "keep",
     extractionPreview: null,
     activeInfusionIds: [],
     activeInfusionPlayerBonuses: {},
     activeExtractionBonuses: {},
+    activeRelicContext: "none",
+    activeRelicContextBonuses: {},
+    activeRelicContextMatches: [],
+    activeRelicContextMismatches: [],
   };
 }
 
@@ -340,7 +387,7 @@ function finalizeExpeditionTelemetry(
   nextTelemetry.extractionCount = Math.max(0, Number(nextTelemetry.extractionCount || 0)) + 1;
   if (prestige) {
     nextTelemetry.prestigeExtractionCount = Math.max(0, Number(nextTelemetry.prestigeExtractionCount || 0)) + 1;
-  } else if (exitReason !== "death") {
+  } else {
     nextTelemetry.manualExtractionCount = Math.max(0, Number(nextTelemetry.manualExtractionCount || 0)) + 1;
   }
   nextTelemetry.totalExpeditionLifecycleSeconds =
@@ -350,9 +397,6 @@ function finalizeExpeditionTelemetry(
     durationSeconds
   );
   nextTelemetry.currentExpeditionSeconds = 0;
-  if (exitReason === "death") {
-    nextTelemetry.emergencyExtractionCount = Math.max(0, Number(nextTelemetry.emergencyExtractionCount || 0)) + 1;
-  }
   if (nextTelemetry.firstExtractionAtOnlineSeconds == null) {
     nextTelemetry.firstExtractionAtOnlineSeconds = getCurrentOnlineSeconds(nextTelemetry);
   }
@@ -417,8 +461,17 @@ function applyDerivedAccountTelemetry(prevState, nextState) {
   if (!prevState?.sanctuary?.stations?.distillery?.unlocked && nextState?.sanctuary?.stations?.distillery?.unlocked) {
     setFirstMoment("firstDistilleryAtOnlineSeconds");
   }
-  if ((Array.isArray(prevState?.sanctuary?.blueprints) ? prevState.sanctuary.blueprints.length : 0) <= 0 &&
-      (Array.isArray(nextState?.sanctuary?.blueprints) ? nextState.sanctuary.blueprints.length : 0) > 0) {
+  const prevProjectCount = Array.isArray(prevState?.sanctuary?.stash)
+    ? prevState.sanctuary.stash.length
+    : Array.isArray(prevState?.sanctuary?.blueprints)
+      ? prevState.sanctuary.blueprints.length
+      : 0;
+  const nextProjectCount = Array.isArray(nextState?.sanctuary?.stash)
+    ? nextState.sanctuary.stash.length
+    : Array.isArray(nextState?.sanctuary?.blueprints)
+      ? nextState.sanctuary.blueprints.length
+      : 0;
+  if (prevProjectCount <= 0 && nextProjectCount > 0) {
     setFirstMoment("firstBlueprintAtOnlineSeconds");
   }
   if (!prevState?.sanctuary?.stations?.deepForge?.unlocked && nextState?.sanctuary?.stations?.deepForge?.unlocked) {
@@ -526,8 +579,11 @@ function getSanctuaryProgressTier(state) {
 
 function getCombinedRunSigilBonuses(runSigilIds = "free", expedition = {}) {
   return mergeNumericBonuses(
-    getRunSigilPlayerBonuses(runSigilIds),
-    expedition?.activeInfusionPlayerBonuses || {}
+    mergeNumericBonuses(
+      getRunSigilPlayerBonuses(runSigilIds),
+      expedition?.activeInfusionPlayerBonuses || {}
+    ),
+    expedition?.activeRelicContextBonuses || {}
   );
 }
 
@@ -580,30 +636,49 @@ function buildRetainedExtractionItem(state, selectedProjectItemId, sourceMeta = 
     option => option?.itemId === selectedProjectItemId
   );
   if (previewOption?.source === "tutorial" && previewOption?.previewItem) {
-    return buildExtractedItemRecord(previewOption.previewItem, sourceMeta);
+    return buildRelicFromItem(previewOption.previewItem, {
+      source: "tutorial",
+      sourceMeta,
+    });
   }
   const inventoryItems = Array.isArray(state?.player?.inventory) ? state.player.inventory : [];
   const equipmentItems = [state?.player?.equipment?.weapon, state?.player?.equipment?.armor].filter(Boolean);
   const candidate = [...equipmentItems, ...inventoryItems].find(item => item?.id === selectedProjectItemId);
   if (isMaterializedBlueprintItem(candidate)) return null;
-  return candidate ? buildExtractedItemRecord(candidate, sourceMeta) : null;
+  return candidate
+    ? buildRelicFromItem(candidate, {
+        source: "extraction",
+        sourceMeta,
+      })
+    : null;
 }
 
 function buildPostExtractionExpeditionReset(state, { exitReason = "retire", goldMultiplier = 1 } = {}) {
   const nextRunContext =
     state.combat?.runContext ||
     (Number(state.prestige?.level || 0) >= 1 ? createRunContext() : createRunContext({ firstRun: true }));
-  const maxHp = Math.max(1, Number(state.player?.maxHp || 1));
+  const resetRunSigilIds = normalizeRunSigilIds("free", {
+    slots: getMaxRunSigilSlots(state?.abyss || {}),
+  });
+  const freshPlayerTemplate = createFreshState().player;
+  const basePlayer = {
+    ...freshPlayerTemplate,
+    gold: Math.max(0, Math.floor((state.player?.gold || 0) * goldMultiplier)),
+    essence: state.player?.essence || 0,
+    talentSystemVersion: state.player?.talentSystemVersion || freshPlayerTemplate.talentSystemVersion,
+    codexBonuses: state.player?.codexBonuses || {},
+  };
+  const syncedPlayer = syncCodexBonuses(
+    syncPrestigeBonuses(basePlayer, state.prestige),
+    state.codex || {}
+  );
   return {
     ...state,
     currentTab: "sanctuary",
-    player: refreshStats({
-      ...state.player,
-      hp: maxHp,
-      gold: Math.max(0, Math.floor((state.player?.gold || 0) * goldMultiplier)),
-      inventory: [],
-      equipment: { weapon: null, armor: null },
-    }),
+    player: {
+      ...syncedPlayer,
+      hp: syncedPlayer.maxHp,
+    },
     expedition: {
       ...createEmptyExpeditionState(),
       phase: "sanctuary",
@@ -638,6 +713,12 @@ function buildPostExtractionExpeditionReset(state, { exitReason = "retire", gold
       lastRunSummary: null,
       offlineSummary: null,
       reforgeSession: null,
+      weeklyBossEncounter: null,
+      pendingRunSetup: false,
+      pendingRunSigilId: resetRunSigilIds[0] || "free",
+      pendingRunSigilIds: resetRunSigilIds,
+      activeRunSigilId: resetRunSigilIds[0] || "free",
+      activeRunSigilIds: resetRunSigilIds,
     },
   };
 }
@@ -768,10 +849,15 @@ function resolveDomainAction(state, action) {
   });
   if (accountState) return accountState;
 
-  const progressionMetaState = handleProgressionMetaAction(state, action, { withAchievementProgress });
+  const progressionMetaState = handleProgressionMetaAction(state, action, {
+    withAchievementProgress,
+    getAccountTelemetry,
+    getCurrentOnlineSeconds,
+  });
   if (progressionMetaState) return progressionMetaState;
 
   const extractionResolutionState = handleExtractionResolutionAction(state, action, {
+    buildProjectSnapshot,
     buildExtractionPreview,
     buildPostExtractionExpeditionReset,
     buildPrestigeResetState,
@@ -781,12 +867,15 @@ function resolveDomainAction(state, action) {
     createEmptySanctuaryState,
     createRunContext,
     ensureValidActiveBlueprints,
+    ensureValidActiveRelics,
     finalizeExpeditionTelemetry,
     getAccountTelemetry,
     getCurrentOnlineSeconds,
     getMaxRunSigilSlots,
     normalizeBlueprintRecord,
     normalizeExtractedItemRecord,
+    normalizeProjectRecord,
+    normalizeRelicRecord,
     normalizeRunSigilIds,
     withAchievementProgress,
   });
@@ -794,31 +883,45 @@ function resolveDomainAction(state, action) {
 
   const runFlowState = handleRunFlowAction(state, action, {
     appendSeenFamilyIds,
+    buildRelicContextRunBonuses,
     buildExtractionPreview,
+    calculateRelicAttunementCost,
+    calculateRelicAttunementEntropyGain,
+    calculateRelicEntropyStabilizePlan,
     consumeBlueprintMaterialization,
     consumeSigilInfusions,
+    createEmptySessionAnalytics,
     createEmptyExpeditionState,
     createEmptySanctuaryState,
     createRunContext,
+    createWeeklyBossEncounter,
+    ensureExpeditionContracts,
     ensureValidActiveBlueprints,
     formatRunSigilLoadout,
     getAccountTelemetry,
     getCombinedRunSigilBonuses,
     getEmptyPerformanceSnapshot,
     getEmptyRunStats,
+    getRelicContextLabel,
     getRunSigil,
     isExtractionUnlocked,
     isRunSigilsUnlocked,
+    materializeRelicLoadout,
+    normalizeRelicContextAttunement,
+    normalizeRunSigilIds,
     materializeBlueprintLoadout,
+    normalizeRelicRecord,
     ONBOARDING_STEPS,
     recordCodexSighting,
     refreshStats,
     resolveRunSigilLoadout,
+    rerollExpeditionContracts,
     selectRunSigilLoadout,
     spawnEnemy,
     summarizeRunSigilLoadout,
     syncCodexBonuses,
     syncPrestigeBonuses,
+    ensureValidActiveRelics,
   });
   if (runFlowState) return runFlowState;
 
@@ -830,6 +933,7 @@ function resolveDomainAction(state, action) {
     buildBlueprintChargeReward,
     createCodexResearchJob,
     createDeepForgeProjectJob: createForgeProjectJob,
+    createDeepForgeMasterProjectJob: createForgeMasterProjectJob,
     createDistillJob,
     createEmptyFamilyChargeState,
     createEmptyLaboratoryState,
@@ -839,10 +943,13 @@ function resolveDomainAction(state, action) {
     createScrapExtractedItemJob,
     createSigilInfusionJob,
     createEmptySessionAnalytics,
+    craftAscend,
     deepForgeUpgradeProject,
     ensureTutorialCargoBundle,
     ensureValidActiveBlueprints,
     getAccountTelemetry,
+    getLegendaryPowerImprintReduction,
+    isCodexResearchTypeUnlocked,
     getRunSigil,
     getSanctuaryProgressTier,
     normalizeAbyssState,
@@ -850,6 +957,7 @@ function resolveDomainAction(state, action) {
     normalizeCodexState,
     normalizeExtractedItemRecord,
     normalizeProjectRecord,
+    refreshStats,
     syncCodexBonuses,
     syncSanctuaryJobs,
     withAchievementProgress,
@@ -960,6 +1068,48 @@ function baseGameReducer(state, action) {
   }
 
   switch (action.type) {
+    case "OPEN_SANCTUARY_FORGE": {
+      if (isSanctuaryLockedDuringExpeditionTutorial(state)) {
+        return {
+          ...state,
+          currentTab: "combat",
+          sanctuary: {
+            ...createEmptySanctuaryState(),
+            ...(state.sanctuary || {}),
+            pendingOpenForgeOverlay: false,
+          },
+          combat: {
+            ...state.combat,
+            pendingOpenLootFilter: false,
+          },
+        };
+      }
+      return {
+        ...state,
+        currentTab: "sanctuary",
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          pendingOpenForgeOverlay: true,
+        },
+        combat: {
+          ...state.combat,
+          pendingOpenLootFilter: false,
+        },
+      };
+    }
+
+    case "ACK_OPEN_SANCTUARY_FORGE": {
+      if (!state?.sanctuary?.pendingOpenForgeOverlay) return state;
+      return {
+        ...state,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          pendingOpenForgeOverlay: false,
+        },
+      };
+    }
 
     case "SET_TAB":
       if (state.combat?.reforgeSession && action.tab !== state.currentTab) {
@@ -979,6 +1129,11 @@ function baseGameReducer(state, action) {
         return {
           ...state,
           currentTab: "combat",
+          sanctuary: {
+            ...createEmptySanctuaryState(),
+            ...(state.sanctuary || {}),
+            pendingOpenForgeOverlay: false,
+          },
           combat: {
             ...state.combat,
             pendingOpenLootFilter: false,
@@ -989,9 +1144,46 @@ function baseGameReducer(state, action) {
         const nextTab = action.tab === "lab"
           ? (["active", "setup"].includes(state.expedition?.phase || "sanctuary") ? "combat" : "sanctuary")
           : action.tab;
+      const closeExtractionOnNavigation =
+        state.expedition?.phase === "extraction";
+      if (closeExtractionOnNavigation) {
+        return {
+          ...state,
+          currentTab: nextTab,
+          sanctuary: {
+            ...createEmptySanctuaryState(),
+            ...(state.sanctuary || {}),
+            pendingOpenForgeOverlay:
+              nextTab === "sanctuary"
+                ? Boolean(state?.sanctuary?.pendingOpenForgeOverlay)
+                : false,
+          },
+          expedition: {
+            ...(state.expedition || createEmptyExpeditionState()),
+            phase: "active",
+            exitReason: null,
+            selectedCargoIds: [],
+            selectedProjectItemId: null,
+            selectedProjectDecision: "keep",
+            extractionPreview: null,
+          },
+          combat: {
+            ...state.combat,
+            pendingOpenLootFilter: nextTab === "inventory" ? Boolean(state.combat?.pendingOpenLootFilter) : false,
+          },
+        };
+      }
       return {
         ...state,
         currentTab: nextTab,
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          pendingOpenForgeOverlay:
+            nextTab === "sanctuary"
+              ? Boolean(state?.sanctuary?.pendingOpenForgeOverlay)
+              : false,
+        },
         combat: {
           ...state.combat,
           pendingOpenLootFilter: nextTab === "inventory" ? Boolean(state.combat?.pendingOpenLootFilter) : false,
@@ -1213,13 +1405,20 @@ function baseGameReducer(state, action) {
 
     // --------------------------------------------------------
     case "SET_TIER": {
-      const firstBossRetreatLocked =
-        Boolean(state?.combat?.enemy?.isBoss) && !Boolean(state?.onboarding?.flags?.firstDeathSeen);
+      if (state?.combat?.weeklyBossEncounter?.active) {
+        return {
+          ...state,
+          combat: {
+            ...state.combat,
+            log: [
+              ...(state.combat?.log || []),
+              "BOSS SEMANAL: No puedes cambiar tier durante el encuentro semanal.",
+            ].slice(-20),
+          },
+        };
+      }
       const requestedTier = Number(action.tier || 1);
       const currentTierValue = Number(state?.combat?.currentTier || 1);
-      if (firstBossRetreatLocked && requestedTier < currentTierValue) {
-        return state;
-      }
       const tierCap  = getAbyssTierCap(state?.abyss || {});
       const tier     = Math.max(1, Math.min(requestedTier, state.combat.maxTier, tierCap));
       const prevTier = state.combat.currentTier || 1;
@@ -1348,6 +1547,12 @@ function baseGameReducer(state, action) {
           message: "Seguridad: intento de vender item equipado bloqueado.",
         });
       }
+      if (getPendingImbueJobForItem(state, itemId, ["running", "claimable"])) {
+        return buildBlockedOperationState(state, {
+          analyticsKey: "blockedSellEquippedAttempts",
+          message: "Seguridad: item con Imbuir pendiente no puede venderse.",
+        });
+      }
       const soldItem = state.player.inventory.find(item => item.id === action.item.id);
       const newPlayer = sellItem(state.player, action.item.id);
       if (!newPlayer) return state;
@@ -1379,10 +1584,16 @@ function baseGameReducer(state, action) {
       if (requestedIds.length === 0) return state;
 
       const blockedCount = requestedIds.filter(itemId => isEquippedItemId(state.player, itemId)).length;
+      const blockedImbueCount = requestedIds.filter(itemId => getPendingImbueJobForItem(state, itemId, ["running", "claimable"])).length;
       const inventoryIdSet = new Set((state.player.inventory || []).map(item => item.id));
-      const safeIds = requestedIds.filter(itemId => inventoryIdSet.has(itemId) && !isEquippedItemId(state.player, itemId));
+      const safeIds = requestedIds.filter(
+        itemId =>
+          inventoryIdSet.has(itemId) &&
+          !isEquippedItemId(state.player, itemId) &&
+          !getPendingImbueJobForItem(state, itemId, ["running", "claimable"])
+      );
 
-      if (safeIds.length === 0 && blockedCount > 0) {
+      if (safeIds.length === 0 && (blockedCount > 0 || blockedImbueCount > 0)) {
         return {
           ...buildBlockedOperationState(state, {
             analyticsKey: "blockedSellEquippedAttempts",
@@ -1397,7 +1608,7 @@ function baseGameReducer(state, action) {
             },
             log: [
               ...(state.combat?.log || []),
-              `Seguridad: ${blockedCount} items equipados ignorados en venta masiva.`,
+              `Seguridad: ${blockedCount} equipados y ${blockedImbueCount} con Imbuir pendiente ignorados en venta masiva.`,
             ].slice(-20),
           },
         };
@@ -1437,52 +1648,17 @@ function baseGameReducer(state, action) {
 
     // --------------------------------------------------------
     // --------------------------------------------------------
-    case "CRAFT_REROLL_ITEM": {
-      const result = craftReroll({
-        player:       state.player,
-        itemId:       action.payload.itemId,
-        currentTier:  state.combat.currentTier || 1,
-        refreshStats,
-      });
-      if (!result) return state;
-      if (result.blocked) {
+    case "CRAFT_POLISH_ITEM": {
+      if (getPendingImbueJobForItem(state, action.payload?.itemId, ["running", "claimable"])) {
+        const blockLog = "IMBUIR EN CURSO - no puedes modificar ese item hasta reclamar el job.";
         return {
           ...state,
           combat: {
-            ...appendCraftingLog(state.combat, result.log),
-            log: [...(state.combat.log || []), result.log].slice(-20),
+            ...appendCraftingLog(state.combat, blockLog),
+            log: [...(state.combat.log || []), blockLog].slice(-20),
           },
         };
       }
-      return withAchievementProgress({
-        ...state,
-        player: result.newPlayer,
-        stats: {
-          ...state.stats,
-          rerollsCrafted: (state.stats?.rerollsCrafted || 0) + 1,
-        },
-        combat: {
-          ...appendCraftingLog(state.combat, result.log),
-          analytics: {
-            ...(state.combat.analytics || createEmptySessionAnalytics()),
-            rerollsCrafted: (state.combat.analytics?.rerollsCrafted || 0) + 1,
-            goldSpent: (state.combat.analytics?.goldSpent || 0) + Math.max(0, (state.player.gold || 0) - (result.newPlayer.gold || 0)),
-            essenceSpent: (state.combat.analytics?.essenceSpent || 0) + Math.max(0, (state.player.essence || 0) - (result.newPlayer.essence || 0)),
-            goldSpentBySource: {
-              ...(state.combat.analytics?.goldSpentBySource || createEmptySessionAnalytics().goldSpentBySource),
-              rerolls: (state.combat.analytics?.goldSpentBySource?.rerolls || 0) + Math.max(0, (state.player.gold || 0) - (result.newPlayer.gold || 0)),
-            },
-            essenceSpentBySource: {
-              ...(state.combat.analytics?.essenceSpentBySource || createEmptySessionAnalytics().essenceSpentBySource),
-              rerolls: (state.combat.analytics?.essenceSpentBySource?.rerolls || 0) + Math.max(0, (state.player.essence || 0) - (result.newPlayer.essence || 0)),
-            },
-          },
-          log: [...(state.combat.log || []), result.log].slice(-20),
-        },
-      });
-    }
-
-    case "CRAFT_POLISH_ITEM": {
       const result = craftPolish({
         player: state.player,
         itemId: action.payload.itemId,
@@ -1539,12 +1715,24 @@ function baseGameReducer(state, action) {
     }
 
     case "CRAFT_REFORGE_PREVIEW": {
+      if (getPendingImbueJobForItem(state, action.payload?.itemId, ["running", "claimable"])) {
+        const blockLog = "IMBUIR EN CURSO - no puedes modificar ese item hasta reclamar el job.";
+        return {
+          ...state,
+          combat: {
+            ...appendCraftingLog(state.combat, blockLog),
+            reforgeSession: null,
+            log: [...(state.combat.log || []), blockLog].slice(-20),
+          },
+        };
+      }
       const result = craftReforgePreview({
         player: state.player,
         itemId: action.payload.itemId,
         affixIndex: action.payload.affixIndex,
         favoredStats: action.payload.favoredStats || [],
         extraAffixPool: action.payload.allowAbyssAffixes ? [...ABYSS_PREFIXES, ...ABYSS_SUFFIXES] : [],
+        refreshStats,
       });
       if (!result) return state;
       if (result.blocked) {
@@ -1586,6 +1774,17 @@ function baseGameReducer(state, action) {
     }
 
     case "CRAFT_REFORGE_ITEM": {
+      if (getPendingImbueJobForItem(state, action.payload?.itemId, ["running", "claimable"])) {
+        const blockLog = "IMBUIR EN CURSO - no puedes modificar ese item hasta reclamar el job.";
+        return {
+          ...state,
+          combat: {
+            ...appendCraftingLog(state.combat, blockLog),
+            reforgeSession: null,
+            log: [...(state.combat.log || []), blockLog].slice(-20),
+          },
+        };
+      }
       const activeSession = state.combat?.reforgeSession;
       if (
         !activeSession ||
@@ -1597,7 +1796,8 @@ function baseGameReducer(state, action) {
       const validOption = (activeSession.options || []).some(option =>
         option?.id === action.payload.replacementAffix?.id &&
         option?.stat === action.payload.replacementAffix?.stat &&
-        option?.tier === action.payload.replacementAffix?.tier
+        option?.quality === action.payload.replacementAffix?.quality &&
+        (option?.rolledValue ?? option?.value ?? null) === (action.payload.replacementAffix?.rolledValue ?? action.payload.replacementAffix?.value ?? null)
       );
       if (!validOption) return state;
 
@@ -1661,12 +1861,31 @@ function baseGameReducer(state, action) {
     }
 
     case "CRAFT_UPGRADE_ITEM": {
+      if (getPendingImbueJobForItem(state, action.payload?.itemId, ["running", "claimable"])) {
+        const blockLog = "IMBUIR EN CURSO - no puedes modificar ese item hasta reclamar el job.";
+        return {
+          ...state,
+          combat: {
+            ...appendCraftingLog(state.combat, blockLog),
+            log: [...(state.combat.log || []), blockLog].slice(-20),
+          },
+        };
+      }
       const result = craftUpgrade({
         player:      state.player,
         itemId:      action.payload.itemId,
         refreshStats,
       });
       if (!result) return state;
+      if (result.blocked) {
+        return {
+          ...state,
+          combat: {
+            ...appendCraftingLog(state.combat, result.log),
+            log: [...(state.combat.log || []), result.log].slice(-20),
+          },
+        };
+      }
       return withAchievementProgress({
           ...state,
           player: result.newPlayer,
@@ -1684,8 +1903,8 @@ function baseGameReducer(state, action) {
                 ...(state.combat.analytics?.goldSpentBySource || createEmptySessionAnalytics().goldSpentBySource),
                 upgrades: (state.combat.analytics?.goldSpentBySource?.upgrades || 0) + Math.max(0, (state.player.gold || 0) - (result.newPlayer.gold || 0)),
               },
-              upgradesSucceeded: (state.combat.analytics?.upgradesSucceeded || 0) + (String(result.log || "").toLowerCase().includes("fall") ? 0 : 1),
-              upgradesFailed: (state.combat.analytics?.upgradesFailed || 0) + (String(result.log || "").toLowerCase().includes("fall") ? 1 : 0),
+              upgradesSucceeded: (state.combat.analytics?.upgradesSucceeded || 0) + 1,
+              upgradesFailed: state.combat.analytics?.upgradesFailed || 0,
               bestItemRating: Math.max(state.combat.analytics?.bestItemRating || 0, result.newPlayer?.equipment?.weapon?.rating || 0, result.newPlayer?.equipment?.armor?.rating || 0),
             },
           log: [...state.combat.log, result.log].slice(-20),
@@ -1694,67 +1913,195 @@ function baseGameReducer(state, action) {
     }
 
     case "CRAFT_ASCEND_ITEM": {
+      const itemId = action.payload?.itemId;
+      const nowAt = Number(action.now || Date.now());
       const selectedLegendaryPowerId = action.payload.legendaryPowerId || null;
-      const result = craftAscend({
-        player:      state.player,
-        itemId:      action.payload.itemId,
-        currentTier: state.combat.currentTier || 1,
-        refreshStats,
-        legendaryPowerId: selectedLegendaryPowerId,
-        unlockedLegendaryPowerIds: Object.entries(state.codex?.powerDiscoveries || {})
-          .filter(([, discoveries]) => Number(discoveries || 0) > 0)
-          .map(([powerId]) => powerId),
-        legendaryPowerImprintReduction: getLegendaryPowerImprintReduction(state.codex || {}, selectedLegendaryPowerId),
-      });
-      if (!result) return state;
-      if (result.blocked) {
+      const sourceItem = findPlayerItem(state.player, itemId);
+      if (!sourceItem) return state;
+      const unlockedLegendaryPowerIds = Object.entries(state.codex?.powerDiscoveries || {})
+        .filter(([, discoveries]) => Number(discoveries || 0) > 0)
+        .map(([powerId]) => powerId);
+      if (selectedLegendaryPowerId && !unlockedLegendaryPowerIds.includes(selectedLegendaryPowerId)) {
+        const blockLog = "IMBUIR BLOQUEADO - el poder elegido no esta desbloqueado en Biblioteca.";
         return {
           ...state,
           combat: {
-            ...appendCraftingLog(state.combat, result.log),
-            log: [...(state.combat.log || []), result.log].slice(-20),
+            ...appendCraftingLog(state.combat, blockLog),
+            log: [...(state.combat.log || []), blockLog].slice(-20),
           },
         };
       }
-      return withAchievementProgress({
+
+      const activeImbueJob = getPendingImbueJobForItem(state, itemId, ["running", "claimable"]);
+      if (activeImbueJob) {
+        const blockLog = activeImbueJob.status === "claimable"
+          ? `IMBUIR PENDIENTE - ${sourceItem.name} ya tiene un job listo para reclamar.`
+          : `IMBUIR PENDIENTE - ${sourceItem.name} ya tiene una imbucion en curso.`;
+        return {
           ...state,
-          player: result.newPlayer,
-          stats: {
-            ...state.stats,
-            ascendsCrafted: (state.stats?.ascendsCrafted || 0) + 1,
+          combat: {
+            ...appendCraftingLog(state.combat, blockLog),
+            log: [...(state.combat.log || []), blockLog].slice(-20),
           },
+        };
+      }
+
+      const ascendReq = getCraftActionState({
+        item: sourceItem,
+        player: state.player,
+        mode: "ascend",
+        legendaryPowerId: selectedLegendaryPowerId,
+        legendaryPowerImprintReduction: getLegendaryPowerImprintReduction(state.codex || {}, selectedLegendaryPowerId),
+      });
+      if (!ascendReq?.can) {
+        const reasonLabel =
+          ascendReq?.reason === "stabilized"
+            ? "ESTABILIZADO - la pieza ya no puede imbuirse."
+            : ascendReq?.reason === "epic_only"
+              ? "IMBUIR BLOQUEADO - solo las piezas epic pueden convertirse en legendarias."
+              : ascendReq?.reason === "min_level"
+                ? `IMBUIR BLOQUEADO - requiere +${ascendReq?.minLevel || 0}.`
+                : ascendReq?.reason === "essence"
+                  ? "IMBUIR BLOQUEADO - faltan recursos."
+                  : "IMBUIR BLOQUEADO - no se puede iniciar ahora.";
+        return {
+          ...state,
+          combat: {
+            ...appendCraftingLog(state.combat, reasonLabel),
+            log: [...(state.combat.log || []), reasonLabel].slice(-20),
+          },
+        };
+      }
+
+      const syncedJobs = syncSanctuaryJobs(
+        Array.isArray(state.sanctuary?.jobs) ? state.sanctuary.jobs : [],
+        nowAt
+      );
+      if (!isSanctuaryStationUnlocked(state.sanctuary || {}, "deepForge")) {
+        const blockLog = "TALLER BLOQUEADO - primero debes desbloquear la estacion del Santuario.";
+        return {
+          ...state,
+          combat: {
+            ...appendCraftingLog(state.combat, blockLog),
+            log: [...(state.combat.log || []), blockLog].slice(-20),
+          },
+        };
+      }
+      const runningDeepForgeJobs = syncedJobs.filter(
+        job => job?.station === "deepForge" && job?.status === "running"
+      ).length;
+      const deepForgeSlots = Math.max(1, Number(state?.sanctuary?.stations?.deepForge?.slots || 1));
+      if (runningDeepForgeJobs >= deepForgeSlots) {
+        const blockLog = "TALLER OCUPADO - no hay bancos libres para iniciar Imbuir.";
+        return {
+          ...state,
+          combat: {
+            ...appendCraftingLog(state.combat, blockLog),
+            log: [...(state.combat.log || []), blockLog].slice(-20),
+          },
+        };
+      }
+
+      const durationMs = Math.max(
+        5 * 60 * 1000,
+        Math.round(
+          IMBUE_JOB_BASE_DURATION_MS *
+            getSanctuaryStationDurationMultiplier(state.sanctuary || {}, "deepForge")
+        )
+      );
+      const goldCost = Math.max(0, Number(ascendReq?.costs?.gold || 0));
+      const essenceCost = Math.max(0, Number(ascendReq?.costs?.essence || 0));
+      const rushCost = { ...IMBUE_JOB_RUSH_COST };
+
+      const nextPlayer = {
+        ...state.player,
+        gold: Math.max(0, Number(state.player?.gold || 0) - goldCost),
+        essence: Math.max(0, Number(state.player?.essence || 0) - essenceCost),
+      };
+      const nextJob = {
+        id: `job_imbue_item_${itemId}_${nowAt}`,
+        type: "imbue_item",
+        station: "deepForge",
+        status: "running",
+        startedAt: nowAt,
+        endsAt: nowAt + durationMs,
+        input: {
+          itemId,
+          itemName: sourceItem?.name || "item",
+          rarity: sourceItem?.rarity || "epic",
+          legendaryPowerId: selectedLegendaryPowerId || null,
+          goldCost,
+          essenceCost,
+          entropyCost: Math.max(0, Number(ascendReq?.costs?.entropy || 0)),
+          startedAtTier: Math.max(1, Number(state.combat?.currentTier || sourceItem?.itemTier || 1)),
+        },
+        output: {
+          nextRarity: "legendary",
+          summary: "Imbuye la pieza y habilita el claim para convertirla en legendaria.",
+          rushAvailable: true,
+          rushCost,
+        },
+      };
+
+      const startLog = `IMBUIR INICIADO - ${sourceItem.name} entra al Taller (${Math.round(durationMs / 3600000 * 10) / 10}h).`;
+      return withAchievementProgress({
+        ...state,
+        player: nextPlayer,
+        accountTelemetry: {
+          ...getAccountTelemetry(state),
+          forgeJobsStarted: Math.max(0, Number(state?.accountTelemetry?.forgeJobsStarted || 0)) + 1,
+          imbueJobsStarted: Math.max(0, Number(state?.accountTelemetry?.imbueJobsStarted || 0)) + 1,
+        },
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          jobs: [...syncedJobs, nextJob],
+        },
         combat: {
-          ...appendCraftingLog(state.combat, result.log),
+          ...appendCraftingLog(state.combat, startLog),
           analytics: {
-              ...(state.combat.analytics || createEmptySessionAnalytics()),
-              ascendsCrafted: (state.combat.analytics?.ascendsCrafted || 0) + 1,
-              powerAscendsCrafted:
-                (state.combat.analytics?.powerAscendsCrafted || 0) +
-                (selectedLegendaryPowerId ? 1 : 0),
-              goldSpent: (state.combat.analytics?.goldSpent || 0) + Math.max(0, (state.player.gold || 0) - (result.newPlayer.gold || 0)),
-              essenceSpent: (state.combat.analytics?.essenceSpent || 0) + Math.max(0, (state.player.essence || 0) - (result.newPlayer.essence || 0)),
-              goldSpentBySource: {
-                ...(state.combat.analytics?.goldSpentBySource || createEmptySessionAnalytics().goldSpentBySource),
-                ascends: (state.combat.analytics?.goldSpentBySource?.ascends || 0) + Math.max(0, (state.player.gold || 0) - (result.newPlayer.gold || 0)),
-              },
-              essenceSpentBySource: {
-                ...(state.combat.analytics?.essenceSpentBySource || createEmptySessionAnalytics().essenceSpentBySource),
-                ascends: (state.combat.analytics?.essenceSpentBySource?.ascends || 0) + Math.max(0, (state.player.essence || 0) - (result.newPlayer.essence || 0)),
-              },
-              bestItemRating: Math.max(state.combat.analytics?.bestItemRating || 0, result.newPlayer?.equipment?.weapon?.rating || 0, result.newPlayer?.equipment?.armor?.rating || 0),
+            ...(state.combat.analytics || createEmptySessionAnalytics()),
+            forgeJobsStarted: (state.combat.analytics?.forgeJobsStarted || 0) + 1,
+            imbueJobsStarted: (state.combat.analytics?.imbueJobsStarted || 0) + 1,
+            goldSpent: (state.combat.analytics?.goldSpent || 0) + goldCost,
+            essenceSpent: (state.combat.analytics?.essenceSpent || 0) + essenceCost,
+            goldSpentBySource: {
+              ...(state.combat.analytics?.goldSpentBySource || createEmptySessionAnalytics().goldSpentBySource),
+              ascends: (state.combat.analytics?.goldSpentBySource?.ascends || 0) + goldCost,
             },
-          log: [...state.combat.log, result.log].slice(-20),
+            essenceSpentBySource: {
+              ...(state.combat.analytics?.essenceSpentBySource || createEmptySessionAnalytics().essenceSpentBySource),
+              ascends: (state.combat.analytics?.essenceSpentBySource?.ascends || 0) + essenceCost,
+            },
+          },
+          log: [...(state.combat.log || []), startLog].slice(-20),
         },
       });
     }
 
     case "CRAFT_EXTRACT_ITEM": {
       const itemId = action.payload?.itemId;
+      if (state.expedition?.phase === "active") {
+        return buildBlockedOperationState(state, {
+          analyticsKey: "blockedExtractDuringRunAttempts",
+          message: "Extraccion manual bloqueada durante la expedicion activa. Extrae desde Santuario.",
+        });
+      }
       if (isEquippedItemId(state.player, itemId)) {
         return buildBlockedOperationState(state, {
           analyticsKey: "blockedExtractEquippedAttempts",
           message: "Seguridad: intento de extraer item equipado bloqueado.",
         });
+      }
+      if (getPendingImbueJobForItem(state, itemId, ["running", "claimable"])) {
+        const blockLog = "IMBUIR EN CURSO - no puedes extraer ese item hasta reclamar el job.";
+        return {
+          ...state,
+          combat: {
+            ...appendCraftingLog(state.combat, blockLog),
+            log: [...(state.combat.log || []), blockLog].slice(-20),
+          },
+        };
       }
       const result = craftExtract({
         player: state.player,
@@ -1782,6 +2129,85 @@ function baseGameReducer(state, action) {
           log: [...state.combat.log, result.log].slice(-20),
         },
       });
+    }
+
+    case "RUSH_SANCTUARY_JOB": {
+      const jobId = action.jobId || action.payload?.jobId;
+      if (!jobId) return state;
+      const nowAt = Number(action.now || Date.now());
+      const syncedJobs = syncSanctuaryJobs(
+        Array.isArray(state.sanctuary?.jobs) ? state.sanctuary.jobs : [],
+        nowAt
+      );
+      const targetJob = syncedJobs.find(
+        job => job?.id === jobId && job?.type === "imbue_item" && job?.status === "running"
+      );
+      if (!targetJob) return state;
+
+      const rushCost = {
+        relicDust: Math.max(0, Number(targetJob?.output?.rushCost?.relicDust || 0)),
+        sigilFlux: Math.max(0, Number(targetJob?.output?.rushCost?.sigilFlux || 0)),
+      };
+      const currentResources = {
+        ...createEmptySanctuaryState().resources,
+        ...(state.sanctuary?.resources || {}),
+      };
+      if (
+        Number(currentResources.relicDust || 0) < rushCost.relicDust ||
+        Number(currentResources.sigilFlux || 0) < rushCost.sigilFlux
+      ) {
+        const blockLog = "RUSH BLOQUEADO - faltan Polvo/Flux para acelerar el job.";
+        return {
+          ...state,
+          combat: {
+            ...appendCraftingLog(state.combat, blockLog),
+            log: [...(state.combat.log || []), blockLog].slice(-20),
+          },
+        };
+      }
+
+      const nextJobs = syncedJobs.map(job =>
+        job?.id !== targetJob.id
+          ? job
+          : {
+              ...job,
+              status: "claimable",
+              endsAt: nowAt,
+              rushedAt: nowAt,
+              output: {
+                ...(job.output || {}),
+                rushUsed: true,
+              },
+            }
+      );
+      const rushLog = `RUSH APLICADO - ${targetJob?.input?.itemName || "Imbuir"} queda listo para reclamar.`;
+      return {
+        ...state,
+        accountTelemetry: {
+          ...getAccountTelemetry(state),
+          forgeJobsRushed: Math.max(0, Number(state?.accountTelemetry?.forgeJobsRushed || 0)) + 1,
+          imbueJobsRushed: Math.max(0, Number(state?.accountTelemetry?.imbueJobsRushed || 0)) + 1,
+        },
+        sanctuary: {
+          ...createEmptySanctuaryState(),
+          ...(state.sanctuary || {}),
+          jobs: nextJobs,
+          resources: {
+            ...currentResources,
+            relicDust: Math.max(0, Number(currentResources.relicDust || 0) - rushCost.relicDust),
+            sigilFlux: Math.max(0, Number(currentResources.sigilFlux || 0) - rushCost.sigilFlux),
+          },
+        },
+        combat: {
+          ...appendCraftingLog(state.combat, rushLog),
+          analytics: {
+            ...(state.combat.analytics || createEmptySessionAnalytics()),
+            forgeJobsRushed: (state.combat.analytics?.forgeJobsRushed || 0) + 1,
+            imbueJobsRushed: (state.combat.analytics?.imbueJobsRushed || 0) + 1,
+          },
+          log: [...(state.combat.log || []), rushLog].slice(-20),
+        },
+      };
     }
 
     // --------------------------------------------------------
@@ -1881,6 +2307,29 @@ function withExpeditionState(prevState, nextState) {
   };
 }
 
+function getProjectStashDedupKey(project = {}) {
+  if (project?.sourceItemId) return `source:${project.sourceItemId}`;
+  if (project?.id) return `id:${project.id}`;
+  return null;
+}
+
+function mergeProjectStashSources(...groups) {
+  const merged = [];
+  const seen = new Set();
+  for (const group of groups) {
+    if (!Array.isArray(group)) continue;
+    for (const entry of group) {
+      const project = normalizeProjectRecord(entry);
+      if (!project) continue;
+      const dedupKey = getProjectStashDedupKey(project);
+      if (dedupKey && seen.has(dedupKey)) continue;
+      if (dedupKey) seen.add(dedupKey);
+      merged.push(project);
+    }
+  }
+  return merged;
+}
+
 export function gameReducer(state, action) {
   const baseNextState = withAbyssProgression(state, baseGameReducer(state, action));
   if (baseNextState === state) return state;
@@ -1898,26 +2347,58 @@ export function gameReducer(state, action) {
     ),
   };
   const telemetryState = applyDerivedAccountTelemetry(state, trackedOnboardingState);
+  const normalizedRelicArmory = Array.isArray(telemetryState?.sanctuary?.relicArmory)
+    ? telemetryState.sanctuary.relicArmory.map(relic => normalizeRelicRecord(relic)).filter(Boolean)
+    : [];
+  const normalizedStash = Array.isArray(telemetryState?.sanctuary?.stash)
+    ? telemetryState.sanctuary.stash.map(project => normalizeProjectRecord(project)).filter(Boolean)
+    : [];
+  const migratedStashFromRelics = normalizedRelicArmory
+    .map(relic => normalizeProjectRecord(buildProjectSnapshot(relic, { source: "runtime_relic_backfill" })))
+    .filter(Boolean);
+  const nextStash = mergeProjectStashSources(
+    normalizedStash,
+    migratedStashFromRelics
+  ).sort((left, right) => Number(right?.rating || 0) - Number(left?.rating || 0));
   const stashSyncedState = {
     ...telemetryState,
     sanctuary: {
       ...createEmptySanctuaryState(),
       ...(telemetryState?.sanctuary || {}),
+      stash: nextStash,
       itemStash: syncItemStashState(
         telemetryState?.sanctuary?.itemStash || {},
         telemetryState?.sanctuary?.extractedItems || []
+      ),
+      relicArmory: normalizedRelicArmory,
+      activeRelics: ensureValidActiveRelics(
+        normalizedRelicArmory,
+        telemetryState?.sanctuary?.activeRelics || {}
       ),
     },
   };
   const weeklyLedgerState = {
     ...stashSyncedState,
+    expeditionContracts: ensureExpeditionContracts(
+      stashSyncedState,
+      stashSyncedState?.expeditionContracts || {},
+      action?.now || Date.now()
+    ),
     weeklyLedger: ensureWeeklyLedger(
       stashSyncedState,
       stashSyncedState?.weeklyLedger || {},
       action?.now || Date.now()
     ),
   };
-  return recordReplayState(state, weeklyLedgerState, action);
+  const weeklyBossState = {
+    ...weeklyLedgerState,
+    weeklyBoss: ensureWeeklyBossState(
+      weeklyLedgerState,
+      weeklyLedgerState?.weeklyBoss || {},
+      action?.now || Date.now()
+    ),
+  };
+  return recordReplayState(state, weeklyBossState, action);
 }
 
 

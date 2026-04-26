@@ -3,6 +3,10 @@ import useViewport from "../hooks/useViewport";
 import { calculatePrestigeEchoGain, canPrestige, getPrestigeResonanceSummary } from "../engine/progression/prestigeEngine";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
 import {
+  buildBalanceTelemetryPayload,
+  buildBalanceTelemetryReport,
+  buildBalanceTelemetrySections,
+  buildFullTelemetryPayload,
   buildAccountTelemetryReport,
   buildAccountTelemetrySections,
   buildSessionTelemetryReport,
@@ -90,7 +94,7 @@ const QA_ONBOARDING_BEATS = [
   { id: ONBOARDING_STEPS.FIRST_ABYSS, label: "Primer Abismo", description: "Popup de entrada al endgame." },
 ];
 
-const EMPTY_TELEMETRY_VIEW = { sections: [], text: "" };
+const EMPTY_TELEMETRY_VIEW = { sections: [], text: "", payloadText: "" };
 const EMPTY_REPLAY_SUMMARY = {
   actionCount: 0,
   uiActionCount: 0,
@@ -131,6 +135,14 @@ const LAB_FOCUS_OPTIONS = [
   { id: "save", label: "Save" },
   { id: "replay", label: "Replay" },
   { id: "bot", label: "IA" },
+];
+const TELEMETRY_VIEW_OPTIONS = [
+  { id: "compact", label: "Compacta" },
+  { id: "full", label: "Completa" },
+];
+const PAYLOAD_VIEW_OPTIONS = [
+  { id: "compact", label: "Payload Compacto" },
+  { id: "full", label: "Payload Completo" },
 ];
 
 function buildDiagnosticsRows(state = {}) {
@@ -217,8 +229,12 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
   const [saveCopied, setSaveCopied] = useState(false);
   const [saveImportText, setSaveImportText] = useState("");
   const [saveImportStatus, setSaveImportStatus] = useState("");
+  const [analyticsReportMode, setAnalyticsReportMode] = useState("compact");
+  const [analyticsPayloadMode, setAnalyticsPayloadMode] = useState("compact");
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false);
   const [accountTelemetryCopied, setAccountTelemetryCopied] = useState(false);
+  const [telemetryPayloadCopied, setTelemetryPayloadCopied] = useState(false);
+  const [accountTelemetryPayloadCopied, setAccountTelemetryPayloadCopied] = useState(false);
   const [replayCopied, setReplayCopied] = useState(false);
   const [replayJsonCopied, setReplayJsonCopied] = useState(false);
   const [replayBundleCopied, setReplayBundleCopied] = useState(false);
@@ -251,20 +267,46 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
   const accountTelemetrySectionActive = isLab && labFocus === "diagnostics" && openSections.accountTelemetry;
   const replaySectionActive = isLab && labFocus === "replay" && openSections.replay;
   const telemetrySectionActive = isStatsMode && openSections.telemetry;
+  const selectedTelemetryPayloadText = useMemo(
+    () => JSON.stringify(
+      analyticsPayloadMode === "full"
+        ? buildFullTelemetryPayload(state)
+        : buildBalanceTelemetryPayload(state),
+      null,
+      2
+    ),
+    [analyticsPayloadMode, state]
+  );
   const telemetryView = useMemo(() => {
     if (!telemetrySectionActive) return EMPTY_TELEMETRY_VIEW;
+    if (analyticsReportMode === "compact") {
+      return {
+        sections: buildBalanceTelemetrySections(state),
+        text: buildBalanceTelemetryReport(state),
+        payloadText: selectedTelemetryPayloadText,
+      };
+    }
     return {
       sections: buildSessionTelemetrySections(state),
       text: buildSessionTelemetryReport(state),
+      payloadText: selectedTelemetryPayloadText,
     };
-  }, [telemetrySectionActive, state]);
+  }, [analyticsReportMode, selectedTelemetryPayloadText, telemetrySectionActive, state]);
   const accountTelemetryView = useMemo(() => {
     if (!accountTelemetrySectionActive) return EMPTY_TELEMETRY_VIEW;
+    if (analyticsReportMode === "compact") {
+      return {
+        sections: buildBalanceTelemetrySections(state),
+        text: buildBalanceTelemetryReport(state),
+        payloadText: selectedTelemetryPayloadText,
+      };
+    }
     return {
       sections: buildAccountTelemetrySections(state),
       text: buildAccountTelemetryReport(state),
+      payloadText: selectedTelemetryPayloadText,
     };
-  }, [accountTelemetrySectionActive, state]);
+  }, [accountTelemetrySectionActive, analyticsReportMode, selectedTelemetryPayloadText, state]);
   const replayView = useMemo(() => {
     if (!replaySectionActive) return EMPTY_REPLAY_VIEW;
     const combinedDataset = buildCombinedReplayDataset(hasCurrentReplayData, state.replay, activeReplayLibraryEntries);
@@ -371,6 +413,20 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
   }, [openSections.accountTelemetry]);
 
   useEffect(() => {
+    setTelemetryExpandedSections({});
+    setAccountTelemetryExpandedSections({});
+    setCopied(false);
+    setAccountTelemetryCopied(false);
+    setTelemetryPayloadCopied(false);
+    setAccountTelemetryPayloadCopied(false);
+  }, [analyticsReportMode]);
+
+  useEffect(() => {
+    setTelemetryPayloadCopied(false);
+    setAccountTelemetryPayloadCopied(false);
+  }, [analyticsPayloadMode]);
+
+  useEffect(() => {
     setBotDecisionsVisibleCount(PREVIEW_ROW_LIMIT);
   }, [botResult]);
 
@@ -403,7 +459,11 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
 
   const handleCopy = async () => {
     try {
-      const telemetryText = telemetryView.text || buildSessionTelemetryReport(state);
+      const telemetryText = telemetryView.text || (
+        analyticsReportMode === "compact"
+          ? buildBalanceTelemetryReport(state)
+          : buildSessionTelemetryReport(state)
+      );
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(telemetryText);
       }
@@ -451,7 +511,11 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
 
   const handleCopyAccountTelemetry = async () => {
     try {
-      const accountTelemetryText = accountTelemetryView.text || buildAccountTelemetryReport(state);
+      const accountTelemetryText = accountTelemetryView.text || (
+        analyticsReportMode === "compact"
+          ? buildBalanceTelemetryReport(state)
+          : buildAccountTelemetryReport(state)
+      );
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(accountTelemetryText);
       }
@@ -459,6 +523,32 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
       window.setTimeout(() => setAccountTelemetryCopied(false), 1800);
     } catch {
       setAccountTelemetryCopied(false);
+    }
+  };
+
+  const handleCopyTelemetryPayload = async () => {
+    try {
+      const payloadText = telemetryView.payloadText || selectedTelemetryPayloadText;
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(payloadText);
+      }
+      setTelemetryPayloadCopied(true);
+      window.setTimeout(() => setTelemetryPayloadCopied(false), 1800);
+    } catch {
+      setTelemetryPayloadCopied(false);
+    }
+  };
+
+  const handleCopyAccountTelemetryPayload = async () => {
+    try {
+      const payloadText = accountTelemetryView.payloadText || selectedTelemetryPayloadText;
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(payloadText);
+      }
+      setAccountTelemetryPayloadCopied(true);
+      window.setTimeout(() => setAccountTelemetryPayloadCopied(false), 1800);
+    } catch {
+      setAccountTelemetryPayloadCopied(false);
     }
   };
 
@@ -921,10 +1011,69 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
 
         {openSections.accountTelemetry && (
           <>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" }}>
-              <button onClick={handleCopyAccountTelemetry} style={actionBtnStyle("#0f766e", "#ffffff")}>
-                {accountTelemetryCopied ? "Telemetria copiada" : "Copiar reporte de cuenta"}
-              </button>
+            <div style={{ display: "grid", gap: "8px", marginTop: "10px", marginBottom: "10px" }}>
+              <HorizontalOptionSelector
+                rootStyle={{}}
+                options={TELEMETRY_VIEW_OPTIONS}
+                selectedId={analyticsReportMode}
+                onSelect={option => setAnalyticsReportMode(option.id)}
+                getOptionId={option => option.id}
+                getArrowButtonStyle={({ disabled }) => ({
+                  ...focusChipButtonStyle(false),
+                  minWidth: "30px",
+                  padding: "3px 0",
+                  opacity: disabled ? 0.45 : 1,
+                  cursor: disabled ? "not-allowed" : "pointer",
+                })}
+                getOptionButtonStyle={({ selected }) => ({
+                  ...focusChipButtonStyle(selected),
+                  textAlign: "center",
+                  padding: "5px 8px",
+                  flexShrink: 0,
+                })}
+                renderOption={({ option }) => (
+                  <span style={{ fontSize: "0.62rem", fontWeight: "900" }}>{option.label}</span>
+                )}
+              />
+              <HorizontalOptionSelector
+                rootStyle={{}}
+                options={PAYLOAD_VIEW_OPTIONS}
+                selectedId={analyticsPayloadMode}
+                onSelect={option => setAnalyticsPayloadMode(option.id)}
+                getOptionId={option => option.id}
+                getArrowButtonStyle={({ disabled }) => ({
+                  ...focusChipButtonStyle(false),
+                  minWidth: "30px",
+                  padding: "3px 0",
+                  opacity: disabled ? 0.45 : 1,
+                  cursor: disabled ? "not-allowed" : "pointer",
+                })}
+                getOptionButtonStyle={({ selected }) => ({
+                  ...focusChipButtonStyle(selected),
+                  textAlign: "center",
+                  padding: "5px 8px",
+                  flexShrink: 0,
+                })}
+                renderOption={({ option }) => (
+                  <span style={{ fontSize: "0.62rem", fontWeight: "900" }}>{option.label}</span>
+                )}
+              />
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={handleCopyAccountTelemetry} style={actionBtnStyle("#0f766e", "#ffffff")}>
+                  {accountTelemetryCopied ? "Telemetria copiada" : (analyticsReportMode === "compact" ? "Copiar telemetria compacta" : "Copiar reporte de cuenta")}
+                </button>
+                <button onClick={handleCopyAccountTelemetryPayload} style={actionBtnStyle("#ffffff", "#7c3aed", "1px solid #ddd6fe")}>
+                  {accountTelemetryPayloadCopied
+                    ? `${analyticsPayloadMode === "full" ? "Payload completo" : "Payload compacto"} copiado`
+                    : `Copiar payload IA ${analyticsPayloadMode === "full" ? "completo" : "compacto"} (JSON)`}
+                </button>
+              </div>
+              <div style={{ fontSize: "0.66rem", color: "#64748b", lineHeight: 1.4 }}>
+                {analyticsReportMode === "compact"
+                  ? "Compacta: combina sesion + cuenta + alertas KPI para balance rapido."
+                  : "Completa: mantiene el desglose completo para debugging fino."}
+              </div>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
@@ -1127,7 +1276,6 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                 <DataRow label="Bias auto-avance" value={formatNumber(replaySummary.autoAdvanceBias)} />
                 <DataRow label="Wishlist" value={(replaySummary.wishlistStats || []).join(", ") || "-"} />
                 <DataRow label="Upgrade" value={formatNumber(replayProfile.craftCounts?.upgrade || 0)} />
-                <DataRow label="Reroll" value={formatNumber(replayProfile.craftCounts?.reroll || 0)} />
                 <DataRow label="Pulir" value={formatNumber(replayProfile.craftCounts?.polish || 0)} />
                 <DataRow label="Reforge" value={formatNumber(replayProfile.craftCounts?.reforge || 0)} />
                 <DataRow label="Ascender" value={formatNumber(replayProfile.craftCounts?.ascend || 0)} />
@@ -1287,9 +1435,67 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
 
         {openSections.telemetry && (
           <>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" }}>
-              <button onClick={handleCopy} style={actionBtnStyle("#0f766e", "#ffffff")}>{copied ? "Copiado" : "Copiar reporte"}</button>
-              <button onClick={() => dispatch({ type: "RESET_SESSION_ANALYTICS" })} style={actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca")}>Resetear sesion</button>
+            <div style={{ display: "grid", gap: "8px", marginTop: "10px", marginBottom: "10px" }}>
+              <HorizontalOptionSelector
+                rootStyle={{}}
+                options={TELEMETRY_VIEW_OPTIONS}
+                selectedId={analyticsReportMode}
+                onSelect={option => setAnalyticsReportMode(option.id)}
+                getOptionId={option => option.id}
+                getArrowButtonStyle={({ disabled }) => ({
+                  ...focusChipButtonStyle(false),
+                  minWidth: "30px",
+                  padding: "3px 0",
+                  opacity: disabled ? 0.45 : 1,
+                  cursor: disabled ? "not-allowed" : "pointer",
+                })}
+                getOptionButtonStyle={({ selected }) => ({
+                  ...focusChipButtonStyle(selected),
+                  textAlign: "center",
+                  padding: "5px 8px",
+                  flexShrink: 0,
+                })}
+                renderOption={({ option }) => (
+                  <span style={{ fontSize: "0.62rem", fontWeight: "900" }}>{option.label}</span>
+                )}
+              />
+              <HorizontalOptionSelector
+                rootStyle={{}}
+                options={PAYLOAD_VIEW_OPTIONS}
+                selectedId={analyticsPayloadMode}
+                onSelect={option => setAnalyticsPayloadMode(option.id)}
+                getOptionId={option => option.id}
+                getArrowButtonStyle={({ disabled }) => ({
+                  ...focusChipButtonStyle(false),
+                  minWidth: "30px",
+                  padding: "3px 0",
+                  opacity: disabled ? 0.45 : 1,
+                  cursor: disabled ? "not-allowed" : "pointer",
+                })}
+                getOptionButtonStyle={({ selected }) => ({
+                  ...focusChipButtonStyle(selected),
+                  textAlign: "center",
+                  padding: "5px 8px",
+                  flexShrink: 0,
+                })}
+                renderOption={({ option }) => (
+                  <span style={{ fontSize: "0.62rem", fontWeight: "900" }}>{option.label}</span>
+                )}
+              />
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={handleCopy} style={actionBtnStyle("#0f766e", "#ffffff")}>{copied ? "Copiado" : (analyticsReportMode === "compact" ? "Copiar telemetria compacta" : "Copiar reporte completo")}</button>
+                <button onClick={handleCopyTelemetryPayload} style={actionBtnStyle("#ffffff", "#7c3aed", "1px solid #ddd6fe")}>
+                  {telemetryPayloadCopied
+                    ? `${analyticsPayloadMode === "full" ? "Payload completo" : "Payload compacto"} copiado`
+                    : `Copiar payload IA ${analyticsPayloadMode === "full" ? "completo" : "compacto"} (JSON)`}
+                </button>
+                <button onClick={() => dispatch({ type: "RESET_SESSION_ANALYTICS" })} style={actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca")}>Resetear sesion</button>
+              </div>
+              <div style={{ fontSize: "0.66rem", color: "#64748b", lineHeight: 1.4 }}>
+                {analyticsReportMode === "compact"
+                  ? "Compacta: foco en ritmo, friccion y alertas para balance."
+                  : "Completa: desglose entero de metricas de corrida."}
+              </div>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
@@ -1320,9 +1526,9 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
 
 function DataRow({ label, value, accent }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", padding: "8px 0", borderBottom: "1px solid #eef2f7" }}>
-      <span style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>{label}</span>
-      <span style={{ fontSize: "0.76rem", color: accent || "var(--color-text-primary, #1e293b)", fontWeight: "900", textAlign: "right" }}>{value}</span>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", padding: "6px 0", borderBottom: "1px solid #eef2f7" }}>
+      <span style={{ fontSize: "0.67rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>{label}</span>
+      <span style={{ fontSize: "0.73rem", color: accent || "var(--color-text-primary, #1e293b)", fontWeight: "900", textAlign: "right" }}>{value}</span>
     </div>
   );
 }
@@ -1334,9 +1540,9 @@ function MetricPill({ label, value }) {
         background: "var(--color-background-tertiary, #f8fafc)",
         border: "1px solid var(--color-border-primary, #e2e8f0)",
         borderRadius: "12px",
-        padding: "10px 12px",
+        padding: "8px 10px",
         display: "grid",
-        gap: "4px",
+        gap: "3px",
         minWidth: 0,
       }}
     >
@@ -1369,25 +1575,25 @@ function MetricPill({ label, value }) {
 
 const lightPanelStyle = {
   background: "var(--color-surface-overlay, rgba(255,255,255,0.92))",
-  padding: "1rem",
-  borderRadius: "18px",
+  padding: "0.9rem",
+  borderRadius: "16px",
   border: "1px solid var(--color-border-secondary, #dbe7e3)",
-  boxShadow: "0 10px 30px var(--color-shadow, rgba(15,23,42,0.05))",
+  boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.05))",
   backdropFilter: "blur(8px)",
 };
 
 const tableStyle = {
   background: "var(--color-background-tertiary, #f8fafc)",
   border: "1px solid var(--color-border-primary, #e2e8f0)",
-  borderRadius: "12px",
-  padding: "0 12px",
+  borderRadius: "10px",
+  padding: "0 10px",
 };
 
 const sectionTitleStyle = {
-  fontSize: "0.68rem",
+  fontSize: "0.64rem",
   color: "#64748b",
   textTransform: "uppercase",
-  letterSpacing: "2px",
+  letterSpacing: "1.4px",
   fontWeight: "900",
 };
 
@@ -1405,7 +1611,7 @@ const accordionHeaderButtonStyle = {
 };
 
 const accordionLabelStyle = {
-  fontSize: "0.64rem",
+  fontSize: "0.6rem",
   color: "#64748b",
   fontWeight: "900",
   textTransform: "uppercase",
@@ -1415,9 +1621,9 @@ const pillStyle = (background, color, border) => ({
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  padding: "6px 10px",
+  padding: "5px 9px",
   borderRadius: "999px",
-  fontSize: "0.66rem",
+  fontSize: "0.62rem",
   fontWeight: "900",
   textTransform: "uppercase",
   letterSpacing: "0.04em",
@@ -1439,13 +1645,13 @@ const focusChipButtonStyle = active => ({
 });
 
 const actionBtnStyle = (background, color, border = "none") => ({
-  padding: "9px 12px",
-  borderRadius: "10px",
+  padding: "7px 10px",
+  borderRadius: "9px",
   border,
   background,
   color,
   fontWeight: "900",
-  fontSize: "0.76rem",
+  fontSize: "0.72rem",
   cursor: "pointer",
   boxShadow: background !== "#ffffff" ? "0 8px 20px rgba(15,118,110,0.18)" : "none",
 });

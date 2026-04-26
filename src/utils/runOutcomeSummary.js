@@ -7,33 +7,49 @@ function pluralize(count = 0, singular = "", plural = "") {
   return `${formatCount(count)} ${Number(count || 0) === 1 ? singular : safePlural}`;
 }
 
-function getActiveBlueprintCount(state) {
-  return Object.values(state?.sanctuary?.activeBlueprints || {}).filter(Boolean).length;
+function getProjectCount(state) {
+  return Array.isArray(state?.sanctuary?.stash) ? state.sanctuary.stash.length : 0;
 }
 
-function buildCarryoverLine({ selectedCargoCount = 0, hasRetainedItem = false, exitReason = "retire" } = {}) {
+function getActiveRelicCount(state) {
+  return Object.values(state?.sanctuary?.activeRelics || {}).filter(Boolean).length;
+}
+
+function buildCarryoverLine({ selectedCargoCount = 0, hasRetainedItem = false } = {}) {
   if (selectedCargoCount <= 0 && !hasRetainedItem) {
-    return exitReason === "death"
-      ? "No aseguraste bundles ni item rescatado en esta salida."
-      : "No marcaste bundles ni item rescatado para llevar al Santuario.";
+    return "No marcaste bundles ni reliquia para llevar al Santuario.";
   }
   const parts = [];
   if (selectedCargoCount > 0) {
     parts.push(`${pluralize(selectedCargoCount, "bundle")} van al Santuario`);
   }
   if (hasRetainedItem) {
-    parts.push("1 item queda rescatado para decidir luego");
+    parts.push("1 reliquia entra al arsenal");
   }
   const sentence = parts.join(" y ");
   return sentence.charAt(0).toUpperCase() + sentence.slice(1) + ".";
 }
 
-function buildBlueprintLine(activeBlueprintCount = 0, text = "puede materializar gear en la siguiente salida.") {
-  if (activeBlueprintCount <= 0) return "";
-  if (activeBlueprintCount === 1) {
-    return `1 blueprint activo ${text}`;
+function buildRelicLine(
+  activeRelicCount = 0,
+  {
+    singular = "entra equipada en la siguiente salida.",
+    plural = "entran equipadas en la siguiente salida.",
+  } = {}
+) {
+  if (activeRelicCount <= 0) return "";
+  if (activeRelicCount === 1) {
+    return `1 reliquia activa ${singular}`;
   }
-  return `${pluralize(activeBlueprintCount, "blueprint")} activos ${text.replace("puede", "pueden")}`;
+  return `${pluralize(activeRelicCount, "reliquia")} activas ${plural}`;
+}
+
+function buildProjectLine(projectCount = 0, text = "queda listo para forja profunda en el Taller.") {
+  if (projectCount <= 0) return "";
+  if (projectCount === 1) {
+    return `1 proyecto en stash ${text}`;
+  }
+  return `${pluralize(projectCount, "proyecto")} en stash ${text.replace("queda", "quedan")}`;
 }
 
 export function buildRunOutcomeSummary(
@@ -47,14 +63,14 @@ export function buildRunOutcomeSummary(
     source = "extraction",
   } = {}
 ) {
-  const prestigeReset = prestigeMode === "echoes" || prestigeMode === "emergency";
-  const emergency = exitReason === "death" || prestigeMode === "emergency";
-  const activeBlueprintCount = getActiveBlueprintCount(state);
+  const prestigeReset = prestigeMode === "echoes";
+  const projectCount = getProjectCount(state);
+  const activeRelicCount = getActiveRelicCount(state);
 
   if (prestigeReset) {
     const keeps = [
       "Ecos, nodos comprados y resonancia de cuenta.",
-      "Santuario, recursos persistentes, jobs y blueprints.",
+      "Santuario, recursos persistentes, jobs, arsenal y Deep Forge.",
     ];
     if (selectedCargoCount > 0 || hasRetainedItem || source === "extraction") {
       keeps.push(
@@ -79,18 +95,15 @@ export function buildRunOutcomeSummary(
         ? `Vuelves al Santuario con +${formatCount(echoes)} ecos listos para gastar.`
         : "Cuando esta salida ya rinda ecos, vuelves al Santuario con esa moneda lista para reinvertir.",
       "La proxima expedicion arranca en Nivel 1 / Tier 1.",
-      activeBlueprintCount > 0
-        ? buildBlueprintLine(activeBlueprintCount, "puede materializar gear en la siguiente salida.")
+      activeRelicCount > 0
+        ? buildRelicLine(activeRelicCount, {
+            singular: "entra equipada al arrancar la siguiente salida.",
+            plural: "entran equipadas al arrancar la siguiente salida.",
+          })
+        : projectCount > 0
+        ? buildProjectLine(projectCount, "queda listo para seguir forjando en Deep Forge.")
         : "Antes de salir otra vez vuelves a elegir clase, sigilos y setup desde el Santuario.",
     ];
-
-    if (emergency) {
-      resets[1] = "Gold, equipo, inventario, upgrades y talentos de run se limpian igual que en un prestige normal.";
-      nextRun[0] =
-        echoes > 0
-          ? `La emergencia convierte menos valor, pero igual vuelves con +${formatCount(echoes)} ecos.`
-          : "La emergencia recupera menos valor que una salida controlada.";
-    }
 
     return {
       title: source === "prestige" ? "Cuando extraigas por ecos" : "Si confirmas esta salida",
@@ -103,9 +116,7 @@ export function buildRunOutcomeSummary(
   }
 
   const keeps = [
-    emergency
-      ? "Conservas 75% del oro, toda la esencia y el progreso base del heroe."
-      : "Conservas oro, esencia, clase, spec y progreso base del heroe.",
+    "Conservas oro, esencia, clase, spec y progreso base del heroe.",
     "Talentos, upgrades y tablero meta siguen igual.",
     buildCarryoverLine({
       selectedCargoCount,
@@ -117,17 +128,20 @@ export function buildRunOutcomeSummary(
   const resets = [
     "La run actual termina y el tier vuelve a 1.",
     "Inventario, equipo equipado y efectos temporales se vacian.",
-    emergency
-      ? "La emergencia recupera menos valor y no asegura item rescatado."
-      : "Kills, buffs de combate y counters de esta salida se reinician.",
+    "Kills, buffs de combate y counters de esta salida se reinician.",
   ];
 
   const nextRun = [
     "Sales otra vez desde Santuario con el mismo heroe, no con una hoja nueva.",
     "La proxima salida usa tus talentos y upgrades actuales.",
-    activeBlueprintCount > 0
-      ? buildBlueprintLine(activeBlueprintCount, "puede materializar gear automaticamente al arrancar.")
-      : "Si luego activas blueprints o sigilos, impactan en la proxima salida.",
+    activeRelicCount > 0
+      ? buildRelicLine(activeRelicCount, {
+          singular: "entra automaticamente al arrancar.",
+          plural: "entran automaticamente al arrancar.",
+        })
+      : projectCount > 0
+      ? buildProjectLine(projectCount, "queda listo para forja profunda antes de la proxima salida.")
+      : "Si luego activas reliquias, proyectos o sigilos, impactan en la proxima salida.",
   ];
 
   return {

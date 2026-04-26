@@ -2,6 +2,7 @@
 import { ITEMS, ITEM_RARITY_BLUEPRINT, ITEM_ROLL_RULES_V2 } from "../data/items";
 import { ITEM_FAMILIES } from "../data/itemFamilies";
 import { ensureAffixCountForRarity, rollAffixes } from "../engine/affixesEngine";
+import { normalizeItemCraftingState } from "../engine/crafting/entropyEngine";
 import { getLegendaryPowerById, isLegendaryContentUnlocked } from "./legendaryPowers";
 
 const DROP_CONFIG = {
@@ -141,7 +142,71 @@ function getAffixCategory(affix = {}) {
   }
 }
 
-const RARE_AFFIX_UPGRADE_STEP_MULTIPLIERS = [1.09, 1.09, 1.18, 1.18];
+function normalizeRangeRecord(range = {}) {
+  const rawMin = range?.min ?? range?.value ?? 0;
+  const rawMax = range?.max ?? range?.value ?? rawMin;
+  return {
+    min: roundAffixStoredValue(rawMin),
+    max: roundAffixStoredValue(rawMax),
+  };
+}
+
+function getTierRange(entry = null) {
+  if (!entry) return null;
+  const value = entry?.value ?? entry;
+  if (typeof value === "number") return { min: roundAffixStoredValue(value), max: roundAffixStoredValue(value) };
+  if (value?.min == null && value?.max == null && value?.value == null) return null;
+  return normalizeRangeRecord(value);
+}
+
+function mergeRanges(ranges = []) {
+  const validRanges = ranges.filter(range => range && Number.isFinite(range.min) && Number.isFinite(range.max));
+  if (!validRanges.length) return null;
+  return {
+    min: Math.min(...validRanges.map(range => range.min)),
+    max: Math.max(...validRanges.map(range => range.max)),
+  };
+}
+
+function deriveAffixQualityRanges(definition = null, fallbackRange = null) {
+  const tiers = definition?.tiers || {};
+  const normalRange =
+    mergeRanges([getTierRange(tiers[3]), getTierRange(tiers[2])]) ||
+    getTierRange(tiers[3]) ||
+    getTierRange(tiers[2]) ||
+    getTierRange(tiers[1]) ||
+    (fallbackRange ? normalizeRangeRecord(fallbackRange) : null);
+  const excellentRange =
+    getTierRange(tiers[1]) ||
+    normalRange ||
+    (fallbackRange ? normalizeRangeRecord(fallbackRange) : null);
+
+  return { normalRange, excellentRange };
+}
+
+export function normalizeAffixQualityRecord(affix = {}, definition = null) {
+  const resolvedDefinition = definition || getAffixDefinition(affix?.id) || affix;
+  const legacyTier = Math.max(0, Number(affix?.legacyTier ?? affix?.tier ?? 0) || 0);
+  const fallbackRange = affix?.baseRange || affix?.range || {};
+  const { normalRange, excellentRange } = deriveAffixQualityRanges(resolvedDefinition, fallbackRange);
+  const quality = affix?.quality === "excellent" || legacyTier === 1 || affix?.perfectRoll
+    ? "excellent"
+    : "normal";
+  const selectedRange =
+    quality === "excellent"
+      ? (excellentRange || normalRange || normalizeRangeRecord(fallbackRange))
+      : (normalRange || normalizeRangeRecord(fallbackRange));
+
+  return {
+    ...affix,
+    quality,
+    qualityLabel: quality === "excellent" ? "Excelente" : "Normal",
+    lootOnlyQuality: quality === "excellent" ? true : Boolean(affix?.lootOnlyQuality),
+    legacyTier: legacyTier || affix?.legacyTier || null,
+    range: selectedRange,
+    baseRange: selectedRange,
+  };
+}
 
 function roundAffixStoredValue(value) {
   return Math.round(Number(value || 0) * 1000) / 1000;
@@ -173,26 +238,22 @@ function getAffixBaseSnapshot(affix = {}) {
 }
 
 export function getRareAffixUpgradeMultiplier(level = 0) {
-  const targetLevel = Math.max(0, Math.min(10, Number(level || 0)));
-  if (targetLevel <= 6) return 1;
-
-  let multiplier = 1;
-  for (let levelIndex = 7; levelIndex <= targetLevel; levelIndex += 1) {
-    multiplier *= RARE_AFFIX_UPGRADE_STEP_MULTIPLIERS[levelIndex - 7] || 1;
-  }
-
-  return Math.round(multiplier * 10000) / 10000;
+  void level;
+  return 1;
 }
 
 export function scaleAffixesForItemLevel(affixes = [], rarity = "common", level = 0) {
-  const affixMultiplier = rarity === "rare" ? getRareAffixUpgradeMultiplier(level) : 1;
+  void rarity;
+  void level;
+  const affixMultiplier = 1;
 
   return (affixes || []).map(affix => {
     const definition = getAffixDefinition(affix?.id) || affix;
-    const { baseValue, baseRolledValue, baseRange } = getAffixBaseSnapshot(affix);
+    const normalizedAffix = normalizeAffixQualityRecord(affix, definition);
+    const { baseValue, baseRolledValue, baseRange } = getAffixBaseSnapshot(normalizedAffix);
 
     return {
-      ...affix,
+      ...normalizedAffix,
       stat: normalizeLegacyStatKey(definition?.stat || affix?.stat),
       scaling: definition?.scaling || affix?.scaling,
       source: definition?.source || affix?.source || "base",
@@ -272,6 +333,7 @@ export function generateLoot({
     baseItem,
     rarity,
     tier,
+    entropyContext: { isBossDrop: !!enemy?.isBoss },
     baseBonusOverride: baseBonus,
     affixes: rollAffixes({
       rarity,
@@ -279,6 +341,8 @@ export function generateLoot({
       favoredStats: resolvedFavoredStats,
       favoredStatWeightMultiplier,
       existingStats,
+      isBossDrop: !!enemy?.isBoss,
+      allowExcellentQuality: true,
       allowExistingStatOverlap: (ITEM_ROLL_RULES_V2.allowBaseImplicitAffixOverlapRarities || []).includes(rarity),
       overlapPenalty: ITEM_ROLL_RULES_V2.overlapAffixWeightPenalty ?? 0.3,
       maxExistingStatOverlaps: ITEM_ROLL_RULES_V2.maxOverlapsWithBaseOrImplicit ?? 1,
@@ -657,6 +721,7 @@ export function materializeItem({
   levelOverride = null,
   itemTierOverride = null,
   craftingOverride = null,
+  entropyContext = {},
 }) {
   if (!baseItem) return null;
   const resolvedTier = itemTierOverride || tier;
@@ -684,6 +749,22 @@ export function materializeItem({
     bonus: mergeBonusMaps(resolvedBaseBonus || {}, upgradeBonus, implicitBonus, implicitUpgradeBonus),
   };
   const { name, bonus } = buildItemFromAffixes(implicitBaseItem, normalizedAffixes);
+  const crafting = normalizeItemCraftingState({
+    item: {
+      rarity,
+      itemTier: resolvedTier,
+      level: itemLevel,
+      crafting: craftingOverride || {},
+      affixes: normalizedAffixes,
+    },
+    crafting: craftingOverride || null,
+    rarity,
+    itemTier: resolvedTier,
+    level: itemLevel,
+    affixes: normalizedAffixes,
+    isBossDrop: Boolean(entropyContext?.isBossDrop),
+    isNewItem: !existingId && !craftingOverride,
+  });
 
   return {
     ...baseItem,
@@ -701,12 +782,7 @@ export function materializeItem({
     affixes: normalizedAffixes,
     itemTier: resolvedTier,
     level: itemLevel,
-    crafting: {
-      rerollCount: 0,
-      polishCount: 0,
-      reforgeCount: 0,
-      ...(craftingOverride || {}),
-    },
+    crafting,
   };
 }
 

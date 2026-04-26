@@ -23,6 +23,16 @@
 
   --touch-min: 44px;
 
+  --density-scale: 0.92;
+  --dense-font-xs: 0.54rem;
+  --dense-font-sm: 0.6rem;
+  --dense-font-md: 0.74rem;
+  --dense-panel-padding: 10px;
+  --dense-panel-gap: 8px;
+  --dense-card-radius: 12px;
+  --dense-button-padding: 7px 10px;
+  --dense-progress-height: 5px;
+
   --app-header-offset: 62px;
   --app-bottom-nav-offset: 72px;
   --overlay-z-soft: 4800;
@@ -33,5 +43,8 @@
     --app-header-offset: 68px;
     --app-bottom-nav-offset: 0px;
     --overlay-z-soft: 9300;
+    --density-scale: 0.9;
+    --dense-panel-padding: 11px;
+    --dense-panel-gap: 9px;
   }
 }

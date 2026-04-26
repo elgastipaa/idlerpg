@@ -11,14 +11,20 @@ export function handleClassProgressionAction(state, action, dependencies) {
 
   switch (action?.type) {
     case "SELECT_CLASS": {
-      const nextState = selectClass(state, action.classId);
+      const setupRequested =
+        state?.expedition?.phase === "setup" ||
+        Boolean(state?.combat?.pendingRunSetup);
+      const nextState = selectClass(state, action.classId, {
+        allowReselect: setupRequested,
+      });
       if (nextState === state) return state;
       const onboarding = normalizeOnboardingState(state.onboarding || createEmptyOnboardingState());
       const shouldStartInCombat =
         Number(state?.prestige?.level || 0) <= 0 &&
         onboarding.step === ONBOARDING_STEPS.CHOOSE_CLASS;
       const shouldOpenSetup =
-        !shouldStartInCombat && Number(state?.prestige?.level || 0) >= 1;
+        !shouldStartInCombat &&
+        (setupRequested || Number(state?.prestige?.level || 0) >= 1);
       return {
         ...nextState,
         currentTab: shouldStartInCombat || shouldOpenSetup ? "combat" : "sanctuary",

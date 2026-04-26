@@ -102,7 +102,7 @@ export default function Character({ player, dispatch, state }) {
 
   if (!player.class) {
     return (
-      <div style={{ padding: isMobile ? "1rem" : "1.5rem", maxWidth: "800px", margin: "0 auto", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+      <div style={{ padding: isMobile ? "calc(0.92rem * var(--density-scale, 1))" : "calc(1.2rem * var(--density-scale, 1))", maxWidth: "800px", margin: "0 auto", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
         <header style={{ marginBottom: "2rem", textAlign: "center" }}>
           <div style={{ margin: 0, fontSize: isMobile ? "1.4rem" : "1.7rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>Elige tu Senda</div>
           <p style={{ color: "#D85A30", fontWeight: "bold", fontSize: "0.85rem", marginTop: "8px" }}>La clase se reinicia con cada prestigio.</p>
@@ -115,7 +115,9 @@ export default function Character({ player, dispatch, state }) {
               onClick={() => dispatch({ type: "SELECT_CLASS", classId: clase.id })}
               style={{
                 background: "var(--color-background-secondary, #ffffff)",
-                padding: isMobile ? "1.2rem" : "1.5rem",
+                padding: isMobile
+                  ? "calc(0.95rem * var(--density-scale, 1))"
+                  : "calc(1.15rem * var(--density-scale, 1))",
                 borderRadius: "12px",
                 border: "1px solid var(--color-border-primary, #e2e8f0)",
                 cursor: "pointer",
@@ -152,7 +154,7 @@ export default function Character({ player, dispatch, state }) {
   ].filter(modifier => modifier.val > 0);
 
   return (
-    <div style={{ padding: isMobile ? "1rem" : "1.5rem", maxWidth: "100%", display: "flex", flexDirection: "column", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+    <div style={{ padding: isMobile ? "calc(0.9rem * var(--density-scale, 1))" : "calc(1.1rem * var(--density-scale, 1))", maxWidth: "100%", display: "flex", flexDirection: "column", gap: "calc(0.75rem * var(--density-scale, 1))", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
       <style>{`
         @keyframes chooseSpecPulse {
           0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.2); }
@@ -237,7 +239,7 @@ export default function Character({ player, dispatch, state }) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: specTutorialActive ? "repeat(2, minmax(0, 1fr))" : "1fr",
+              gridTemplateColumns: availableSpecs.length > 1 ? "repeat(2, minmax(0, 1fr))" : "1fr",
               gap: isNarrowMobile ? "6px" : "8px",
             }}
           >

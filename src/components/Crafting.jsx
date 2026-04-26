@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useViewport from "../hooks/useViewport";
-import { ABYSS_PREFIXES, ABYSS_SUFFIXES, PREFIXES, SUFFIXES } from "../data/affixes";
+import { ABYSS_PREFIXES, ABYSS_SUFFIXES } from "../data/affixes";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
-import { getAffixTierGlyph, getRarityColor } from "../constants/rarity";
+import { getRarityColor } from "../constants/rarity";
 import { ASCEND_COSTS } from "../constants/craftingCosts";
 import {
   buildCraftedItemPreview,
@@ -28,6 +28,7 @@ import { getCompactRarityLabel, getItemGlyph, getUpgradeBadgeTone, ITEM_SLOT_GLY
 import {
   FORGE_MODE_META,
   FORGE_MODE_ORDER,
+  RUN_MODE_ORDER,
   FORGE_MODE_TOOLTIPS,
   formatCraftCostLabel,
   getCraftActionBadge,
@@ -36,6 +37,28 @@ import {
 
 const RARITY_WEIGHT = { common: 0, magic: 1, rare: 2, epic: 3, legendary: 4 };
 const ASCEND_RULES = ASCEND_COSTS;
+const REFORGE_INTENT_OPTIONS = [
+  { id: "build", label: "Build", description: "Prioriza stats de tu build activa." },
+  { id: "offense", label: "Ofensiva", description: "Empuja daño, crit y ritmo." },
+  { id: "defense", label: "Defensiva", description: "Busca aguante y mitigación." },
+  { id: "utility", label: "Utilidad", description: "Busca sustain y control híbrido." },
+  { id: "economy", label: "Economía", description: "Sesgo a esencia, loot y luck." },
+];
+const REFORGE_INTENT_STAT_PRESETS = {
+  offense: ["damage", "attackSpeed", "critChance", "critDamage", "multiHitChance", "damageOnKill", "lifesteal"],
+  defense: ["defense", "healthMax", "healthRegen", "blockChance", "dodgeChance", "thorns"],
+  utility: ["lifesteal", "healthRegen", "markChance", "markEffectPerStack", "fractureChance", "bleedChance", "bleedDamage"],
+  economy: ["essenceBonus", "lootBonus", "luck", "goldBonus", "goldBonusPct", "xpBonus"],
+};
+
+function formatRemainingDuration(ms = 0) {
+  const totalSeconds = Math.max(0, Math.ceil(Number(ms || 0) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${seconds}s`;
+}
 
 function getModeTooltipStyle(tone) {
   const palette = {
@@ -96,12 +119,17 @@ export default function Crafting({ state, dispatch }) {
     [unlockedLegendaryPowers]
   );
   const reforgeSession = state?.combat?.reforgeSession || null;
+  const sanctuaryJobs = Array.isArray(state?.sanctuary?.jobs) ? state.sanctuary.jobs : [];
+  const sanctuaryResources = state?.sanctuary?.resources || {};
   const isReforgeLocked = !!reforgeSession;
+  const isSanctuaryPhase = (state?.expedition?.phase || "sanctuary") !== "active";
+  const modeOrder = isSanctuaryPhase || isReforgeLocked ? FORGE_MODE_ORDER : RUN_MODE_ORDER;
 
-  const [mode, setMode] = useState("extract");
+  const [mode, setMode] = useState("upgrade");
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [selectedAffixIndex, setSelectedAffixIndex] = useState(null);
   const [selectedReforgeOption, setSelectedReforgeOption] = useState(null);
+  const [reforgeIntent, setReforgeIntent] = useState("build");
   const [selectedAscendPowerId, setSelectedAscendPowerId] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -109,7 +137,8 @@ export default function Crafting({ state, dispatch }) {
   const [pendingCraftFeedback, setPendingCraftFeedback] = useState(null);
   const [selectedActionFeedback, setSelectedActionFeedback] = useState(null);
   const [upgradeTrackFeedback, setUpgradeTrackFeedback] = useState(null);
-  const [showSelectedDetails, setShowSelectedDetails] = useState(false);
+  const [showAdvancedPanels, setShowAdvancedPanels] = useState(false);
+  const [showCraftingLog, setShowCraftingLog] = useState(false);
   const { isMobile } = useViewport();
   const [canScrollAffixesLeft, setCanScrollAffixesLeft] = useState(false);
   const [canScrollAffixesRight, setCanScrollAffixesRight] = useState(false);
@@ -119,6 +148,11 @@ export default function Crafting({ state, dispatch }) {
   const selectionPanelRef = useRef(null);
   const selectedAffixCardRefs = useRef({});
   const affixCarouselRef = useRef(null);
+
+  useEffect(() => {
+    if (modeOrder.includes(mode)) return;
+    setMode(modeOrder[0] || "extract");
+  }, [mode, modeOrder]);
 
   useEffect(() => {
     const node = stickyHeaderRef.current;
@@ -193,7 +227,6 @@ export default function Crafting({ state, dispatch }) {
     };
   }, [isMobile, mode, selectedItem]);
 
-  const affixTemplatesByStat = useMemo(() => Object.fromEntries([...PREFIXES, ...SUFFIXES, ...ABYSS_PREFIXES, ...ABYSS_SUFFIXES].map(entry => [entry.stat, entry])), []);
   const hasAbyssCraftingAffixes = hasAbyssUnlock(state?.abyss || {}, "craftingAffixes");
   const canUseAbyssCraftingOnSelection = hasAbyssCraftingAffixes && ["epic", "legendary"].includes(selectedItem?.rarity);
 
@@ -208,6 +241,34 @@ export default function Crafting({ state, dispatch }) {
     }
     return [];
   }, [selectedItem, mode, selectedAffixIndex, reforgeSession]);
+
+  const selectedItemImbueJob = useMemo(() => {
+    if (!selectedItem) return null;
+    return sanctuaryJobs.find(
+      job =>
+        job?.type === "imbue_item" &&
+        job?.input?.itemId === selectedItem.id &&
+        ["running", "claimable"].includes(job?.status)
+    ) || null;
+  }, [sanctuaryJobs, selectedItem]);
+  const selectedItemImbueRemainingMs = Math.max(
+    0,
+    Number(selectedItemImbueJob?.endsAt || 0) - Date.now()
+  );
+  const selectedItemImbueRushCost = {
+    relicDust: Math.max(0, Number(selectedItemImbueJob?.output?.rushCost?.relicDust || 0)),
+    sigilFlux: Math.max(0, Number(selectedItemImbueJob?.output?.rushCost?.sigilFlux || 0)),
+  };
+  const selectedItemImbueCanRush =
+    selectedItemImbueJob?.status === "running" &&
+    Number(sanctuaryResources?.relicDust || 0) >= selectedItemImbueRushCost.relicDust &&
+    Number(sanctuaryResources?.sigilFlux || 0) >= selectedItemImbueRushCost.sigilFlux;
+  const reforgeFavoredStats = useMemo(() => {
+    if (reforgeIntent === "build") {
+      return activeBuildTag?.conditions?.prefersStats || [];
+    }
+    return REFORGE_INTENT_STAT_PRESETS[reforgeIntent] || [];
+  }, [activeBuildTag?.conditions?.prefersStats, reforgeIntent]);
 
   useEffect(() => {
     setSelectedReforgeOption(null);
@@ -249,21 +310,13 @@ export default function Crafting({ state, dispatch }) {
     if (!selectedItem || !["polish", "reforge"].includes(mode)) return;
     if (selectedAffixIndex != null && selectedItem.affixes?.[selectedAffixIndex]) return;
 
-    const focusedIndex =
-      mode === "reforge" && Number.isInteger(selectedItem?.crafting?.focusedAffixIndex)
-        ? Number(selectedItem.crafting.focusedAffixIndex)
-        : null;
-    if (focusedIndex != null && selectedItem.affixes?.[focusedIndex]) {
-      setSelectedAffixIndex(focusedIndex);
-      return;
-    }
     if ((selectedItem.affixes || []).length > 0) {
       setSelectedAffixIndex(0);
     }
   }, [selectedItem, mode, selectedAffixIndex]);
 
   useEffect(() => {
-    setShowSelectedDetails(false);
+    setShowAdvancedPanels(false);
   }, [selectedItemId, mode]);
 
   useEffect(() => {
@@ -284,7 +337,6 @@ export default function Crafting({ state, dispatch }) {
     if (!item) return {};
     return {
       upgrade: getCraftActionState({ item, player, mode: "upgrade", affixIndex: selectedAffixIndex }),
-      reroll: getCraftActionState({ item, player, mode: "reroll", affixIndex: selectedAffixIndex }),
       polish: getCraftActionState({ item, player, mode: "polish", affixIndex: selectedAffixIndex }),
       reforge: getCraftActionState({ item, player, mode: "reforge", affixIndex: selectedAffixIndex }),
       ascend: getCraftActionState({
@@ -308,7 +360,7 @@ export default function Crafting({ state, dispatch }) {
   }, [selectedIds, inventory]);
   const modeTooltip = FORGE_MODE_TOOLTIPS[mode] || null;
   const modeMeta = FORGE_MODE_META[mode] || FORGE_MODE_META.extract;
-  const isSingleItemMode = mode === "polish" || mode === "reforge" || mode === "ascend";
+  const isSingleItemMode = mode === "upgrade" || mode === "polish" || mode === "reforge" || mode === "ascend";
   const selectedCompareItem = selectedItem ? (selectedItem.type === "weapon" ? equipment.weapon : equipment.armor) : null;
   const selectedRelevantStats = selectedItem ? getPrioritizedStatEntries(selectedItem.bonus || {}, Number.MAX_SAFE_INTEGER) : [];
   const selectedImplicitSummary = selectedItem ? formatImplicitSummary(selectedItem) : "";
@@ -317,26 +369,11 @@ export default function Crafting({ state, dispatch }) {
   const selectedActionReq = selectedItem ? (getReqs(selectedItem)[mode] || { costs: {}, can: true, reason: "ok" }) : { costs: {}, can: true, reason: "ok" };
   const selectedActionCostLabel = formatCraftCostLabel(selectedActionReq.costs);
   const selectedActionHint = getCraftActionHint(selectedActionReq, mode);
-  const selectedRerollAffixSummary = useMemo(
-    () =>
-      mode === "reroll" && selectedItem
-        ? (selectedItem.affixes || []).map((affix, index) => ({
-            id: `${affix.id || affix.stat}-${index}`,
-            stat: affix.stat,
-            tier: affix.tier || 0,
-            perfectRoll: !!affix.perfectRoll,
-          }))
-        : [],
-    [mode, selectedItem]
-  );
   const selectedAscendPowers = useMemo(() => {
     if (!selectedItem || mode !== "ascend" || selectedActionReq?.nextRarity !== "legendary") return [];
     return unlockedLegendaryPowers;
   }, [selectedItem, mode, selectedActionReq?.nextRarity, unlockedLegendaryPowers]);
   const selectedAscendPower = unlockedLegendaryPowerMap?.[selectedAscendPowerId] || null;
-  const focusedAffixIndex = selectedItem?.crafting?.focusedAffixIndex;
-  const focusedAffix = selectedItem && Number.isInteger(focusedAffixIndex) ? selectedItem.affixes?.[focusedAffixIndex] : null;
-  const focusedAffixLabel = focusedAffix ? (STAT_LABELS[focusedAffix.stat] || focusedAffix.stat) : null;
   const selectedCurrentAffix = selectedItem && selectedAffixIndex != null ? selectedItem.affixes?.[selectedAffixIndex] : null;
   const selectedUpgradeTrackFeedback = selectedItem && upgradeTrackFeedback?.itemId === selectedItem.id ? upgradeTrackFeedback : null;
   const selectedUpgradePreview = useMemo(() => {
@@ -373,11 +410,18 @@ export default function Crafting({ state, dispatch }) {
     !!selectedCurrentAffix &&
     selectedReforgeOption.id === selectedCurrentAffix.id &&
     selectedReforgeOption.stat === selectedCurrentAffix.stat &&
-    selectedReforgeOption.tier === selectedCurrentAffix.tier &&
+    selectedReforgeOption.quality === selectedCurrentAffix.quality &&
     (selectedReforgeOption.rolledValue ?? selectedReforgeOption.value ?? null) === (selectedCurrentAffix.rolledValue ?? selectedCurrentAffix.value ?? null);
+  const selectedImbueCountdownFinished =
+    selectedItemImbueJob?.status === "running" && selectedItemImbueRemainingMs <= 0;
+  const selectedImbueJobRunning =
+    mode === "ascend" && selectedItemImbueJob?.status === "running" && !selectedImbueCountdownFinished;
+  const selectedImbueJobClaimable =
+    mode === "ascend" && (selectedItemImbueJob?.status === "claimable" || selectedImbueCountdownFinished);
   const selectedActionDisabled =
     !selectedItem ||
-    (((mode !== "reforge" || selectedItemReforgeOptions.length === 0) && !selectedActionReq.can)) ||
+    selectedImbueJobRunning ||
+    (!selectedImbueJobClaimable && ((mode !== "reforge" || selectedItemReforgeOptions.length === 0) && !selectedActionReq.can)) ||
     (mode === "polish" && selectedAffixIndex == null) ||
     (mode === "reforge" && selectedAffixIndex == null) ||
     (mode === "reforge" && selectedItemReforgeOptions.length > 0 && !selectedReforgeOption);
@@ -388,58 +432,69 @@ export default function Crafting({ state, dispatch }) {
         ? "Elegi una linea"
         : mode === "reforge" && selectedAffixIndex == null
           ? "Elegi una linea"
+          : selectedImbueJobRunning
+            ? `Termina en ${formatRemainingDuration(selectedItemImbueRemainingMs)}`
           : mode === "reforge" && selectedItemReforgeOptions.length > 0 && !selectedReforgeOption
             ? "Elegi una opcion"
             : (selectedActionHint || "No disponible");
   const selectedActionLabel =
+    selectedImbueJobClaimable
+      ? "RECLAMAR IMBUIR"
+      : selectedImbueJobRunning
+        ? "IMBUIR EN CURSO"
+        :
     mode === "reforge"
       ? (selectedItemReforgeOptions.length > 0
           ? (selectedCurrentOptionIsKeep ? "MANTENER LINEA ACTUAL" : "CONFIRMAR REFORJA")
           : "PAGAR REFORJA")
       : modeMeta.cta;
   const selectedActionMetaLabel =
+    selectedImbueJobClaimable
+      ? "Listo para reclamar"
+      : selectedImbueJobRunning
+        ? `Fin: ${formatRemainingDuration(selectedItemImbueRemainingMs)}`
+        :
     mode === "reforge" && selectedItemReforgeOptions.length > 0
       ? "Costo ya pagado"
       : selectedActionCostLabel;
   const showSelectedActionButtonCost = !!selectedActionMetaLabel && selectedActionMetaLabel !== "Costo ya pagado";
   const selectedActionStickySummary = useMemo(() => {
     if (!selectedItem || !isSingleItemMode) return "";
-    if (mode === "reroll") {
-      return "Reroll rehace todos los afijos del item.";
+    if (mode === "upgrade") {
+      return "Mejorar suma +1 sin fallas. Cuesta oro y Entropy.";
     }
     if (mode === "polish") {
       return selectedCurrentAffix
-        ? `Pulir trabaja ${STAT_LABELS[selectedCurrentAffix.stat] || selectedCurrentAffix.stat}. Solo cambia el valor, no el atributo ni el tier.`
-        : "Elegi una linea para pulir.";
+        ? `Afinar trabaja ${STAT_LABELS[selectedCurrentAffix.stat] || selectedCurrentAffix.stat}. Solo cambia el valor, no el atributo ni la calidad.`
+        : "Elegi una linea para afinar.";
     }
     if (mode === "reforge") {
+      const intentLabel = REFORGE_INTENT_OPTIONS.find(option => option.id === reforgeIntent)?.label || "Build";
       if (selectedItemReforgeOptions.length > 0) {
         return selectedCurrentOptionIsKeep
-          ? "Mantener actual cierra la reforja sin fijar la pieza."
+          ? "Mantener actual cierra la reforja sin cambiar la linea."
           : "Elegi una opcion para cerrar la reforja.";
       }
-      const freshOptionCount =
-        selectedItem?.rarity === "epic" || selectedItem?.rarity === "legendary"
-          ? 3
-          : 2;
-      return focusedAffix
-        ? `La pieza ya quedo fijada a ${focusedAffixLabel}.`
-        : canUseAbyssCraftingOnSelection
-          ? `Pagas la reforja una vez, ves ${freshOptionCount} linea(s) nueva(s) y despues decidis si cambias. Esta pieza puede abrir affixes de Abismo.`
-          : `Pagas la reforja una vez, ves ${freshOptionCount} linea(s) nueva(s) y despues decidis si cambias.`;
+      return canUseAbyssCraftingOnSelection
+        ? `Pagas la reforja una vez, ves 2 lineas nuevas y despues decidis si cambias. Sesgo: ${intentLabel}. Esta pieza puede abrir affixes de Abismo.`
+        : `Pagas la reforja una vez, ves 2 lineas nuevas y despues decidis si cambias. Sesgo: ${intentLabel}.`;
     }
     if (mode === "ascend") {
+      if (selectedImbueJobClaimable) {
+        return "El job termino. Reclama para aplicar la conversion a legendario.";
+      }
+      if (selectedImbueJobRunning) {
+        return `Imbuir en curso. Restante: ${formatRemainingDuration(selectedItemImbueRemainingMs)}.`;
+      }
       if (selectedActionReq?.nextRarity === "legendary") {
         return selectedAscendPower
-          ? `Ascend va a injertar ${selectedAscendPower.name}.`
-          : "Ascend puede injertar un poder legendario ya descubierto.";
+          ? `Imbuir va a injertar ${selectedAscendPower.name}.`
+          : "Imbuir puede injertar un poder legendario ya descubierto.";
       }
-      return `Ascenso: ${selectedActionCostLabel} · requiere +${selectedActionReq.minLevel || ASCEND_RULES[selectedItem.rarity]?.minLevel || 0}.`;
+      return `Imbuir: ${selectedActionCostLabel} · requiere +${selectedActionReq.minLevel || ASCEND_RULES[selectedItem.rarity]?.minLevel || 0}.`;
     }
     return selectedActionHint || "";
   }, [
-    focusedAffix,
-    focusedAffixLabel,
     isSingleItemMode,
     mode,
     selectedActionCostLabel,
@@ -448,6 +503,10 @@ export default function Crafting({ state, dispatch }) {
     selectedAscendPower,
     selectedCurrentAffix,
     selectedCurrentOptionIsKeep,
+    selectedImbueJobClaimable,
+    selectedImbueJobRunning,
+    selectedItemImbueRemainingMs,
+    reforgeIntent,
     selectedItem,
     selectedItemReforgeOptions.length,
   ]);
@@ -504,11 +563,7 @@ export default function Crafting({ state, dispatch }) {
 
     setSelectedItemId(item.id);
     setSelectionScrollNonce(current => current + 1);
-    setSelectedAffixIndex(
-      mode === "reforge" && Number.isInteger(item?.crafting?.focusedAffixIndex)
-        ? Number(item.crafting.focusedAffixIndex)
-        : null
-    );
+    setSelectedAffixIndex(null);
     setSelectedReforgeOption(null);
   };
 
@@ -527,7 +582,8 @@ export default function Crafting({ state, dispatch }) {
           payload: {
             itemId: selectedItem.id,
             affixIndex: selectedAffixIndex,
-            favoredStats: activeBuildTag?.conditions?.prefersStats || [],
+            favoredStats: reforgeFavoredStats,
+            intent: reforgeIntent,
             allowAbyssAffixes: hasAbyssCraftingAffixes && ["epic", "legendary"].includes(selectedItem?.rarity),
           },
         });
@@ -551,13 +607,21 @@ export default function Crafting({ state, dispatch }) {
       return true;
     }
 
+    if (mode === "ascend" && selectedItemImbueJob?.status === "claimable") {
+      dispatch({ type: "CLAIM_SANCTUARY_JOB", jobId: selectedItemImbueJob.id, now: Date.now() });
+      pulseSelectedAction("success", "Imbuir reclamado");
+      return true;
+    }
+
+    if (mode === "ascend" && selectedItemImbueJob?.status === "running") return false;
     if (!req?.can) return false;
 
     const actionType = {
-      reroll: "CRAFT_REROLL_ITEM",
+      upgrade: "CRAFT_UPGRADE_ITEM",
       polish: "CRAFT_POLISH_ITEM",
       ascend: "CRAFT_ASCEND_ITEM",
     }[mode];
+    if (!actionType) return false;
 
     if (mode === "polish" && selectedAffixIndex == null) return false;
 
@@ -603,8 +667,8 @@ export default function Crafting({ state, dispatch }) {
   return (
     <div style={{ padding: isMobile ? "0 10px 10px" : "0 14px 14px", display: "flex", flexDirection: "column", gap: "12px", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", minHeight: "100%" }}>
       <div ref={stickyHeaderRef} style={{ position: "sticky", top: "var(--app-header-offset, 96px)", zIndex: 80, display: "flex", flexDirection: "column", gap: "8px", paddingTop: "8px", paddingBottom: "6px", background: "var(--color-background-primary, #f8fafc)", boxShadow: "0 10px 18px -16px rgba(15,23,42,0.45)" }}>
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(1, FORGE_MODE_ORDER.length)}, minmax(0, 1fr))`, gap: "6px", width: "100%", minWidth: 0 }}>
-          {FORGE_MODE_ORDER.map((m) => (
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(1, modeOrder.length)}, minmax(0, 1fr))`, gap: "6px", width: "100%", minWidth: 0 }}>
+          {modeOrder.map((m) => (
             <ToolBtn
               key={m}
               active={mode === m}
@@ -631,26 +695,28 @@ export default function Crafting({ state, dispatch }) {
         )}
         {mode !== "extract" && (
           <div style={contractCardStyle()}>
-            <div style={{ fontSize: "0.54rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
-              Contrato actual
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ fontSize: "0.54rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+                Regla del Taller
+              </div>
+              <button onClick={() => setShowAdvancedPanels(current => !current)} style={secondaryActionBtnStyle}>
+                {showAdvancedPanels ? "Modo simple" : "Modo avanzado"}
+              </button>
             </div>
-            <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45, fontWeight: "800" }}>
-              Aqui no existe `Forging Potential`. La tension real vive en limites por accion, costo creciente y linea trabajada.
+            <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.35, fontWeight: "800" }}>
+              Cada acción consume Entropy. Al llegar al cap, la pieza queda estabilizada.
             </div>
-            <div style={{ fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4, fontWeight: "800" }}>
-              Expedicion = resolver run (`extraer` y rotar inventario). Santuario/Taller = cierre persistente (`reroll profundo`, `pulir`, `reforge`, `ascender`).
-            </div>
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              <span style={miniStatPillStyle}>Run: Extraer y seguir empujando</span>
-              <span style={miniStatPillStyle}>Taller: Reroll profundo</span>
-              <span style={miniStatPillStyle}>Taller: Pulir y Reforge por línea</span>
-              <span style={miniStatPillStyle}>Taller: Ascenso y progreso persistente</span>
+            <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
+              <span style={miniStatPillStyle}>Upgrade: +1 sin falla</span>
+              <span style={miniStatPillStyle}>Afinar: reajuste de valor</span>
+              <span style={miniStatPillStyle}>Reforjar: mantener + 2 opciones</span>
+              <span style={miniStatPillStyle}>Imbuir: Epic → Legendary</span>
             </div>
           </div>
         )}
         {mode === "extract" && (
           <div style={{ ...stickyInfoBarStyle, background: "var(--tone-accent-soft, #eef2ff)", borderColor: "rgba(67,56,202,0.22)", color: "var(--tone-accent, #4338ca)" }}>
-            Expedición: extracción táctica y rápida. El `reroll total` se movió al Taller como `reroll profundo`.
+            Expedición activa: el Taller queda en modo extracción rápida hasta cerrar la run.
           </div>
         )}
         {isReforgeLocked && (
@@ -700,11 +766,6 @@ export default function Crafting({ state, dispatch }) {
                 <h4 style={{ margin: 0, fontSize: isMobile ? "0.82rem" : "0.92rem", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 }}>{selectedItem.name}</h4>
                 {(selectedItem.level || 0) > 0 && <span style={upgradeBadgeStyle(selectedItem.level)}>{`+${selectedItem.level}`}</span>}
               </div>
-              {focusedAffix && (
-                <div style={{ fontSize: "0.6rem", color: "var(--tone-violet, #6d28d9)", fontWeight: "900", marginTop: "4px" }}>
-                  Linea trabajada: {focusedAffixLabel} · slot {focusedAffixIndex + 1}
-                </div>
-              )}
             </div>
             <button onClick={() => !isReforgeLocked && setSelectedItemId(null)} disabled={isReforgeLocked} style={secondaryActionBtnStyle}>
               Atras
@@ -712,12 +773,20 @@ export default function Crafting({ state, dispatch }) {
           </div>
 
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-            <button onClick={() => setShowSelectedDetails(current => !current)} style={secondaryActionBtnStyle}>
-              {showSelectedDetails ? "Ocultar detalle" : "Ver detalle"}
+            <button onClick={() => setShowAdvancedPanels(current => !current)} style={secondaryActionBtnStyle}>
+              {showAdvancedPanels ? "Ocultar avanzado" : "Mostrar avanzado"}
             </button>
           </div>
 
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            <span style={miniStatPillStyle}>
+              Entropy <strong>{Math.max(0, Number(selectedItem?.crafting?.entropy || 0))}/{Math.max(1, Number(selectedItem?.crafting?.entropyCap || 1))}</strong>
+            </span>
+            {selectedItem?.crafting?.stabilized && (
+              <span style={{ ...miniStatPillStyle, color: "var(--tone-danger, #D85A30)", background: "var(--tone-danger-soft, #fff1f2)" }}>
+                ESTABILIZADO
+              </span>
+            )}
             {selectedActionReq.maxUses != null && (
               <span style={{ ...miniStatPillStyle, fontWeight: "900", color: selectedActionReq.can ? "var(--tone-success-strong, #166534)" : "var(--tone-danger, #D85A30)" }}>
                 Limite <strong>{selectedActionReq.usedUses || 0}/{selectedActionReq.maxUses}</strong>
@@ -725,7 +794,7 @@ export default function Crafting({ state, dispatch }) {
             )}
           </div>
 
-          {(showSelectedDetails || mode === "polish" || mode === "reforge") && (
+          {(showAdvancedPanels || mode === "polish" || mode === "reforge") && (
             <div
               style={{
                 display: "grid",
@@ -733,17 +802,19 @@ export default function Crafting({ state, dispatch }) {
                 minWidth: 0,
                 maxWidth: "100%",
                 alignItems: "start",
-                gridTemplateColumns: isMobile ? "1fr" : (showSelectedDetails && (mode === "polish" || mode === "reforge")) ? "minmax(0, 0.95fr) minmax(0, 1.05fr)" : "1fr",
+                gridTemplateColumns: isMobile ? "1fr" : (showAdvancedPanels && (mode === "polish" || mode === "reforge")) ? "minmax(0, 0.95fr) minmax(0, 1.05fr)" : "1fr",
               }}
             >
-            {showSelectedDetails && <div style={selectionSubpanelStyle}>
+            {showAdvancedPanels && <div style={selectionSubpanelStyle}>
               {selectedCraftUsage && (
                 <div style={{ marginBottom: "8px" }}>
                   <div style={{ ...detailTitle, marginBottom: "3px" }}>Limites de forja</div>
                   <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                    <span style={miniStatPillStyle}>Reforge <strong>{selectedCraftUsage.reforge.used}/{selectedCraftUsage.reforge.max}</strong></span>
-                    {selectedAffixIndex != null && (
-                      <span style={miniStatPillStyle}>Pulido linea <strong>{selectedCraftUsage.polish.used}/{selectedCraftUsage.polish.max}</strong></span>
+                    {selectedCraftUsage.reforge?.max != null && (
+                      <span style={miniStatPillStyle}>Reforge <strong>{selectedCraftUsage.reforge.used}/{selectedCraftUsage.reforge.max}</strong></span>
+                    )}
+                    {selectedAffixIndex != null && selectedCraftUsage.polish?.max != null && (
+                      <span style={miniStatPillStyle}>Afinado linea <strong>{selectedCraftUsage.polish.used}/{selectedCraftUsage.polish.max}</strong></span>
                     )}
                   </div>
                 </div>
@@ -792,8 +863,7 @@ export default function Crafting({ state, dispatch }) {
                 <div style={{ position: "relative" }}>
                 <div ref={affixCarouselRef} style={affixCarouselStyle}>
                   {(selectedItem.affixes || []).map((af, idx) => {
-                    const isFocusedLine = Number.isInteger(focusedAffixIndex) && focusedAffixIndex === idx;
-                    const isLockedByFocus = mode === "reforge" && Number.isInteger(focusedAffixIndex) && focusedAffixIndex !== idx;
+                    const isExcellent = af?.quality === "excellent";
                     const isTargetedLine = selectedAffixIndex === idx;
 
                     return (
@@ -809,78 +879,57 @@ export default function Crafting({ state, dispatch }) {
                       style={{
                         ...affixCarouselCardStyle(isMobile),
                         border: "1px solid var(--color-border-primary, #e2e8f0)",
-                        background: isFocusedLine ? "var(--tone-violet-soft, #f3e8ff)" : af.tier === 1 ? "var(--tone-warning-soft, #fffbeb)" : af.tier === 2 ? "var(--tone-info-soft, #eff6ff)" : "var(--color-background-secondary, #fff)",
-                        boxShadow: isFocusedLine ? "0 0 0 1px rgba(124,58,237,0.18)" : "none",
+                        background: isExcellent ? "var(--tone-warning-soft, #fffbeb)" : "var(--color-background-secondary, #fff)",
+                        boxShadow: isTargetedLine ? "0 0 0 1px rgba(124,58,237,0.18)" : "none",
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
-                        <div style={{ ...detailLine, color: isFocusedLine ? "var(--tone-violet, #6d28d9)" : af.tier === 1 ? "#b45309" : "var(--tone-accent, #534AB7)", fontWeight: "900", marginBottom: "4px", minWidth: 0 }}>
-                        +{formatStatValue(af.stat, af.rolledValue ?? af.value ?? 0)} {STAT_LABELS[af.stat] || af.stat} {af.tier ? `(T${af.tier})` : ""}
-                        {af.label ? ` · ${af.label}` : ""}
-                        {af.perfectRoll ? " PERFECT" : ""}
+                        <div style={{ ...detailLine, color: isExcellent ? "#b45309" : "var(--tone-accent, #534AB7)", fontWeight: "900", marginBottom: "4px", minWidth: 0 }}>
+                        +{formatStatValue(af.stat, af.rolledValue ?? af.value ?? 0)} {STAT_LABELS[af.stat] || af.stat}
                         {af.source === "abyss" ? " · ABISMO" : ""}
                         </div>
-                        {isFocusedLine && (
-                          <span style={{ fontSize: "0.48rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-violet, #7c3aed)", color: "#fff", flexShrink: 0 }}>
-                            TRABAJADA
-                          </span>
-                        )}
+                        <div style={{ display: "flex", gap: "4px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                          {isExcellent && (
+                            <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-warning-soft, #fef3c7)", color: "var(--tone-warning, #92400e)", border: "1px solid var(--tone-warning, #fcd34d)" }}>
+                              EXCELENTE
+                            </span>
+                          )}
+                          {af.source === "abyss" && (
+                            <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "rgba(8,145,178,0.14)", color: "#0f766e", border: "1px solid rgba(13,148,136,0.24)" }}>
+                              ABISMO
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div style={{ fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", marginBottom: "4px" }}>
                         Rango actual: {formatStatValue(af.stat, af.range?.min ?? 0)} - {formatStatValue(af.stat, af.range?.max ?? 0)}
                       </div>
-                      {affixTemplatesByStat[af.stat] && (
-                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                          {[3, 2, 1].map(tier => {
-                            const tierData = affixTemplatesByStat[af.stat]?.tiers?.[tier];
-                            if (!tierData) return null;
-                            const isCurrentTier = tier === af.tier;
-                            return (
-                              <span key={tier} style={{ fontSize: "0.58rem", color: isCurrentTier ? "var(--color-text-primary, #0f172a)" : "var(--color-text-tertiary, #94a3b8)", fontWeight: isCurrentTier ? "900" : "700" }}>
-                                T{tier}: {formatStatValue(af.stat, tierData.value.min)}-{formatStatValue(af.stat, tierData.value.max)}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      )}
                       {(mode === "polish" || mode === "reforge") && (
                         <button
-                          disabled={isLockedByFocus}
-                          onClick={() => !isLockedByFocus && setSelectedAffixIndex(idx)}
+                          onClick={() => setSelectedAffixIndex(idx)}
                           style={{
                             marginTop: "8px",
                             width: "100%",
                             border: "1px solid",
-                            borderColor: isFocusedLine
-                              ? "var(--tone-violet, #7c3aed)"
-                              : isTargetedLine
+                            borderColor: isTargetedLine
                                 ? (mode === "polish" ? "var(--tone-info, #0ea5e9)" : "var(--tone-violet, #7c3aed)")
                                 : "var(--color-border-secondary, #cbd5e1)",
-                            background: isFocusedLine
-                              ? "var(--tone-violet-soft, #f3e8ff)"
-                              : isTargetedLine
+                            background: isTargetedLine
                                 ? (mode === "polish" ? "var(--tone-info-soft, #e0f2fe)" : "var(--tone-violet-soft, #f3e8ff)")
                                 : "var(--color-background-secondary, #fff)",
-                            color: isFocusedLine
-                              ? "var(--tone-violet, #6d28d9)"
-                              : isTargetedLine
+                            color: isTargetedLine
                                 ? (mode === "polish" ? "var(--tone-info, #0369a1)" : "var(--tone-violet, #6d28d9)")
                                 : "var(--color-text-secondary, #475569)",
                             borderRadius: "8px",
                             padding: "7px 8px",
                             fontSize: "0.62rem",
                             fontWeight: "900",
-                            cursor: isLockedByFocus ? "not-allowed" : "pointer",
-                            opacity: isLockedByFocus ? 0.55 : 1,
+                            cursor: "pointer",
                           }}
                         >
-                          {isFocusedLine
-                            ? "LINEA TRABAJADA"
-                            : isLockedByFocus
-                              ? "LINEA FIJADA"
-                              : isTargetedLine
-                                ? (mode === "polish" ? "LINEA A PULIR" : "LINEA A REFORJAR")
-                                : (mode === "polish" ? "PULIR ESTA LINEA" : "REFORJAR ESTA LINEA")}
+                          {isTargetedLine
+                            ? (mode === "polish" ? "LINEA A AFINAR" : "LINEA A REFORJAR")
+                            : (mode === "polish" ? "AFINAR ESTA LINEA" : "REFORJAR ESTA LINEA")}
                         </button>
                       )}
                     </div>
@@ -900,11 +949,11 @@ export default function Crafting({ state, dispatch }) {
             <div style={selectionSubpanelStyle}>
               <div style={detailTitle}>Ruta de Upgrade</div>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                {Array.from({ length: (selectedActionReq?.maxLevel || 10) + 1 }, (_, level) => {
+                {Array.from({ length: (selectedActionReq?.maxLevel || 15) + 1 }, (_, level) => {
                   const currentLevel = selectedItem.level ?? 0;
                   const isCurrent = level === currentLevel;
                   const isReached = level < currentLevel;
-                  const isNext = level === Math.min(selectedActionReq?.maxLevel || 10, currentLevel + 1);
+                  const isNext = level === Math.min(selectedActionReq?.maxLevel || 15, currentLevel + 1);
                   const flashTone = selectedUpgradeTrackFeedback?.resultLevel === level ? selectedUpgradeTrackFeedback.tone : null;
                   return (
                     <span
@@ -939,30 +988,6 @@ export default function Crafting({ state, dispatch }) {
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {mode === "reroll" && selectedRerollAffixSummary.length > 0 && (
-            <div style={selectionSubpanelStyle}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", marginBottom: "5px", flexWrap: "wrap" }}>
-                <div style={{ ...detailTitle, marginBottom: 0 }}>
-                  Afijos actuales
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
-                {selectedRerollAffixSummary.map(affix => (
-                  <span
-                    key={affix.id}
-                    style={{
-                      ...miniStatPillStyle,
-                      color: affix.tier === 1 ? "var(--tone-warning, #b45309)" : "var(--color-text-secondary, #475569)",
-                      background: affix.tier === 1 ? "var(--tone-warning-soft, #fffbeb)" : "var(--color-background-tertiary, #f1f5f9)",
-                    }}
-                  >
-                    {STAT_LABELS[affix.stat] || affix.stat} <strong>T{affix.tier || "?"}</strong>{affix.perfectRoll ? " PERFECT" : ""}
-                  </span>
-                ))}
-              </div>
             </div>
           )}
 
@@ -1039,6 +1064,71 @@ export default function Crafting({ state, dispatch }) {
             </div>
           )}
 
+          {mode === "ascend" && selectedItemImbueJob && (
+            <div style={{ display: "grid", gap: "8px", padding: "10px", borderRadius: "12px", background: "var(--tone-accent-soft, #eef2ff)", border: "1px solid rgba(79,70,229,0.2)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                <div style={{ fontSize: "0.6rem", color: "var(--tone-accent, #4338ca)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                  Estado de Imbuir
+                </div>
+                <span style={miniStatPillStyle}>
+                  {selectedImbueJobClaimable
+                    ? "Listo"
+                    : `Restante ${formatRemainingDuration(selectedItemImbueRemainingMs)}`}
+                </span>
+              </div>
+              {selectedImbueJobRunning && (
+                <button
+                  onClick={() => dispatch({ type: "RUSH_SANCTUARY_JOB", jobId: selectedItemImbueJob.id, now: Date.now() })}
+                  disabled={!selectedItemImbueCanRush}
+                  style={mainActionBtnStyle(false, { disabled: !selectedItemImbueCanRush })}
+                >
+                  {selectedItemImbueCanRush
+                    ? `RUSH · ${selectedItemImbueRushCost.relicDust} polvo · ${selectedItemImbueRushCost.sigilFlux} flux`
+                    : `RUSH BLOQUEADO · requiere ${selectedItemImbueRushCost.relicDust} polvo y ${selectedItemImbueRushCost.sigilFlux} flux`}
+                </button>
+              )}
+            </div>
+          )}
+
+          {mode === "reforge" && (
+            <div style={{ display: "grid", gap: "8px", padding: "10px", borderRadius: "12px", background: "var(--tone-violet-soft, #f5f3ff)", border: "1px solid rgba(124,58,237,0.2)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ fontSize: "0.58rem", color: "var(--tone-violet, #6d28d9)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                  Intención de reforja
+                </div>
+                <span style={{ ...miniStatPillStyle, fontSize: "0.56rem", color: "var(--tone-violet, #6d28d9)" }}>
+                  Sesgo actual: <strong>{REFORGE_INTENT_OPTIONS.find(option => option.id === reforgeIntent)?.label || "Build"}</strong>
+                </span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(5, minmax(0, 1fr))", gap: "6px" }}>
+                {REFORGE_INTENT_OPTIONS.map(option => {
+                  const selected = reforgeIntent === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => setReforgeIntent(option.id)}
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        border: "1px solid",
+                        borderColor: selected ? "var(--tone-violet, #7c3aed)" : "var(--color-border-primary, #ddd6fe)",
+                        background: selected ? "var(--tone-violet-soft, #ede9fe)" : "var(--color-background-secondary, #fff)",
+                        color: selected ? "var(--tone-violet, #5b21b6)" : "var(--color-text-primary, #1e293b)",
+                        borderRadius: "10px",
+                        padding: "7px 8px",
+                        cursor: "pointer",
+                        fontSize: "0.62rem",
+                        fontWeight: "900",
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {mode === "reforge" && selectedAffixIndex != null && (
             <div style={{ display: "grid", gap: "8px" }}>
               <div style={{ fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "900", textTransform: "uppercase" }}>
@@ -1048,10 +1138,11 @@ export default function Crafting({ state, dispatch }) {
                 {selectedItemReforgeOptions.map((option, index) => (
                   <button key={`${option.id}-${index}`} onClick={() => setSelectedReforgeOption(option)} style={{ width: "100%", textAlign: "left", border: "1px solid", borderColor: selectedReforgeOption?.id === option.id && selectedReforgeOption?.stat === option.stat ? "var(--tone-violet, #7c3aed)" : "var(--color-border-primary, #ddd6fe)", background: selectedReforgeOption?.id === option.id && selectedReforgeOption?.stat === option.stat ? "var(--tone-violet-soft, #f3e8ff)" : "var(--color-background-secondary, #fff)", color: "var(--color-text-primary, #1e293b)", borderRadius: "10px", padding: "8px 10px", cursor: "pointer" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
-                      <div style={{ fontSize: "0.68rem", fontWeight: "900" }}>{STAT_LABELS[option.stat] || option.stat} (T{option.tier})</div>
+                      <div style={{ fontSize: "0.68rem", fontWeight: "900" }}>{STAT_LABELS[option.stat] || option.stat}</div>
                       <div style={{ display: "flex", gap: "4px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                         {option.source === "abyss" && <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "rgba(8,145,178,0.14)", color: "#0f766e", border: "1px solid rgba(13,148,136,0.24)" }}>ABISMO</span>}
                         {index === 0 && <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-warning-soft, #fef3c7)", color: "var(--tone-warning, #92400e)", border: "1px solid var(--tone-warning, #fcd34d)" }}>ACTUAL</span>}
+                        {option?.quality === "excellent" && <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-warning-soft, #fef3c7)", color: "var(--tone-warning, #92400e)", border: "1px solid var(--tone-warning, #fcd34d)" }}>EXCELENTE</span>}
                       </div>
                     </div>
                     <div style={{ fontSize: "0.62rem", color: "var(--tone-violet, #6d28d9)", marginTop: "3px" }}>+{formatStatValue(option.stat, option.rolledValue ?? option.value ?? 0)} · {option.kind === "prefix" ? "Prefijo" : "Sufijo"}</div>
@@ -1127,8 +1218,13 @@ export default function Crafting({ state, dispatch }) {
           const equippedSlot = getItemLocation(normalizedItem, equipment);
           const isEquipped = !!equippedSlot;
           const compareItem = normalizedItem.type === "weapon" ? equipment.weapon : equipment.armor;
+          const hasPendingImbueJob = sanctuaryJobs.some(
+            job =>
+              job?.type === "imbue_item" &&
+              job?.input?.itemId === normalizedItem.id &&
+              ["running", "claimable"].includes(job?.status)
+          );
 
-          let affixDots = [];
           let craftUsage = null;
           let compareEntries = [];
           let topStats = [];
@@ -1136,7 +1232,6 @@ export default function Crafting({ state, dispatch }) {
           let economySummary = "";
 
           try {
-            affixDots = normalizedItem.affixes.slice(0, 5).map((affix, index) => ({ key: `${affix.id || affix.stat}-${index}`, ...getAffixTierGlyph(affix) }));
             craftUsage = getCraftUsageSummary(normalizedItem);
             compareEntries = getTopCompareEntries(normalizedItem, compareItem, isMobile ? 2 : 3);
             topStats = getPrioritizedStatEntries(normalizedItem.bonus || {}, 2);
@@ -1149,13 +1244,29 @@ export default function Crafting({ state, dispatch }) {
           const hasAffixes = normalizedItem.affixes.length > 0;
           const canSelectForMode = (() => {
             if (mode === "extract") return !isEquipped;
+            if (hasPendingImbueJob && mode !== "ascend") return false;
             if (isReforgeLocked) return reforgeSession?.itemId === normalizedItem.id;
             if (mode === "polish" || mode === "reforge") return hasAffixes;
-            if (mode === "ascend") return !!ASCEND_RULES[normalizedItem.rarity];
+            if (mode === "ascend") return normalizedItem.rarity === "epic";
             return req.can;
           })();
           const canAction = canSelectForMode;
           const reqBadge = getCraftActionBadge(req, mode);
+          const excellentAffixCount = normalizedItem.affixes.reduce(
+            (count, affix) => count + ((affix?.quality === "excellent" || affix?.lootOnlyQuality) ? 1 : 0),
+            0
+          );
+          const quickEntries = (() => {
+            const entries = mode === "extract"
+              ? (compareEntries.length > 0
+                ? compareEntries
+                : topStats.map(([key, currentVal]) => ({ key, currentVal, diff: currentVal })))
+              : (compareEntries.length > 0
+                ? compareEntries
+                : topStats.map(([key, currentVal]) => ({ key, currentVal, diff: currentVal })));
+            const visibleCount = isMobile ? 1 : mode === "extract" ? 1 : 2;
+            return entries.slice(0, visibleCount);
+          })();
 
           return (
             <div key={normalizedItem.id} onClick={() => handleAction(normalizedItem)} style={{ ...cardStyle(isSelectedExtract || isSelectedDetail, isSuccess, canAction), opacity: canAction ? 1 : 0.55, borderLeft: `4px solid ${getRarityColor(normalizedItem.rarity)}`, border: (isSelectedDetail || isSelectedExtract) ? "2px solid var(--tone-success, #1D9E75)" : "2px solid transparent", boxShadow: (isSelectedDetail || isSelectedExtract) ? "0 0 0 2px rgba(16,185,129,0.14)" : undefined, gap: "8px" }}>
@@ -1179,14 +1290,7 @@ export default function Crafting({ state, dispatch }) {
               </div>
 
               <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                {(mode === "extract"
-                  ? ((compareEntries.length > 0
-                    ? compareEntries.slice(0, 1)
-                    : topStats.slice(0, 1).map(([key, currentVal]) => ({ key, currentVal, diff: currentVal }))))
-                  : (compareEntries.length > 0
-                    ? compareEntries
-                    : topStats.map(([key, currentVal]) => ({ key, currentVal, diff: currentVal })))
-                ).map(entry => (
+                {quickEntries.map(entry => (
                   <span
                     key={`${normalizedItem.id}-quick-${entry.key}`}
                     style={{
@@ -1200,36 +1304,48 @@ export default function Crafting({ state, dispatch }) {
                 ))}
               </div>
 
-              {economySummary && isSelectedDetail && (
+              {economySummary && isSelectedDetail && showAdvancedPanels && (
                 <div style={{ fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>
                   Eco: {economySummary}
                 </div>
               )}
 
-              {implicitEntries.length > 0 && mode !== "extract" && (
+              {implicitEntries.length > 0 && mode !== "extract" && isSelectedDetail && showAdvancedPanels && (
                 <div style={{ fontSize: "0.62rem", color: "var(--color-text-info, #4338ca)", fontWeight: "800" }}>
                   Implicito: {formatImplicitSummary(normalizedItem)}
                 </div>
               )}
 
-              {affixDots.length > 0 && mode !== "extract" && (
+              {hasAffixes && mode !== "extract" && (
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "1px", flexWrap: "wrap" }}>
-                  <span style={{ fontSize: "0.5rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" }}>Affix</span>
-                  {affixDots.map(dot => (
-                    <span key={dot.key} title={dot.label} style={{ fontSize: "0.62rem", color: dot.color, fontWeight: "900" }}>{dot.symbol}</span>
-                  ))}
+                  <span style={{ ...miniStatPillStyle, fontSize: "0.54rem" }}>
+                    Líneas <strong>{normalizedItem.affixes.length}</strong>
+                  </span>
+                  <span style={{ ...miniStatPillStyle, fontSize: "0.54rem", color: excellentAffixCount > 0 ? "var(--tone-warning, #b45309)" : "var(--color-text-secondary, #64748b)" }}>
+                    Excelente <strong>{excellentAffixCount}</strong>
+                  </span>
                 </div>
               )}
 
               <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "auto" }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
-                    {craftUsage && mode !== "extract" && (
-                      <>
+                    {mode !== "extract" && (
+                      <span style={{ ...miniStatPillStyle, fontSize: "0.54rem" }}>
+                        Ent <strong>{Math.max(0, Number(normalizedItem?.crafting?.entropy || 0))}/{Math.max(1, Number(normalizedItem?.crafting?.entropyCap || 1))}</strong>
+                      </span>
+                    )}
+                    {mode !== "extract" && hasPendingImbueJob && (
+                      <span style={{ ...miniStatPillStyle, fontSize: "0.54rem", color: "var(--tone-accent, #4338ca)" }}>
+                        IMBUIR <strong>PENDIENTE</strong>
+                      </span>
+                    )}
+                    {craftUsage && mode !== "extract" && isSelectedDetail && showAdvancedPanels && (
+                      <React.Fragment>
                         <span style={{ ...miniStatPillStyle, fontSize: "0.54rem" }}>
-                          RF <strong>{craftUsage.reforge.used}/{craftUsage.reforge.max}</strong>
+                          RF <strong>{craftUsage.reforge.used}/{craftUsage.reforge.max == null ? "∞" : craftUsage.reforge.max}</strong>
                         </span>
-                      </>
+                      </React.Fragment>
                     )}
                   </div>
                 </div>
@@ -1240,14 +1356,27 @@ export default function Crafting({ state, dispatch }) {
         })}
       </div>
       <section style={{ background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "14px", padding: "10px" }}>
-        <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "900", textTransform: "uppercase", marginBottom: "8px" }}>Log de Crafting</div>
-        <div style={{ display: "grid", gap: "6px", maxHeight: isMobile ? "180px" : "220px", overflowY: "auto" }}>
-          {(state.combat?.craftingLog || []).length > 0 ? (
-            (state.combat.craftingLog || []).slice(-20).reverse().map((entry, index) => <div key={`${entry}-${index}`} style={{ background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "10px", padding: "8px 10px", fontSize: "0.66rem", color: "var(--color-text-primary, #334155)", fontWeight: "700" }}>{entry}</div>)
-          ) : (
-            <div style={{ fontSize: "0.68rem", color: "var(--color-text-tertiary, #94a3b8)" }}>Todavia no hay acciones de crafting en esta sesion.</div>
-          )}
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "900", textTransform: "uppercase" }}>
+            Log de Crafting
+          </div>
+          <button onClick={() => setShowCraftingLog(current => !current)} style={secondaryActionBtnStyle}>
+            {showCraftingLog ? "Ocultar" : "Mostrar"}
+          </button>
         </div>
+        {showCraftingLog ? (
+          <div style={{ display: "grid", gap: "6px", maxHeight: isMobile ? "180px" : "220px", overflowY: "auto", marginTop: "8px" }}>
+            {(state.combat?.craftingLog || []).length > 0 ? (
+              (state.combat.craftingLog || []).slice(-20).reverse().map((entry, index) => <div key={`${entry}-${index}`} style={{ background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "10px", padding: "8px 10px", fontSize: "0.66rem", color: "var(--color-text-primary, #334155)", fontWeight: "700" }}>{entry}</div>)
+            ) : (
+              <div style={{ fontSize: "0.68rem", color: "var(--color-text-tertiary, #94a3b8)" }}>Todavía no hay acciones de crafting en esta sesión.</div>
+            )}
+          </div>
+        ) : (
+          <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "8px", lineHeight: 1.35 }}>
+            Historial colapsado para mantener el Taller compacto.
+          </div>
+        )}
       </section>
     </div>
   );

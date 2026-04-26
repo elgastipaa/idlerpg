@@ -11,6 +11,7 @@ import {
   getCodexLegendaryPowerEntries,
   getEarliestTierForFamily,
   getHighestUnlockedTierForFamily,
+  getLibraryLayerUnlockState,
   getCodexUnlockedMilestones,
 } from "../engine/progression/codexEngine";
 import { formatRunSigilLoadout, normalizeRunSigilIds, summarizeRunSigilLoadout } from "../data/runSigils";
@@ -48,18 +49,17 @@ const STAT_DESCRIPTIONS = [
 const SYSTEMS = [
   ["Items base", "Definen la pieza inicial: nombre, rareza, familia y stats base."],
   ["Familias de items", "Cada familia da un implicit fijo segun rareza, como espada=crit o plate=bloqueo."],
-  ["Afijos", "Prefijos y sufijos rolados con tiers T3/T2/T1 y valores variables."],
-  ["Roll perfecto", "Un afijo que cae en el 10% superior de su rango."],
+  ["Afijos", "Prefijos y sufijos con valor variable y calidad Normal/Excelente."],
+  ["Calidad Excelente", "Solo cae por loot y marca lineas premium de una pieza."],
   ["Arbol de talentos", "Los talentos se desbloquean con Talent Points y siguen prerequisitos de rama."],
-  ["Auto-loot", "Permite auto-vender o auto-extraer rarezas elegidas para aliviar inventario."],
-  ["Forja", "Upgrade, reroll, pulir, reforge, ascender y extraer para mejorar o reciclar equipo."],
+  ["Auto-loot", "Permite auto-vender rarezas elegidas para aliviar inventario durante la run."],
+  ["Forja", "Mejorar, afinar, reforjar e imbuir para cerrar piezas sin romper el valor del loot."],
   ["Progreso offline", "Simula hasta 1 hora de ticks cuando no estabas mirando el juego."],
 ];
 
-const AFFIX_TIERS = [
-  ["T1", "El tier mas poderoso y el mas raro."],
-  ["T2", "Un tier intermedio, bueno para piezas solidas."],
-  ["T3", "El tier mas comun, ideal para bases tempranas o rerolls."],
+const AFFIX_QUALITY = [
+  ["Normal", "Linea base del sistema, crafteable via Afinar/Reforjar."],
+  ["Excelente", "Linea premium orientada a drops de alto valor."],
 ];
 
 const RARITY_GUIDE = [
@@ -100,6 +100,18 @@ const LIBRARY_MASTERY_GROUPS = [
     accent: "var(--tone-accent, #4338ca)",
   },
 ];
+
+const LIBRARY_LAYER_BY_GROUP_ID = {
+  libraryPowers: "power",
+  libraryFamilies: "family",
+  libraryBosses: "boss",
+};
+
+const LIBRARY_UNLOCK_LABEL_BY_RESEARCH = {
+  unlock_library: "Catalogar Biblioteca",
+  library_slots_1: "Mesas de Archivo",
+  library_speed_1: "Indices de Consulta",
+};
 
 function formatImplicit(bonus = {}) {
   return Object.entries(bonus)
@@ -142,6 +154,10 @@ function getPaginatedSlice(entries = [], page = 0, pageSize = 10) {
     page: safePage,
     totalPages,
   };
+}
+
+function getLibraryUnlockLabel(unlockResearchId = "") {
+  return LIBRARY_UNLOCK_LABEL_BY_RESEARCH[unlockResearchId] || unlockResearchId || "investigacion";
 }
 
 const BONUS_LABELS = {
@@ -244,6 +260,11 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
     () => sanctuaryJobs.filter(job => job?.type === "codex_research" && job?.status === "claimable"),
     [sanctuaryJobs]
   );
+  const libraryLayerState = useMemo(() => getLibraryLayerUnlockState(state), [state]);
+  const isLibraryGroupUnlocked = groupId => {
+    const layerId = LIBRARY_LAYER_BY_GROUP_ID[groupId] || "power";
+    return Boolean(libraryLayerState?.layers?.[layerId]?.unlocked);
+  };
   const toggleSection = sectionId => {
     setCollapsedSections(current => ({
       ...current,
@@ -435,10 +456,18 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
   const selectedMasteryGroupIndex = LIBRARY_MASTERY_GROUPS.findIndex(group => group.id === selectedMasteryGroupId);
   const selectedMasteryGroupMeta =
     LIBRARY_MASTERY_GROUPS[selectedMasteryGroupIndex] || LIBRARY_MASTERY_GROUPS[0];
+  const selectedMasteryLayerId = LIBRARY_LAYER_BY_GROUP_ID[selectedMasteryGroupId] || "power";
+  const selectedMasteryLayerState = libraryLayerState?.layers?.[selectedMasteryLayerId] || null;
   const masteryGroupSummary = {
-    libraryPowers: `${orderedPowerEntries.length} registro${orderedPowerEntries.length === 1 ? "" : "s"}`,
-    libraryFamilies: `${orderedFamilyEntries.length} familia${orderedFamilyEntries.length === 1 ? "" : "s"}`,
-    libraryBosses: `${orderedBossEntries.length} boss${orderedBossEntries.length === 1 ? "" : "es"}`,
+    libraryPowers: isLibraryGroupUnlocked("libraryPowers")
+      ? `${orderedPowerEntries.length} registro${orderedPowerEntries.length === 1 ? "" : "s"}`
+      : "Bloqueado",
+    libraryFamilies: isLibraryGroupUnlocked("libraryFamilies")
+      ? `${orderedFamilyEntries.length} familia${orderedFamilyEntries.length === 1 ? "" : "s"}`
+      : "Bloqueado",
+    libraryBosses: isLibraryGroupUnlocked("libraryBosses")
+      ? `${orderedBossEntries.length} boss${orderedBossEntries.length === 1 ? "" : "es"}`
+      : "Bloqueado",
   };
   const goToTier = (tier) => {
     if (!dispatch || !tier || tier > maxUnlockedTier) return;
@@ -447,10 +476,17 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
   };
   const startResearch = (researchType, targetId) => {
     if (!dispatch) return;
+    const layerId =
+      researchType === "family"
+        ? "family"
+        : researchType === "boss"
+          ? "boss"
+          : "power";
+    if (!libraryLayerState?.layers?.[layerId]?.unlocked) return;
     dispatch({ type: "START_CODEX_RESEARCH", researchType, targetId });
   };
   return (
-    <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+    <div style={{ padding: "calc(0.85rem * var(--density-scale, 1))", display: "flex", flexDirection: "column", gap: "calc(0.8rem * var(--density-scale, 1))", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
       <section style={isLibraryMode ? libraryHeroPanelStyle : panelStyle}>
         {isLibraryMode ? (
           <>
@@ -859,7 +895,24 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
             />
           </section>
 
-          {selectedMasteryGroupId === "libraryPowers" && (
+          {!isLibraryGroupUnlocked(selectedMasteryGroupId) && (
+            <section style={librarySecondaryPanelStyle}>
+              <div style={librarySectionHeadingWrapStyle}>
+                <span style={librarySectionTitleStyle}>{selectedMasteryGroupMeta.label}</span>
+                <span style={librarySectionSubtitleStyle}>Esta capa aun no esta habilitada en tu Biblioteca.</span>
+              </div>
+              <div style={cardStyle}>
+                <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--tone-warning, #f59e0b)" }}>
+                  Desbloqueo pendiente
+                </div>
+                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.4 }}>
+                  Completa <strong>{getLibraryUnlockLabel(selectedMasteryLayerState?.unlockResearchId)}</strong> en el Laboratorio para activar esta capa.
+                </div>
+              </div>
+            </section>
+          )}
+
+          {selectedMasteryGroupId === "libraryPowers" && isLibraryGroupUnlocked("libraryPowers") && (
           <section style={librarySecondaryPanelStyle}>
             <div style={librarySectionHeadingWrapStyle}>
               <span style={librarySectionTitleStyle}>Poderes legendarios</span>
@@ -970,7 +1023,7 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
           </section>
           )}
 
-          {selectedMasteryGroupId === "libraryFamilies" && (
+          {selectedMasteryGroupId === "libraryFamilies" && isLibraryGroupUnlocked("libraryFamilies") && (
           <section style={librarySecondaryPanelStyle}>
             <div style={librarySectionHeadingWrapStyle}>
               <span style={librarySectionTitleStyle}>Familias</span>
@@ -1060,7 +1113,7 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
           </section>
           )}
 
-          {selectedMasteryGroupId === "libraryBosses" && (
+          {selectedMasteryGroupId === "libraryBosses" && isLibraryGroupUnlocked("libraryBosses") && (
           <section style={librarySecondaryPanelStyle}>
             <div style={librarySectionHeadingWrapStyle}>
               <span style={librarySectionTitleStyle}>Bosses</span>
@@ -1223,8 +1276,8 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
           <section style={librarySecondaryPanelStyle}>
             <button onClick={() => toggleSection("glossaryRarity")} style={compactToggleButtonStyle}>
               <span style={librarySectionHeadingWrapStyle}>
-                <span style={librarySectionTitleStyle}>Rarezas y tiers</span>
-                <span style={librarySectionSubtitleStyle}>Como escala calidad y potencia del equipo.</span>
+                <span style={librarySectionTitleStyle}>Rarezas y calidad</span>
+                <span style={librarySectionSubtitleStyle}>Como escala potencia y lectura de una pieza.</span>
               </span>
               <span style={collapseLabelStyle}>{collapsedSections.glossaryRarity ? "+" : "-"}</span>
             </button>
@@ -1237,7 +1290,7 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                   <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 }}>{description}</div>
                 </div>
               ))}
-              {AFFIX_TIERS.map(([name, description]) => (
+              {AFFIX_QUALITY.map(([name, description]) => (
                 <div key={name} style={cardStyle}>
                   <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{name}</div>
                   <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 }}>{description}</div>
@@ -1366,26 +1419,26 @@ function PaginationControls({ page = 0, totalPages = 1, onPrevious, onNext }) {
 const panelStyle = {
   background: "var(--color-background-secondary, #fff)",
   border: "1px solid var(--color-border-primary, #e2e8f0)",
-  borderRadius: "16px",
-  padding: "14px",
+  borderRadius: "var(--dense-card-radius, 12px)",
+  padding: "var(--dense-panel-padding, 10px)",
   boxShadow: "0 2px 10px var(--color-shadow, rgba(0,0,0,0.03))",
 };
 
 const libraryHeroPanelStyle = {
   ...panelStyle,
   borderTop: "3px solid var(--tone-accent, #4338ca)",
-  padding: "16px",
+  padding: "calc(var(--dense-panel-padding, 10px) + 2px)",
   display: "grid",
-  gap: "12px",
+  gap: "var(--dense-panel-gap, 8px)",
   boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
 };
 
 const librarySecondaryPanelStyle = {
   ...panelStyle,
   borderTop: "3px solid var(--tone-accent, #4338ca)",
-  padding: "16px",
+  padding: "calc(var(--dense-panel-padding, 10px) + 2px)",
   display: "grid",
-  gap: "10px",
+  gap: "var(--dense-panel-gap, 8px)",
   boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
 };
 

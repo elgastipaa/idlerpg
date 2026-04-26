@@ -392,7 +392,6 @@ export function canPurchasePrestigeNode(state, node) {
 
   if (currentLevel >= (node.maxLevel || 1)) return { ok: false, reason: "maxed", cost };
   if (!isPrestigeBranchUnlocked(state, branch)) return { ok: false, reason: "unlock", cost, unlockKey: branch?.unlockKey || node?.unlockKey || null };
-  if (!isPrestigeNodeActiveForPlayer(node, state.player)) return { ok: false, reason: "class", cost };
 
   const missing = (node.requires || []).filter(reqId => getPrestigeNodeLevel(prestige, reqId) <= 0);
   if (missing.length > 0) return { ok: false, reason: "requires", cost, missing };

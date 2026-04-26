@@ -3,7 +3,7 @@
 ## Contexto y asunciones
 - Base usada: codigo actual en `src/` (estado, loop, combate, Santuario, overlays, onboarding, economia, progression, telemetria).
 - Asuncion A1: `src/data/events.js` no esta conectado al runtime de combate (no hay consumo en engine), por lo que se considera sistema no activo.
-- Asuncion A2: `stash` legacy convive con `blueprints/extractedItems`, pero el loop principal activo es el de `blueprints`.
+- Asuncion A2: la itemizacion anterior queda como capa legacy de compatibilidad en saves viejos, pero el loop de diseno activo migra a `relicArmory/extractedItems`.
 - Asuncion A3: el objetivo es MVP releaseable single-player con foco mobile+desktop, no live-ops full ni multiplayer.
 
 ---
@@ -14,7 +14,7 @@
 
 ### 1.1 Entrada y carga de estado
 - Se hidrata save con `mergeStateWithDefaults`.
-- Se normaliza: player, codex, abyss, prestigio, onboarding, jobs, blueprints, tabs, telemetria, weekly ledger.
+- Se normaliza: player, codex, abyss, prestigio, onboarding, jobs, relicArmory/activeRelics, tabs, telemetria, weekly ledger.
 - Se aplican guardrails de corrupcion y recovery.
 
 ### 1.2 Inicio de expedicion
@@ -23,7 +23,7 @@
 - Si hay run sigils desbloqueados (prestige >= 1), el jugador elige sesgo de run en overlay.
 - `START_RUN`:
   - Consume infusiones de sigilo aplicables.
-  - Materializa blueprints activos (weapon/armor) para esa run.
+  - Materializa reliquias activas (weapon/armor) para esa run.
   - Limpia inventario de run, setea enemigo T1, resetea run stats.
 
 ### 1.3 Combate (auto-loop por tick)
@@ -34,14 +34,17 @@
   - Ajustar talentos/stats.
   - Elegir momento de extraccion.
 - Muerte:
-  - Hasta 3 muertes: retroceso de tier, revive parcial, continua expedicion.
-  - 4ta muerte: extraccion de emergencia (penalidad).
+  - Si caes: vuelves a Tier 1, revive parcial y la expedicion continua.
+  - No hay contador de vidas ni extraccion de emergencia.
 
 ### 1.4 Cierre de run por extraccion
 - `OPEN_EXTRACTION` arma preview:
   - Cargo bundles posibles.
-  - Proyecto item (si habilitado).
-  - Ecos potenciales (normal o emergencia).
+  - Item rescatable (si habilitado).
+  - Ecos potenciales de salida voluntaria.
+- La extraccion es siempre voluntaria:
+  - Ya no existe extraccion de emergencia.
+  - Si mueres en combate, vuelves a Tier 1 y reintentas dentro de la misma expedicion.
 - `CONFIRM_EXTRACTION`:
   - Lleva bundles al Santuario.
   - Opcionalmente retiene item como `extractedItem`.
@@ -55,7 +58,7 @@
   - Biblioteca (research de familias/bosses/poderes).
   - Encargos (equipos paralelos con rewards).
   - Altar de Sigilos (cargas de infusion para runs futuras).
-  - Taller/Deep Forge (blueprints y mejoras persistentes).
+  - Arsenal de Reliquias (equipo persistente, sintonia contextual, mantenimiento).
 - Reclama jobs, invierte recursos, prepara siguiente run.
 
 ### 1.6 Cierre/salida y offline
@@ -75,42 +78,45 @@
 | Talent Points | Leveling, rewards puntuales | Talentos | Identidad de build en run |
 | Ecos | Extraccion con prestige | Nodos de arbol de Ecos | Meta-progreso de cuenta |
 | Codex Ink | Destileria (`codex_trace`), Encargos | Research de Biblioteca, Lab research | Moneda de conocimiento |
-| Sigil Flux | Destileria (`sigil_residue`), Encargos | Infusiones en Altar | Preparacion de run futura |
-| Relic Dust | Destileria (`relic_shard`), Encargos, codex rewards puntuales | Lab, Biblioteca, Deep Forge, upgrades de blueprint | Moneda premium de meta |
+| Sigil Flux | Destileria (`sigil_residue`), Encargos | Infusiones en Altar, sintonia contextual de reliquias | Preparacion de run futura |
+| Relic Dust | Destileria (`relic_shard`), Encargos, codex rewards puntuales | Lab, Biblioteca, temper/estabilizacion de reliquias | Moneda premium de meta |
 | Cargo bundles | Extraccion | Destileria | Puente run -> meta |
-| Extracted Items | Extraccion | Convertir a blueprint o desguazar | Materia prima persistente |
-| Family Charges | Desguace/convert, Encargos de afinidad | Invertir afinidad en blueprint | Sesgo de build persistente |
+| Extracted Items | Extraccion | Conservar como reliquia o desguazar | Materia prima persistente |
+| Reliquias (Arsenal) | Conservar en extraccion, migracion legacy | Equipar, sintonizar, estabilizar o desmontar | Sesgo de build persistente por contexto |
 | Sigil Infusion charges | Claims de Altar | Se consumen al iniciar run (si sigilo matchea) | Meta-buffer tactico |
 | Codex progress (familia/boss/poder) | Kills, drops, duplicados | Se "fija" con research jobs | Convertir historial en bonus permanentes |
 
 Notas:
-- Hay doble economia: run (oro/xp/esencia) y meta (ink/flux/dust/charges/ecos).
+- Hay doble economia: run (oro/xp/esencia) y meta (ink/flux/dust/reliquias/ecos).
 - El puente critico del juego es Extraccion + Destileria + Laboratorio.
 
 ---
 
-## 3) Sistema de Planos (blueprints) y sesgo de progresion
+## 3) Sistema de Reliquias (Arsenal) y sesgo de progresion
 
 ### Flujo
 - En extraccion, el jugador puede retener 1 item elegible como `extractedItem`.
 - Ese item puede:
-  - Convertirse a blueprint (direccion de build persistente).
-  - Desguazarse (retorno inmediato en charges).
-- Blueprint guarda:
-  - Slot (weapon/armor), rareza, base rating, item tier.
-  - Afinidades por familia.
-  - Niveles de estructura, tuneo de poder, ascension.
-- En `START_RUN`, blueprints activos se materializan como equipo de run.
+  - Conservarse como reliquia completa (usable en la siguiente run).
+  - Desguazarse (retorno inmediato en recursos).
+- La decision de item se toma dentro del overlay de extraccion:
+  - El retorno de recursos se muestra solo cuando esta seleccionada la opcion de desguace.
+  - Si el stash del Santuario esta lleno, conservar no guarda la pieza y la salida cae en desguace automatico.
+- Reliquia guarda:
+  - Slot (weapon/armor), rareza, rating, item tier y afijos.
+  - Contexto de sintonia (boss/horde/abyss/farm/speed).
+  - Niveles de mantenimiento (`temper/mastery`) y `entropy`.
+- En `START_RUN`, reliquias activas se materializan como equipo de run sin lane intermedio adicional.
 
 ### Como sesga la progresion
-- Cambia el paradigma de "drop unico" a "direccion persistente":
-  - No replica exacto, pero empuja perfil de stats y familia.
+- Cambia el paradigma de "drop transitorio" a "drop utilizable y persistente":
+  - El item rescatado mantiene identidad y entra directo al loadout.
 - Convierte loot bueno en inversion de cuenta.
-- Sostiene progreso horizontal incluso con mala suerte de drop en runs cortas.
+- Sostiene progreso horizontal via contextos y rotacion de contenido, incluso con mala suerte de drop en runs cortas.
 
 ### Riesgo actual
-- Si el jugador no entiende la diferencia entre "retorno inmediato" y "direccion persistente", siente sistema opaco.
-- Costo cognitivo alto entre extracted item / blueprint / charges / afinidad.
+- Si el jugador no entiende la diferencia entre "retorno inmediato" y "valor de largo plazo", siente sistema opaco.
+- Sin feedback claro de contexto y entropy, el jugador puede caer en "BIS unico" percibido.
 
 ---
 
@@ -139,7 +145,7 @@ Notas:
 ## Pre-run
 - Clase/spec (cuando aplica).
 - Sigilo(s) de run (si desbloqueado).
-- Carga de blueprints activos.
+- Equipar reliquias activas por slot.
 - Uso de cargas de infusion (indirectamente via eleccion de sigilo).
 
 ## Durante run
@@ -156,8 +162,8 @@ Notas:
 ## Santuario
 - Que research iniciar primero.
 - Que jobs correr por slots limitados.
-- Convertir item a blueprint o desguace.
-- Donde gastar dust/ink/flux/charges.
+- Conservar/desguazar item extraido y decidir sintonia contextual.
+- Donde gastar dust/ink/flux y que reliquias mantener.
 
 ---
 
@@ -185,8 +191,8 @@ Notas:
 | Diablo 3 | Temporadas | Reinicio con objetivo claro + novedad periodica | Encaja con adaptacion (mini-temporadas livianas, no full reset global) |
 | Diablo 3 | Greater Rifts | Escalada limpia, objetivo medible, mastery loop | Encaja (Abismo ya es base para esto) |
 | Diablo 3 | Paragon | Progreso siempre util, anti-frustracion | Encaja (resonance de Ecos ya cumple parte) |
-| Diablo 3 | Sets definidos | Fantasia de build cerrada y perseguible | Encaja con adaptacion (familias de blueprint + codex) |
-| Diablo 4 | Masterworking | Inversion incremental sobre pieza favorita | Encaja (Deep Forge/blueprints) |
+| Diablo 3 | Sets definidos | Fantasia de build cerrada y perseguible | Encaja con adaptacion (loadouts de reliquias + codex) |
+| Diablo 4 | Masterworking | Inversion incremental sobre pieza favorita | Encaja (temper/mantenimiento de reliquias) |
 | Diablo 4 | Reroll de afijos | Control parcial del RNG | Encaja (ya existe en crafting) |
 | Diablo 4 | Pit escalable | Endgame con stress test progresivo | Encaja (Abismo puede formalizarse asi) |
 | Diablo Immortal | Ciclos semanales de poder | Retencion por ritual recurrente | Encaja con adaptacion (weekly ledger ya existe) |
@@ -197,26 +203,26 @@ Notas:
 | Path of Exile 1 | Trade economy | Meta social y valor de mercado | No encaja (rompe alcance MVP y balance actual) |
 | Path of Exile 2 | Pace mas lento/intencional | Mejora legibilidad y valor de decision | Encaja con adaptacion (micro-pausas de decision claras) |
 | Last Epoch | Monolith | Selector de eco con riesgo/recompensa | Encaja (expedicion contracts) |
-| Last Epoch | Forge deterministica | Sensacion de control justo | Encaja fuerte (alineado a Deep Forge) |
+| Last Epoch | Forge deterministica | Sensacion de control justo | Encaja fuerte (alineado a mantenimiento de reliquias) |
 | Last Epoch | Cycle content | Freshness sin romper base | Encaja con adaptacion |
 | Grim Dawn | Facciones duales con consecuencias | Compromiso y sacrificio significativo | Encaja con adaptacion (Encargos por faccion) |
 | Grim Dawn | Devotion tree | Meta-build transversal | Encaja (Prestige tree + nodos situacionales) |
 | Grim Dawn | Componentes | Progresion modular, goals intermedios | Encaja con adaptacion |
-| Warframe | Extraction + blueprints | Loop de "run alimenta fabrica" muy adictivo | Encaja perfecto (es el corazon actual) |
+| Warframe | Extraction + Foundry | Loop de "run alimenta fabrica" muy adictivo | Encaja con adaptacion (run alimenta arsenal persistente) |
 | Warframe | Mastery loop | Meta de cuenta de largo plazo | Encaja con adaptacion (mastery de codex/abyss) |
-| Warframe | Mods/build | Personalizacion profunda | Encaja con adaptacion (talentos+sigilos+blueprints) |
+| Warframe | Mods/build | Personalizacion profunda | Encaja con adaptacion (talentos+sigilos+reliquias) |
 | Melvor Idle | Skills paralelas offline | Sensacion de progreso continuo sin friccion | Encaja fuerte (jobs del Santuario) |
 | Melvor Idle | Log de actividad | Feedback concreto de tiempo invertido | Encaja (telemetria ya existe, falta UI) |
 | IdleOn | Multi-personaje por roles | Multiplica agencia asincrona | Encaja con adaptacion parcial (Encargos como proxy) |
 | Idle Skilling | Prestigios anidados | "Reset con sentido" en capas | Encaja con adaptacion (Ecos + Abismo) |
 | Tap Titans 2 | Artefactos RNG meta | Sorpresa + chase de build | Encaja con adaptacion (drops codex/power milestones) |
 | Tap Titans 2 | Torneos/rankings | Competencia social recurrente | No encaja en MVP single-player |
-| AFK Arena | Sinergias de composicion | Decisiones tacticas de equipo | Encaja con adaptacion (sigilo+blueprint+talento como composicion) |
+| AFK Arena | Sinergias de composicion | Decisiones tacticas de equipo | Encaja con adaptacion (sigilo+reliquia+talento como composicion) |
 | AFK Arena | Catch-up | Evita abandono temprano/tardio | Encaja fuerte |
 | OSRS | Drop tables profundas | Goals visibles de largo plazo | Encaja con adaptacion |
 | OSRS | Diary/achievements largos | Checklists de progreso persistente | Encaja (goals + weekly) |
 | WoW | Weekly lockouts | Ritmo saludable de consumo de contenido | Encaja con adaptacion |
-| WoW | Tier set bonuses | Picos de poder por set | Encaja con adaptacion (familias blueprint/codex) |
+| WoW | Tier set bonuses | Picos de poder por set | Encaja con adaptacion (contextos de reliquia/codex) |
 | Rune Factory | Vida+combate+craft integrados | Variedad diaria y menor fatiga | Encaja con adaptacion (Santuario como segunda capa jugable) |
 | Genshin | Resin gate | Control de economia y sesion | Encaja con adaptacion cuidadosa (sin volverlo punitivo) |
 | Genshin | Artefacto RNG capado | Chase con limites | Encaja con adaptacion |
@@ -239,7 +245,7 @@ Notas:
 
 ## Fortalezas
 - Loop run -> extraccion -> Santuario -> run ya esta implementado y funciona como columna vertebral.
-- Blueprint system da identidad propia frente a otros idle looters.
+- Sistema de reliquias extraidas da identidad propia frente a otros idle looters.
 - Meta dual bien definida: poder de run y progreso persistente de cuenta.
 - Sistemas de estaciones ya existen y se conectan entre si por recursos.
 - Arbol de Ecos con ramas por clase + universal + abismo da espacio de buildcraft largo.
@@ -250,7 +256,7 @@ Notas:
 - Exceso de tiempo muerto por timers largos y slots limitados.
 - Muchas decisiones son "falsas": el orden de unlocks y muchos claims son casi obligatorios.
 - UI de estaciones puede sentirse densa y de alto costo de clicks en mobile.
-- Biblioteca/Deep Forge tienen curva cognitiva alta para un jugador nuevo.
+- Biblioteca/Arsenal de Reliquias tienen curva cognitiva alta para un jugador nuevo.
 - Falta de "metas de run declaradas": hoy hay push difuso, no contrato explicito.
 - Economias paralelas son buenas, pero falta tabla de conversion clara para jugador.
 - Parte del contenido esta subutilizado o desconectado (ejemplo `events.js`).
@@ -316,15 +322,16 @@ Notas:
 - Riesgo: sobre-tutorializar.
 - Mitigacion: UI compacta en chips, no texto largo.
 
-## 4. Blueprint lane claro (Inmediato vs Largo Plazo)
-- Sistema: extracted item -> blueprint/desguace.
-- Problema: confusion entre retorno instantaneo y sesgo persistente.
+## 4. Lane de Reliquias claro (Inmediato vs Largo Plazo)
+- Sistema: extracted item -> conservar/desguazar/sintonizar.
+- Problema: confusion entre retorno instantaneo y valor persistente inmediato.
 - Inspiracion: Warframe foundry + Last Epoch deterministic bias.
 - Implementacion:
   - Modal de decision con comparativa corta:
-    - Convertir: direccion persistente.
-    - Desguazar: retorno inmediato.
-  - Mostrar delta tangible: charges esperadas vs sesgo de materializacion.
+    - Conservar: equipable en siguiente run.
+    - Desguazar: retorno inmediato de recursos.
+    - Sintonizar (si aplica): bonus fuerte en contexto especifico.
+  - Mostrar delta tangible: rating/contexto/entropy vs recursos por desguace.
 - Impacto esperado: reduce friccion cognitiva y errores de eleccion.
 - Esfuerzo: Bajo.
 - Riesgo: ruido de UI.
@@ -437,7 +444,7 @@ Un idle ARPG de extraccion para jugadores que disfrutan optimizar builds y conve
 | Biblioteca/Codex research | Modificar (mas orientado a objetivos activos) |
 | Encargos | Mantener, mejorar retorno de informacion |
 | Altar de Sigilos | Mantener, chunking de tiempos largos |
-| Blueprints/Deep Forge | Mantener, clarificar decision y progreso |
+| Arsenal de Reliquias (equipo persistente) | Mantener, clarificar decision de extraccion y tuning contextual |
 | Arbol de Ecos | Mantener |
 | Abismo | Modificar (mas variacion de reglas, no solo escala) |
 | Weekly Ledger + goals | Mantener y elevar a pilar semanal |
@@ -460,12 +467,11 @@ Justificacion:
 |---|---|---|
 | Oro | Kills, logros, goals/weekly, venta | Upgrades de run |
 | XP | Kills | Leveling |
-| Esencia | Kills, auto-extract, goals/weekly, Destileria | Crafting run, research Lab, ascension blueprint |
+| Esencia | Kills, auto-extract, goals/weekly, Destileria | Crafting run, reajuste de afijos, research Lab |
 | Ecos | Extraccion con prestige | Arbol de Ecos |
 | Codex Ink | Destileria, Encargos | Biblioteca, Lab |
-| Sigil Flux | Destileria, Encargos | Altar de Sigilos |
-| Relic Dust | Destileria, Encargos | Biblioteca, Lab, Deep Forge |
-| Family Charges | Desguace/convert, Encargos | Afinidad blueprint |
+| Sigil Flux | Destileria, Encargos | Altar de Sigilos, sintonia contextual de reliquias |
+| Relic Dust | Destileria, Encargos | Biblioteca, Lab, mantenimiento de reliquias |
 | Sigil Infusions | Altar claim | Consumo al iniciar run |
 
 ## Curva de progresion esperada
@@ -481,8 +487,8 @@ Justificacion:
 - Primer contrato de run entendido.
 
 ### Hora 10
-- Blueprint activo (arma o armadura) y primer ajuste de afinidad.
-- Taller desbloqueado o en via de desbloqueo.
+- Primera reliquia activa (arma o armadura) y primera sintonia contextual.
+- Arsenal de Reliquias desbloqueado o en via de desbloqueo.
 - Mejor lectura de costo de oportunidad entre run y Santuario.
 
 ### Hora 20
@@ -492,12 +498,12 @@ Justificacion:
 
 ### Hora 50
 - Portal de Abismo desbloqueado.
-- Meta build de cuenta definida (Ecos + Codex + blueprint lane).
+- Meta build de cuenta definida (Ecos + Codex + lane de reliquias).
 - Loop semanal estable (contracts + objetivos).
 
 ### Hora 100
 - Endgame estable con elecciones de mutadores/contratos.
-- Varias rutas viables de progreso (push, codex, forge).
+- Varias rutas viables de progreso (push, codex, reliquias).
 - Retorno por mastery, no solo por +numeros.
 
 ## Identidad irrenunciable del juego
@@ -510,7 +516,7 @@ No es solo "otro idle ARPG de numero grande": su identidad fuerte es que cada ex
 ## Lote A - Hardening + claridad (sin romper sistemas criticos)
 - Completar hardening de fases setup/active/extraction y smoke checklist.
 - Unificar shell de overlays y patron de secciones.
-- UI de decision de item extraido (convertir vs desguazar) ultra-clara.
+- UI de decision de item extraido (conservar vs desguazar) ultra-clara.
 - KPI de exito:
   - 0 freezes en reingreso de app en 7 dias.
   - Menor tiempo medio para iniciar run desde Santuario.

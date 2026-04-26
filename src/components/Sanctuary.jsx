@@ -4,13 +4,18 @@ import JobProgressBar from "./JobProgressBar";
 import ActionToast from "./ActionToast";
 import useRelativeNow from "../hooks/useRelativeNow";
 import useViewport from "../hooks/useViewport";
+import { getRarityColor } from "../constants/rarity";
 import { getRunSigil } from "../data/runSigils";
 import { getSanctuaryStationState } from "../engine/sanctuary/laboratoryEngine";
 import {
+  calculateRelicAttunementCost,
+  calculateRelicEntropyStabilizePlan,
+  getRelicContextOptions,
+  inferRunRelicContext,
+  normalizeRelicContextAttunement,
+} from "../engine/sanctuary/relicArmoryEngine";
+import {
   getEffectiveOnboardingStep,
-  getOnboardingStepInteractionMode,
-  getOnboardingTutorialDeepForgeProjectId,
-  getOnboardingTutorialExtractedItemId,
   ONBOARDING_STEPS,
   isBlueprintDecisionUnlocked,
   isDistilleryUnlocked,
@@ -20,7 +25,7 @@ import {
 const loadDistilleryOverlay = () => import("./DistilleryOverlay");
 const DistilleryOverlay = lazy(loadDistilleryOverlay);
 const EncargosOverlay = lazy(() => import("./EncargosOverlay"));
-const BlueprintForgeOverlay = lazy(() => import("./BlueprintForgeOverlay"));
+const SanctuaryForgeOverlay = lazy(() => import("./SanctuaryForgeOverlay"));
 const SigilAltarOverlay = lazy(() => import("./SigilAltarOverlay"));
 const BibliotecaOverlay = lazy(() => import("./BibliotecaOverlay"));
 const LaboratoryOverlay = lazy(() => import("./LaboratoryOverlay"));
@@ -30,10 +35,10 @@ function sectionCardStyle(accent = "var(--tone-accent, #4338ca)") {
   return {
     background: "var(--color-background-secondary, #ffffff)",
     border: "1px solid var(--color-border-primary, #e2e8f0)",
-    borderRadius: "16px",
-    padding: "16px",
+    borderRadius: "var(--dense-card-radius, 12px)",
+    padding: "var(--dense-panel-padding, 10px)",
     display: "grid",
-    gap: "12px",
+    gap: "var(--dense-panel-gap, 8px)",
     boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
     borderTop: `3px solid ${accent}`,
   };
@@ -43,8 +48,8 @@ function metricCardStyle() {
   return {
     background: "var(--color-background-tertiary, #f8fafc)",
     border: "1px solid var(--color-border-primary, #e2e8f0)",
-    borderRadius: "12px",
-    padding: "10px 12px",
+    borderRadius: "var(--dense-card-radius, 12px)",
+    padding: "var(--dense-panel-padding, 10px)",
     display: "grid",
     gap: "4px",
   };
@@ -68,8 +73,8 @@ function actionButtonStyle({ primary = false, disabled = false } = {}) {
       : primary
         ? "var(--tone-accent, #4338ca)"
         : "var(--color-text-primary, #1e293b)",
-    borderRadius: "12px",
-    padding: "8px 12px",
+    borderRadius: "var(--dense-card-radius, 12px)",
+    padding: "var(--dense-button-padding, 7px 10px)",
     fontSize: "0.7rem",
     lineHeight: 1.15,
     fontWeight: "900",
@@ -88,8 +93,8 @@ function stationButtonStyle({
     borderColor: disabled ? "var(--color-border-primary, #e2e8f0)" : tone,
     background: disabled ? "var(--color-background-tertiary, #f8fafc)" : surface,
     color: disabled ? "var(--color-text-tertiary, #94a3b8)" : tone,
-    borderRadius: "12px",
-    padding: "8px 12px",
+    borderRadius: "var(--dense-card-radius, 12px)",
+    padding: "var(--dense-button-padding, 7px 10px)",
     fontSize: "0.7rem",
     lineHeight: 1.15,
     fontWeight: "900",
@@ -104,7 +109,7 @@ function chipStyle(accent = "var(--tone-accent, #4338ca)") {
     background: "var(--color-background-tertiary, #f8fafc)",
     color: accent,
     borderRadius: "999px",
-    padding: "4px 8px",
+    padding: "3px 7px",
     fontSize: "0.62rem",
     fontWeight: "900",
   };
@@ -166,8 +171,10 @@ function jobTitle(job = {}) {
   if (job.type === "sanctuary_errand") return job.output?.label || job.input?.label || "Encargo";
   if (job.type === "infuse_sigil") return `Infusion · ${getRunSigil(job.output?.sigilId || "free").name}`;
   if (job.type === "scrap_extracted_item") return `Desguace · ${job.input?.itemName || "Item"}`;
+  if (job.type === "imbue_item") return `Imbuir · ${job.input?.itemName || "Item"}`;
   if (job.type === "codex_research") return `Biblioteca · ${job.input?.label || "Investigacion"}`;
   if (job.type === "laboratory_research") return `Laboratorio · ${job.input?.label || "Infraestructura"}`;
+  if (job.type === "forge_project" || job.type === "forge_master_project") return "Forja legado";
   return "Job";
 }
 
@@ -184,14 +191,17 @@ function jobSummary(job = {}) {
   if (job.type === "scrap_extracted_item") {
     return job.output?.summary || "Desguaza un item rescatado y devuelve cargas de afinidad.";
   }
+  if (job.type === "imbue_item") {
+    return "Timer de Imbuir activo: cuando termina, reclamas y la pieza pasa a legendaria.";
+  }
   if (job.type === "codex_research") {
     return job.output?.summary || "Activa un nuevo hito de la Biblioteca con tinta y tiempo real.";
   }
   if (job.type === "laboratory_research") {
     return job.output?.summary || "Mejora la infraestructura del Santuario con investigación persistente.";
   }
-  if (job.type === "forge_project") {
-    return `Sube ${job.input?.project?.name || "proyecto"} a +${job.output?.nextUpgradeLevel || 1} dentro de la capa persistente.`;
+  if (job.type === "forge_project" || job.type === "forge_master_project") {
+    return "Trabajo heredado de la forja anterior. Se mantiene por compatibilidad de saves.";
   }
   return "Trabajo persistente del Santuario.";
 }
@@ -205,7 +215,7 @@ export default function Sanctuary({ state, dispatch }) {
   const [actionToast, setActionToast] = useState(null);
   const [showDistillery, setShowDistillery] = useState(false);
   const [showErrands, setShowErrands] = useState(false);
-  const [showDeepForge, setShowDeepForge] = useState(false);
+  const [showSanctuaryForge, setShowSanctuaryForge] = useState(false);
   const [showSigilAltar, setShowSigilAltar] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
   const [showLaboratory, setShowLaboratory] = useState(false);
@@ -235,7 +245,7 @@ export default function Sanctuary({ state, dispatch }) {
   function closeAllOverlays() {
     setShowDistillery(false);
     setShowErrands(false);
-    setShowDeepForge(false);
+    setShowSanctuaryForge(false);
     setShowSigilAltar(false);
     setShowLibrary(false);
     setShowLaboratory(false);
@@ -335,28 +345,63 @@ export default function Sanctuary({ state, dispatch }) {
   }, [isMobileViewport, onboardingStep, showLaboratory]);
 
   const expeditionPhase = state.expedition?.phase || "sanctuary";
-  const onboardingMode = getOnboardingStepInteractionMode(onboardingStep, {
-    ...state,
-    __liveNow: now,
-  });
   const hasClass = Boolean(state.player?.class);
   const hasSpec = Boolean(state.player?.specialization);
   const sanctuary = state.sanctuary || {};
   const extractedItems = Array.isArray(sanctuary?.extractedItems) ? sanctuary.extractedItems : [];
-  const blueprints = Array.isArray(sanctuary?.blueprints) ? sanctuary.blueprints : [];
-  const stashCount = Number(extractedItems.length || 0);
-  const blueprintCount = Number(blueprints.length || 0);
+  const stashProjects = Array.isArray(sanctuary?.stash) ? sanctuary.stash : [];
+  const relicArmory = Array.isArray(sanctuary?.relicArmory) ? sanctuary.relicArmory : [];
+  const extractedStashCount = Number(extractedItems.length || 0);
+  const projectCount = Number(stashProjects.length || 0);
+  const relicCount = Number(relicArmory.length || 0);
   const cargoInventory = Array.isArray(sanctuary?.cargoInventory) ? sanctuary.cargoInventory : [];
   const jobs = Array.isArray(sanctuary?.jobs) ? sanctuary.jobs : [];
   const resources = sanctuary?.resources || {};
-  const familyCharges = sanctuary?.familyCharges || {};
-  const activeBlueprints = sanctuary?.activeBlueprints || {};
+  const activeRelics = sanctuary?.activeRelics || {};
   const sigilInfusions = sanctuary?.sigilInfusions || {};
+  const deepForgeSession = sanctuary?.deepForgeSession || null;
   const distillerySlots = Number(sanctuary?.stations?.distillery?.slots || 1);
   const errandSlots = Number(sanctuary?.stations?.errands?.slots || 2);
   const infusionSlots = Number(sanctuary?.stations?.sigilInfusion?.slots || 1);
   const librarySlots = Number(sanctuary?.stations?.codexResearch?.slots || 1);
   const deepForgeSlots = Number(sanctuary?.stations?.deepForge?.slots || 1);
+  const relicArmorySlots = Math.max(1, Number(sanctuary?.extractionUpgrades?.relicSlots || 8));
+  const activeRelicCount = Object.values(activeRelics || {}).filter(Boolean).length;
+  const sortedRelicArmory = useMemo(
+    () => [...relicArmory].sort((left, right) => Number(right?.rating || 0) - Number(left?.rating || 0)),
+    [relicArmory]
+  );
+  const relicContextOptions = useMemo(
+    () => getRelicContextOptions({ includeNone: true }),
+    []
+  );
+  const relicContextById = useMemo(
+    () => Object.fromEntries(relicContextOptions.map(context => [context.id, context])),
+    [relicContextOptions]
+  );
+  const attunedRelicCount = useMemo(
+    () => relicArmory.filter(relic => normalizeRelicContextAttunement(relic?.contextAttunement || "none") !== "none").length,
+    [relicArmory]
+  );
+  const averageRelicEntropy = useMemo(() => {
+    if (relicArmory.length <= 0) return 0;
+    const totalEntropy = relicArmory.reduce(
+      (sum, relic) => sum + Math.max(0, Math.floor(Number(relic?.entropy || 0))),
+      0
+    );
+    return Math.round(totalEntropy / relicArmory.length);
+  }, [relicArmory]);
+  const projectedRelicRunContextId = useMemo(
+    () => inferRunRelicContext({
+      runSigilIds: state?.combat?.pendingRunSigilIds || state?.combat?.pendingRunSigilId || "free",
+      abyss: state?.abyss || {},
+    }),
+    [state?.abyss, state?.combat?.pendingRunSigilId, state?.combat?.pendingRunSigilIds]
+  );
+  const projectedRelicRunContextLabel =
+    relicContextById[projectedRelicRunContextId]?.label ||
+    relicContextById.none?.label ||
+    "Neutra";
   const distilleryStation = getSanctuaryStationState(sanctuary, "distillery");
   const libraryStation = getSanctuaryStationState(sanctuary, "codexResearch");
   const errandStation = getSanctuaryStationState(sanctuary, "errands");
@@ -366,8 +411,11 @@ export default function Sanctuary({ state, dispatch }) {
   const laboratoryUnlocked = laboratoryStation.unlocked || isLaboratoryUnlocked(state);
   const distilleryUnlocked = distilleryStation.unlocked || isDistilleryUnlocked(state);
   const blueprintDecisionUnlocked = isBlueprintDecisionUnlocked(state);
-  const tutorialBlueprintItemId = getOnboardingTutorialExtractedItemId(state);
-  const tutorialDeepForgeProjectId = getOnboardingTutorialDeepForgeProjectId(state);
+  useEffect(() => {
+    if (!sanctuary?.pendingOpenForgeOverlay) return;
+    setShowSanctuaryForge(true);
+    dispatch({ type: "ACK_OPEN_SANCTUARY_FORGE" });
+  }, [dispatch, sanctuary?.pendingOpenForgeOverlay]);
   const infrastructureVisible = Boolean(
     state?.onboarding?.completed ||
     state?.onboarding?.flags?.firstExtractionCompleted ||
@@ -380,8 +428,6 @@ export default function Sanctuary({ state, dispatch }) {
   const showingSanctuaryIntro = !hasClass && onboardingStep === ONBOARDING_STEPS.EXPEDITION_INTRO;
   const choosingClass = !hasClass && onboardingStep === ONBOARDING_STEPS.CHOOSE_CLASS;
   const classSelectionRequested = !hasClass && (choosingClass || expeditionPhase === "setup");
-  const spotlightBlueprintIntro =
-    onboardingStep === ONBOARDING_STEPS.BLUEPRINT_INTRO && onboardingMode === "forced";
   const sanctuaryOnboardingLocked = [
     ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
     ONBOARDING_STEPS.OPEN_LABORATORY,
@@ -404,7 +450,7 @@ export default function Sanctuary({ state, dispatch }) {
     if (onboardingStep !== ONBOARDING_STEPS.FIRST_DISTILLERY_JOB || !distilleryUnlocked) return;
     setShowLaboratory(false);
     setShowErrands(false);
-    setShowDeepForge(false);
+    setShowSanctuaryForge(false);
     setShowSigilAltar(false);
     setShowLibrary(false);
     setShowDistillery(true);
@@ -627,13 +673,9 @@ export default function Sanctuary({ state, dispatch }) {
       case ONBOARDING_STEPS.BLUEPRINT_DECISION:
       case ONBOARDING_STEPS.FIRST_BLUEPRINT_MATERIALIZATION:
       case ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE:
-        if (deepForgeStation.unlocked) {
-          setShowDeepForge(true);
-          return;
-        }
-        openLaboratoryFromSanctuary("header-cta");
-        return;
       case ONBOARDING_STEPS.DEEP_FORGE_READY:
+        setShowSanctuaryForge(true);
+        return;
       case ONBOARDING_STEPS.LIBRARY_READY:
       case ONBOARDING_STEPS.ERRANDS_READY:
       case ONBOARDING_STEPS.SIGIL_ALTAR_READY:
@@ -877,7 +919,7 @@ export default function Sanctuary({ state, dispatch }) {
   const nextStep = useMemo(() => {
     const unlockedEchoes = Number(state?.prestige?.level || 0) > 0 || Number(state?.prestige?.totalEchoesEarned || 0) > 0;
     const hasAnyCargo = totalCargoQuantity > 0;
-    const hasAnyBlueprint = blueprintCount > 0;
+    const hasAnyProject = projectCount > 0;
     const maxTierReached = Number(state?.combat?.maxTier || 1);
     const hasSeenBoss = maxTierReached >= 5 || Number(state?.combat?.analytics?.bossKills || 0) > 0;
     if (onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN) {
@@ -1008,7 +1050,7 @@ export default function Sanctuary({ state, dispatch }) {
         action: () => openLaboratoryFromSanctuary("next-step"),
       };
     }
-    if (!hasAnyCargo && stashCount === 0 && !hasAnyBlueprint) {
+    if (!hasAnyCargo && extractedStashCount === 0 && !hasAnyProject) {
       return {
         tone: "warning",
         eyebrow: "Primer loop",
@@ -1020,14 +1062,14 @@ export default function Sanctuary({ state, dispatch }) {
           : dispatch({ type: "ENTER_EXPEDITION_SETUP" })),
       };
     }
-    if (blueprintDecisionUnlocked && stashCount > 0 && !hasAnyBlueprint) {
+    if (blueprintDecisionUnlocked && extractedStashCount > 0 && !hasAnyProject) {
       return {
         tone: "danger",
         eyebrow: "Decision clave",
         title: "Decide que hacer con tu primera pieza del Taller",
-        body: "El item rescatado no vuelve equipado. Elige si se transforma en plano persistente o si lo rompes para ganar cargas de afinidad.",
+        body: "La pieza rescatada no vuelve equipada. Elige si entra al stash del Taller o si la desguazas para recuperar recursos.",
         cta: "Abrir Taller",
-        action: () => setShowDeepForge(true),
+        action: () => setShowSanctuaryForge(true),
       };
     }
     if (blueprintDecisionUnlocked && Number(state?.prestige?.level || 0) >= 3 && !deepForgeStation.unlocked) {
@@ -1035,7 +1077,7 @@ export default function Sanctuary({ state, dispatch }) {
         tone: "accent",
         eyebrow: "Proyecto persistente",
         title: "Ya puedes investigar el Taller",
-        body: "Desde Prestige 3, el Laboratorio puede abrir la estacion donde se trabajan blueprints y progreso persistente a largo plazo.",
+        body: "Desde Prestige 3, el Laboratorio puede abrir la estacion donde se trabajan piezas persistentes del Santuario.",
         cta: "Ir al Laboratorio",
         action: () => openLaboratoryFromSanctuary("next-step"),
       };
@@ -1070,7 +1112,7 @@ export default function Sanctuary({ state, dispatch }) {
         action: () => openLaboratoryFromSanctuary("next-step"),
       };
     }
-    if (hasAnyBlueprint && !unlockedEchoes) {
+    if (hasAnyProject && !unlockedEchoes) {
       return {
         tone: "success",
         eyebrow: "Primer prestige",
@@ -1112,13 +1154,13 @@ export default function Sanctuary({ state, dispatch }) {
       tone: "success",
       eyebrow: "Santuario activo",
       title: "Ya tienes el loop principal funcionando",
-      body: "Ahora el foco es refinar blueprints, mantener jobs corriendo y convertir una buena expedicion en mejor cuenta, no solo en mejor run.",
+      body: "Ahora el foco es sostener la Forja del Santuario, mantener jobs corriendo y convertir una buena expedicion en mejor cuenta, no solo en mejor run.",
       cta: "Abrir Taller",
-      action: () => setShowDeepForge(true),
+      action: () => setShowSanctuaryForge(true),
     };
   }, [
     blueprintDecisionUnlocked,
-    blueprintCount,
+    projectCount,
     deepForgeStation.unlocked,
     dispatch,
     distilleryUnlocked,
@@ -1134,7 +1176,7 @@ export default function Sanctuary({ state, dispatch }) {
     onboardingStep,
     resources?.codexInk,
     sanctuary?.jobs,
-    stashCount,
+    extractedStashCount,
     abyssPortalUnlocked,
     state?.combat?.analytics?.bossKills,
     state?.combat?.maxTier,
@@ -1218,11 +1260,11 @@ export default function Sanctuary({ state, dispatch }) {
         chip: "Sin flux",
       });
     }
-    if (blueprintDecisionUnlocked && deepForgeStation.unlocked && blueprintCount <= 0 && extractedItems.length <= 0) {
+    if (blueprintDecisionUnlocked && deepForgeStation.unlocked && projectCount <= 0 && extractedItems.length <= 0) {
       rows.push({
         id: "forge-no-input",
         title: "Taller",
-        detail: "Sin blueprints ni piezas rescatadas para trabajar.",
+        detail: "Sin piezas en stash ni rescates listos para trabajar.",
         chip: "Sin base",
       });
     }
@@ -1234,7 +1276,7 @@ export default function Sanctuary({ state, dispatch }) {
       chip: "OK",
     }];
   }, [
-    blueprintCount,
+    projectCount,
     blueprintDecisionUnlocked,
     deepForgeStation.unlocked,
     distilleryUnlocked,
@@ -1350,23 +1392,21 @@ export default function Sanctuary({ state, dispatch }) {
     },
     ...(blueprintDecisionUnlocked
       ? [{
-          id: "deepforge",
+          id: "forge",
           title: "Taller",
-          status: deepForgeStation.unlocked ? `${runningByStation.deepForge || 0}/${deepForgeSlots}` : "Bloqueada",
-          detail: `${blueprintCount} plano(s).`,
+          status: "Operativa",
+          detail: "Forja de items persistentes.",
           tone: "var(--tone-danger, #D85A30)",
-          actionLabel: deepForgeStation.unlocked ? "Abrir" : "Laboratorio",
-          locked: !deepForgeStation.unlocked,
-          action: () => (deepForgeStation.unlocked ? setShowDeepForge(true) : openLaboratoryFromSanctuary("overview-forge")),
+          actionLabel: "Abrir",
+          locked: false,
+          action: () => setShowSanctuaryForge(true),
         }]
       : []),
   ]), [
-    blueprintCount,
+    projectCount,
     blueprintDecisionUnlocked,
     claimableErrandJobs.length,
     claimableLibraryJobs.length,
-    deepForgeSlots,
-    deepForgeStation.unlocked,
     distillerySlots,
     distilleryUnlocked,
     errandSlots,
@@ -1380,7 +1420,6 @@ export default function Sanctuary({ state, dispatch }) {
     libraryStation.unlocked,
     onboardingStep,
     dispatch,
-    runningByStation.deepForge,
     runningByStation.distillery,
     runningByStation.sigilInfusion,
     runningErrandJobs.length,
@@ -1395,11 +1434,20 @@ export default function Sanctuary({ state, dispatch }) {
       .sort((left, right) => Number(right[1] || 0) - Number(left[1] || 0)),
     [resources]
   );
-  const topCardPadding = isMobileViewport ? "10px" : "16px";
+  const topCardPadding = isMobileViewport
+    ? "calc(8px * var(--density-scale, 1))"
+    : "calc(11px * var(--density-scale, 1))";
   const compactMetricCard = {
     ...metricCardStyle(),
-    padding: isMobileViewport ? "7px 9px" : "10px 12px",
+    padding: isMobileViewport
+      ? "calc(6px * var(--density-scale, 1)) calc(8px * var(--density-scale, 1))"
+      : "calc(9px * var(--density-scale, 1)) calc(10px * var(--density-scale, 1))",
     gap: isMobileViewport ? "1px" : "4px",
+  };
+  const compactStatsGridStyle = {
+    display: "grid",
+    gridTemplateColumns: isMobileViewport ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fit, minmax(140px, 1fr))",
+    gap: isMobileViewport ? "6px" : "8px",
   };
   const stationOverviewGridStyle = {
     display: "grid",
@@ -1409,7 +1457,9 @@ export default function Sanctuary({ state, dispatch }) {
   const bandSectionStyle = {
     display: "grid",
     gridTemplateColumns: isMobileViewport ? "1fr" : "repeat(2, minmax(0, 1fr))",
-    gap: isMobileViewport ? "0.7rem" : "0.9rem",
+    gap: isMobileViewport
+      ? "calc(0.62rem * var(--density-scale, 1))"
+      : "calc(0.75rem * var(--density-scale, 1))",
   };
   const mobileFullWidthButtonStyle = isMobileViewport ? { width: "100%", justifyContent: "center" } : null;
 
@@ -1418,7 +1468,7 @@ export default function Sanctuary({ state, dispatch }) {
   }
 
   return (
-    <div style={{ padding: isMobileViewport ? "0.7rem" : "0.9rem", display: "grid", gap: "0.9rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+    <div style={{ padding: isMobileViewport ? "calc(0.65rem * var(--density-scale, 1))" : "calc(0.8rem * var(--density-scale, 1))", display: "grid", gap: "calc(0.75rem * var(--density-scale, 1))", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
       <style>{`
         @keyframes sanctuarySpotlightPulse {
           0% { box-shadow: 0 0 0 0 rgba(3,105,161,0.24); }
@@ -1676,595 +1726,209 @@ export default function Sanctuary({ state, dispatch }) {
         </section>
       )}
 
-      {false && (
-      <section style={detailedInfrastructureGridStyle}>
-        <div style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
-                Biblioteca
-              </div>
-              <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-                Archivo, maestrias e investigacion del Santuario
-              </div>
-            </div>
-            <div style={chipStyle("var(--tone-accent, #4338ca)")}>
-              {libraryStation.unlocked ? `${runningLibraryJobs.length} / ${librarySlots} estudios` : "Bloqueada"}
-            </div>
-          </div>
-
-          <div style={{ fontSize: "0.69rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
-            {libraryStation.unlocked
-              ? "Archivo, maestrias e investigaciones."
-              : "Desbloqueala desde Laboratorio."}
-          </div>
-
-          <div style={compactStatsGridStyle}>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Tinta
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {Math.floor(Number(resources?.codexInk || 0)).toLocaleString()}
-              </div>
-            </div>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Recompensas
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {claimableLibraryJobs.length}
-              </div>
-            </div>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                En curso
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {runningLibraryJobs.length}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>Conocimiento persistente del Santuario.</div>
-            <button
-              onClick={() => (libraryStation.unlocked ? setShowLibrary(true) : openLaboratoryFromSanctuary("library-card"))}
-              disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !libraryStation.unlocked}
-              style={{
-                ...stationButtonStyle({
-                  tone: "var(--tone-accent, #4338ca)",
-                  surface: "var(--tone-accent-soft, #eef2ff)",
-                  disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !libraryStation.unlocked,
-                }),
-                ...mobileFullWidthButtonStyle,
-              }}
-            >
-              {libraryStation.unlocked ? "Abrir Biblioteca" : "Investigar en Laboratorio"}
-            </button>
-          </div>
-        </div>
-
-        <div style={sectionCardStyle("var(--tone-violet, #7c3aed)")}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" }}>
-                Destileria
-              </div>
-              <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-                Estación separada para refinar cargo persistente
-              </div>
-            </div>
-            <div style={chipStyle("var(--tone-violet, #7c3aed)")}>
-              {distilleryUnlocked ? `${runningByStation.distillery || 0} / ${distillerySlots} ocupados` : "Bloqueada"}
-            </div>
-          </div>
-
-          <div style={{ fontSize: "0.69rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
-            {distilleryUnlocked
-              ? "Refina cargo persistente en tiempo real."
-              : "Se activa desde el Laboratorio."}
-          </div>
-
-          <div style={compactStatsGridStyle}>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Bundles
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {totalCargoQuantity}
-              </div>
-            </div>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Tipos
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {cargoInventory.length}
-              </div>
-            </div>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Claims
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {jobs.filter(job => job?.station === "distillery" && job?.status === "claimable").length}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>Convierte bundles en recursos utiles.</div>
-            <button
-              onClick={() => {
-                const openAction = () => (distilleryUnlocked ? setShowDistillery(true) : openLaboratoryFromSanctuary("distillery-card"));
-                if (onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY) {
-                  handleTutorialStationOpen(ONBOARDING_STEPS.OPEN_DISTILLERY, openAction);
-                  return;
-                }
-                if (onboardingStep === ONBOARDING_STEPS.FIRST_DISTILLERY_JOB) {
-                  handleTutorialStationOpen(ONBOARDING_STEPS.FIRST_DISTILLERY_JOB, openAction);
-                  return;
-                }
-                openAction();
-              }}
-              disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !distilleryUnlocked}
-              data-onboarding-target={
-                onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY
-                  ? "open-distillery"
-                  : undefined
-              }
-              style={{
-                ...stationButtonStyle({
-                  tone: "var(--tone-violet, #7c3aed)",
-                  surface: "var(--tone-violet-soft, #f3e8ff)",
-                  disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !distilleryUnlocked,
-                }),
-                ...mobileFullWidthButtonStyle,
-                position:
-                  onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY
-                    ? "relative"
-                    : "static",
-                zIndex:
-                  onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY
-                    ? 2
-                    : 1,
-                boxShadow:
-                  onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY
-                    ? "0 0 0 2px rgba(124,58,237,0.18), 0 12px 28px rgba(124,58,237,0.14)"
-                    : "none",
-                animation:
-                  onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY
-                    ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite"
-                    : "none",
-              }}
-            >
-              {distilleryUnlocked ? "Abrir Destileria" : "Investigar en Laboratorio"}
-            </button>
-          </div>
-        </div>
-
-        <div style={sectionCardStyle("var(--tone-info, #0369a1)")}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
-                Encargos
-              </div>
-              <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-                Equipos del Santuario para misiones paralelas
-              </div>
-            </div>
-            <div style={chipStyle("var(--tone-info, #0369a1)")}>
-              {errandStation.unlocked ? `${runningErrandJobs.length} / ${errandSlots} equipos ocupados` : "Bloqueada"}
-            </div>
-          </div>
-
-          <div style={{ fontSize: "0.69rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
-            {errandStation.unlocked
-              ? errandFlavorText
-              : "Desbloquealos desde Laboratorio."}
-          </div>
-
-          <div style={compactStatsGridStyle}>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Disponibles
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {Math.max(0, errandSlots - runningErrandJobs.length)}
-              </div>
-            </div>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                En curso
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {runningErrandJobs.length}
-              </div>
-            </div>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Recompensas
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {claimableErrandJobs.length}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>Envia equipos y reclama recursos.</div>
-            <button
-              onClick={() => (errandStation.unlocked ? setShowErrands(true) : openLaboratoryFromSanctuary("errands-card"))}
-              disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !errandStation.unlocked}
-              style={{
-                ...stationButtonStyle({
-                  tone: "var(--tone-info, #0369a1)",
-                  surface: "var(--tone-info-soft, #f0f9ff)",
-                  disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !errandStation.unlocked,
-                }),
-                ...mobileFullWidthButtonStyle,
-              }}
-            >
-              {errandStation.unlocked ? "Abrir Encargos" : "Investigar en Laboratorio"}
-            </button>
-          </div>
-        </div>
-
-        <div style={sectionCardStyle("var(--tone-success, #10b981)")}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-success, #10b981)" }}>
-                Altar de Sigilos
-              </div>
-              <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-                Estación separada para preparar la próxima expedición
-              </div>
-            </div>
-            <div style={chipStyle("var(--tone-success, #10b981)")}>
-              {infusionStation.unlocked ? `${runningByStation.sigilInfusion || 0} / ${infusionSlots} jobs` : "Bloqueada"}
-            </div>
-          </div>
-
-          <div style={{ fontSize: "0.69rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
-            {infusionStation.unlocked
-              ? "Prepara sigilos para futuras runs."
-              : "Desbloquealo desde Laboratorio."}
-          </div>
-
-          <div style={compactStatsGridStyle}>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Flux
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {Math.floor(Number(resources?.sigilFlux || 0)).toLocaleString()}
-              </div>
-            </div>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Cargas listas
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {totalStoredSigilCharges}
-              </div>
-            </div>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Trabajos
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {runningByStation.sigilInfusion || 0}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>Guarda cargas y prepara la siguiente expedicion.</div>
-            <button
-              onClick={() => (infusionStation.unlocked ? setShowSigilAltar(true) : openLaboratoryFromSanctuary("sigil-card"))}
-              disabled={onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !infusionStation.unlocked}
-              style={{
-                ...stationButtonStyle({
-                  tone: "var(--tone-success, #10b981)",
-                  surface: "var(--tone-success-soft, #ecfdf5)",
-                  disabled: onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN && !infusionStation.unlocked,
-                }),
-                ...mobileFullWidthButtonStyle,
-              }}
-            >
-              {infusionStation.unlocked ? "Abrir Altar de Sigilos" : "Investigar en Laboratorio"}
-            </button>
-          </div>
-        </div>
-      </section>
-      )}
-
-      {false && (
-      <section style={detailedInfrastructureGridStyle}>
-        {blueprintDecisionUnlocked && (
-        <div
-          data-onboarding-target={spotlightBlueprintIntro ? "blueprint-stash" : undefined}
-          onClick={() => acknowledgeTutorialStep(ONBOARDING_STEPS.BLUEPRINT_INTRO)}
-          style={{
-            ...sectionCardStyle("var(--tone-danger, #D85A30)"),
-            position: spotlightBlueprintIntro ? "relative" : "static",
-            zIndex: spotlightBlueprintIntro ? 2 : 1,
-            boxShadow:
-              spotlightBlueprintIntro
-                ? "0 0 0 2px rgba(216,90,48,0.18), 0 12px 28px rgba(216,90,48,0.14)"
-                : "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
-            animation:
-              spotlightBlueprintIntro
-                ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite"
-                : "none",
-            cursor: spotlightBlueprintIntro ? "pointer" : "default",
-          }}
-        >
+      {infrastructureVisible && (
+        <section style={sectionCardStyle("var(--tone-danger, #D85A30)")}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div>
               <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
-                Taller
+                Arsenal de Reliquias
               </div>
               <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-                Stash, decisiones y proyectos rescatados
+                Extraes una pieza y la equipas en la siguiente run
               </div>
             </div>
             <div style={chipStyle("var(--tone-danger, #D85A30)")}>
-              {extractedItems.length} / {Number(sanctuary?.extractionUpgrades?.extractedItemSlots || 3)} slots
+              {relicCount} / {relicArmorySlots}
             </div>
           </div>
 
-          {extractedItems.length === 0 ? (
+          <div style={{ fontSize: "0.69rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
+            Mantiene items completos del Santuario. Las reliquias activas entran automaticamente al iniciar expedicion.
+          </div>
+
+          <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4 }}>
+            Contexto estimado para la proxima salida: <strong>{projectedRelicRunContextLabel}</strong>. Si la sintonia coincide, aplica bonus; si no coincide, aplica defecto.
+          </div>
+
+          <div style={{ display: "grid", gap: "8px", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+            {relicContextOptions
+              .filter(context => context.id !== "none")
+              .map(context => (
+                <div key={`context-${context.id}`} style={metricCardStyle()}>
+                  <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", color: "var(--tone-danger, #D85A30)" }}>
+                    {context.label}
+                  </div>
+                  <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35 }}>
+                    Bonus: {context.bonusText}
+                  </div>
+                  <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.35 }}>
+                    Defecto: {context.defectText}
+                  </div>
+                </div>
+              ))}
+          </div>
+
+          <div style={compactStatsGridStyle}>
+            <div style={metricCardStyle()}>
+              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                Reliquias
+              </div>
+              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>{relicCount}</div>
+            </div>
+            <div style={metricCardStyle()}>
+              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                Activas
+              </div>
+              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>{activeRelicCount}</div>
+            </div>
+            <div style={metricCardStyle()}>
+              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                Arma
+              </div>
+              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
+                {activeRelics?.weapon ? "Activa" : "Sin asignar"}
+              </div>
+            </div>
+            <div style={metricCardStyle()}>
+              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                Armadura
+              </div>
+              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
+                {activeRelics?.armor ? "Activa" : "Sin asignar"}
+              </div>
+            </div>
+            <div style={metricCardStyle()}>
+              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                Sintonizadas
+              </div>
+              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
+                {attunedRelicCount}
+              </div>
+            </div>
+            <div style={metricCardStyle()}>
+              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                Entropy media
+              </div>
+              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
+                {averageRelicEntropy}
+              </div>
+            </div>
+          </div>
+
+          {sortedRelicArmory.length === 0 ? (
             <div style={{ fontSize: "0.69rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
-              Extrae una pieza y luego decidí si guardarla como blueprint o romperla por cargas del Taller.
+              Aun no hay reliquias en el arsenal. Al extraer una pieza desde expedicion aparece aqui para activarla o descartarla.
             </div>
           ) : (
             <div style={{ display: "grid", gap: "8px" }}>
-              {extractedItems.map(item => {
-                const scrapBlocked = (runningByStation.deepForge || 0) >= deepForgeSlots;
+              {sortedRelicArmory.slice(0, 6).map(relic => {
+                const slot = relic?.slot === "armor" ? "armor" : "weapon";
+                const isActive = activeRelics?.[slot] === relic.id;
+                const contextAttunement = normalizeRelicContextAttunement(relic?.contextAttunement || "none");
+                const contextProfile = relicContextById[contextAttunement] || relicContextById.none || relicContextOptions[0];
+                const entropy = Math.max(0, Math.floor(Number(relic?.entropy || 0)));
+                const stabilizePlan = calculateRelicEntropyStabilizePlan(relic);
+                const availableSigilFlux = Math.max(0, Number(resources?.sigilFlux || 0));
+                const availableRelicDust = Math.max(0, Number(resources?.relicDust || 0));
+                const canStabilize =
+                  stabilizePlan.entropyReduced > 0 &&
+                  availableRelicDust >= stabilizePlan.relicDustCost &&
+                  availableSigilFlux >= stabilizePlan.sigilFluxCost;
                 return (
-                  <div key={item.id} style={metricCardStyle()}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
+                  <div key={relic.id} style={compactMetricCard}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" }}>
                       <div>
-                        <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>{item.name}</div>
-                        <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
-                          {item.rarity} · {item.type} · rating {Math.round(Number(item?.rating || 0))} · {Array.isArray(item?.affixes) ? item.affixes.length : 0} affix
+                        <div style={{ fontSize: "0.78rem", fontWeight: "900", color: getRarityColor(relic?.rarity || "rare") }}>
+                          {relic?.name || "Reliquia"}
+                        </div>
+                        <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
+                          {relic?.rarity || "rare"} · {slot} · rating {Math.round(Number(relic?.rating || 0))}
                         </div>
                       </div>
-                      <span style={chipStyle("var(--tone-danger, #D85A30)")}>
-                        {item.legendaryPowerId ? "Legendary" : "Rescatado"}
+                      <span style={chipStyle(isActive ? "var(--tone-success, #10b981)" : "var(--tone-danger, #D85A30)")}>
+                        {isActive ? "Activa" : "Reserva"}
                       </span>
                     </div>
-
+                    <div style={{ display: "grid", gap: "6px" }}>
+                      <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
+                        Sintonia <strong>{contextProfile?.label || "Neutra"}</strong> · entropy {entropy}
+                      </div>
+                      <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35 }}>
+                        Bonus: {contextProfile?.bonusText || "Sin bonus contextual."}
+                      </div>
+                      <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.35 }}>
+                        Defecto: {contextProfile?.defectText || "Sin defecto contextual."}
+                      </div>
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        {relicContextOptions.map(context => {
+                          const isSelectedContext = contextAttunement === context.id;
+                          const attuneFluxCost = calculateRelicAttunementCost(relic, context.id);
+                          const canAffordAttune = availableSigilFlux >= attuneFluxCost;
+                          const disabled = isSelectedContext || attuneFluxCost <= 0 || !canAffordAttune;
+                          return (
+                            <button
+                              key={`${relic.id}-${context.id}`}
+                              onClick={() => !disabled && dispatch({ type: "SET_RELIC_ATTUNEMENT", relicId: relic.id, contextAttunement: context.id })}
+                              disabled={disabled}
+                              style={actionButtonStyle({ primary: !isSelectedContext, disabled })}
+                            >
+                              {isSelectedContext ? `${context.label} activa` : `${context.label} · ${attuneFluxCost} flux`}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center" }}>
-                      <div style={{ fontSize: "0.64rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>Guardala como blueprint o desguazala para cargar el Taller.</div>
+                      <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)" }}>
+                        Slot {slot}. {isActive ? "Ya equipa este slot al iniciar run." : "Puedes activarla para este slot."}
+                      </div>
                       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", width: isMobileViewport ? "100%" : "auto" }}>
                         <button
-                          disabled={
-                            onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
-                            (state?.onboarding?.flags?.blueprintConverted || item.id !== tutorialBlueprintItemId)
-                          }
-                          onClick={() => dispatch({ type: "CONVERT_EXTRACTED_ITEM_TO_BLUEPRINT", extractedItemId: item.id, now })}
-                          data-onboarding-target={
-                            onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
-                            item.id === tutorialBlueprintItemId &&
-                            !state?.onboarding?.flags?.blueprintConverted
-                              ? "tutorial-blueprint-action"
-                              : undefined
-                          }
+                          onClick={() => !isActive && dispatch({ type: "SET_ACTIVE_RELIC", slot, relicId: relic.id })}
+                          disabled={isActive}
                           style={{
-                            ...actionButtonStyle({
-                              primary: !(
-                                onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
-                                (state?.onboarding?.flags?.blueprintConverted || item.id !== tutorialBlueprintItemId)
-                              ),
-                              disabled:
-                                onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
-                                (state?.onboarding?.flags?.blueprintConverted || item.id !== tutorialBlueprintItemId),
-                            }),
+                            ...actionButtonStyle({ primary: !isActive, disabled: isActive }),
                             ...(isMobileViewport ? { flex: "1 1 100%" } : null),
                           }}
                         >
-                          Guardar como blueprint
+                          {isActive ? "Activo en slot" : `Activar en ${slot}`}
                         </button>
                         <button
-                          onClick={() => dispatch({ type: "START_SCRAP_EXTRACTED_ITEM_JOB", extractedItemId: item.id, now })}
-                          data-onboarding-target={
-                            onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
-                            item.id === tutorialBlueprintItemId &&
-                            !state?.onboarding?.flags?.blueprintScrapped
-                              ? "tutorial-blueprint-action"
-                              : undefined
-                          }
-                          disabled={
-                            scrapBlocked ||
-                            (onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
-                              (state?.onboarding?.flags?.blueprintScrapped || item.id !== tutorialBlueprintItemId))
-                          }
+                          onClick={() => dispatch({ type: "DISCARD_RELIC", relicId: relic.id })}
                           style={{
-                            ...actionButtonStyle({
-                              disabled:
-                                scrapBlocked ||
-                                (onboardingStep === ONBOARDING_STEPS.BLUEPRINT_DECISION &&
-                                  (state?.onboarding?.flags?.blueprintScrapped || item.id !== tutorialBlueprintItemId)),
-                            }),
+                            ...actionButtonStyle(),
                             ...(isMobileViewport ? { flex: "1 1 100%" } : null),
                           }}
                         >
-                          Desguazar
+                          Descartar
+                        </button>
+                        <button
+                          onClick={() => canStabilize && dispatch({ type: "STABILIZE_RELIC_ENTROPY", relicId: relic.id })}
+                          disabled={!canStabilize}
+                          style={{
+                            ...actionButtonStyle({ primary: canStabilize, disabled: !canStabilize }),
+                            ...(isMobileViewport ? { flex: "1 1 100%" } : null),
+                          }}
+                        >
+                          {stabilizePlan.entropyReduced > 0
+                            ? `Estabilizar -${stabilizePlan.entropyReduced} (${stabilizePlan.relicDustCost} polvo / ${stabilizePlan.sigilFluxCost} flux)`
+                            : "Entropy estable"}
                         </button>
                       </div>
                     </div>
                   </div>
                 );
               })}
+              {sortedRelicArmory.length > 6 && (
+                <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)" }}>
+                  Mostrando 6 de {sortedRelicArmory.length} reliquias.
+                </div>
+              )}
             </div>
           )}
-        </div>
-        )}
-        <div style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
-                Laboratorio
-              </div>
-              <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-                Infraestructura del Santuario
-              </div>
-            </div>
-            <div style={chipStyle("var(--tone-accent, #4338ca)")}>
-              {laboratoryUnlocked ? `${laboratoryRunningCount} / ${Math.max(1, Number(laboratoryStation.slots || 1))} jobs` : "Bloqueado"}
-            </div>
-          </div>
-
-          <div style={{ fontSize: "0.69rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
-            Desbloquea estaciones, slots y tiempos.
-          </div>
-
-          <div style={compactStatsGridStyle}>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Estudios
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>{laboratoryCompletedCount}</div>
-            </div>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Claims
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>{laboratoryClaimableCount}</div>
-            </div>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Activo
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {laboratoryUnlocked ? "Si" : "No"}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
-              {laboratoryClaimableCount > 0 ? "Hay investigaciones listas." : "Gestiona la infraestructura del hub."}
-            </div>
-            <button
-              onClick={() => openLaboratoryFromSanctuary("laboratory-card")}
-              disabled={!laboratoryUnlocked}
-              data-onboarding-target={
-                onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY
-                  ? "open-laboratory"
-                  : undefined
-              }
-              style={{
-                ...stationButtonStyle({
-                  tone: "var(--tone-accent, #4338ca)",
-                  surface: "var(--tone-accent-soft, #eef2ff)",
-                  disabled: !laboratoryUnlocked,
-                }),
-                ...mobileFullWidthButtonStyle,
-                position:
-                  onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY
-                    ? "relative"
-                    : "static",
-                zIndex:
-                  onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY
-                    ? 2
-                    : 1,
-                boxShadow:
-                  onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY
-                    ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 28px rgba(83,74,183,0.14)"
-                    : "none",
-                animation:
-                  onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY
-                    ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite"
-                    : "none",
-              }}
-            >
-              {laboratoryUnlocked ? "Abrir Laboratorio" : "Se abre tras la primera extraccion"}
-            </button>
-          </div>
-        </div>
-
-        {blueprintDecisionUnlocked && (
-        <div style={sectionCardStyle("var(--tone-danger, #D85A30)")}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
-                Taller
-              </div>
-              <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-                Blueprints, cargas y acabado persistente
-              </div>
-            </div>
-            <div style={chipStyle("var(--tone-danger, #D85A30)")}>
-              {deepForgeStation.unlocked ? `${runningByStation.deepForge || 0} / ${deepForgeSlots} jobs` : "Bloqueada"}
-            </div>
-          </div>
-
-          <div style={{ fontSize: "0.69rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
-            {deepForgeStation.unlocked
-              ? "Gestiona blueprints, cargas y progreso largo."
-              : "Desbloqueala desde Laboratorio."}
-          </div>
-
-          <div style={compactStatsGridStyle}>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Blueprints
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {blueprintCount} plano{blueprintCount !== 1 ? "s" : ""}
-              </div>
-            </div>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Cargas
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {Object.values(familyCharges || {}).reduce((total, value) => total + Math.max(0, Number(value || 0)), 0)}
-              </div>
-            </div>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Loadout activo
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {activeBlueprints.weapon || activeBlueprints.armor ? "Si" : "No"}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
-              {blueprintCount > 0 ? "Tus planos alimentan la proxima run." : "Primero rescata una pieza y conviertela en blueprint."}
-            </div>
-            <button
-              onClick={() => (deepForgeStation.unlocked ? setShowDeepForge(true) : openLaboratoryFromSanctuary("forge-card"))}
-              disabled={
-                !deepForgeStation.unlocked &&
-                onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN
-              }
-              data-onboarding-target={onboardingStep === ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE ? "open-deep-forge" : undefined}
-              style={{
-                ...stationButtonStyle({
-                  tone: "var(--tone-danger, #D85A30)",
-                  surface: "var(--tone-danger-soft, #fff1f2)",
-                  disabled:
-                    !deepForgeStation.unlocked &&
-                    onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN,
-                }),
-                ...mobileFullWidthButtonStyle,
-              }}
-            >
-              {deepForgeStation.unlocked ? "Abrir Taller" : "Investigar en Laboratorio"}
-            </button>
-          </div>
-        </div>
-        )}
-      </section>
+        </section>
       )}
+
 
       {showDistillery && (
         <Suspense fallback={<OverlayLoadingFallback label="Destileria" isMobile={isMobileViewport} />}>
@@ -2286,13 +1950,13 @@ export default function Sanctuary({ state, dispatch }) {
           />
         </Suspense>
       )}
-      {showDeepForge && (
-        <Suspense fallback={<OverlayLoadingFallback label="Taller" isMobile={isMobileViewport} />}>
-          <BlueprintForgeOverlay
+      {showSanctuaryForge && (
+        <Suspense fallback={<OverlayLoadingFallback label="Taller de Forja" isMobile={isMobileViewport} />}>
+          <SanctuaryForgeOverlay
             state={state}
             dispatch={dispatch}
             isMobile={isMobileViewport}
-            onClose={() => setShowDeepForge(false)}
+            onClose={() => setShowSanctuaryForge(false)}
           />
         </Suspense>
       )}

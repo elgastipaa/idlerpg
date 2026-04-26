@@ -10,6 +10,7 @@ import {
   getPrestigeBonusRows,
   getPrestigeResonanceSummary,
   isPrestigeBranchUnlocked,
+  isPrestigeNodeActiveForPlayer,
 } from "../engine/progression/prestigeEngine";
 import {
   getAbyssUnlockEntries,
@@ -198,7 +199,10 @@ export default function Prestige({ state, dispatch }) {
   const resonanceSummary = useMemo(() => getPrestigeResonanceSummary(prestige), [prestige]);
   const activePrestigeNodes = Object.keys(prestige.nodes || {}).filter(key => (prestige.nodes?.[key] || 0) > 0).length;
   const purchasableNodes = PRESTIGE_TREE_NODES.filter(node => canPurchasePrestigeNode(state, node).ok);
-  const recommendedNode = purchasableNodes[0] || null;
+  const recommendedNode =
+    purchasableNodes.find(node => isPrestigeNodeActiveForPlayer(node, player)) ||
+    purchasableNodes[0] ||
+    null;
   const onboardingStep = state?.onboarding?.step || null;
   const onboardingMode = getOnboardingStepInteractionMode(onboardingStep, state);
   const spotlightFirstEchoes =
@@ -322,7 +326,7 @@ export default function Prestige({ state, dispatch }) {
   }, [spotlightFirstEchoNode, spotlightFirstEchoes, tutorialEchoNodeId, activeBranchId]);
 
   return (
-    <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
+    <div style={{ padding: "calc(0.85rem * var(--density-scale, 1))", display: "flex", flexDirection: "column", gap: "calc(0.8rem * var(--density-scale, 1))", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
       <style>{`
         @keyframes prestigeSpotlightPulse {
           0% { box-shadow: 0 0 0 0 rgba(199,210,254,0.22); }
@@ -841,8 +845,8 @@ const miniRowStyle = {
 const actionButtonStyle = {
   width: "100%",
   border: "none",
-  borderRadius: "12px",
-  padding: "10px 12px",
+  borderRadius: "var(--dense-card-radius, 12px)",
+  padding: "var(--dense-button-padding, 7px 10px)",
   fontWeight: 900,
   fontSize: "0.74rem",
   transition: "all 0.2s ease",
@@ -851,8 +855,8 @@ const actionButtonStyle = {
 const summaryPanelStyle = {
   background: "#111827",
   border: "1px solid #1f2937",
-  borderRadius: "18px",
-  padding: "14px",
+  borderRadius: "var(--dense-card-radius, 12px)",
+  padding: "var(--dense-panel-padding, 10px)",
 };
 
 const summaryBadgeStyle = {
@@ -860,7 +864,7 @@ const summaryBadgeStyle = {
   color: "#c7d2fe",
   border: "1px solid rgba(99,102,241,0.3)",
   borderRadius: "999px",
-  padding: "6px 10px",
+  padding: "4px 8px",
   fontSize: "0.66rem",
   fontWeight: 900,
   textTransform: "uppercase",
@@ -877,10 +881,10 @@ const compactChipStyle = {
 };
 
 const resetMetricCardStyle = {
-  borderRadius: "12px",
+  borderRadius: "var(--dense-card-radius, 12px)",
   border: "1px solid rgba(148,163,184,0.18)",
   background: "rgba(255,255,255,0.04)",
-  padding: "10px",
+  padding: "var(--dense-panel-padding, 10px)",
   display: "grid",
   gap: "4px",
 };

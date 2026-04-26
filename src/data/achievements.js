@@ -47,8 +47,8 @@
 
 { id: "upgrade_5", name: "Herrero Amateur", description: "Haz 5 upgrades", category: "craft", icon: "🔨", condition: { stat: "upgradesCrafted", value: 5 }, reward: 35 },
 { id: "upgrade_20", name: "Martillo Vivo", description: "Haz 20 upgrades", category: "craft", icon: "⚒️", condition: { stat: "upgradesCrafted", value: 20 }, reward: 120 },
-{ id: "reroll_5", name: "Gambler", description: "Haz 5 rerolls", category: "craft", icon: "🎲", condition: { stat: "rerollsCrafted", value: 5 }, reward: 35 },
-{ id: "reroll_20", name: "Adicto al Reroll", description: "Haz 20 rerolls", category: "craft", icon: "🌀", condition: { stat: "rerollsCrafted", value: 20 }, reward: 120 },
+{ id: "reroll_5", name: "Cirujano", description: "Haz 5 reforjas", category: "craft", icon: "🎲", condition: { stat: "reforgesCrafted", value: 5 }, reward: 35 },
+{ id: "reroll_20", name: "Arquitecto de Lineas", description: "Haz 20 reforjas", category: "craft", icon: "🌀", condition: { stat: "reforgesCrafted", value: 20 }, reward: 120 },
 { id: "ascend_3", name: "Ascendente", description: "Haz 3 ascends", category: "craft", icon: "🌠", condition: { stat: "ascendsCrafted", value: 3 }, reward: 70 },
 { id: "extract_20", name: "Reciclador", description: "Extrae 20 items", category: "craft", icon: "♻️", condition: { stat: "itemsExtracted", value: 20 }, reward: 60 },
 

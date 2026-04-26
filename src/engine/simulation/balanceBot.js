@@ -7,7 +7,7 @@ import { PRESTIGE_TREE_NODES } from "../../data/prestige";
 import { canPurchasePrestigeNode, calculatePrestigeEchoGain, canPrestige } from "../progression/prestigeEngine";
 import { isGoalCompleted } from "../progression/goalEngine";
 import { calcStats } from "../combat/statEngine";
-import { buildSessionTelemetryEntries, buildSessionTelemetryReport } from "../../utils/runTelemetry";
+import { buildBalanceTelemetryEntries, buildBalanceTelemetryPayload, buildBalanceTelemetryReport, buildFullTelemetryPayload } from "../../utils/runTelemetry";
 import { getPlayerBuildTag } from "../../utils/buildIdentity";
 import { deriveReplayDecisionHints } from "../../utils/replayLog";
 import { buildReforgePreview } from "../crafting/craftingEngine";
@@ -445,9 +445,9 @@ function getPreferredAffixIndex(item, preferredStats = []) {
   (item.affixes || []).forEach((affix, index) => {
     const statIndex = priorities.indexOf(affix.stat);
     const priorityScore = statIndex === -1 ? 0 : (priorities.length - statIndex) * 100;
-    const tierScore = (affix.tier || 3) === 1 ? 250 : (affix.tier || 3) === 2 ? 120 : 40;
+    const qualityScore = affix?.quality === "excellent" || affix?.lootOnlyQuality ? 250 : 80;
     const rollScore = Math.round((1 - getAffixRollRatio(affix)) * 100);
-    const score = priorityScore + tierScore + rollScore;
+    const score = priorityScore + qualityScore + rollScore;
     if (score > bestScore) {
       bestScore = score;
       bestIndex = index;
@@ -527,9 +527,9 @@ function getWorstAffixIndex(item, preferredStats) {
   (item.affixes || []).forEach((affix, index) => {
     const preferredIndex = preferredStats.indexOf(affix.stat);
     const wantedScore = preferredIndex === -1 ? 0 : (preferredStats.length - preferredIndex) * 120;
-    const tierScore = affix.tier === 1 ? 260 : affix.tier === 2 ? 140 : 50;
+    const qualityScore = affix?.quality === "excellent" || affix?.lootOnlyQuality ? 260 : 90;
     const rollScore = Math.round(getAffixRollRatio(affix) * 100);
-    const score = wantedScore + tierScore + rollScore;
+    const score = wantedScore + qualityScore + rollScore;
     if (score < worstScore) {
       worstScore = score;
       worstIndex = index;
@@ -558,14 +558,6 @@ function maybeCraft(state, logs, tick, options = {}) {
       }
     }
 
-    if (item.rarity === "rare" && (item.level || 1) >= 6 && (item.rating || 0) >= 120) {
-      const ascended = reduceState(nextState, { type: "CRAFT_ASCEND_ITEM", payload: { itemId: item.id } });
-      if (ascended !== nextState) {
-        logDecision(logs, tick, `Asciende ${item.name}`);
-        return ascended;
-      }
-    }
-
     if (item.rarity === "epic" && (item.level || 1) >= 8 && (item.rating || 0) >= 260) {
       const ascended = reduceState(nextState, { type: "CRAFT_ASCEND_ITEM", payload: { itemId: item.id } });
       if (ascended !== nextState) {
@@ -574,21 +566,7 @@ function maybeCraft(state, logs, tick, options = {}) {
       }
     }
 
-    const rerollCount = item.crafting?.rerollCount || 0;
     const polishCount = item.crafting?.polishCount || 0;
-    const hasTierOne = (item.affixes || []).some(affix => affix.tier === 1);
-    if (
-      item.rarity === "rare" &&
-      (item.rating || 0) >= 90 &&
-      !hasTierOne &&
-      rerollCount < (craftMode === "reroll" ? 3 : 2)
-    ) {
-      const rerolled = reduceState(nextState, { type: "CRAFT_REROLL_ITEM", payload: { itemId: item.id } });
-      if (rerolled !== nextState) {
-        logDecision(logs, tick, `Reroll total sobre ${item.name}`);
-        return rerolled;
-      }
-    }
 
     const worstAffixIndex = getWorstAffixIndex(item, preferredStats);
     const worstAffix = worstAffixIndex == null ? null : item.affixes?.[worstAffixIndex];
@@ -600,7 +578,7 @@ function maybeCraft(state, logs, tick, options = {}) {
     const targetAffix = polishIndex == null ? null : item.affixes?.[polishIndex];
     if (
       targetAffix &&
-      targetAffix.tier === 1 &&
+      (targetAffix?.quality === "excellent" || targetAffix?.lootOnlyQuality) &&
       getAffixRollRatio(targetAffix) < 0.78 &&
       polishCount < (craftMode === "polish" ? 4 : 3)
     ) {
@@ -809,7 +787,9 @@ function runDecisionCycle(state, logs, tick, ticksRemaining, options = {}) {
 }
 
 function buildBotSummary(state, logs, ticks, options = {}) {
-  const entries = buildSessionTelemetryEntries(state);
+  const entries = buildBalanceTelemetryEntries(state);
+  const compactPayload = buildBalanceTelemetryPayload(state);
+  const fullPayload = buildFullTelemetryPayload(state);
   const analytics = state.combat?.analytics || {};
   const stagnationReason =
     (analytics.maxTierReached || 1) <= 1
@@ -821,7 +801,10 @@ function buildBotSummary(state, logs, ticks, options = {}) {
     ticksSimulated: ticks,
     finalState: state,
     telemetryEntries: entries,
-    telemetryText: buildSessionTelemetryReport(state),
+    telemetryText: buildBalanceTelemetryReport(state),
+    telemetryPayload: compactPayload,
+    telemetryPayloadCompact: compactPayload,
+    telemetryPayloadFull: fullPayload,
     decisions: logs,
     summary: {
       level: state.player.level || 1,

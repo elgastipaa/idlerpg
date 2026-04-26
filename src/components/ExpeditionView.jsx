@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useMemo } from "react";
 import useViewport from "../hooks/useViewport";
-import { isFieldForgeUnlocked, isHuntUnlocked, isInventorySubviewUnlocked, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
+import { isHuntUnlocked, isInventorySubviewUnlocked, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 import { getMaxRunSigilSlots } from "../engine/progression/abyssProgression";
 import RunSigilCallout from "./RunSigilCallout";
 
@@ -8,13 +8,11 @@ const SUBVIEW_META = {
   combat: { label: "Combate" },
   inventory: { label: "Mochila" },
   codex: { label: "Intel" },
-  crafting: { label: "Forja" },
 };
 
 const Combat = lazy(() => import("./Combat"));
 const Inventory = lazy(() => import("./Inventory"));
 const Codex = lazy(() => import("./Codex"));
-const Crafting = lazy(() => import("./Crafting"));
 
 function subnavButtonStyle({ active = false, disabled = false } = {}) {
   return {
@@ -45,7 +43,7 @@ function subnavButtonStyle({ active = false, disabled = false } = {}) {
 }
 
 function getExpeditionSubview(tab = "combat") {
-  if (tab === "inventory" || tab === "crafting" || tab === "codex") return tab;
+  if (tab === "inventory" || tab === "codex") return tab;
   return "combat";
 }
 
@@ -72,7 +70,6 @@ export default function ExpeditionView({ state, dispatch }) {
   const reforgeLocked = !!state?.combat?.reforgeSession;
   const huntUnlocked = isHuntUnlocked(state);
   const inventoryUnlocked = isInventorySubviewUnlocked(state);
-  const fieldForgeUnlocked = isFieldForgeUnlocked(state);
   const onboardingStep = state?.onboarding?.step || null;
   const spotlightInventorySubview = onboardingStep === ONBOARDING_STEPS.EQUIP_INTRO;
   const spotlightCodexSubview = onboardingStep === ONBOARDING_STEPS.HUNT_INTRO;
@@ -83,11 +80,11 @@ export default function ExpeditionView({ state, dispatch }) {
       : null;
   const activeSubview = getExpeditionSubview(state?.currentTab || "combat");
   const availableSubviews = useMemo(
-    () => ["combat", ...(inventoryUnlocked ? ["inventory"] : []), ...(fieldForgeUnlocked ? ["crafting"] : []), ...(huntUnlocked ? ["codex"] : [])],
-    [fieldForgeUnlocked, huntUnlocked, inventoryUnlocked]
+    () => ["combat", ...(inventoryUnlocked ? ["inventory"] : []), ...(huntUnlocked ? ["codex"] : [])],
+    [huntUnlocked, inventoryUnlocked]
   );
   const visibleSubviews = useMemo(
-    () => availableSubviews.filter(viewId => viewId !== "crafting"),
+    () => availableSubviews,
     [availableSubviews]
   );
   const mobileSubviewCount = visibleSubviews.length;
@@ -319,11 +316,8 @@ export default function ExpeditionView({ state, dispatch }) {
               state={state}
               player={state.player}
               dispatch={dispatch}
-              canOpenCrafting={fieldForgeUnlocked}
-              onOpenCrafting={() => dispatch({ type: "SET_TAB", tab: "crafting" })}
             />
           )}
-          {resolvedSubview === "crafting" && <Crafting state={state} dispatch={dispatch} />}
           {resolvedSubview === "codex" && <Codex state={state} dispatch={dispatch} mode="hunt" />}
         </Suspense>
       </div>

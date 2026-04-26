@@ -671,18 +671,34 @@ export function upgradeTalentNode(state, nodeId) {
 // SELECT CLASS
 // ============================================================
 
-export function selectClass(state, classId) {
+export function selectClass(state, classId, options = {}) {
   const chosen = CLASSES.find(c => c.id === classId);
-  if (!chosen || state.player.class) return state;
+  if (!chosen) return state;
+
+  const allowReselect = Boolean(options?.allowReselect);
+  if (state.player.class && !allowReselect) return state;
+  if (state.player.class === chosen.id && state.player.specialization == null) return state;
+
+  const basePlayer = allowReselect
+    ? {
+        ...state.player,
+        class: null,
+        specialization: null,
+        baseDamage: 10,
+        baseDefense: 2,
+        baseCritChance: 0.05,
+        baseMaxHp: 100,
+      }
+    : state.player;
 
   let p = {
-    ...state.player,
+    ...basePlayer,
     class: chosen.id,
     specialization: null,
-    baseDamage:     (state.player.baseDamage     || 10)   + chosen.baseStats.damage,
-    baseDefense:    (state.player.baseDefense    || 2)    + chosen.baseStats.defense,
-    baseCritChance: (state.player.baseCritChance || 0.05) + chosen.baseStats.critChance,
-    baseMaxHp:      (state.player.baseMaxHp      || 100)  + chosen.baseStats.maxHp,
+    baseDamage: (basePlayer.baseDamage || 10) + chosen.baseStats.damage,
+    baseDefense: (basePlayer.baseDefense || 2) + chosen.baseStats.defense,
+    baseCritChance: (basePlayer.baseCritChance || 0.05) + chosen.baseStats.critChance,
+    baseMaxHp: (basePlayer.baseMaxHp || 100) + chosen.baseStats.maxHp,
   };
 
   p = syncPrestigeBonuses(p, state.prestige);

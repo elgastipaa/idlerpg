@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import OverlayShell, { OverlaySurface } from "./OverlayShell";
 import { getRarityColor } from "../constants/rarity";
-import { getProjectUpgradeRule } from "../engine/sanctuary/jobEngine";
+import { getForgeMasterProjectPlan, getProjectUpgradeRule } from "../engine/sanctuary/jobEngine";
 import { getOnboardingTutorialDeepForgeProjectId, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 import {
   getLegendaryPowerImprintReduction,
@@ -131,6 +131,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
   const resources = {
     essence: Number(state.player?.essence || 0),
     relicDust: Number(sanctuary?.resources?.relicDust || 0),
+    codexInk: Number(sanctuary?.resources?.codexInk || 0),
   };
   const deepForgeSlots = Math.max(1, Number(sanctuary?.stations?.deepForge?.slots || 1));
   const deepForgeJobs = (Array.isArray(sanctuary?.jobs) ? sanctuary.jobs : []).filter(
@@ -205,6 +206,23 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
     deepForgeJobs.length >= deepForgeSlots ||
     resources.relicDust < nextDustCost ||
     (onboardingStep === ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE && selectedProject?.id !== tutorialProjectId);
+  const masterProjectPlan = selectedProject
+    ? getForgeMasterProjectPlan(sanctuary, selectedProject)
+    : {
+        ok: false,
+        capReached: false,
+        enoughDust: false,
+        enoughInk: false,
+        dustCost: 0,
+        inkCost: 0,
+        durationMs: 24 * 60 * 60 * 1000,
+        nextUpgradeLevel: 0,
+      };
+  const masterProjectBlocked =
+    !selectedProject ||
+    deepForgeJobs.length >= deepForgeSlots ||
+    !masterProjectPlan.ok ||
+    (onboardingStep === ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE && selectedProject?.id !== tutorialProjectId);
   const polishState = selectedProject && selectedAffixIndex != null
     ? resourceLine(selectedProject, resources, "polish", selectedAffixIndex)
     : { costs: { essence: 0, relicDust: 0 }, enough: false };
@@ -261,6 +279,9 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
               </span>
               <span style={chipLabelStyle("var(--tone-violet, #7c3aed)")}>
                 {Math.floor(resources.relicDust).toLocaleString()} polvo
+              </span>
+              <span style={chipLabelStyle("var(--tone-accent, #4338ca)")}>
+                {Math.floor(resources.codexInk).toLocaleString()} tinta
               </span>
               <span style={chipLabelStyle("var(--tone-accent, #4338ca)")}>
                 {Math.floor(resources.essence).toLocaleString()} esencia
@@ -421,6 +442,45 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
                       style={actionButtonStyle({ primary: !upgradeBlocked, disabled: upgradeBlocked })}
                     >
                       Subir proyecto
+                    </button>
+                  </div>
+
+                  <div style={{ height: "1px", borderTop: "1px dashed var(--color-border-primary, #e2e8f0)" }} />
+
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                    <div>
+                      <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+                        Proyecto Maestro
+                      </div>
+                      <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.35 }}>
+                        Accion larga de 24h para acelerar varios niveles de una vez.
+                      </div>
+                    </div>
+                    <span style={chipLabelStyle("var(--tone-accent, #4338ca)")}>
+                      {masterProjectPlan?.dustCost || 0} polvo · {masterProjectPlan?.inkCost || 0} tinta · {formatRemaining(masterProjectPlan?.durationMs || 0)}
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                    <div style={{ fontSize: "0.66rem", fontWeight: "900", color: masterProjectBlocked ? "var(--tone-danger, #D85A30)" : "var(--color-text-secondary, #64748b)" }}>
+                      {masterProjectBlocked
+                        ? deepForgeJobs.length >= deepForgeSlots
+                          ? "No hay slot libre en la estacion."
+                          : masterProjectPlan.capReached
+                            ? "El proyecto ya esta en cap."
+                            : !masterProjectPlan.enoughDust
+                              ? "Te falta polvo de reliquia."
+                              : !masterProjectPlan.enoughInk
+                                ? "Te falta tinta de Biblioteca."
+                                : "No disponible en este estado."
+                        : `Salto previsto: +${upgradeLevel} -> +${masterProjectPlan?.nextUpgradeLevel || upgradeLevel}`}
+                    </div>
+                    <button
+                      onClick={() => dispatch({ type: "START_DEEP_FORGE_MASTER_PROJECT", projectId: selectedProject.id, now: Date.now() })}
+                      disabled={masterProjectBlocked}
+                      style={actionButtonStyle({ primary: !masterProjectBlocked, disabled: masterProjectBlocked })}
+                    >
+                      Iniciar Proyecto Maestro
                     </button>
                   </div>
                 </section>

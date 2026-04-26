@@ -1,7 +1,7 @@
 // Sistema de crafting — reroll, upgrade, ascend y extract.
 // Futuro: recetas, materiales, estaciones de crafteo hookean acá.
 
-import { rerollAffixes, polishAffix, generateReforgeOptions, ensureAffixCountForRarity } from "../affixesEngine";
+import { polishAffix, generateReforgeOptions, ensureAffixCountForRarity } from "../affixesEngine";
 import {
   buildBaseBonusForItem,
   buildItemFromAffixes,
@@ -13,29 +13,27 @@ import {
 } from "../../utils/loot";
 import { calcItemRating, syncEquipment } from "../inventory/inventoryEngine";
 import { ITEM_FAMILIES } from "../../data/itemFamilies";
-import { getAscendCosts, getPolishCosts, getReforgeCosts, getRerollCosts, getUpgradeCosts } from "../../constants/craftingCosts";
+import { getAscendCosts, getPolishCosts, getReforgeCosts, getUpgradeCosts } from "../../constants/craftingCosts";
+import { applyEntropySpend, canSpendEntropy, getEntropyCostForMode, normalizeItemCraftingState } from "./entropyEngine";
 import { getLegendaryPowerById } from "../../utils/legendaryPowers";
 
 const RARITY_TIERS = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
 const RARITY_NEXT  = { common: "magic", magic: "rare", rare: "epic", epic: "legendary" };
-export const UPGRADE_FAIL_CHANCE = { 0: 0, 1: 0, 2: 0.03, 3: 0.08, 4: 0.15, 5: 0.22, 6: 0.3, 7: 0.39, 8: 0.48, 9: 0.57, 10: 0.66 };
+export const UPGRADE_FAIL_CHANCE = { 0: 0 };
 export const CRAFT_ACTION_LIMITS = {
-  common: { reroll: 2, reforge: 1, polishPerLine: 3 },
-  magic: { reroll: 3, reforge: 2, polishPerLine: 4 },
-  rare: { reroll: 10, reforge: 8, polishPerLine: 12 },
-  epic: { reroll: 5, reforge: 4, polishPerLine: 6 },
-  legendary: { reroll: 3, reforge: 3, polishPerLine: 5 },
+  common: { reroll: 0, reforge: null, polishPerLine: null },
+  magic: { reroll: 0, reforge: null, polishPerLine: null },
+  rare: { reroll: 0, reforge: null, polishPerLine: null },
+  epic: { reroll: 0, reforge: null, polishPerLine: null },
+  legendary: { reroll: 0, reforge: null, polishPerLine: null },
 };
 
-function getReforgeExtraOptionCount(item = {}) {
-  return item?.rarity === "epic" || item?.rarity === "legendary" ? 1 : 0;
-}
 export const UPGRADE_CAP_BY_RARITY = {
-  common: 5,
-  magic: 7,
-  rare: 10,
-  epic: 10,
-  legendary: 10,
+  common: 15,
+  magic: 15,
+  rare: 15,
+  epic: 15,
+  legendary: 15,
 };
 
 function getRarityTier(rarity) {
@@ -63,7 +61,29 @@ export function getUpgradeCap(item) {
 }
 
 export function getCraftingState(item) {
-  const rawPolishCounts = item?.crafting?.polishCountsByIndex;
+  const normalized = normalizeItemCraftingState({
+    item,
+    crafting: item?.crafting || {},
+    rarity: item?.rarity,
+    itemTier: item?.itemTier,
+    level: item?.level,
+    affixes: item?.affixes || [],
+    isNewItem: false,
+  });
+  const rawPolishCounts = normalized?.polishCountsByIndex;
+  const lineCraftCounts = normalized?.lineCraftCounts && typeof normalized.lineCraftCounts === "object"
+    ? Object.fromEntries(
+      Object.entries(normalized.lineCraftCounts)
+        .filter(([key]) => Number.isInteger(Number(key)))
+        .map(([key, value]) => [
+          String(key),
+          {
+            polish: Math.max(0, Number(value?.polish || 0)),
+            reforge: Math.max(0, Number(value?.reforge || 0)),
+          },
+        ])
+    )
+    : {};
   const polishCountsByIndex = rawPolishCounts && typeof rawPolishCounts === "object"
     ? Object.fromEntries(
         Object.entries(rawPolishCounts)
@@ -72,14 +92,21 @@ export function getCraftingState(item) {
       )
     : {};
   return {
-    rerollCount: item?.crafting?.rerollCount || 0,
-    polishCount: item?.crafting?.polishCount || 0,
-    reforgeCount: item?.crafting?.reforgeCount || 0,
-    ascendCount: item?.crafting?.ascendCount || 0,
+    rerollCount: normalized?.rerollCount || 0,
+    polishCount: normalized?.polishCount || 0,
+    reforgeCount: normalized?.reforgeCount || 0,
+    ascendCount: normalized?.ascendCount || 0,
+    entropy: Math.max(0, Number(normalized?.entropy || 0)),
+    entropyCap: Math.max(1, Number(normalized?.entropyCap || 1)),
+    stabilized: Boolean(normalized?.stabilized),
+    craftingRulesVersion: Math.max(0, Number(normalized?.craftingRulesVersion || 0)),
+    lineCraftCounts,
     polishCountsByIndex,
     focusedAffixIndex:
-      Number.isInteger(item?.crafting?.focusedAffixIndex) ? Number(item.crafting.focusedAffixIndex) : null,
-    focusedAffixStat: item?.crafting?.focusedAffixStat || null,
+      Number.isInteger(normalized?.focusedAffixIndex) ? Number(normalized.focusedAffixIndex) : null,
+    focusedAffixStat: normalized?.focusedAffixStat || null,
+    history: Array.isArray(normalized?.history) ? normalized.history.slice(-5) : [],
+    lastCraftAt: normalized?.lastCraftAt || null,
   };
 }
 
@@ -89,12 +116,24 @@ function getPolishCountForIndex(item, affixIndex) {
   return Math.max(0, Number(craftingState.polishCountsByIndex?.[String(affixIndex)] || 0));
 }
 
+function getLineCraftCountForMode(item, affixIndex, mode = "polish") {
+  if (!Number.isInteger(affixIndex)) return 0;
+  const craftingState = getCraftingState(item);
+  if (mode === "polish") {
+    return Math.max(0, Number(craftingState.lineCraftCounts?.[String(affixIndex)]?.polish || 0));
+  }
+  if (mode === "reforge") {
+    return Math.max(0, Number(craftingState.lineCraftCounts?.[String(affixIndex)]?.reforge || 0));
+  }
+  return 0;
+}
+
 function getCraftLimitUsage(item, mode, affixIndex = null) {
   const craftingState = getCraftingState(item);
   const craftLimits = getCraftActionLimits(item);
 
   if (mode === "reroll") {
-    return { used: craftingState.rerollCount, max: craftLimits.reroll };
+    return { used: craftingState.rerollCount, max: 0 };
   }
 
   if (mode === "reforge") {
@@ -144,8 +183,7 @@ export function getCraftUsageSummary(item, affixIndex = null) {
 }
 
 function isTargetedAffixAllowed(item, affixIndex) {
-  const focusedAffixIndex = getCraftingState(item).focusedAffixIndex;
-  return focusedAffixIndex == null || focusedAffixIndex === affixIndex;
+  return true;
 }
 
 function getTargetedAffixBlockLog(item) {
@@ -163,8 +201,7 @@ function getAffixAlignmentScore(affix, favoredStatsSet) {
   if (!affix) return -999;
   let score = 0;
   if (favoredStatsSet.has(affix.stat)) score += 8;
-  score += (affix.tier || 0) * 3;
-  if (affix.perfectRoll) score += 2;
+  score += affix?.quality === "excellent" ? 5 : 1;
   score += Number(affix.rolledValue || affix.value || 0) * 0.015;
   return score;
 }
@@ -205,20 +242,14 @@ export function getCraftRecommendation(item, { mode, preferredStats = [], wishli
   const craftingState = getCraftingState(item);
   const suggestedAffixIndex = pickSuggestedAffixIndex(item, { mode, preferredStats, wishlistStats });
   const suggestedAffix = Number.isInteger(suggestedAffixIndex) ? item.affixes?.[suggestedAffixIndex] : null;
-  const matchingAffixes = (item.affixes || []).filter(affix => buildStatPreferenceSet(preferredStats, wishlistStats).has(affix.stat)).length;
 
   switch (mode) {
     case "upgrade":
-      if (item.rarity === "rare" && (item.level || 0) >= 6) {
-        return "Desde +7 el rare tambien escala affixes. Si la base ya cerro, este es su tramo de proyecto real.";
-      }
       return (item.level || 0) < 6
         ? "Subila a +6 antes de gastar recursos finos; el power base sigue siendo la mejor compra."
         : "Ya esta entrando en tramo caro. Upgrade solo si esta pieza realmente sostiene la run.";
     case "reroll":
-      return matchingAffixes >= 2
-        ? `Esta base ya tiene ${matchingAffixes} linea${matchingAffixes === 1 ? "" : "s"} alineada${matchingAffixes === 1 ? "" : "s"} con tu build. No conviene reroll total salvo que busques resetearla.`
-        : "Tiene poca sinergia con la build actual. El reroll total es razonable si la base vale la pena.";
+      return "Reroll total ya no forma parte de la forja actual.";
     case "polish":
       return suggestedAffix
         ? "Pulir tiene sentido aca: ya hay una linea buena y solo falta cerrar el valor."
@@ -233,7 +264,7 @@ export function getCraftRecommendation(item, { mode, preferredStats = [], wishli
     case "ascend":
       return item.rarity === "epic"
         ? "Ascend tiene sentido si esta pieza ya empuja la run y queres convertirla en base legendaria."
-        : "Ascend vale mas sobre piezas ya buenas. Si esta base no te convence, no la conviertas por inercia.";
+        : "Imbuir solo aplica sobre piezas epic que ya valga la pena cerrar.";
     default:
       return null;
   }
@@ -245,8 +276,7 @@ export function getForgeIdentity(item, { player = null, preferredStats = [], wis
   const favoredStatsSet = buildStatPreferenceSet(preferredStats, wishlistStats);
   const affixes = item.affixes || [];
   const alignedAffixes = affixes.filter(affix => favoredStatsSet.has(affix.stat));
-  const t1Count = affixes.filter(affix => (affix.tier || 0) === 1).length;
-  const perfectCount = affixes.filter(affix => affix.perfectRoll).length;
+  const excellentCount = affixes.filter(affix => affix?.quality === "excellent").length;
   const usageSummary = getCraftUsageSummary(item);
   const compareItem = item.type === "weapon" ? player?.equipment?.weapon : player?.equipment?.armor;
   const powerDelta = (item.rating || 0) - (compareItem?.rating || 0);
@@ -254,18 +284,19 @@ export function getForgeIdentity(item, { player = null, preferredStats = [], wis
   const nearAscend = item.rarity === "epic" && (item.level || 0) >= Math.max(0, (ascendState.minLevel || 0) - 1);
   const craftingState = getCraftingState(item);
   const polishLimit = getCraftActionLimits(item).polishPerLine;
-  const hasOpenPolishLine = (item.affixes || []).some((_, index) => getPolishCountForIndex(item, index) < polishLimit);
+  const hasOpenPolishLine = polishLimit == null
+    ? (item.affixes || []).length > 0
+    : (item.affixes || []).some((_, index) => getPolishCountForIndex(item, index) < polishLimit);
 
   const reasons = [];
   if (alignedAffixes.length > 0) reasons.push(`${alignedAffixes.length} linea${alignedAffixes.length === 1 ? "" : "s"} de build`);
-  if (t1Count > 0) reasons.push(`${t1Count} T1`);
-  if (perfectCount > 0) reasons.push(`${perfectCount} perfect`);
+  if (excellentCount > 0) reasons.push(`${excellentCount} excelente${excellentCount === 1 ? "" : "s"}`);
   if (powerDelta > 0) reasons.push("mejora clara");
   if (Number.isInteger(craftingState.focusedAffixIndex)) reasons.push("linea fijada");
 
   if (
     item.rarity === "legendary" ||
-    (item.rarity === "epic" && (alignedAffixes.length >= 2 || t1Count > 0 || perfectCount > 0 || nearAscend))
+    (item.rarity === "epic" && (alignedAffixes.length >= 2 || excellentCount > 0 || nearAscend))
   ) {
     return {
       key: "chase",
@@ -276,7 +307,7 @@ export function getForgeIdentity(item, { player = null, preferredStats = [], wis
     };
   }
 
-  if ((usageSummary.reroll.remaining >= 2 || usageSummary.reforge.remaining >= 1 || hasOpenPolishLine) && (powerDelta > 0 || alignedAffixes.length > 0 || getRarityTier(item.rarity) >= 3 || (item.level || 0) < 6)) {
+  if ((usageSummary.reforge.remaining >= 1 || hasOpenPolishLine) && (powerDelta > 0 || alignedAffixes.length > 0 || getRarityTier(item.rarity) >= 3 || (item.level || 0) < 6)) {
     return {
       key: "tempo",
       label: "TEMPO",
@@ -286,7 +317,7 @@ export function getForgeIdentity(item, { player = null, preferredStats = [], wis
     };
   }
 
-  if ((usageSummary.reroll.remaining <= 0 && usageSummary.reforge.remaining <= 0 && !hasOpenPolishLine) || (alignedAffixes.length === 0 && powerDelta <= 0 && getRarityTier(item.rarity) <= 2)) {
+  if ((usageSummary.reforge.remaining <= 0 && !hasOpenPolishLine) || (alignedAffixes.length === 0 && powerDelta <= 0 && getRarityTier(item.rarity) <= 2)) {
     return {
       key: "skip",
       label: "NO GASTAR",
@@ -321,80 +352,98 @@ export function getCraftActionState({ item, player, mode, affixIndex = null, leg
   const affix = affixIndex == null ? null : item?.affixes?.[affixIndex] || null;
   const focusedAffixIndex = getCraftingState(item).focusedAffixIndex;
   const craftGate = getCraftLimitGate(item, mode, affixIndex);
+  const craftingState = getCraftingState(item);
+  const entropyMode = mode === "polish" ? "polish" : mode === "reforge" ? "reforge" : mode === "upgrade" ? "upgrade" : mode === "ascend" ? "imbue" : "";
+  const entropyGate = entropyMode ? canSpendEntropy(craftingState, entropyMode) : { ok: true, reason: "ok", entropyCost: 0 };
 
   if (mode === "upgrade") {
     const currentLevel = item.level ?? 0;
     const maxLevel = getUpgradeCap(item);
     const displayMaxLevel = Math.max(maxLevel, currentLevel);
     const costs = getUpgradeCosts(item, player);
-    const can = currentLevel < maxLevel && (player?.gold || 0) >= costs.gold;
+    const canAfford = (player?.gold || 0) >= costs.gold;
+    const can = currentLevel < maxLevel && canAfford && entropyGate.ok;
     return {
       mode,
-      costs,
+      costs: { ...costs, entropy: entropyGate.entropyCost || getEntropyCostForMode("upgrade") },
       can,
-      reason: currentLevel >= maxLevel ? "max_level" : can ? "ok" : "gold",
-      failChance: UPGRADE_FAIL_CHANCE[currentLevel] ?? 0.46,
+      reason: currentLevel >= maxLevel ? "max_level" : !entropyGate.ok ? entropyGate.reason : can ? "ok" : "gold",
+      failChance: 0,
       usedUses: 0,
       maxUses: null,
       focusedAffixIndex,
       maxLevel: displayMaxLevel,
+      entropy: craftingState.entropy,
+      entropyCap: craftingState.entropyCap,
+      entropyAfter: entropyGate.entropyAfter ?? craftingState.entropy,
+      willStabilize: Boolean(entropyGate.willStabilize),
     };
   }
 
   if (mode === "reroll") {
-    const costs = getRerollCosts(item, player);
-    const canAfford = (player?.gold || 0) >= costs.gold && (player?.essence || 0) >= costs.essence;
     return {
       mode,
-      costs,
-      can: craftGate.ok && canAfford,
-      reason: !craftGate.ok ? "limit" : canAfford ? "ok" : "essence",
+      costs: { gold: 0, essence: 0, entropy: 0 },
+      can: false,
+      reason: "deprecated",
       usedUses: craftGate.used,
       maxUses: craftGate.max,
       focusedAffixIndex,
+      entropy: craftingState.entropy,
+      entropyCap: craftingState.entropyCap,
     };
   }
 
   if (mode === "polish") {
-    const costs = getPolishCosts(item, player, affix);
+    const lineCount = getLineCraftCountForMode(item, affixIndex, "polish");
+    const costs = getPolishCosts(item, player, affix, { lineCount });
     const canAfford = (player?.gold || 0) >= costs.gold && (player?.essence || 0) >= costs.essence;
     return {
       mode,
-      costs,
-      can: affixIndex != null && craftGate.ok && canAfford,
-      reason: affixIndex == null ? "missing_affix" : !craftGate.ok ? "limit" : canAfford ? "ok" : "essence",
+      costs: { ...costs, entropy: entropyGate.entropyCost || getEntropyCostForMode("polish") },
+      can: affixIndex != null && craftGate.ok && canAfford && entropyGate.ok,
+      reason: affixIndex == null ? "missing_affix" : !craftGate.ok ? "limit" : !entropyGate.ok ? entropyGate.reason : canAfford ? "ok" : "essence",
       usedUses: craftGate.used,
       maxUses: craftGate.max,
       focusedAffixIndex,
+      entropy: craftingState.entropy,
+      entropyCap: craftingState.entropyCap,
+      entropyAfter: entropyGate.entropyAfter ?? craftingState.entropy,
+      willStabilize: Boolean(entropyGate.willStabilize),
     };
   }
 
   if (mode === "reforge") {
-    const costs = getReforgeCosts(item, player, affix);
-    const lineLocked = Number.isInteger(focusedAffixIndex) && affixIndex != null && focusedAffixIndex !== affixIndex;
+    const lineCount = getLineCraftCountForMode(item, affixIndex, "reforge");
+    const costs = getReforgeCosts(item, player, affix, { lineCount });
     const canAfford = (player?.gold || 0) >= costs.gold && (player?.essence || 0) >= costs.essence;
     return {
       mode,
-      costs,
-      can: affixIndex != null && !lineLocked && craftGate.ok && canAfford,
+      costs: { ...costs, entropy: entropyGate.entropyCost || getEntropyCostForMode("reforge") },
+      can: affixIndex != null && craftGate.ok && canAfford && entropyGate.ok,
       reason:
         affixIndex == null
           ? "missing_affix"
-          : lineLocked
-            ? "focused_line"
-            : !craftGate.ok
+          : !craftGate.ok
               ? "limit"
-              : canAfford
+              : !entropyGate.ok
+                ? entropyGate.reason
+                : canAfford
                 ? "ok"
                 : "essence",
       usedUses: craftGate.used,
       maxUses: craftGate.max,
       focusedAffixIndex,
+      entropy: craftingState.entropy,
+      entropyCap: craftingState.entropyCap,
+      entropyAfter: entropyGate.entropyAfter ?? craftingState.entropy,
+      willStabilize: Boolean(entropyGate.willStabilize),
     };
   }
 
   if (mode === "ascend") {
     const nextRarity = getNextRarity(item.rarity);
+    const isEpicItem = item.rarity === "epic";
     const costs = getAscendCosts(item, player, {
       imprintPower: nextRarity === "legendary" && !!legendaryPowerId,
       imprintReduction: legendaryPowerImprintReduction,
@@ -404,14 +453,18 @@ export function getCraftActionState({ item, player, mode, affixIndex = null, leg
     const isMaxRarity = item.rarity === "legendary";
     return {
       mode,
-      costs,
-      can: !isMaxRarity && meetsLevel && canAfford,
+      costs: { ...costs, entropy: entropyGate.entropyCost || getEntropyCostForMode("imbue") },
+      can: !isMaxRarity && isEpicItem && meetsLevel && canAfford && entropyGate.ok,
       reason:
         isMaxRarity
           ? "max_rarity"
+          : !isEpicItem
+            ? "epic_only"
           : !meetsLevel
             ? "min_level"
-            : canAfford
+            : !entropyGate.ok
+              ? entropyGate.reason
+              : canAfford
               ? "ok"
               : "essence",
       usedUses: 0,
@@ -419,6 +472,10 @@ export function getCraftActionState({ item, player, mode, affixIndex = null, leg
       focusedAffixIndex,
       minLevel: costs.minLevel || 0,
       nextRarity,
+      entropy: craftingState.entropy,
+      entropyCap: craftingState.entropyCap,
+      entropyAfter: entropyGate.entropyAfter ?? craftingState.entropy,
+      willStabilize: Boolean(entropyGate.willStabilize),
     };
   }
 
@@ -531,38 +588,11 @@ function removePlayerItem(player, locatedItem) {
 // REROLL
 // ============================================================
 export function craftReroll({ player, itemId, currentTier, refreshStats }) {
-  const locatedItem = findPlayerItem(player, itemId);
-  if (!locatedItem) return null;
-
-  const item        = locatedItem.item;
-  const limitBlock = getCraftLimitBlock(item, "reroll");
-  if (limitBlock) return limitBlock;
-  const craftingState = getCraftingState(item);
-  const { gold: goldCost, essence: essenceCost } = getRerollCosts(item, player);
-
-  if (player.gold < goldCost || (player.essence || 0) < essenceCost) return null;
-
-  const rerollTier = Math.max(currentTier || 1, item.itemTier || 1);
-  const newAffixes   = rerollAffixes(item, rerollTier);
-  const updatedItem  = rebuildItem(item, newAffixes, {
-    crafting: {
-      ...craftingState,
-      rerollCount: craftingState.rerollCount + 1,
-      polishCount: 0,
-      polishCountsByIndex: {},
-      focusedAffixIndex: null,
-      focusedAffixStat: null,
-    },
-  });
-  let newPlayer = updatePlayerItem(player, locatedItem, updatedItem, refreshStats);
-  newPlayer = {
-    ...player,
-    ...newPlayer,
-    gold:      player.gold    - goldCost,
-    essence:   player.essence - essenceCost,
+  return {
+    newPlayer: player,
+    blocked: true,
+    log: "REROLL TOTAL DESACTIVADO - usa Afinar o Reforjar en la Forja del Santuario.",
   };
-
-  return { newPlayer, log: `REROLL TOTAL - ${item.name} rehace por completo sus affixes.` };
 }
 
 // ============================================================
@@ -579,19 +609,38 @@ export function craftPolish({ player, itemId, affixIndex, refreshStats }) {
   if (affixIndex == null || affixIndex < 0 || affixIndex >= item.affixes.length) return null;
 
   const craftingState = getCraftingState(item);
+  const entropySpend = canSpendEntropy(craftingState, "polish");
+  if (!entropySpend.ok) {
+    return {
+      newPlayer: player,
+      blocked: true,
+      log: `ESTABILIZADO - ${item.name} ya no puede afinarse.`,
+    };
+  }
   const targetAffix = item.affixes[affixIndex];
-  const { gold: goldCost, essence: essenceCost } = getPolishCosts(item, player, targetAffix);
+  const linePolishCount = getLineCraftCountForMode(item, affixIndex, "polish");
+  const { gold: goldCost, essence: essenceCost } = getPolishCosts(item, player, targetAffix, {
+    lineCount: linePolishCount,
+  });
 
   if (player.gold < goldCost || (player.essence || 0) < essenceCost) return null;
 
   const polishedAffixes = polishAffix(item, affixIndex);
+  const { nextCrafting } = applyEntropySpend(craftingState, "polish");
   const updatedItem = rebuildItem(item, polishedAffixes, {
     crafting: {
-      ...craftingState,
+      ...nextCrafting,
       polishCount: craftingState.polishCount + 1,
       polishCountsByIndex: {
         ...(craftingState.polishCountsByIndex || {}),
         [String(affixIndex)]: getPolishCountForIndex(item, affixIndex) + 1,
+      },
+      lineCraftCounts: {
+        ...(craftingState.lineCraftCounts || {}),
+        [String(affixIndex)]: {
+          polish: linePolishCount + 1,
+          reforge: getLineCraftCountForMode(item, affixIndex, "reforge"),
+        },
       },
     },
   });
@@ -607,7 +656,7 @@ export function craftPolish({ player, itemId, affixIndex, refreshStats }) {
   const updatedAffix = updatedItem.affixes?.[affixIndex];
   return {
     newPlayer,
-    log: `PULIDO - ${item.name} reajusta ${updatedAffix?.stat || "affix"} en T${updatedAffix?.tier || "?"}.`,
+    log: `AFINADO - ${item.name} reajusta ${updatedAffix?.stat || "affix"}${updatedItem?.crafting?.stabilized ? " y queda estabilizado." : "."}`,
   };
 }
 
@@ -623,13 +672,6 @@ export function craftReforge({ player, itemId, affixIndex, replacementAffix, ref
   if (limitBlock) return { ...limitBlock, newPlayer: player };
   if (!Array.isArray(item.affixes) || item.affixes.length === 0) return null;
   if (affixIndex == null || affixIndex < 0 || affixIndex >= item.affixes.length) return null;
-  if (!isTargetedAffixAllowed(item, affixIndex)) {
-    return {
-      newPlayer: player,
-      blocked: true,
-      log: getTargetedAffixBlockLog(item),
-    };
-  }
   if (!replacementAffix?.id || !replacementAffix?.stat) return null;
 
   const targetAffix = item.affixes[affixIndex];
@@ -637,29 +679,50 @@ export function craftReforge({ player, itemId, affixIndex, replacementAffix, ref
   const keepsCurrentAffix =
     replacementAffix?.id === targetAffix.id &&
     replacementAffix?.stat === targetAffix.stat &&
-    replacementAffix?.tier === targetAffix.tier &&
+    replacementAffix?.quality === targetAffix?.quality &&
     (replacementAffix?.rolledValue ?? replacementAffix?.value ?? null) === (targetAffix?.rolledValue ?? targetAffix?.value ?? null);
 
   if (keepsCurrentAffix) {
     return {
       newPlayer: player,
       noChange: true,
-      log: `REFORJA - ${item.name} mantiene ${targetAffix.stat}. No se fija ninguna linea.`,
+      log: `REFORJA - ${item.name} mantiene ${targetAffix.stat}.`,
     };
   }
 
   const craftingState = getCraftingState(item);
-  const { gold: goldCost, essence: essenceCost } = getReforgeCosts(item, player, targetAffix);
+  const entropySpend = skipCost ? { ok: true } : canSpendEntropy(craftingState, "reforge");
+  if (!skipCost && !entropySpend.ok) {
+    return {
+      newPlayer: player,
+      blocked: true,
+      log: `ESTABILIZADO - ${item.name} ya no puede reforjarse.`,
+    };
+  }
+  const lineReforgeCount = getLineCraftCountForMode(item, affixIndex, "reforge");
+  const { gold: goldCost, essence: essenceCost } = getReforgeCosts(item, player, targetAffix, {
+    lineCount: lineReforgeCount,
+  });
 
   if (!skipCost && (player.gold < goldCost || (player.essence || 0) < essenceCost)) return null;
 
   const reforgedAffixes = (item.affixes || []).map((affix, index) => (index === affixIndex ? replacementAffix : affix));
+  const { nextCrafting } = skipCost
+    ? { nextCrafting: { ...craftingState } }
+    : applyEntropySpend(craftingState, "reforge");
   const updatedItem = rebuildItem(item, reforgedAffixes, {
     crafting: {
-      ...craftingState,
-      reforgeCount: craftingState.reforgeCount + 1,
-      focusedAffixIndex: affixIndex,
-      focusedAffixStat: replacementAffix?.stat || targetAffix?.stat || craftingState.focusedAffixStat || null,
+      ...nextCrafting,
+      reforgeCount: skipCost ? craftingState.reforgeCount : craftingState.reforgeCount + 1,
+      lineCraftCounts: skipCost
+        ? { ...(craftingState.lineCraftCounts || {}) }
+        : {
+            ...(craftingState.lineCraftCounts || {}),
+            [String(affixIndex)]: {
+              polish: getLineCraftCountForMode(item, affixIndex, "polish"),
+              reforge: lineReforgeCount + 1,
+            },
+          },
     },
   });
 
@@ -675,11 +738,11 @@ export function craftReforge({ player, itemId, affixIndex, replacementAffix, ref
 
   return {
     newPlayer,
-    log: `REFORJA - ${item.name} cambia ${targetAffix.stat} por ${replacementAffix.stat} [linea trabajada].`,
+    log: `REFORJA - ${item.name} cambia ${targetAffix.stat} por ${replacementAffix.stat}${updatedItem?.crafting?.stabilized ? " y queda estabilizado." : "."}`,
   };
 }
 
-export function craftReforgePreview({ player, itemId, affixIndex, favoredStats = [], extraAffixPool = [] }) {
+export function craftReforgePreview({ player, itemId, affixIndex, favoredStats = [], extraAffixPool = [], refreshStats = nextPlayer => nextPlayer }) {
   const locatedItem = findPlayerItem(player, itemId);
   if (!locatedItem) return null;
 
@@ -688,38 +751,63 @@ export function craftReforgePreview({ player, itemId, affixIndex, favoredStats =
   if (limitBlock) return { ...limitBlock, newPlayer: player };
   if (!Array.isArray(item.affixes) || item.affixes.length === 0) return null;
   if (affixIndex == null || affixIndex < 0 || affixIndex >= item.affixes.length) return null;
-  if (!isTargetedAffixAllowed(item, affixIndex)) {
-    return {
-      newPlayer: player,
-      blocked: true,
-      log: getTargetedAffixBlockLog(item),
-    };
-  }
 
   const targetAffix = item.affixes[affixIndex];
   if (!targetAffix?.id) return null;
 
-  const { gold: goldCost, essence: essenceCost } = getReforgeCosts(item, player, targetAffix);
+  const craftingState = getCraftingState(item);
+  const entropySpend = canSpendEntropy(craftingState, "reforge");
+  if (!entropySpend.ok) {
+    return {
+      newPlayer: player,
+      blocked: true,
+      log: `ESTABILIZADO - ${item.name} ya no puede reforjarse.`,
+    };
+  }
+  const lineReforgeCount = getLineCraftCountForMode(item, affixIndex, "reforge");
+  const { gold: goldCost, essence: essenceCost } = getReforgeCosts(item, player, targetAffix, {
+    lineCount: lineReforgeCount,
+  });
 
   if (player.gold < goldCost || (player.essence || 0) < essenceCost) return null;
 
-  const totalOptionCount =
-    3 +
-    getReforgeExtraOptionCount(item) +
-    Math.max(0, Math.floor(player?.prestigeBonuses?.reforgeOptionCount || 0));
-  const optionCount = Math.max(1, totalOptionCount - 1);
+  const totalOptionCount = 3;
+  const optionCount = 2;
   const allowedExtraAffixPool = ["epic", "legendary"].includes(item?.rarity) ? extraAffixPool : [];
   const generated = generateReforgeOptions(item, affixIndex, optionCount, favoredStats, allowedExtraAffixPool)
-    .map(affix => scaleAffixesForItemLevel([affix], item.rarity, item.level || 0)[0] || affix);
+    .map(affix => ({
+      ...(scaleAffixesForItemLevel([affix], item.rarity, item.level || 0)[0] || affix),
+      quality: "normal",
+      qualityLabel: "Normal",
+      lootOnlyQuality: false,
+    }));
   if (!generated.length) return null;
 
-  return {
-    newPlayer: {
-      ...player,
-      gold: player.gold - goldCost,
-      essence: (player.essence || 0) - essenceCost,
+  const { nextCrafting } = applyEntropySpend(craftingState, "reforge");
+  const previewItem = rebuildItem(item, item.affixes || [], {
+    crafting: {
+      ...nextCrafting,
+      reforgeCount: craftingState.reforgeCount + 1,
+      lineCraftCounts: {
+        ...(craftingState.lineCraftCounts || {}),
+        [String(affixIndex)]: {
+          polish: getLineCraftCountForMode(item, affixIndex, "polish"),
+          reforge: lineReforgeCount + 1,
+        },
+      },
     },
-    options: [targetAffix, ...generated],
+  });
+  let newPlayer = updatePlayerItem(player, locatedItem, previewItem, refreshStats);
+  newPlayer = {
+    ...player,
+    ...newPlayer,
+    gold: player.gold - goldCost,
+    essence: (player.essence || 0) - essenceCost,
+  };
+
+  return {
+    newPlayer,
+    options: [previewItem?.affixes?.[affixIndex] || targetAffix, ...generated],
     log: `REFORJA PREPARADA - ${item.name}: elige 1 de ${Math.min(totalOptionCount, 1 + generated.length)} opciones para ${targetAffix.stat}.`,
   };
 }
@@ -742,20 +830,31 @@ export function craftUpgrade({ player, itemId, refreshStats }) {
   const maxLevel = getUpgradeCap(item);
   if (currentLevel >= maxLevel) return null;
 
+  const craftingState = getCraftingState(item);
+  const entropySpend = canSpendEntropy(craftingState, "upgrade");
+  if (!entropySpend.ok) {
+    return {
+      newPlayer: player,
+      blocked: true,
+      log: `ESTABILIZADO - ${item.name} ya no puede mejorarse.`,
+    };
+  }
   const goldCost = getUpgradeCosts(item, player).gold;
   if (player.gold < goldCost) return null;
 
-  const failed        = Math.random() < (UPGRADE_FAIL_CHANCE[currentLevel] ?? 0.46);
-  const newLevel      = failed ? Math.max(0, currentLevel - 1) : currentLevel + 1;
+  const newLevel      = currentLevel + 1;
   const newAffixes    = item.affixes || [];
-
-  const updatedItem  = rebuildItem(item, newAffixes, { level: newLevel });
+  const { nextCrafting } = applyEntropySpend(craftingState, "upgrade");
+  const updatedItem  = rebuildItem(item, newAffixes, {
+    level: newLevel,
+    crafting: {
+      ...nextCrafting,
+    },
+  });
   let newPlayer = updatePlayerItem(player, locatedItem, updatedItem, refreshStats);
   newPlayer = { ...player, ...newPlayer, gold: player.gold - goldCost };
 
-  const log = failed
-    ? `⚠ Upgrade fallido — ${item.name} bajó a nivel ${newLevel}`
-    : `⬆ Upgrade exitoso — ${item.name} subió a nivel ${newLevel}`;
+  const log = `UPGRADE - ${item.name} sube a +${newLevel}${updatedItem?.crafting?.stabilized ? " y queda estabilizado." : "."}`;
 
   return { newPlayer, log };
 }
@@ -763,12 +862,38 @@ export function craftUpgrade({ player, itemId, refreshStats }) {
 // ============================================================
 // ASCEND
 // ============================================================
-export function craftAscend({ player, itemId, currentTier, refreshStats, legendaryPowerId = null, unlockedLegendaryPowerIds = [], legendaryPowerImprintReduction = 0 }) {
+export function craftAscend({
+  player,
+  itemId,
+  currentTier,
+  refreshStats,
+  legendaryPowerId = null,
+  unlockedLegendaryPowerIds = [],
+  legendaryPowerImprintReduction = 0,
+  skipCost = false,
+  requireEpicOnly = true,
+}) {
   const locatedItem = findPlayerItem(player, itemId);
   if (!locatedItem) return null;
 
   const item = locatedItem.item;
+  if (requireEpicOnly && item.rarity !== "epic") {
+    return {
+      newPlayer: player,
+      blocked: true,
+      log: "IMBUIR BLOQUEADO - solo las piezas epic pueden convertirse en legendarias.",
+    };
+  }
   if (item.rarity === "legendary") return null;
+  const craftingState = getCraftingState(item);
+  const entropySpend = canSpendEntropy(craftingState, "imbue");
+  if (!entropySpend.ok) {
+    return {
+      newPlayer: player,
+      blocked: true,
+      log: `ESTABILIZADO - ${item.name} ya no puede imbuirse.`,
+    };
+  }
 
   const newRarity    = getNextRarity(item.rarity);
   const selectedLegendaryPower =
@@ -790,9 +915,9 @@ export function craftAscend({ player, itemId, currentTier, refreshStats, legenda
   if ((item.level ?? 0) < ascendCost.minLevel) return null;
   const goldCost    = ascendCost.gold;
   const essenceCost = ascendCost.essence;
-  if (player.gold < goldCost || (player.essence || 0) < essenceCost) return null;
+  if (!skipCost && (player.gold < goldCost || (player.essence || 0) < essenceCost)) return null;
   const craftingTier = Math.max(currentTier || 1, item.itemTier || 1);
-  const craftingState = getCraftingState(item);
+  const { nextCrafting } = applyEntropySpend(craftingState, "imbue");
   const nextBaseBonus = buildBaseBonusForItem({
     baseItem: { ...item, bonus: item.baseBonus || {} },
     rarity: newRarity,
@@ -814,17 +939,22 @@ export function craftAscend({ player, itemId, currentTier, refreshStats, legenda
     baseBonus: nextBaseBonus,
     implicitBonus: getImplicitBonus(item, newRarity),
     crafting: {
-      ...craftingState,
+      ...nextCrafting,
       ascendCount: craftingState.ascendCount + 1,
     },
   });
   let newPlayer = updatePlayerItem(player, locatedItem, updatedItem, refreshStats);
-  newPlayer = {
-    ...player,
-    ...newPlayer,
-    gold:      player.gold    - goldCost,
-    essence:   player.essence - essenceCost,
-  };
+  newPlayer = skipCost
+    ? {
+        ...player,
+        ...newPlayer,
+      }
+    : {
+        ...player,
+        ...newPlayer,
+        gold: player.gold - goldCost,
+        essence: player.essence - essenceCost,
+      };
 
   return {
     newPlayer,

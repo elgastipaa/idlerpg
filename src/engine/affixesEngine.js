@@ -12,6 +12,13 @@ const TIER_WEIGHT_BY_ITEM_TIER = [
   { maxTier: 16, weights: { 1: 0.75, 2: 1.0, 3: 0.85 } },
   { maxTier: Number.POSITIVE_INFINITY, weights: { 1: 1.0, 2: 0.95, 3: 0.7 } },
 ];
+const EXCELLENT_CHANCE_BY_RARITY = {
+  common: 0,
+  magic: 0.09,
+  rare: 0.05,
+  epic: 0.05,
+  legendary: 0.07,
+};
 
 function weightedPick(pool, getWeight = candidate => candidate.weight || 0, randomFn = Math.random) {
   const totalWeight = pool.reduce((sum, candidate) => sum + getWeight(candidate), 0);
@@ -121,10 +128,50 @@ function getAffixCategory(affix = {}) {
   }
 }
 
-function getTierEntries(affix) {
+function normalizeRange(range = null) {
+  if (!range) return null;
+  if (typeof range === "number") {
+    return { min: roundAffixValue(range), max: roundAffixValue(range) };
+  }
+  const min = Number(range?.min ?? range?.value ?? 0);
+  const max = Number(range?.max ?? range?.value ?? min);
+  return {
+    min: roundAffixValue(Math.min(min, max)),
+    max: roundAffixValue(Math.max(min, max)),
+  };
+}
+
+function mergeRanges(ranges = []) {
+  const valid = ranges.filter(entry => entry && Number.isFinite(entry.min) && Number.isFinite(entry.max));
+  if (!valid.length) return null;
+  return {
+    min: Math.min(...valid.map(entry => entry.min)),
+    max: Math.max(...valid.map(entry => entry.max)),
+  };
+}
+
+function deriveAffixRanges(affix = {}, fallbackRange = null) {
+  const tiers = affix?.tiers || {};
+  const tier1 = normalizeRange(tiers?.[1]?.value ?? null);
+  const tier2 = normalizeRange(tiers?.[2]?.value ?? null);
+  const tier3 = normalizeRange(tiers?.[3]?.value ?? null);
+  const fallback = normalizeRange(fallbackRange);
+  const normalRange = mergeRanges([tier3, tier2]) || tier3 || tier2 || tier1 || fallback;
+  const excellentRange = tier1 || normalRange || fallback;
+  return { normalRange, excellentRange };
+}
+
+function resolveAffixQuality(affix = {}) {
+  if (affix?.quality === "excellent") return "excellent";
+  if (Number(affix?.legacyTier || affix?.tier || 0) === 1) return "excellent";
+  if (affix?.lootOnlyQuality) return "excellent";
+  return "normal";
+}
+
+function getTierEntries(affix, { includeExcellent = true } = {}) {
   return Object.entries(affix.tiers || {})
     .map(([tier, data]) => ({ tier: Number(tier), ...data }))
-    .filter(entry => entry.weight > 0)
+    .filter(entry => entry.weight > 0 && (includeExcellent || entry.tier !== 1))
     .sort((a, b) => b.tier - a.tier);
 }
 
@@ -143,16 +190,32 @@ function getTierWeightMultiplier(itemTier = 1, tier) {
   return bracket.weights?.[tier] ?? 1;
 }
 
-function pickTier(affix, itemTier = 1, randomFn = Math.random) {
-  const tierPool = getTierEntries(affix);
-  return weightedPick(tierPool, entry => entry.weight * getTierWeightMultiplier(itemTier, entry.tier), randomFn);
+function getExcellentChance({ rarity = "common", itemTier = 1, isBossDrop = false } = {}) {
+  const tier = Math.max(1, Number(itemTier || 1));
+  const tierBonus = tier >= 16 ? 0.02 : tier >= 9 ? 0.01 : 0;
+  const bossBonus = isBossDrop ? 0.02 : 0;
+  return Math.max(0, Math.min(0.12, (EXCELLENT_CHANCE_BY_RARITY[rarity] || 0) + tierBonus + bossBonus));
 }
 
-function buildRolledAffix(affix, tierEntry, randomFn = Math.random) {
+function shouldRollExcellent({ rarity = "common", itemTier = 1, isBossDrop = false, randomFn = Math.random } = {}) {
+  return randomFn() < getExcellentChance({ rarity, itemTier, isBossDrop });
+}
+
+function pickTier(affix, itemTier = 1, randomFn = Math.random, { quality = "normal" } = {}) {
+  if (quality === "excellent") {
+    const excellentTier = getTierEntries(affix).find(entry => entry.tier === 1);
+    if (excellentTier) return excellentTier;
+  }
+  const tierPool = getTierEntries(affix, { includeExcellent: false });
+  const fallbackPool = tierPool.length > 0 ? tierPool : getTierEntries(affix);
+  return weightedPick(fallbackPool, entry => entry.weight * getTierWeightMultiplier(itemTier, entry.tier), randomFn);
+}
+
+function buildRolledAffix(affix, tierEntry, randomFn = Math.random, { quality = null } = {}) {
   const rolledValue = roundAffixValue(rollWithinRange(tierEntry.value, randomFn));
   const min = tierEntry.value?.min ?? tierEntry.value ?? rolledValue;
   const max = tierEntry.value?.max ?? tierEntry.value ?? rolledValue;
-  const highThreshold = min + (max - min) * 0.98;
+  const resolvedQuality = quality || (tierEntry.tier === 1 ? "excellent" : "normal");
 
   return {
     id: affix.id,
@@ -160,9 +223,10 @@ function buildRolledAffix(affix, tierEntry, randomFn = Math.random) {
     scaling: affix.scaling,
     category: getAffixCategory(affix),
     kind: getAffixKind(affix),
-    tier: tierEntry.tier,
-    tierLabel: tierEntry.label,
-    label: tierEntry.label,
+    legacyTier: tierEntry.tier,
+    quality: resolvedQuality,
+    qualityLabel: resolvedQuality === "excellent" ? "Excelente" : "Normal",
+    lootOnlyQuality: resolvedQuality === "excellent",
     source: affix.source || "base",
     value: rolledValue,
     rolledValue,
@@ -170,7 +234,6 @@ function buildRolledAffix(affix, tierEntry, randomFn = Math.random) {
     baseValue: rolledValue,
     baseRolledValue: rolledValue,
     baseRange: { min, max },
-    perfectRoll: tierEntry.tier === 1 && rolledValue >= highThreshold,
   };
 }
 
@@ -221,6 +284,9 @@ function rollSingleAffix(pool, state, options = {}) {
     allowExistingStatOverlap = false,
     overlapPenalty = 0.3,
     maxExistingStatOverlaps = 1,
+    rarity = "common",
+    isBossDrop = false,
+    allowExcellentQuality = false,
     randomFn = Math.random,
   } = options;
   const available = filterByCategory(pool, state.usedCategories);
@@ -239,8 +305,12 @@ function rollSingleAffix(pool, state, options = {}) {
   }), randomFn);
   if (!pickedAffix) return null;
 
-  const tierEntry = pickTier(pickedAffix, itemTier, randomFn);
+  const quality = allowExcellentQuality && shouldRollExcellent({ rarity, itemTier, isBossDrop, randomFn })
+    ? "excellent"
+    : "normal";
+  const tierEntry = pickTier(pickedAffix, itemTier, randomFn, { quality });
   if (!tierEntry) return null;
+  const resolvedQuality = quality === "excellent" && tierEntry.tier === 1 ? "excellent" : "normal";
 
   const normalizedStat = normalizeLegacyStatKey(pickedAffix.stat);
   state.usedCategories.add(getAffixCategory(pickedAffix));
@@ -249,7 +319,7 @@ function rollSingleAffix(pool, state, options = {}) {
   if (state.existingStats.has(normalizedStat)) {
     state.overlapCount += 1;
   }
-  return buildRolledAffix(pickedAffix, tierEntry, randomFn);
+  return buildRolledAffix(pickedAffix, tierEntry, randomFn, { quality: resolvedQuality });
 }
 
 export function rollAffixes({
@@ -262,6 +332,8 @@ export function rollAffixes({
   allowExistingStatOverlap = OVERLAP_ELIGIBLE_RARITIES.has(rarity),
   overlapPenalty = ITEM_ROLL_RULES_V2.overlapAffixWeightPenalty ?? 0.3,
   maxExistingStatOverlaps = ITEM_ROLL_RULES_V2.maxOverlapsWithBaseOrImplicit ?? 1,
+  isBossDrop = false,
+  allowExcellentQuality = false,
   randomFn = Math.random,
 }) {
   const normalizedFavoredStats = (favoredStats || []).map(normalizeLegacyStatKey);
@@ -289,6 +361,9 @@ export function rollAffixes({
       allowExistingStatOverlap,
       overlapPenalty,
       maxExistingStatOverlaps,
+      rarity,
+      isBossDrop,
+      allowExcellentQuality,
       randomFn,
     });
     if (rolled) result.push(rolled);
@@ -303,6 +378,9 @@ export function rollAffixes({
       allowExistingStatOverlap,
       overlapPenalty,
       maxExistingStatOverlaps,
+      rarity,
+      isBossDrop,
+      allowExcellentQuality,
       randomFn,
     });
     if (rolled) result.push(rolled);
@@ -374,16 +452,44 @@ export function rerollAffixes(item, itemTier) {
 export function polishAffix(item, affixIndex) {
   const currentAffixes = item.affixes || [];
   const targetAffix = currentAffixes[affixIndex];
-  if (!targetAffix?.id || !targetAffix?.tier) return currentAffixes;
+  if (!targetAffix?.id) return currentAffixes;
 
   const definition = findAffixDefinition(targetAffix.id);
-  const tierEntry = definition?.tiers?.[targetAffix.tier];
-  if (!definition || !tierEntry) return currentAffixes;
+  if (!definition) return currentAffixes;
+  const quality = resolveAffixQuality(targetAffix);
+  const { normalRange, excellentRange } = deriveAffixRanges(
+    definition,
+    targetAffix?.baseRange || targetAffix?.range || null
+  );
+  const selectedRange = quality === "excellent" ? (excellentRange || normalRange) : (normalRange || excellentRange);
+  if (!selectedRange) return currentAffixes;
+  const rolledValue = roundAffixValue(rollWithinRange(selectedRange));
 
   return currentAffixes.map((affix, index) => (
-    index === affixIndex
-      ? buildRolledAffix(definition, { tier: targetAffix.tier, ...tierEntry })
-      : affix
+    index !== affixIndex
+      ? affix
+      : {
+          ...affix,
+          id: definition.id,
+          stat: normalizeLegacyStatKey(definition.stat),
+          scaling: definition.scaling || affix.scaling,
+          category: getAffixCategory(definition),
+          kind: getAffixKind(definition),
+          quality,
+          qualityLabel: quality === "excellent" ? "Excelente" : "Normal",
+          lootOnlyQuality: quality === "excellent" ? true : Boolean(affix?.lootOnlyQuality),
+          source: definition.source || affix.source || "base",
+          legacyTier:
+            Number(affix?.legacyTier || affix?.tier || 0) > 0
+              ? Number(affix?.legacyTier || affix?.tier || 0)
+              : (quality === "excellent" ? 1 : 2),
+          value: rolledValue,
+          rolledValue,
+          range: { ...selectedRange },
+          baseValue: rolledValue,
+          baseRolledValue: rolledValue,
+          baseRange: { ...selectedRange },
+        }
   ));
 }
 

@@ -52,11 +52,10 @@ export function getItemCraftVisual(item) {
   }
   const level = item?.level ?? 0;
   const affixes = item?.affixes || [];
-  const t1Count = affixes.filter(affix => affix.tier === 1).length;
-  const perfectCount = affixes.filter(affix => affix.perfectRoll).length;
-  const investment = (item?.crafting?.rerollCount || 0) + (item?.crafting?.polishCount || 0) + (item?.crafting?.reforgeCount || 0);
+  const excellentCount = affixes.filter(affix => affix?.quality === "excellent" || affix?.lootOnlyQuality).length;
+  const investment = (item?.crafting?.polishCount || 0) + (item?.crafting?.reforgeCount || 0);
 
-  if (level >= 9 || (t1Count >= 2 && perfectCount >= 1)) {
+  if (level >= 9 || excellentCount >= 2) {
     return { label: "Obra Maestra", tone: "masterwork", glow: "0 0 0 2px rgba(245,158,11,0.18), 0 12px 28px rgba(245,158,11,0.18)" };
   }
   if (level >= 6 || investment >= 4) {
@@ -73,8 +72,7 @@ export function getLootHighlights({ item, equippedItem = null, activeBuildTag = 
 
   const stats = item.bonus || {};
   const affixes = item.affixes || [];
-  const perfectRollCount = affixes.filter(affix => affix.perfectRoll).length;
-  const t1AffixCount = affixes.filter(affix => affix.tier === 1).length;
+  const excellentAffixCount = affixes.filter(affix => affix?.quality === "excellent" || affix?.lootOnlyQuality).length;
   const ratingMargin = (item.rating || 0) - (equippedItem?.rating || 0);
   const offensiveAffixCount = countMatchingStats(stats, OFFENSE_KEYS);
   const wishlistMatches = getWishlistMatches(item, wishlistAffixes);
@@ -86,16 +84,10 @@ export function getLootHighlights({ item, equippedItem = null, activeBuildTag = 
     legendaryPower && { id: "enabler", label: "Build Enabler", tone: "enabler", priority: 980 },
     item.rarity === "legendary" && { id: "legendary", label: "Legendario", tone: "legendary", priority: 1000 },
     item.rarity === "epic" && { id: "epic", label: "Epico", tone: "epic", priority: 900 },
-    perfectRollCount > 0 && { id: "perfect", label: perfectRollCount > 1 ? `${perfectRollCount} Perfect` : "Perfect Roll", tone: "perfect", priority: 850 },
-    t1AffixCount > 0 && { id: "t1", label: t1AffixCount > 1 ? `${t1AffixCount}x T1` : "Affix T1", tone: "t1", priority: 760 },
+    excellentAffixCount > 0 && { id: "excellent", label: excellentAffixCount > 1 ? `${excellentAffixCount} Excelentes` : "Excelente", tone: "excellent", priority: 850 },
     huntMatches.isMatch && {
       id: "hunt",
-      label:
-        huntMatches.familyMatch && huntMatches.matchingStats.length > 0
-          ? "Caza Cumplida"
-          : huntMatches.familyMatch
-            ? "Drop Objetivo"
-            : "Stat Objetivo",
+      label: "CAZA",
       tone: "hunt",
       priority: 745 + (huntMatches.strength * 12),
     },
@@ -115,7 +107,7 @@ function getAnnouncedHighlights(item, highlights = [], { hasActiveHuntObjectives
   const announceableIds = isEpicPlus
     ? new Set(["legendary", "epic"])
     : hasActiveHuntObjectives
-      ? new Set(["wishlist"])
+      ? new Set(["wishlist", "hunt"])
       : new Set();
   return highlights.filter(highlight => announceableIds.has(highlight.id));
 }
@@ -126,8 +118,9 @@ export function summarizeLootEvent({ item, equippedItem = null, activeBuildTag =
   const hasActiveHuntObjectives = Array.isArray(wishlistAffixes) && wishlistAffixes.length > 0;
   const announcedHighlights = getAnnouncedHighlights(item, highlights, { hasActiveHuntObjectives });
   const announcedHighlight = announcedHighlights[0] || null;
-  const perfectRollCount = (item?.affixes || []).filter(affix => affix.perfectRoll).length;
-  const t1AffixCount = (item?.affixes || []).filter(affix => affix.tier === 1).length;
+  const excellentAffixCount = (item?.affixes || []).filter(
+    affix => affix?.quality === "excellent" || affix?.lootOnlyQuality
+  ).length;
   const wishlistMatches = getWishlistMatches(item, wishlistAffixes);
   const craftVisual = getItemCraftVisual(item);
   const huntMatches = getHuntMatches(item, huntContext);
@@ -139,8 +132,7 @@ export function summarizeLootEvent({ item, equippedItem = null, activeBuildTag =
     ((topHighlight?.priority || 0) * 6) +
     rating +
     (Math.max(0, ratingMargin) * 35) +
-    (perfectRollCount * 1200) +
-    (t1AffixCount * 700) +
+    (excellentAffixCount * 1400) +
     (legendaryPower ? 4200 : 0) +
     (huntMatches.isMatch ? (huntMatches.familyMatch ? 900 : 320) + (huntMatches.matchingStats.length * 180) : 0) +
     (wishlistMatches.length * 240) +
@@ -158,12 +150,12 @@ export function summarizeLootEvent({ item, equippedItem = null, activeBuildTag =
     highlights,
     announcedHighlights,
     hasActiveHuntObjectives,
-    perfectRollCount,
-    t1AffixCount,
+    excellentAffixCount,
+    perfectRollCount: excellentAffixCount,
+    t1AffixCount: excellentAffixCount,
     affixSummaries: (item?.affixes || []).slice(0, 4).map(affix => ({
       stat: affix.stat,
-      tier: affix.tier,
-      perfectRoll: !!affix.perfectRoll,
+      quality: affix?.quality || (affix?.lootOnlyQuality ? "excellent" : "normal"),
       value: affix.rolledValue ?? affix.value ?? 0,
     })),
     wishlistMatches,

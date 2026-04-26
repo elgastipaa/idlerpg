@@ -16,6 +16,10 @@
     "postinstall": "node scripts/ensure-tooling-permissions.mjs",
     "prebuild": "node scripts/ensure-tooling-permissions.mjs",
     "balance:batch": "node scripts/run-balance-batch.mjs",
+    "balance:relic": "node scripts/run-relic-balance-audit.mjs",
+    "smoke:contracts-weekly": "node scripts/run-contracts-weekly-regression.mjs",
+    "smoke:tick-stages": "node scripts/run-process-tick-stage-regression.mjs",
+    "smoke:kpi-mvp": "node scripts/run-mvp-kpi-regression.mjs",
     "start": "node node_modules/vite/bin/vite.js",
     "dev": "node node_modules/vite/bin/vite.js --host 0.0.0.0",
     "build": "node node_modules/vite/bin/vite.js build"

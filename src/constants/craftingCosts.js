@@ -67,12 +67,6 @@ export const REFORGE_RARITY_MULTIPLIER = {
 
 const RARE_HIGH_UPGRADE_MULTIPLIER = 1.5;
 
-const TARGETED_AFFIX_TIER_MULTIPLIER = {
-  1: 1.6,
-  2: 1.2,
-  3: 1,
-};
-
 function getCraftingState(item) {
   return {
     rerollCount: item?.crafting?.rerollCount || 0,
@@ -92,7 +86,7 @@ function getReduction(player, key) {
 }
 
 function getTargetedTierMultiplier(affix) {
-  return TARGETED_AFFIX_TIER_MULTIPLIER[affix?.tier || 3] || 1;
+  return affix?.quality === "excellent" || affix?.lootOnlyQuality ? 1.35 : 1;
 }
 
 export function getRerollCosts(item, player = {}) {
@@ -135,47 +129,47 @@ export function getUpgradeCosts(item, player = {}) {
   };
 }
 
-export function getPolishCosts(item, player = {}, affix = null) {
-  const craftingState = getCraftingState(item);
+export function getPolishCosts(item, player = {}, affix = null, options = {}) {
   const rarityMult = POLISH_RARITY_MULTIPLIER[item?.rarity] || 1;
   const reduction = getReduction(player, "polishCostReduction");
   const tierMult = getTargetedTierMultiplier(affix);
+  const lineCount = Math.max(0, Number(options?.lineCount || 0));
   return {
     gold: Math.floor(
       CRAFTING_BASE_COSTS.polish.gold *
       rarityMult *
       tierMult *
-      (1 + craftingState.polishCount * 0.45) *
+      (1 + lineCount * 0.25) *
       (1 - reduction)
     ),
     essence: Math.floor(
       CRAFTING_BASE_COSTS.polish.essence *
       rarityMult *
       tierMult *
-      (1 + craftingState.polishCount * 0.32) *
+      (1 + lineCount * 0.25) *
       (1 - reduction)
     ),
   };
 }
 
-export function getReforgeCosts(item, player = {}, affix = null) {
-  const craftingState = getCraftingState(item);
+export function getReforgeCosts(item, player = {}, affix = null, options = {}) {
   const rarityMult = REFORGE_RARITY_MULTIPLIER[item?.rarity] || 1;
   const reduction = getReduction(player, "reforgeCostReduction");
   const tierMult = getTargetedTierMultiplier(affix);
+  const lineCount = Math.max(0, Number(options?.lineCount || 0));
   return {
     gold: Math.floor(
       CRAFTING_BASE_COSTS.reforge.gold *
       rarityMult *
       tierMult *
-      (1 + craftingState.reforgeCount * 0.65) *
+      (1 + lineCount * 0.25) *
       (1 - reduction)
     ),
     essence: Math.floor(
       CRAFTING_BASE_COSTS.reforge.essence *
       rarityMult *
       tierMult *
-      (1 + craftingState.reforgeCount * 0.34) *
+      (1 + lineCount * 0.25) *
       (1 - reduction)
     ),
   };

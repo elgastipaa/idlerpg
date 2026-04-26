@@ -22,7 +22,9 @@ import { refreshStats } from "./combat/statEngine";
 import { createEmptyCodexState, normalizeCodexState, recordCodexSighting, syncCodexBonuses } from "./progression/codexEngine";
 import { createEmptyAbyssState, getMaxRunSigilSlots, normalizeAbyssState } from "./progression/abyssProgression";
 import { createEmptyPrestigeCycleProgress, normalizePrestigeState, syncPrestigeBonuses } from "./progression/prestigeEngine";
+import { createEmptyExpeditionContracts, ensureExpeditionContracts } from "./progression/expeditionContracts";
 import { createEmptyWeeklyLedger, ensureWeeklyLedger } from "./progression/weeklyLedger";
+import { createEmptyWeeklyBossState, ensureWeeklyBossState } from "./progression/weeklyBoss";
 import { createEmptyAppearanceProfile, normalizeAppearanceProfile } from "./progression/appearanceProfile";
 import { rebuildPlayerProgressionBonuses } from "./progression/progressionEngine";
 import { getRunSigil, getRunSigilPlayerBonuses, normalizeRunSigilIds } from "../data/runSigils";
@@ -37,6 +39,15 @@ import {
   normalizeFamilyChargeState,
   normalizeExtractedItemRecord,
 } from "./sanctuary/blueprintEngine";
+import { normalizeProjectRecord } from "./sanctuary/projectForgeEngine";
+import {
+  buildRelicFromExtractedItem,
+  createEmptyRelicLoadout,
+  ensureValidActiveRelics,
+  normalizeRelicArmory,
+  normalizeRelicContextAttunement,
+  normalizeRelicRecord,
+} from "./sanctuary/relicArmoryEngine";
 import { createEmptyItemStashState, syncItemStashState } from "./sanctuary/itemStashSchema";
 import { createEmptyOnboardingState, normalizeOnboardingState } from "./onboarding/onboardingEngine";
 
@@ -163,10 +174,12 @@ function createEmptySanctuaryState() {
     stash: [],
     extractedItems: [],
     itemStash: createEmptyItemStashState(),
+    relicArmory: [],
     blueprints: [],
     cargoInventory: [],
     jobs: [],
     deepForgeSession: null,
+    pendingOpenForgeOverlay: false,
     resources: {
       codexInk: 0,
       sigilFlux: 0,
@@ -174,6 +187,7 @@ function createEmptySanctuaryState() {
     },
     familyCharges: createEmptyFamilyChargeState(),
     activeBlueprints: createEmptyBlueprintLoadout(),
+    activeRelics: createEmptyRelicLoadout(),
     sigilInfusions: {},
     laboratory: createEmptyLaboratoryState(),
     stations: Object.fromEntries(
@@ -186,7 +200,7 @@ function createEmptySanctuaryState() {
       cargoSlots: 2,
       projectSlots: 1,
       extractedItemSlots: 3,
-      relicSlots: 0,
+      relicSlots: 8,
       insuredCargoSlots: 0,
     },
   };
@@ -198,18 +212,168 @@ function createEmptyExpeditionState() {
     id: null,
     startedAt: null,
     exitReason: null,
-    deathCount: 0,
-    deathLimit: 3,
     seenFamilyIds: [],
     cargoFound: [],
     projectCandidates: [],
     selectedCargoIds: [],
     selectedProjectItemId: null,
+    selectedProjectDecision: "keep",
     extractionPreview: null,
     activeInfusionIds: [],
     activeInfusionPlayerBonuses: {},
     activeExtractionBonuses: {},
+    activeRelicContext: "none",
+    activeRelicContextBonuses: {},
+    activeRelicContextMatches: [],
+    activeRelicContextMismatches: [],
   };
+}
+
+function normalizeProjectAffixRecord(affix = {}, fallbackId = "legacy_affix_0") {
+  const value = Number(affix?.value ?? affix?.rolledValue ?? 0) || 0;
+  const tier = Math.max(1, Math.floor(Number(affix?.tier || 1)));
+  const minRange = Number(affix?.range?.min ?? value * 0.85) || 0;
+  const maxRange = Number(affix?.range?.max ?? value * 1.15) || value;
+  return {
+    id: affix?.id || fallbackId,
+    stat: affix?.stat || "damage",
+    tier,
+    value,
+    rolledValue: Number(affix?.rolledValue ?? affix?.value ?? value) || value,
+    range: {
+      min: Math.min(minRange, maxRange),
+      max: Math.max(minRange, maxRange),
+    },
+    source: affix?.source || "legacy_migration",
+  };
+}
+
+function buildProjectFromItemSnapshot(item = {}, { idPrefix = "project_migrated", source = "legacy_migration", now = Date.now() } = {}) {
+  if (!item?.id) return null;
+
+  const rawAffixes = Array.isArray(item?.affixes)
+    ? item.affixes.map((affix, index) => normalizeProjectAffixRecord(affix, `${item.id}_affix_${index}`)).filter(Boolean)
+    : [];
+  const fallbackStat = item?.type === "armor" ? "healthMax" : "damage";
+  const fallbackTier = Math.max(1, Math.min(3, Math.ceil(Math.max(1, Number(item?.itemTier || 1)) / 8)));
+  const fallbackValue = Math.max(1, Math.round(Math.max(1, Number(item?.rating || 1)) * (item?.type === "armor" ? 0.6 : 0.18)));
+  const affixes = rawAffixes.length > 0
+    ? rawAffixes
+    : [normalizeProjectAffixRecord({
+      id: `${item.id}_legacy_fallback`,
+      stat: fallbackStat,
+      tier: fallbackTier,
+      value: fallbackValue,
+      rolledValue: fallbackValue,
+      range: {
+        min: Math.max(1, Math.round(fallbackValue * 0.85)),
+        max: Math.max(1, Math.round(fallbackValue * 1.15)),
+      },
+      source: "legacy_fallback",
+    })];
+
+  return {
+    id: `${idPrefix}_${item.id}`,
+    sourceItemId: item.id,
+    name: item?.name || "Proyecto legado",
+    rarity: item?.rarity || "rare",
+    type: item?.type || "weapon",
+    baseType: item?.baseType || item?.subtype || item?.type || "weapon",
+    rating: Math.max(1, Math.round(Number(item?.rating || 1))),
+    baseRating: Math.max(1, Math.round(Number(item?.rating || 1))),
+    affixes,
+    baseAffixes: affixes.map(affix => ({ ...affix })),
+    legendaryPowerId: item?.legendaryPowerId || null,
+    projectTier: 0,
+    upgradeLevel: 0,
+    upgradeCap: 15,
+    ascensionTier: 0,
+    powerTier: item?.legendaryPowerId ? 1 : 0,
+    createdAt: now,
+    sourceMeta: { source },
+  };
+}
+
+function buildProjectFromBlueprintRecord(blueprint = {}, { now = Date.now() } = {}) {
+  const normalized = normalizeBlueprintRecord(blueprint);
+  if (!normalized?.id) return null;
+
+  const seededAffixes = Array.isArray(normalized?.affixes) && normalized.affixes.length > 0
+    ? normalized.affixes
+    : Object.entries({
+      ...(normalized?.baseBonus || {}),
+      ...(normalized?.implicitBonus || {}),
+    })
+      .filter(([, rawValue]) => Math.abs(Number(rawValue || 0)) > 0)
+      .slice(0, 4)
+      .map(([stat, rawValue], index) => {
+        const value = Number(rawValue || 0);
+        return normalizeProjectAffixRecord({
+          id: `${normalized.id}_bonus_${index}`,
+          stat,
+          tier: Math.max(1, Math.min(3, Math.ceil(Math.max(1, Number(normalized?.itemTier || 1)) / 8))),
+          value,
+          rolledValue: value,
+          range: {
+            min: value * 0.9,
+            max: value * 1.1,
+          },
+          source: "legacy_blueprint_bonus",
+        });
+      });
+
+  const projectSeed = buildProjectFromItemSnapshot(
+    {
+      id: normalized.sourceBaseItemId || normalized.id,
+      name: normalized.sourceName || "Proyecto legado",
+      rarity: normalized.rarity || "rare",
+      type: normalized.slot || "weapon",
+      baseType: normalized.family || normalized.slot || "weapon",
+      rating: Math.max(1, Number(normalized.baseRating || 1)),
+      itemTier: Math.max(1, Number(normalized.itemTier || 1)),
+      legendaryPowerId: normalized.legendaryPowerId || null,
+      affixes: seededAffixes,
+    },
+    {
+      idPrefix: `project_legacy_blueprint_${normalized.id}`,
+      source: "legacy_blueprint",
+      now,
+    }
+  );
+  if (!projectSeed) return null;
+
+  return normalizeProjectRecord({
+    ...projectSeed,
+    projectTier: Math.max(0, Number(normalized?.ascensionTier || 0)),
+    upgradeLevel: Math.max(0, Number(normalized?.blueprintLevel || 0)),
+    ascensionTier: Math.max(0, Number(normalized?.ascensionTier || 0)),
+    powerTier: normalized?.legendaryPowerId
+      ? Math.max(1, Number(normalized?.powerTuneLevel || 1))
+      : 0,
+  });
+}
+
+function getProjectStashDedupKey(project = {}) {
+  if (project?.sourceItemId) return `source:${project.sourceItemId}`;
+  if (project?.id) return `id:${project.id}`;
+  return null;
+}
+
+function mergeProjectStashes(...groups) {
+  const merged = [];
+  const seen = new Set();
+  for (const group of groups) {
+    if (!Array.isArray(group)) continue;
+    for (const entry of group) {
+      const project = normalizeProjectRecord(entry);
+      if (!project) continue;
+      const dedupKey = getProjectStashDedupKey(project);
+      if (dedupKey && seen.has(dedupKey)) continue;
+      if (dedupKey) seen.add(dedupKey);
+      merged.push(project);
+    }
+  }
+  return merged;
 }
 
 function mergeNumericBonuses(target = {}, source = {}) {
@@ -518,18 +682,25 @@ const freshState = {
     pendingRunSigilIds: ["free"],
     activeRunSigilId: "free",
     activeRunSigilIds: ["free"],
+    weeklyBossEncounter: null,
     craftingLog: [],
     analytics: createEmptySessionAnalytics(),
   },
 
   stats: {
     kills: 0,
+    blocksDone: 0,
+    evadesDone: 0,
     itemsFound: 0,
     itemsSold: 0,
     itemsExtracted: 0,
     autoSoldItems: 0,
     autoExtractedItems: 0,
     bossKills: 0,
+    bossKillsWithBleed: 0,
+    bossKillsWithFracture: 0,
+    bossKillsWithDualStatus: 0,
+    bossKillsWithGuardPlay: 0,
     deaths: 0,
     perfectRollsFound: 0,
     t1AffixesFound: 0,
@@ -571,13 +742,17 @@ const freshState = {
   replayLibrary: createEmptyReplayLibrary(),
   accountTelemetry: createEmptyAccountTelemetry(),
   saveDiagnostics: createEmptySaveDiagnostics(),
+  expeditionContracts: createEmptyExpeditionContracts(),
   weeklyLedger: createEmptyWeeklyLedger(),
+  weeklyBoss: createEmptyWeeklyBossState(),
 };
 
 export function createFreshState() {
   const next = JSON.parse(JSON.stringify(freshState));
   next.codex = recordCodexSighting(next.codex, next.combat.enemy);
+  next.expeditionContracts = ensureExpeditionContracts(next, next.expeditionContracts, Date.now());
   next.weeklyLedger = ensureWeeklyLedger(next, next.weeklyLedger, Date.now());
+  next.weeklyBoss = ensureWeeklyBossState(next, next.weeklyBoss, Date.now());
   return next;
 }
 
@@ -859,19 +1034,55 @@ export function mergeStateWithDefaults(base, incoming) {
   const normalizedExtractedItems = Array.isArray(rawSanctuary.extractedItems)
     ? rawSanctuary.extractedItems.map(item => normalizeExtractedItemRecord(item)).filter(Boolean)
     : [];
+  const normalizedSavedRelicArmory = Array.isArray(rawSanctuary.relicArmory)
+    ? rawSanctuary.relicArmory.map(relic => normalizeRelicRecord(relic)).filter(Boolean)
+    : [];
+  const migratedRelicArmory =
+    normalizedSavedRelicArmory.length > 0
+      ? normalizedSavedRelicArmory
+      : normalizedExtractedItems
+          .map(extractedItem =>
+            buildRelicFromExtractedItem(extractedItem, {
+              now: Date.now(),
+            })
+          )
+          .filter(Boolean);
+  const normalizedRelicArmory = normalizeRelicArmory(migratedRelicArmory);
+  const normalizedLegacyBlueprints = Array.isArray(rawSanctuary.blueprints)
+    ? rawSanctuary.blueprints.map(blueprint => normalizeBlueprintRecord(blueprint)).filter(Boolean)
+    : Array.isArray(rawSanctuary.stash)
+      ? rawSanctuary.stash.map(project => convertLegacyProjectToBlueprint(project)).filter(Boolean)
+      : [];
+  const normalizedSavedStash = Array.isArray(rawSanctuary.stash)
+    ? rawSanctuary.stash.map(project => normalizeProjectRecord(project)).filter(Boolean)
+    : [];
+  const migratedStashFromRelics = normalizedRelicArmory
+    .map(relic =>
+      normalizeProjectRecord(
+        buildProjectFromItemSnapshot(relic, {
+          idPrefix: "project_legacy_relic",
+          source: "legacy_relic",
+          now: Date.now(),
+        })
+      )
+    )
+    .filter(Boolean);
+  const migratedStashFromBlueprints = normalizedLegacyBlueprints
+    .map(blueprint => buildProjectFromBlueprintRecord(blueprint, { now: Date.now() }))
+    .filter(Boolean);
+  const normalizedStash = mergeProjectStashes(
+    normalizedSavedStash,
+    migratedStashFromRelics,
+    migratedStashFromBlueprints
+  ).sort((left, right) => Number(right?.rating || 0) - Number(left?.rating || 0));
   const preLaboratorySanctuary = {
     ...createEmptySanctuaryState(),
     ...rawSanctuary,
-    stash: [],
+    stash: normalizedStash,
     extractedItems: normalizedExtractedItems,
     itemStash: syncItemStashState(rawSanctuary.itemStash || {}, normalizedExtractedItems),
-    blueprints: (
-      Array.isArray(rawSanctuary.blueprints)
-        ? rawSanctuary.blueprints.map(blueprint => normalizeBlueprintRecord(blueprint)).filter(Boolean)
-        : Array.isArray(rawSanctuary.stash)
-          ? rawSanctuary.stash.map(project => convertLegacyProjectToBlueprint(project)).filter(Boolean)
-          : []
-    ),
+    relicArmory: normalizedRelicArmory,
+    blueprints: normalizedLegacyBlueprints,
     cargoInventory: Array.isArray(rawSanctuary.cargoInventory) ? [...rawSanctuary.cargoInventory] : [],
     jobs: Array.isArray(rawSanctuary.jobs)
       ? rawSanctuary.jobs.filter(job => job?.type !== "forge_project")
@@ -886,14 +1097,17 @@ export function mergeStateWithDefaults(base, incoming) {
       ...(rawSanctuary.familyCharges || {}),
     }),
     activeBlueprints: ensureValidActiveBlueprints(
-      Array.isArray(rawSanctuary.blueprints)
-        ? rawSanctuary.blueprints
-        : Array.isArray(rawSanctuary.stash)
-          ? rawSanctuary.stash.map(project => convertLegacyProjectToBlueprint(project)).filter(Boolean)
-          : [],
+      normalizedLegacyBlueprints,
       {
         ...createEmptySanctuaryState().activeBlueprints,
         ...(rawSanctuary.activeBlueprints || {}),
+      }
+    ),
+    activeRelics: ensureValidActiveRelics(
+      normalizedRelicArmory,
+      {
+        ...createEmptySanctuaryState().activeRelics,
+        ...(rawSanctuary.activeRelics || {}),
       }
     ),
     sigilInfusions: {
@@ -928,6 +1142,10 @@ export function mergeStateWithDefaults(base, incoming) {
     extractionUpgrades: {
       ...createEmptySanctuaryState().extractionUpgrades,
       ...(rawSanctuary.extractionUpgrades || {}),
+      relicSlots: Math.max(
+        Number(createEmptySanctuaryState().extractionUpgrades?.relicSlots || 1),
+        Math.floor(Number(rawSanctuary?.extractionUpgrades?.relicSlots || 0))
+      ),
     },
   };
   const normalizedLaboratory = normalizeLaboratoryState(rawSanctuary.laboratory || {}, preLaboratorySanctuary, {
@@ -957,8 +1175,6 @@ export function mergeStateWithDefaults(base, incoming) {
     ...createEmptyExpeditionState(),
     ...rawExpedition,
     phase: rawExpedition.phase || derivedExpeditionPhase,
-    deathCount: Math.max(0, Number(rawExpedition.deathCount || 0)),
-    deathLimit: Math.max(1, Number(rawExpedition.deathLimit || createEmptyExpeditionState().deathLimit || 3)),
     seenFamilyIds: Array.isArray(rawExpedition.seenFamilyIds)
       ? [...new Set(rawExpedition.seenFamilyIds.filter(Boolean))]
       : [],
@@ -966,6 +1182,7 @@ export function mergeStateWithDefaults(base, incoming) {
     projectCandidates: Array.isArray(rawExpedition.projectCandidates) ? [...rawExpedition.projectCandidates] : [],
     selectedCargoIds: Array.isArray(rawExpedition.selectedCargoIds) ? [...rawExpedition.selectedCargoIds] : [],
     selectedProjectItemId: rawExpedition.selectedProjectItemId || null,
+    selectedProjectDecision: rawExpedition.selectedProjectDecision === "discard" ? "discard" : "keep",
     extractionPreview: rawExpedition.extractionPreview || null,
     activeInfusionIds: Array.isArray(rawExpedition.activeInfusionIds) ? [...rawExpedition.activeInfusionIds] : [],
     activeInfusionPlayerBonuses: {
@@ -976,6 +1193,19 @@ export function mergeStateWithDefaults(base, incoming) {
       ...createEmptyExpeditionState().activeExtractionBonuses,
       ...(rawExpedition.activeExtractionBonuses || {}),
     },
+    activeRelicContext: normalizeRelicContextAttunement(
+      rawExpedition.activeRelicContext || createEmptyExpeditionState().activeRelicContext
+    ),
+    activeRelicContextBonuses: {
+      ...createEmptyExpeditionState().activeRelicContextBonuses,
+      ...(rawExpedition.activeRelicContextBonuses || {}),
+    },
+    activeRelicContextMatches: Array.isArray(rawExpedition.activeRelicContextMatches)
+      ? rawExpedition.activeRelicContextMatches.map(entry => ({ ...(entry || {}) }))
+      : [],
+    activeRelicContextMismatches: Array.isArray(rawExpedition.activeRelicContextMismatches)
+      ? rawExpedition.activeRelicContextMismatches.map(entry => ({ ...(entry || {}) }))
+      : [],
   };
 
   const shouldSkipFreshOnboarding =
@@ -988,8 +1218,10 @@ export function mergeStateWithDefaults(base, incoming) {
     Number(migratedIncoming.prestige?.totalEchoesEarned || 0) > 0;
 
   const hasHistoricSanctuaryProgress =
+    (Array.isArray(normalizedSanctuary.stash) ? normalizedSanctuary.stash.length : 0) > 0 ||
     (Array.isArray(normalizedSanctuary.cargoInventory) ? normalizedSanctuary.cargoInventory.length : 0) > 0 ||
     (Array.isArray(normalizedSanctuary.extractedItems) ? normalizedSanctuary.extractedItems.length : 0) > 0 ||
+    (Array.isArray(normalizedSanctuary.relicArmory) ? normalizedSanctuary.relicArmory.length : 0) > 0 ||
     (Array.isArray(normalizedSanctuary.blueprints) ? normalizedSanctuary.blueprints.length : 0) > 0 ||
     (Array.isArray(normalizedSanctuary.jobs) ? normalizedSanctuary.jobs.length : 0) > 0 ||
     Object.keys(normalizedSanctuary.laboratory?.completed || {}).length > 0 ||
@@ -1153,8 +1385,11 @@ export function mergeStateWithDefaults(base, incoming) {
       runSigilBonuses: pendingRunSetup
         ? {}
         : mergeNumericBonuses(
-            getRunSigilPlayerBonuses(activeRunSigilIds),
-            normalizedExpedition.activeInfusionPlayerBonuses || {}
+            mergeNumericBonuses(
+              getRunSigilPlayerBonuses(activeRunSigilIds),
+              normalizedExpedition.activeInfusionPlayerBonuses || {}
+            ),
+            normalizedExpedition.activeRelicContextBonuses || {}
           ),
       inventory: normalizedInventory,
       equipment: {
@@ -1217,6 +1452,13 @@ export function mergeStateWithDefaults(base, incoming) {
       pendingRunSigilIds,
       activeRunSigilId,
       activeRunSigilIds,
+      weeklyBossEncounter:
+        shouldResetRuntimeSession || !rawCombat?.weeklyBossEncounter?.active
+          ? null
+          : {
+              ...rawCombat.weeklyBossEncounter,
+              snapshot: rawCombat.weeklyBossEncounter?.snapshot || null,
+            },
     },
     goals: {
       ...base.goals,
@@ -1251,11 +1493,31 @@ export function mergeStateWithDefaults(base, incoming) {
     replayLibrary: normalizedReplayLibrary,
     accountTelemetry: sanitizeAccountTelemetry(migratedIncoming.accountTelemetry || base.accountTelemetry),
     saveDiagnostics: normalizedSaveDiagnostics,
+    expeditionContracts: {
+      ...createEmptyExpeditionContracts(),
+      ...(migratedIncoming.expeditionContracts || {}),
+    },
+    weeklyBoss: {
+      ...createEmptyWeeklyBossState(),
+      ...(migratedIncoming.weeklyBoss || {}),
+    },
   };
+
+  mergedState.expeditionContracts = ensureExpeditionContracts(
+    mergedState,
+    migratedIncoming.expeditionContracts || base.expeditionContracts,
+    Date.now()
+  );
 
   mergedState.weeklyLedger = ensureWeeklyLedger(
     mergedState,
     migratedIncoming.weeklyLedger || base.weeklyLedger,
+    Date.now()
+  );
+
+  mergedState.weeklyBoss = ensureWeeklyBossState(
+    mergedState,
+    migratedIncoming.weeklyBoss || base.weeklyBoss,
     Date.now()
   );
 

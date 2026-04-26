@@ -2,12 +2,16 @@ import { ITEMS } from "../../data/items";
 import { materializeItem } from "../../utils/loot";
 import { calcItemRating } from "../inventory/inventoryEngine";
 import { calculatePrestigeEchoGain, canPrestige } from "../progression/prestigeEngine";
-import { isBlueprintDecisionUnlocked } from "../onboarding/onboardingEngine";
 
 const PROJECT_ELIGIBLE_RARITIES = new Set(["rare", "epic", "legendary"]);
 const RARITY_RANK = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
 const TUTORIAL_EXTRACTION_PROJECT_ID = "tutorial_extraction_project";
 const EXTRACTION_INTEL_LENS_USES = 2;
+const EXTRACTION_DISCARD_BASE_REWARDS = {
+  rare: { essence: 10, relicDust: 1, sigilFlux: 1 },
+  epic: { essence: 16, relicDust: 2, sigilFlux: 2 },
+  legendary: { essence: 24, relicDust: 4, sigilFlux: 3 },
+};
 
 export function isMaterializedBlueprintItem(item = {}) {
   if (!item) return false;
@@ -36,9 +40,8 @@ function buildCargoDescription(type) {
   return "Bundle de valor persistente.";
 }
 
-function shouldForceTutorialProject(state = {}, exitReason = "retire") {
+function shouldForceTutorialProject(state = {}) {
   return (
-    exitReason !== "death" &&
     !state?.onboarding?.completed &&
     !state?.onboarding?.flags?.firstExtractionCompleted
   );
@@ -46,16 +49,17 @@ function shouldForceTutorialProject(state = {}, exitReason = "retire") {
 
 function formatAffixIntelLine(affix = {}) {
   if (!affix?.stat) return null;
-  const tier = Math.max(0, Number(affix?.tier || 0));
-  return `${affix.stat}${tier > 0 ? ` · T${tier}` : ""}${affix?.source === "abyss" ? " · Abismo" : ""}`;
+  const isExcellent = affix?.quality === "excellent" || affix?.lootOnlyQuality || Number(affix?.tier || 0) === 1;
+  return `${affix.stat}${isExcellent ? " · Excelente" : ""}${affix?.source === "abyss" ? " · Abismo" : ""}`;
 }
 
 function buildProjectIntelLines(item = {}) {
   const affixes = Array.isArray(item?.affixes) ? item.affixes : [];
   const prioritized = [...affixes]
     .sort((left, right) => {
-      const tierDelta = Math.max(0, Number(right?.tier || 0)) - Math.max(0, Number(left?.tier || 0));
-      if (tierDelta !== 0) return tierDelta;
+      const rightExcellent = right?.quality === "excellent" || right?.lootOnlyQuality || Number(right?.tier || 0) === 1;
+      const leftExcellent = left?.quality === "excellent" || left?.lootOnlyQuality || Number(left?.tier || 0) === 1;
+      if (rightExcellent !== leftExcellent) return rightExcellent ? 1 : -1;
       const valueDelta =
         Math.abs(Number(right?.rolledValue ?? right?.value ?? 0)) -
         Math.abs(Number(left?.rolledValue ?? left?.value ?? 0));
@@ -66,6 +70,19 @@ function buildProjectIntelLines(item = {}) {
     .filter(Boolean);
   if (prioritized.length > 0) return prioritized;
   return ["base estable"];
+}
+
+export function calculateExtractionDiscardRewards(item = {}) {
+  const rarity = String(item?.rarity || "rare").toLowerCase();
+  const base = EXTRACTION_DISCARD_BASE_REWARDS[rarity] || EXTRACTION_DISCARD_BASE_REWARDS.rare;
+  const itemTier = Math.max(1, Math.floor(Number(item?.itemTier || item?.level || 1)));
+  const hasLegendaryPower = Boolean(item?.legendaryPowerId);
+  return {
+    essence: Math.max(0, Math.floor(Number(base.essence || 0)) + Math.floor(itemTier / 5)),
+    relicDust: Math.max(0, Math.floor(Number(base.relicDust || 0))),
+    sigilFlux: Math.max(0, Math.floor(Number(base.sigilFlux || 0))),
+    codexInk: hasLegendaryPower ? 2 : 0,
+  };
 }
 
 function buildTutorialProjectOption(state = {}) {
@@ -88,6 +105,7 @@ function buildTutorialProjectOption(state = {}) {
 
   const rating = calcItemRating(tutorialItem);
   const intelLines = buildProjectIntelLines(tutorialItem);
+  const discardRewards = calculateExtractionDiscardRewards(tutorialItem);
   return {
     itemId: TUTORIAL_EXTRACTION_PROJECT_ID,
     name: tutorialItem.name,
@@ -99,6 +117,7 @@ function buildTutorialProjectOption(state = {}) {
     source: "tutorial",
     intelLines,
     intelRevealedCount: intelLines.length,
+    discardRewards,
     previewItem: {
       ...tutorialItem,
       rating,
@@ -106,7 +125,7 @@ function buildTutorialProjectOption(state = {}) {
   };
 }
 
-function buildCargoOptions(state, exitReason = "retire") {
+function buildCargoOptions(state) {
   const runStats = state?.combat?.runStats || {};
   const highestTier = Math.max(
     Number(state?.combat?.currentTier || 1),
@@ -163,13 +182,6 @@ function buildCargoOptions(state, exitReason = "retire") {
       label: buildCargoLabel("relic_shard", relicQuantity),
       description: buildCargoDescription("relic_shard"),
     });
-  }
-
-  if (exitReason === "death") {
-    return options.map(option => ({
-      ...option,
-      recoveredQuantity: Math.max(1, Math.floor(option.quantity * 0.5)),
-    }));
   }
 
   return options.map(option => ({
@@ -232,14 +244,7 @@ function getCandidateItems(player = {}) {
   });
 }
 
-function buildProjectOptions(state, exitReason = "retire") {
-  const stashCount = Number(state?.sanctuary?.extractedItems?.length || 0);
-  const availableProjectSlots = Math.max(
-    0,
-    Number(state?.sanctuary?.extractionUpgrades?.extractedItemSlots || 3) - stashCount
-  );
-  if (availableProjectSlots <= 0 || exitReason === "death") return [];
-
+function buildProjectOptions(state) {
   return getCandidateItems(state?.player)
     .sort((left, right) => {
       const rarityDelta = (RARITY_RANK[right?.rarity || "common"] || 0) - (RARITY_RANK[left?.rarity || "common"] || 0);
@@ -249,17 +254,20 @@ function buildProjectOptions(state, exitReason = "retire") {
     .slice(0, 6)
     .map(item => {
       const intelLines = buildProjectIntelLines(item);
+      const discardRewards = calculateExtractionDiscardRewards(item);
       return {
         itemId: item.id,
         name: item.name,
         rarity: item.rarity,
         type: item.type,
         rating: item.rating || 0,
+        itemTier: Math.max(1, Math.floor(Number(item?.itemTier || item?.level || 1))),
         affixCount: Array.isArray(item.affixes) ? item.affixes.length : 0,
         legendaryPowerId: item.legendaryPowerId || null,
         source: state?.player?.equipment?.weapon?.id === item.id || state?.player?.equipment?.armor?.id === item.id ? "equipment" : "inventory",
         intelLines,
         intelRevealedCount: 0,
+        discardRewards,
       };
     });
 }
@@ -270,6 +278,7 @@ export function buildProjectSnapshot(item, meta = {}) {
     ? item.affixes.map(affix => ({
         id: affix.id,
         stat: affix.stat,
+        quality: affix?.quality || (Number(affix?.tier || 0) === 1 ? "excellent" : "normal"),
         tier: affix.tier,
         value: affix.value,
         rolledValue: affix.rolledValue ?? affix.value,
@@ -299,52 +308,54 @@ export function buildProjectSnapshot(item, meta = {}) {
   };
 }
 
-export function buildExtractionPreview(state, { exitReason = "retire" } = {}) {
+export function buildExtractionPreview(state, { exitReason: _exitReason = "retire" } = {}) {
+  const normalizedExitReason = "retire";
   const lastRun = state?.combat?.lastRunSummary || {};
   const currentRunStats = state?.combat?.runStats || {};
   const prestigeCheck = canPrestige(state);
+  const prestigePreview = prestigeCheck?.preview || null;
+  const prestigeBreakdown = Array.isArray(prestigePreview?.breakdown) ? prestigePreview.breakdown : [];
+  const firstFloorDelta = Math.max(
+    0,
+    Number(prestigeBreakdown.find(step => step?.id === "first_floor")?.echoes || 0)
+  );
   const extractionBonuses = state?.expedition?.activeExtractionBonuses || {};
-  const baseEchoes = prestigeCheck.ok ? calculatePrestigeEchoGain(state) : 0;
+  const preExtractionEchoes = prestigeCheck.ok ? calculatePrestigeEchoGain(state) : 0;
+  const extractionEchoMultiplier = Math.max(0, Number(extractionBonuses?.echoesMult || 0));
   const boostedEchoes = Math.max(
     0,
-    Math.floor(baseEchoes * (1 + Math.max(0, Number(extractionBonuses?.echoesMult || 0))))
+    Math.floor(preExtractionEchoes * (1 + extractionEchoMultiplier))
   );
-  const emergencyEchoes = Math.max(0, Math.floor(boostedEchoes * 0.75));
+  const extractionBonusEchoes = Math.max(0, boostedEchoes - preExtractionEchoes);
+  const minimumEchoes = firstFloorDelta > 0 ? boostedEchoes : 0;
   const cargoOptions = applyExtractionBonuses(
-    buildCargoOptions(state, exitReason),
+    buildCargoOptions(state),
     extractionBonuses
   );
-  const tutorialProjectRequired = shouldForceTutorialProject(state, exitReason);
-  const baseProjectOptions = buildProjectOptions(state, exitReason);
+  const tutorialProjectRequired = shouldForceTutorialProject(state);
+  const baseProjectOptions = buildProjectOptions(state);
   const tutorialProjectOption =
     tutorialProjectRequired && baseProjectOptions.length === 0
       ? buildTutorialProjectOption(state)
       : null;
-  const projectOptions = tutorialProjectOption ? [tutorialProjectOption] : baseProjectOptions;
-  const blueprintDecisionUnlocked = isBlueprintDecisionUnlocked(state);
+  const relicOptions = tutorialProjectOption ? [tutorialProjectOption] : baseProjectOptions;
+  const relicArmoryCount = Math.max(0, Number(state?.sanctuary?.relicArmory?.length || 0));
+  const relicArmorySlots = Math.max(1, Number(state?.sanctuary?.extractionUpgrades?.relicSlots || 8));
+  const availableRelicArmorySlots = Math.max(0, relicArmorySlots - relicArmoryCount);
   const availableSlots = {
     cargo: Math.max(0, Number(state?.sanctuary?.extractionUpgrades?.cargoSlots || 2)),
-    project: exitReason === "death"
-      ? 0
-      : tutorialProjectRequired || blueprintDecisionUnlocked
-        ? Math.max(
-            0,
-            Math.min(
-              1,
-              Number(state?.sanctuary?.extractionUpgrades?.extractedItemSlots || 3) - Number(state?.sanctuary?.extractedItems?.length || 0)
-            )
-          )
-        : 0,
-    relic: Math.max(0, Number(state?.sanctuary?.extractionUpgrades?.relicSlots || 0)),
+    project: Math.max(0, Math.min(1, availableRelicArmorySlots)),
+    relic: Math.max(0, Math.min(1, availableRelicArmorySlots)),
+    relicArmory: Math.max(0, availableRelicArmorySlots),
     insuredCargo: Math.max(0, Number(state?.sanctuary?.extractionUpgrades?.insuredCargoSlots || 0)),
   };
   const projectIntelLensUses =
-    tutorialProjectRequired || Number(availableSlots.project || 0) <= 0 || projectOptions.length <= 0
+    tutorialProjectRequired || Number(availableSlots.relic || availableSlots.project || 0) <= 0 || relicOptions.length <= 0
       ? 0
       : EXTRACTION_INTEL_LENS_USES;
 
   return {
-    exitReason,
+    exitReason: normalizedExitReason,
     summary: {
       tier: Math.max(Number(state?.combat?.currentTier || 1), Number(state?.combat?.maxTier || 1)),
       maxTier: Math.max(Number(state?.combat?.maxTier || 1), Number(state?.combat?.prestigeCycle?.maxTier || 1)),
@@ -355,29 +366,26 @@ export function buildExtractionPreview(state, { exitReason = "retire" } = {}) {
       bestDropRarity: currentRunStats?.bestDropRarity || lastRun?.bestDropRarity || null,
     },
     cargoOptions,
-    projectOptions,
+    projectOptions: relicOptions,
+    relicOptions,
     projectIntelLensUses,
     availableSlots,
     recoveryRules: {
-      cargoRecoveryMultiplier: exitReason === "death" ? 0.5 : 1,
-      projectRecovery: exitReason === "death" ? "none" : "full",
+      cargoRecoveryMultiplier: 1,
+      projectRecovery: "full",
+      relicRecovery: "full",
     },
     prestige: {
       eligible: prestigeCheck.ok,
-      mode:
-        exitReason === "death" && prestigeCheck.ok
-          ? "emergency"
-          : prestigeCheck.ok
-            ? "echoes"
-            : "none",
-      echoes:
-        exitReason === "death" && prestigeCheck.ok
-            ? emergencyEchoes
-            : prestigeCheck.ok
-              ? boostedEchoes
-              : 0,
+      mode: prestigeCheck.ok ? "echoes" : "none",
+      echoes: prestigeCheck.ok ? boostedEchoes : 0,
       baseEchoes: boostedEchoes,
-      emergencyEchoes,
+      preExtractionEchoes,
+      extractionEchoMultiplier,
+      extractionBonusEchoes,
+      minimumEchoes,
+      momentum: prestigePreview?.momentum || null,
+      breakdown: prestigeBreakdown,
     },
     activeInfusions: Array.isArray(state?.expedition?.activeInfusionIds)
       ? [...state.expedition.activeInfusionIds]

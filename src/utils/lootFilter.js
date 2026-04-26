@@ -79,8 +79,8 @@ export function sanitizeLootRules(lootRules = {}, fallback = {}) {
     ...(lootRules || {}),
   };
 
-  const autoExtractRarities = sanitizeRarityList(base.autoExtractRarities);
-  const autoExtractSet = new Set(autoExtractRarities);
+  const autoExtractRarities = [];
+  const autoExtractSet = new Set();
   const autoSellRarities = sanitizeRarityList(base.autoSellRarities)
     .filter(rarity => !autoExtractSet.has(rarity));
   const minVisibleRarity = VALID_LOOT_RARITIES_SET.has(base.minVisibleRarity)
@@ -106,9 +106,6 @@ export function summarizeLootRuleAutomation(lootRules = {}) {
 
   if (rules.autoSellRarities.length > 0) {
     sections.push(`Vende ${rules.autoSellRarities.map(rarity => rarity.toUpperCase()).join("/")}`);
-  }
-  if (rules.autoExtractRarities.length > 0) {
-    sections.push(`Extrae ${rules.autoExtractRarities.map(rarity => rarity.toUpperCase()).join("/")}`);
   }
   if (sections.length === 0) {
     sections.push("Sin automatizacion por rareza");
