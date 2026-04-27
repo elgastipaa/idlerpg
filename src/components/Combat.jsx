@@ -37,6 +37,10 @@ const BOSS_PHASE_THRESHOLDS = [75, 50, 25];
 const LEVEL_UP_TOAST_VISIBLE_MS = 3200;
 const ACCOUNT_SCROLL_TARGET_STORAGE_KEY = "idlerpg.accountScrollTarget";
 const ACCOUNT_SCROLL_TARGET_WEEKLY = "weekly";
+// Visual-only experiment from stitch/ references. Flip to false to restore the previous Combat skin.
+const COMBAT_STITCH_VISUAL_TRIAL = false;
+// Keeps the Stitch visual direction but disables expensive paint/compositing effects.
+const COMBAT_STITCH_PERF_SAFE = true;
 const COMBAT_ANIMATION_STYLES = `
 @keyframes lootOverlayEnter {
   0% { opacity: 0; transform: translateY(26px) scale(0.98); }
@@ -1235,8 +1239,14 @@ export default function Combat({ state, dispatch }) {
     if (nextContract?.id) setSelectedWeeklyContractId(nextContract.id);
   };
 
+  const combatRootClassName = [
+    "combat-root",
+    COMBAT_STITCH_VISUAL_TRIAL ? "combat-root--stitch-trial" : "",
+    COMBAT_STITCH_VISUAL_TRIAL && COMBAT_STITCH_PERF_SAFE ? "combat-root--stitch-perf-safe" : "",
+  ].filter(Boolean).join(" ");
+
   return (
-    <div className="combat-root">
+    <div className={combatRootClassName}>
       <style>{COMBAT_ANIMATION_STYLES}</style>
       {visibleOverflowEvent && (
         <section
@@ -1797,6 +1807,7 @@ export default function Combat({ state, dispatch }) {
           position: "relative",
           overflow: "visible",
         }}
+        className="combat-vital-panel"
       >
         <div>
           <div style={hpLabelStyle}>
@@ -1862,7 +1873,7 @@ export default function Combat({ state, dispatch }) {
               </span>
             </span>
           </div>
-          <div style={{ ...barContainerStyle, position: "relative" }}>
+          <div className="combat-hp-bar combat-hp-bar--enemy" style={{ ...barContainerStyle, position: "relative" }}>
             <div
               style={{
                 position: "absolute",
@@ -1889,6 +1900,7 @@ export default function Combat({ state, dispatch }) {
               }}
             />
             <div
+              className="combat-hp-fill combat-hp-fill--enemy"
               style={{
                 width: `${enemyHpPct}%`,
                 height: "100%",
@@ -1932,8 +1944,9 @@ export default function Combat({ state, dispatch }) {
               {Math.ceil(player.hp).toLocaleString()} / {player.maxHp}
             </span>
           </div>
-          <div style={barContainerStyle}>
+          <div className="combat-hp-bar combat-hp-bar--hero" style={barContainerStyle}>
             <div
+              className="combat-hp-fill combat-hp-fill--hero"
               style={{
                 width: `${playerHpPct}%`,
                 height: "100%",
@@ -1967,6 +1980,7 @@ export default function Combat({ state, dispatch }) {
           alignItems: "center",
           gap: "12px",
         }}
+        className="combat-player-panel"
       >
         <div style={{ textAlign: "center", borderRight: "1px solid var(--color-border-secondary, #f1f5f9)", paddingRight: "12px" }}>
           <div style={{ fontSize: "1.4rem" }}>{CLASS_ICONS[player.class] || "CL"}</div>
@@ -1982,13 +1996,14 @@ export default function Combat({ state, dispatch }) {
           </div>
           <div style={{ position: "relative" }}>
             <div
+              className="combat-hp-bar combat-hp-bar--xp"
               style={{
                 ...barContainerStyle,
                 height: 8,
                 boxShadow: levelUpFlash ? "0 0 0 2px rgba(99,102,241,0.28), 0 0 18px rgba(99,102,241,0.34)" : "none",
               }}
             >
-              <div style={{ width: `${xpPct}%`, height: "100%", background: "var(--tone-accent, #534AB7)", transition: "width 0.5s ease-out" }} />
+              <div className="combat-hp-fill combat-hp-fill--xp" style={{ width: `${xpPct}%`, height: "100%", background: "var(--tone-accent, #534AB7)", transition: "width 0.5s ease-out" }} />
             </div>
             {levelUpFlash && (
               <span
@@ -2045,7 +2060,7 @@ export default function Combat({ state, dispatch }) {
         </div>
       </section>
 
-      <section className="overlay-cols-2-4" style={{ gap: 8, minWidth: 0 }}>
+      <section className="overlay-cols-2-4 combat-stat-grid" style={{ gap: 8, minWidth: 0 }}>
         <StatCard
           label="Dano"
           value={effectiveDamageInCombat}
@@ -2593,6 +2608,7 @@ export default function Combat({ state, dispatch }) {
           padding: "10px",
           border: "1px solid var(--color-border-primary, #e2e8f0)",
         }}
+        className="combat-log-panel"
       >
         <button onClick={() => togglePanel("log")} style={sectionHeaderButtonStyle}>
           <span style={logTitleStyle}>REGISTRO DE COMBATE</span>
@@ -2861,7 +2877,7 @@ function getLootDecisionBadgeTone(decisionReason = "") {
 function StatCard({ label, value, hint = null }) {
   const displayValue = typeof value === "number" ? value.toLocaleString() : value;
   return (
-    <div style={{ background: "var(--color-background-secondary, #fff)", borderRadius: "12px", padding: "7px 4px", border: "1px solid var(--color-border-primary, #e2e8f0)", textAlign: "center" }}>
+    <div className="combat-stat-card" style={{ background: "var(--color-background-secondary, #fff)", borderRadius: "12px", padding: "7px 4px", border: "1px solid var(--color-border-primary, #e2e8f0)", textAlign: "center" }}>
       <p style={{ fontSize: 8, color: COLORS.common, margin: "0 0 2px", fontWeight: "900" }}>{label}</p>
       <p style={{ fontSize: "0.9rem", fontWeight: "900", margin: 0, color: COLORS.dark }}>
         {displayValue}
@@ -2874,6 +2890,7 @@ function StatCard({ label, value, hint = null }) {
 function InlineStatusTray({ statuses = [], emptyLabel = "Sin estados", isMobile = false }) {
   return (
     <div
+      className="combat-status-tray"
       style={{
         marginTop: "6px",
         background: "var(--color-background-tertiary, #f8fafc)",
@@ -2945,6 +2962,7 @@ function StatusPill({ label, value, tone = "common", detail = "", description = 
     .reduce((sum, character) => sum + character.charCodeAt(0), 0) % 9 * 140;
   return (
     <span
+      className="combat-status-pill"
       title={description ? `${label}: ${description}${detail ? `\n${detail}` : ""}` : label}
       style={{
         display: "inline-flex",

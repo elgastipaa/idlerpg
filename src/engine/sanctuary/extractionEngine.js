@@ -340,7 +340,7 @@ export function buildExtractionPreview(state, { exitReason: _exitReason = "retir
       : null;
   const relicOptions = tutorialProjectOption ? [tutorialProjectOption] : baseProjectOptions;
   const relicArmoryCount = Math.max(0, Number(state?.sanctuary?.relicArmory?.length || 0));
-  const relicArmorySlots = Math.max(1, Number(state?.sanctuary?.extractionUpgrades?.relicSlots || 8));
+  const relicArmorySlots = Math.max(1, Number(state?.sanctuary?.extractionUpgrades?.relicSlots || 4));
   const availableRelicArmorySlots = Math.max(0, relicArmorySlots - relicArmoryCount);
   const availableSlots = {
     cargo: Math.max(0, Number(state?.sanctuary?.extractionUpgrades?.cargoSlots || 2)),

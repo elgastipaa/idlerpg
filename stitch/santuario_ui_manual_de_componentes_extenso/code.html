@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Santuario UI Guide | Documentation</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;600;700;900&amp;family=Inter:wght@400;700&amp;family=Manrope:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "secondary-container": "#af8d11",
+                    "surface-container-high": "#2c2832",
+                    "primary-container": "#9f78ff",
+                    "on-primary-fixed-variant": "#5417be",
+                    "surface-container-highest": "#37333d",
+                    "surface-variant": "#37333d",
+                    "surface-container-lowest": "#0f0d15",
+                    "on-tertiary": "#2b3234",
+                    "on-secondary-fixed-variant": "#574500",
+                    "surface-container-low": "#1d1a23",
+                    "on-surface-variant": "#cbc3d7",
+                    "inverse-primary": "#6d3bd6",
+                    "surface-bright": "#3b3842",
+                    "on-tertiary-fixed-variant": "#41484a",
+                    "secondary-fixed": "#ffe088",
+                    "on-surface": "#e7e0ed",
+                    "on-primary": "#3b0091",
+                    "primary": "#d0bcff",
+                    "surface-tint": "#d0bcff",
+                    "tertiary-container": "#8b9294",
+                    "secondary-fixed-dim": "#e9c349",
+                    "error": "#ffb4ab",
+                    "tertiary-fixed": "#dde4e6",
+                    "outline": "#958ea0",
+                    "inverse-surface": "#e7e0ed",
+                    "on-secondary-fixed": "#241a00",
+                    "on-background": "#e7e0ed",
+                    "surface-container": "#211e27",
+                    "on-primary-container": "#330080",
+                    "on-error-container": "#ffdad6",
+                    "tertiary-fixed-dim": "#c1c8ca",
+                    "on-error": "#690005",
+                    "inverse-on-surface": "#322f39",
+                    "surface": "#15121b",
+                    "on-primary-fixed": "#23005c",
+                    "on-tertiary-fixed": "#161d1f",
+                    "primary-fixed": "#e9ddff",
+                    "on-secondary-container": "#342800",
+                    "on-tertiary-container": "#242b2d",
+                    "surface-dim": "#15121b",
+                    "secondary": "#e9c349",
+                    "on-secondary": "#3c2f00",
+                    "outline-variant": "#494454",
+                    "error-container": "#93000a",
+                    "primary-fixed-dim": "#d0bcff",
+                    "tertiary": "#c1c8ca",
+                    "background": "#15121b"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "lg": "48px",
+                    "xl": "80px",
+                    "md": "24px",
+                    "base": "8px",
+                    "sm": "12px",
+                    "card-gutter": "20px",
+                    "xs": "4px",
+                    "container-padding": "32px"
+            },
+            "fontFamily": {
+                    "headline-xl": ["Noto Serif"],
+                    "headline-lg": ["Noto Serif"],
+                    "label-caps": ["Inter"],
+                    "body-lg": ["Manrope"],
+                    "headline-md": ["Noto Serif"],
+                    "body-md": ["Manrope"]
+            },
+            "fontSize": {
+                    "headline-xl": ["40px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-lg": ["32px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                    "label-caps": ["12px", {"lineHeight": "1", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(21, 18, 27, 0.8);
+            backdrop-filter: blur(12px);
+            border: 0.5px solid rgba(233, 195, 73, 0.2);
+        }
+        .shimmer-xp {
+            background: linear-gradient(90deg, #9f78ff 0%, #d0bcff 50%, #9f78ff 100%);
+            background-size: 200% 100%;
+        }
+        .shimmer-hp {
+            background: linear-gradient(90deg, #93000a 0%, #ffb4ab 50%, #93000a 100%);
+            background-size: 200% 100%;
+        }
+        .header-bracket::before, .header-bracket::after {
+            content: '';
+            position: absolute;
+            width: 40px;
+            height: 2px;
+            background: #e9c349;
+        }
+        .header-bracket::before { top: 0; left: 0; border-radius: 2px 0 0 2px; }
+        .header-bracket::after { bottom: 0; right: 0; border-radius: 0 2px 2px 0; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-md selection:bg-primary-container selection:text-on-primary-container">
+<header class="fixed top-0 left-0 right-0 z-50 bg-slate-900/80 backdrop-blur-md flex justify-between items-center w-full px-6 py-4 border-b border-amber-400/20 shadow-lg shadow-violet-900/20">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-violet-400">menu</span>
+<h1 class="font-serif tracking-tight font-serif text-xl font-bold text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.4)]">Santuario UI Guide</h1>
+</div>
+<div class="flex items-center gap-6">
+<nav class="hidden md:flex gap-8">
+<a class="text-amber-400 font-bold font-serif tracking-widest text-[12px] uppercase" href="#">Documentation</a>
+<a class="text-slate-400 hover:text-amber-200 transition-all duration-300 font-serif tracking-widest text-[12px] uppercase" href="#">Library</a>
+<a class="text-slate-400 hover:text-amber-200 transition-all duration-300 font-serif tracking-widest text-[12px] uppercase" href="#">Changelog</a>
+</nav>
+<div class="w-10 h-10 rounded-full border border-amber-400/30 overflow-hidden">
+<img alt="Celestial Herald Profile" data-alt="High priest architect portrait with glowing amber eyes and intricate dark violet robes in a sacred temple setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCIFrdcMASF4pFREThU4C8jOnpo_HXO5mQJM4w5UmryWsOlJga2YO-S_ozg4bJEAn2M1skxzCKCdGnNSeOoVGE4MhRyeSWFvuzLeOEHixB3oeazQgZ7nH6mdO9cHJaB1LsmEMOKDef23B8MzYlmF2gmFLsvb0J9sr5wRYU5K3hLMVryEaMDDkHbwBxOe9HqYkYSbAs4x-NRVB_79VKbYktWB9XFmse6Qk4RcXtyNontoc8xl-7V38g4mof-M0tkvx7roZu8o70AJ8M"/>
+</div>
+</div>
+</header>
+<div class="flex pt-20">
+<aside class="hidden lg:flex flex-col h-[calc(100vh-80px)] w-80 sticky top-20 bg-slate-950/95 backdrop-blur-2xl border-r border-amber-400/20 divide-y divide-amber-400/10 shadow-[10px_0_30px_rgba(0,0,0,0.8)]">
+<div class="p-8">
+<div class="flex items-center gap-3 mb-6">
+<div class="w-12 h-12 bg-secondary-container/20 border border-secondary flex items-center justify-center rounded-lg">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">diamond</span>
+</div>
+<div>
+<h3 class="font-serif font-black text-amber-400 text-lg">Santuario System</h3>
+<p class="text-[10px] text-slate-500 uppercase tracking-widest">Version 1.0.4</p>
+</div>
+</div>
+<nav class="space-y-1">
+<a class="flex items-center gap-4 bg-violet-900/20 border-l-4 border-amber-400 text-amber-400 py-3 px-6 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">menu_book</span>
+<span class="font-serif">Design System</span>
+</a>
+<a class="flex items-center gap-4 text-slate-400 py-3 px-6 hover:bg-amber-400/5 hover:text-amber-100 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">format_paint</span>
+<span class="font-serif">Color Palette</span>
+</a>
+<a class="flex items-center gap-4 text-slate-400 py-3 px-6 hover:bg-amber-400/5 hover:text-amber-100 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">text_fields</span>
+<span class="font-serif">Typography</span>
+</a>
+<a class="flex items-center gap-4 text-slate-400 py-3 px-6 hover:bg-amber-400/5 hover:text-amber-100 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">grid_view</span>
+<span class="font-serif">Grid System</span>
+</a>
+<a class="flex items-center gap-4 text-slate-400 py-3 px-6 hover:bg-amber-400/5 hover:text-amber-100 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">category</span>
+<span class="font-serif">Assets</span>
+</a>
+</nav>
+</div>
+<div class="mt-auto p-6">
+<div class="bg-surface-container-low p-4 rounded-lg border border-outline-variant/30">
+<p class="text-[11px] text-slate-400 font-label-caps uppercase mb-2">System Health</p>
+<div class="w-full h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="w-4/5 h-full shimmer-xp"></div>
+</div>
+<p class="text-[10px] text-primary mt-2">Sacred Design Stable</p>
+</div>
+</div>
+</aside>
+<main class="flex-1 max-w-6xl mx-auto px-container-padding py-12 space-y-xl pb-32">
+<section class="space-y-md" id="brand">
+<div class="flex items-center gap-4">
+<span class="w-12 h-[1px] bg-secondary-container"></span>
+<h2 class="font-headline-xl text-headline-xl text-on-background">Brand Identity</h2>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
+<div class="glass-panel p-lg rounded-xl relative overflow-hidden group">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-400/40 to-transparent"></div>
+<p class="text-[10px] text-slate-500 uppercase tracking-widest mb-8">01. Logo Treatment</p>
+<div class="flex flex-col items-center justify-center space-y-8 py-12">
+<span class="font-headline-xl text-[64px] text-amber-400 drop-shadow-[0_0_15px_rgba(233,195,73,0.3)] select-none">SANTUARIO</span>
+<div class="h-px w-32 bg-gradient-to-r from-transparent via-amber-400 to-transparent"></div>
+<span class="font-label-caps text-on-surface-variant tracking-[0.4em]">SACRED &amp; SOPHISTICATED</span>
+</div>
+<div class="mt-8 border-t border-amber-400/10 pt-4 flex justify-between items-center">
+<span class="text-[11px] font-mono text-slate-500">Dev Note: Use font-weight 900 for Primary Headlines</span>
+<span class="material-symbols-outlined text-amber-400/50 text-sm">info</span>
+</div>
+</div>
+<div class="space-y-base">
+<div class="glass-panel p-md rounded-xl">
+<h4 class="font-headline-md text-headline-md text-primary mb-2">The Philosophy</h4>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+                                Our design system blends ethereal RPG mystery with modern digital precision. Semi-transparent surfaces and razor-sharp gold accents create a sense of focused adventure.
+                            </p>
+</div>
+<div class="grid grid-cols-3 gap-base">
+<div class="h-24 bg-surface rounded-lg border border-amber-400/10 flex flex-col items-center justify-center">
+<span class="text-amber-400 font-bold">#15121b</span>
+<span class="text-[10px] text-slate-500 mt-1">BASE</span>
+</div>
+<div class="h-24 bg-secondary-container rounded-lg flex flex-col items-center justify-center">
+<span class="text-on-secondary-container font-bold">#af8d11</span>
+<span class="text-[10px] text-on-secondary-container mt-1">GOLD</span>
+</div>
+<div class="h-24 bg-primary-container rounded-lg flex flex-col items-center justify-center">
+<span class="text-on-primary-container font-bold">#9f78ff</span>
+<span class="text-[10px] text-on-primary-container mt-1">VIOLET</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="space-y-md" id="bars">
+<div class="flex items-center gap-4">
+<span class="w-12 h-[1px] bg-secondary-container"></span>
+<h2 class="font-headline-xl text-headline-xl text-on-background">Status Gauges</h2>
+</div>
+<div class="glass-panel p-lg rounded-xl space-y-xl">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-xl">
+<div class="space-y-md">
+<div class="flex justify-between items-end mb-2">
+<label class="font-label-caps text-on-surface uppercase text-sm">Vitality (HP)</label>
+<span class="font-headline-md text-error">1,420 / 2,000</span>
+</div>
+<div class="h-4 w-full bg-surface-container-highest rounded-full p-[2px] border border-error/20 shadow-[0_0_10px_rgba(147,0,10,0.2)]">
+<div class="h-full w-[71%] rounded-full shimmer-hp shadow-[0_0_15px_rgba(255,180,171,0.3)] relative overflow-hidden">
+<div class="absolute inset-0 bg-white/10 animate-pulse"></div>
+</div>
+</div>
+<p class="text-xs text-slate-500 font-body-md italic mt-4">Dev Note: shimmer-hp uses a moving linear gradient to represent "living energy".</p>
+</div>
+<div class="space-y-md">
+<div class="flex justify-between items-end mb-2">
+<label class="font-label-caps text-on-surface uppercase text-sm">Experience (XP)</label>
+<span class="font-headline-md text-primary">Level 42 — 88%</span>
+</div>
+<div class="h-4 w-full bg-surface-container-highest rounded-full p-[2px] border border-primary/20 shadow-[0_0_10px_rgba(159,120,255,0.2)]">
+<div class="h-full w-[88%] rounded-full shimmer-xp shadow-[0_0_15px_rgba(208,188,255,0.3)] relative overflow-hidden">
+<div class="absolute inset-0 bg-white/10"></div>
+</div>
+</div>
+<p class="text-xs text-slate-500 font-body-md italic mt-4">Implementation: background-size: 200% 100% for smooth animation cycles.</p>
+</div>
+</div>
+</div>
+</section>
+<section class="space-y-md" id="cards">
+<div class="flex items-center gap-4">
+<span class="w-12 h-[1px] bg-secondary-container"></span>
+<h2 class="font-headline-xl text-headline-xl text-on-background">Card Anatomy</h2>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-lg">
+<div class="glass-panel p-md rounded-xl border border-amber-400/20 shadow-xl flex flex-col h-full hover:scale-[1.02] transition-transform duration-300">
+<div class="relative h-48 mb-6 rounded-lg overflow-hidden border border-amber-400/10">
+<img alt="Sanctuary View" class="w-full h-full object-cover grayscale-[0.2] hover:grayscale-0 transition-all duration-500" data-alt="Epic cinematic view of a floating gothic castle surrounded by mystical violet clouds and lightning strikes" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBUuLaShQ-k0sNt_Ph-e-m8bPZi2JLNq6WPzsM9C7spRQUn8ERaNNiTuWQD04Pq8pqXrCFBsv5mLU2DDwVm7hBWgSewKw2TL7SOIhpVI6X8d9VayGpLbyHs75cTF3kvHlKQmcvwnDRzelqq-LBxiV5kSgD8dp7PtL1fS5HoqbPOhORYWM7gLUC-iRKM1ZwN0EXDKOWZgH9zFrmRkSIYedOETDmGbM2K4aFLLB__qhPagGaR_95sodrH3uirYLTmL7OtxL7O4vaOX0M"/>
+<div class="absolute top-2 right-2 bg-slate-900/90 text-amber-400 px-3 py-1 rounded text-[10px] font-label-caps border border-amber-400/30">RARE</div>
+</div>
+<h3 class="font-headline-md text-amber-400 mb-2">Void-Touched Relic</h3>
+<p class="font-body-md text-slate-400 text-sm flex-grow">A fragment of the original altar, still pulsing with a faint, violet luminescence.</p>
+<div class="mt-6 flex justify-between items-center">
+<div class="flex gap-2">
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+<div class="w-2 h-2 rounded-full bg-secondary/30"></div>
+<div class="w-2 h-2 rounded-full bg-secondary/30"></div>
+</div>
+<button class="bg-secondary text-on-secondary px-4 py-2 rounded font-label-caps text-[11px] hover:shadow-[0_0_15px_rgba(233,195,73,0.5)] transition-all">EQUIP</button>
+</div>
+</div>
+<div class="glass-panel p-md rounded-xl border border-primary/20 shadow-xl flex flex-col h-full bg-gradient-to-br from-slate-900/80 to-violet-950/20">
+<div class="flex items-center justify-between mb-4">
+<span class="material-symbols-outlined text-primary text-3xl">auto_awesome</span>
+<span class="text-xs font-mono text-slate-500">ID: #042-S</span>
+</div>
+<h3 class="font-headline-md text-on-surface mb-2">Ethereal Blueprint</h3>
+<p class="font-body-md text-slate-400 text-sm mb-6">Structural patterns for crafting high-level artifacts using the sacred design tokens.</p>
+<div class="bg-surface-container-low p-4 rounded border border-outline-variant/30 font-mono text-[11px] text-primary-container space-y-1">
+<p>border-amber-400/20</p>
+<p>backdrop-blur-md</p>
+<p>bg-slate-900/80</p>
+</div>
+<div class="mt-auto pt-6 flex gap-4">
+<span class="flex items-center gap-1 text-[11px] text-slate-500 font-label-caps"><span class="material-symbols-outlined text-xs">history</span> 12H AGO</span>
+<span class="flex items-center gap-1 text-[11px] text-slate-500 font-label-caps"><span class="material-symbols-outlined text-xs">visibility</span> 1.2K</span>
+</div>
+</div>
+<div class="col-span-1 border-2 border-dashed border-outline-variant/50 rounded-xl flex flex-col items-center justify-center p-md text-center opacity-60 hover:opacity-100 transition-opacity">
+<div class="w-16 h-16 rounded-full border-2 border-dashed border-outline-variant flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-3xl">add</span>
+</div>
+<p class="font-headline-md">Add New Component</p>
+<p class="text-xs text-slate-500 mt-2">Generate a new sacred pattern via the Architect Panel</p>
+</div>
+</div>
+</section>
+<section class="space-y-md" id="interactions">
+<div class="flex items-center gap-4">
+<span class="w-12 h-[1px] bg-secondary-container"></span>
+<h2 class="font-headline-xl text-headline-xl text-on-background">Interactions</h2>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-lg">
+<div class="glass-panel p-md rounded-xl space-y-6">
+<h4 class="font-label-caps text-on-surface-variant text-[11px] uppercase tracking-widest border-b border-outline-variant pb-2">Button States</h4>
+<div class="flex flex-wrap gap-4">
+<button class="bg-gradient-to-r from-secondary to-secondary-container text-on-secondary px-8 py-3 rounded-lg font-headline-md text-sm shadow-lg hover:shadow-secondary/20 hover:scale-105 active:scale-95 transition-all">PRIMARY ACTION</button>
+<button class="bg-transparent border-2 border-primary text-primary px-8 py-3 rounded-lg font-headline-md text-sm hover:bg-primary/5 shadow-[inset_0_0_10px_rgba(208,188,255,0.1)] active:scale-95 transition-all">GHOST ACTION</button>
+<button class="text-on-surface font-serif italic flex items-center gap-2 group hover:text-amber-400 transition-colors">
+<span class="w-4 h-[1px] bg-amber-400/50 group-hover:w-8 transition-all"></span>
+                                Inline Link
+                                <span class="material-symbols-outlined text-sm">north_east</span>
+</button>
+</div>
+</div>
+<div class="glass-panel p-md rounded-xl space-y-6">
+<h4 class="font-label-caps text-on-surface-variant text-[11px] uppercase tracking-widest border-b border-outline-variant pb-2">Navigation Logic</h4>
+<div class="flex gap-4 p-4 bg-surface rounded-lg border border-amber-400/10">
+<div class="flex flex-col items-center justify-center text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.6)] cursor-default">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">palette</span>
+<span class="font-serif text-[10px] uppercase tracking-widest">Active</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-500 opacity-70 hover:text-amber-200 hover:opacity-100 transition-all cursor-pointer">
+<span class="material-symbols-outlined mb-1">architecture</span>
+<span class="font-serif text-[10px] uppercase tracking-widest">Hover</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-500 opacity-70 cursor-pointer">
+<span class="material-symbols-outlined mb-1">category</span>
+<span class="font-serif text-[10px] uppercase tracking-widest">Default</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+</div>
+<footer class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-4 pt-2 bg-slate-900/90 backdrop-blur-xl border-t border-amber-400/20 rounded-t-lg shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
+<a class="flex flex-col items-center justify-center text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.6)] group" href="#">
+<span class="material-symbols-outlined transition-all duration-200 group-active:scale-110" style="font-variation-settings: 'FILL' 1;">palette</span>
+<span class="font-serif text-[10px] uppercase tracking-widest mt-1">Tokens</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-500 opacity-70 hover:text-amber-200 hover:opacity-100 group transition-all" href="#">
+<span class="material-symbols-outlined transition-all duration-200 group-active:scale-110">architecture</span>
+<span class="font-serif text-[10px] uppercase tracking-widest mt-1">Foundations</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-500 opacity-70 hover:text-amber-200 hover:opacity-100 group transition-all" href="#">
+<span class="material-symbols-outlined transition-all duration-200 group-active:scale-110">category</span>
+<span class="font-serif text-[10px] uppercase tracking-widest mt-1">Components</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-500 opacity-70 hover:text-amber-200 hover:opacity-100 group transition-all" href="#">
+<span class="material-symbols-outlined transition-all duration-200 group-active:scale-110">auto_awesome</span>
+<span class="font-serif text-[10px] uppercase tracking-widest mt-1">Icons</span>
+</a>
+</footer>
+</body></html>

@@ -76,6 +76,122 @@ body {
   box-shadow: none;
 }
 
+.app-shell-root--stitch-trial {
+  --app-stitch-gold: #e9c349;
+  --app-stitch-gold-soft: rgba(233, 195, 73, 0.14);
+  --app-stitch-gold-border: rgba(233, 195, 73, 0.3);
+  --app-stitch-purple: #d0bcff;
+  --app-stitch-purple-soft: rgba(159, 120, 255, 0.16);
+  --app-stitch-panel: rgba(21, 18, 27, 0.9);
+  --app-stitch-panel-raised: rgba(33, 30, 39, 0.86);
+  --color-background-primary: #100d16;
+  --color-background-secondary: rgba(21, 18, 27, 0.9);
+  --color-background-tertiary: rgba(33, 30, 39, 0.84);
+  --color-background-info: rgba(159, 120, 255, 0.18);
+  --color-surface-overlay: rgba(15, 13, 21, 0.92);
+  --color-text-primary: #f3edf7;
+  --color-text-secondary: #cbc3d7;
+  --color-text-tertiary: #a89fb4;
+  --color-text-info: #e9c349;
+  --color-border-primary: rgba(233, 195, 73, 0.28);
+  --color-border-secondary: rgba(233, 195, 73, 0.24);
+  --color-border-tertiary: rgba(233, 195, 73, 0.22);
+  --color-shadow: rgba(0, 0, 0, 0.38);
+  --tone-accent: #e9c349;
+  --tone-accent-soft: rgba(233, 195, 73, 0.14);
+  --tone-warning: #e9c349;
+  --tone-warning-soft: rgba(233, 195, 73, 0.14);
+  --tone-info: #c9b2ff;
+  --tone-info-soft: rgba(201, 178, 255, 0.16);
+  --tone-violet: #d0bcff;
+  --tone-violet-soft: rgba(159, 120, 255, 0.16);
+  background:
+    radial-gradient(circle at 14% -8%, rgba(159, 120, 255, 0.18), transparent 30%),
+    radial-gradient(circle at 90% 0%, rgba(233, 195, 73, 0.12), transparent 24%),
+    linear-gradient(180deg, #100d16 0%, #15121b 54%, #0f0d15 100%) !important;
+  color: var(--color-text-primary) !important;
+  font-family: "Manrope", "Noto Sans", system-ui, sans-serif;
+}
+
+.app-shell-root--stitch-trial .app-header-shell {
+  background:
+    linear-gradient(180deg, rgba(11, 18, 32, 0.98), rgba(15, 13, 21, 0.96)) !important;
+  border-bottom: 0.5px solid var(--app-stitch-gold-border) !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24) !important;
+}
+
+.app-shell-root--stitch-trial .app-header-title {
+  color: var(--app-stitch-gold) !important;
+  font-family: "Noto Serif", Georgia, serif;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 0 14px rgba(233, 195, 73, 0.14);
+}
+
+.app-shell-root--stitch-trial .app-desktop-primary-tabs {
+  background: rgba(21, 18, 27, 0.84) !important;
+  border: 0.5px solid var(--app-stitch-gold-border) !important;
+  border-radius: 18px !important;
+  box-shadow:
+    0 12px 26px rgba(0, 0, 0, 0.24),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025) !important;
+}
+
+.app-shell-root--stitch-trial .app-primary-tab-button {
+  border: 0.5px solid rgba(233, 195, 73, 0.18) !important;
+  background: transparent !important;
+  color: var(--color-text-tertiary) !important;
+  border-radius: 14px !important;
+  font-family: "Noto Serif", Georgia, serif;
+  letter-spacing: 0.02em;
+}
+
+.app-shell-root--stitch-trial .app-primary-tab-button--active {
+  border-color: rgba(233, 195, 73, 0.42) !important;
+  background:
+    linear-gradient(135deg, rgba(159, 120, 255, 0.2), rgba(233, 195, 73, 0.12)) !important;
+  color: var(--app-stitch-gold) !important;
+  box-shadow:
+    0 0 0 1px rgba(233, 195, 73, 0.1),
+    inset 0 0 12px rgba(159, 120, 255, 0.16) !important;
+}
+
+.app-shell-root--stitch-trial .app-primary-viewport {
+  background: transparent !important;
+  border-color: rgba(233, 195, 73, 0.16) !important;
+}
+
+.app-shell-root--stitch-trial .app-mobile-primary-tabs {
+  background:
+    linear-gradient(180deg, rgba(15, 13, 21, 0.96), rgba(11, 18, 32, 0.98)) !important;
+  border-top: 0.5px solid var(--app-stitch-gold-border) !important;
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -12px 28px rgba(0, 0, 0, 0.32) !important;
+}
+
+.app-shell-root--stitch-trial .app-mobile-primary-tabs .app-primary-tab-button {
+  border: none !important;
+  border-radius: 14px !important;
+}
+
+.app-shell-root--stitch-trial .app-mobile-primary-tabs .app-primary-tab-button--active {
+  margin: 6px 3px;
+  border: 0.5px solid rgba(233, 195, 73, 0.42) !important;
+}
+
+.app-shell-root--stitch-trial .app-shell-content {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(208, 188, 255, 0.05), transparent 28%),
+    transparent;
+}
+
+.app-shell-root--stitch-perf-safe .app-header-shell,
+.app-shell-root--stitch-perf-safe .app-desktop-primary-tabs,
+.app-shell-root--stitch-perf-safe .app-mobile-primary-tabs {
+  backdrop-filter: none;
+}
+
 @media (min-width: 768px) {
   .app-shell-content {
     padding-bottom: 40px;
@@ -299,6 +415,636 @@ body {
   display: grid;
   gap: var(--dense-panel-gap, 8px);
   box-shadow: 0 8px 24px var(--color-shadow, rgba(15, 23, 42, 0.08));
+}
+
+@keyframes combatStitchShimmer {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(110%);
+  }
+}
+
+.combat-root--stitch-trial {
+  --stitch-gold: #e9c349;
+  --stitch-gold-soft: rgba(233, 195, 73, 0.16);
+  --stitch-gold-border: rgba(233, 195, 73, 0.34);
+  --stitch-purple: #d0bcff;
+  --stitch-purple-soft: rgba(159, 120, 255, 0.16);
+  --stitch-panel: rgba(21, 18, 27, 0.86);
+  --stitch-panel-raised: rgba(33, 30, 39, 0.82);
+  --color-background-primary: #100d16;
+  --color-background-secondary: rgba(21, 18, 27, 0.84);
+  --color-background-tertiary: rgba(33, 30, 39, 0.78);
+  --color-text-primary: #f3edf7;
+  --color-text-secondary: #cbc3d7;
+  --color-text-tertiary: #a89fb4;
+  --color-border-primary: rgba(233, 195, 73, 0.26);
+  --color-border-secondary: rgba(208, 188, 255, 0.16);
+  --color-shadow: rgba(0, 0, 0, 0.42);
+  --tone-accent: #d0bcff;
+  --tone-accent-soft: rgba(159, 120, 255, 0.18);
+  --tone-warning: #e9c349;
+  --tone-warning-soft: rgba(233, 195, 73, 0.14);
+  --tone-warning-strong: #ffd86b;
+  --tone-success: #4ade80;
+  --tone-success-soft: rgba(74, 222, 128, 0.14);
+  --tone-success-strong: #86efac;
+  --tone-danger: #ff8a8a;
+  --tone-danger-soft: rgba(255, 138, 138, 0.14);
+  --tone-danger-strong: #ffb4ab;
+  --tone-info: #93c5fd;
+  --tone-info-soft: rgba(147, 197, 253, 0.14);
+  --tone-violet: #d0bcff;
+  --tone-violet-soft: rgba(159, 120, 255, 0.16);
+  background:
+    radial-gradient(circle at 12% -8%, rgba(159, 120, 255, 0.22), transparent 28%),
+    radial-gradient(circle at 92% 8%, rgba(233, 195, 73, 0.14), transparent 24%),
+    linear-gradient(180deg, #100d16 0%, #15121b 56%, #0f0d15 100%);
+  color: var(--color-text-primary);
+  font-family: "Manrope", "Noto Sans", system-ui, sans-serif;
+  position: relative;
+}
+
+.combat-root--stitch-trial .combat-main-panel,
+.combat-root--stitch-trial .combat-vital-panel,
+.combat-root--stitch-trial .combat-player-panel,
+.combat-root--stitch-trial .combat-stat-card,
+.combat-root--stitch-trial .combat-session-panel,
+.combat-root--stitch-trial .combat-log-panel {
+  backdrop-filter: blur(16px);
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.32),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+}
+
+.combat-root--stitch-trial .combat-main-panel {
+  position: relative;
+  overflow: hidden;
+  border: 0.5px solid var(--stitch-gold-border) !important;
+  background:
+    radial-gradient(circle at 50% 32%, rgba(231, 224, 237, 0.12) 0%, rgba(231, 224, 237, 0.05) 18%, transparent 42%),
+    radial-gradient(circle at 52% 42%, rgba(233, 195, 73, 0.1), transparent 34%),
+    linear-gradient(135deg, rgba(15, 13, 21, 0.92), rgba(33, 30, 39, 0.76));
+  border-radius: 22px;
+}
+
+.combat-root--stitch-trial .combat-main-panel::before {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border-radius: 18px;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent 0%, transparent 13%, rgba(233, 195, 73, 0.08) 13.3%, rgba(233, 195, 73, 0.08) 13.8%, transparent 14.2%, transparent 85.8%, rgba(233, 195, 73, 0.08) 86.2%, rgba(233, 195, 73, 0.08) 86.7%, transparent 87%, transparent 100%),
+    repeating-radial-gradient(ellipse at 50% 28%, rgba(233, 195, 73, 0.12) 0 1px, transparent 2px 22px);
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.8), transparent 72%);
+  opacity: 0.5;
+}
+
+.combat-root--stitch-trial .combat-main-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.combat-root--stitch-trial .combat-tier-chip,
+.combat-root--stitch-trial .combat-status-tray {
+  background: var(--stitch-panel-raised);
+  border: 0.5px solid rgba(233, 195, 73, 0.24) !important;
+}
+
+.combat-root--stitch-trial .combat-tier-grid {
+  padding: 6px;
+  border-radius: 18px;
+  border: 0.5px solid rgba(233, 195, 73, 0.22);
+  background: rgba(15, 13, 21, 0.58);
+}
+
+.combat-root--stitch-trial .combat-tier-grid > button {
+  border: 0.5px solid rgba(233, 195, 73, 0.32) !important;
+  border-radius: 13px !important;
+  background: rgba(33, 30, 39, 0.9) !important;
+  color: var(--stitch-gold) !important;
+}
+
+.combat-root--stitch-trial .combat-tier-grid > button:disabled {
+  border-color: rgba(203, 195, 215, 0.16) !important;
+  color: rgba(203, 195, 215, 0.4) !important;
+}
+
+.combat-root--stitch-trial .combat-main-panel button,
+.combat-root--stitch-trial .combat-player-panel button,
+.combat-root--stitch-trial .combat-log-panel button,
+.combat-root--stitch-trial .combat-session-panel button {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+}
+
+.combat-root--stitch-trial .combat-vital-panel,
+.combat-root--stitch-trial .combat-player-panel,
+.combat-root--stitch-trial .combat-log-panel {
+  border: 0.5px solid rgba(233, 195, 73, 0.24) !important;
+  background: var(--stitch-panel) !important;
+}
+
+.combat-root--stitch-trial .combat-vital-panel {
+  border-top: 2px solid rgba(233, 195, 73, 0.44) !important;
+  border-radius: 20px !important;
+}
+
+.combat-root--stitch-trial .combat-vital-panel > div > div:first-child,
+.combat-root--stitch-trial .combat-player-panel > div:nth-child(2) > div:first-child {
+  color: var(--stitch-purple);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.combat-root--stitch-trial .combat-stat-card {
+  min-height: 58px;
+  border: 0.5px solid rgba(233, 195, 73, 0.22) !important;
+  border-radius: 16px !important;
+  background: var(--stitch-panel) !important;
+}
+
+.combat-root--stitch-trial .combat-stat-card p:first-child,
+.combat-root--stitch-trial .combat-log-panel button span:first-child {
+  color: var(--tone-warning);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.combat-root--stitch-trial .combat-stat-card p:nth-child(2) {
+  color: var(--tone-warning);
+  font-family: "Noto Serif", Georgia, serif;
+  text-shadow: 0 0 14px rgba(233, 195, 73, 0.2);
+}
+
+.combat-root--stitch-trial .combat-session-panel {
+  border: 0.5px solid rgba(233, 195, 73, 0.22);
+  background: rgba(21, 18, 27, 0.78);
+}
+
+.combat-root--stitch-trial .combat-hp-bar {
+  border-color: rgba(233, 195, 73, 0.2);
+  background: rgba(15, 13, 21, 0.78);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.42);
+  height: 9px !important;
+}
+
+.combat-root--stitch-trial .combat-hp-fill {
+  position: relative;
+  overflow: hidden;
+}
+
+.combat-root--stitch-trial .combat-hp-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.26), transparent);
+  animation: combatStitchShimmer 2200ms ease-in-out infinite;
+}
+
+.combat-root--stitch-trial .combat-hp-fill--enemy {
+  background: linear-gradient(90deg, #93000a, #ff8a8a) !important;
+}
+
+.combat-root--stitch-trial .combat-hp-fill--hero {
+  background: linear-gradient(90deg, #1d9e75, #4ade80) !important;
+}
+
+.combat-root--stitch-trial .combat-hp-fill--xp {
+  background: linear-gradient(90deg, #9f78ff, #d0bcff) !important;
+}
+
+.combat-root--stitch-trial .combat-status-pill {
+  box-shadow: 0 0 12px rgba(233, 195, 73, 0.08);
+}
+
+.combat-root--stitch-trial .combat-log-panel {
+  border-radius: 18px !important;
+}
+
+.combat-root--stitch-trial .combat-log-panel button span:first-child {
+  font-family: "Noto Serif", Georgia, serif;
+  color: var(--stitch-purple);
+}
+
+.combat-root--stitch-perf-safe .combat-main-panel,
+.combat-root--stitch-perf-safe .combat-vital-panel,
+.combat-root--stitch-perf-safe .combat-player-panel,
+.combat-root--stitch-perf-safe .combat-stat-card,
+.combat-root--stitch-perf-safe .combat-session-panel,
+.combat-root--stitch-perf-safe .combat-log-panel {
+  backdrop-filter: none;
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+}
+
+.combat-root--stitch-perf-safe .combat-main-panel {
+  background:
+    radial-gradient(circle at 50% 20%, rgba(233, 195, 73, 0.08), transparent 36%),
+    linear-gradient(135deg, rgba(15, 13, 21, 0.95), rgba(33, 30, 39, 0.88));
+}
+
+.combat-root--stitch-perf-safe .combat-main-panel::before {
+  display: none;
+}
+
+.combat-root--stitch-perf-safe .combat-hp-fill::after {
+  display: none;
+}
+
+.combat-root--stitch-perf-safe .combat-status-pill {
+  animation: none !important;
+  box-shadow: none;
+}
+
+.sanctuary-root--stitch-trial {
+  --sanctuary-gold: #e9c349;
+  --sanctuary-gold-soft: rgba(233, 195, 73, 0.14);
+  --sanctuary-gold-border: rgba(233, 195, 73, 0.3);
+  --sanctuary-purple: #d0bcff;
+  --sanctuary-purple-soft: rgba(159, 120, 255, 0.16);
+  --sanctuary-panel: rgba(21, 18, 27, 0.86);
+  --sanctuary-panel-raised: rgba(33, 30, 39, 0.82);
+  --color-background-primary: #100d16;
+  --color-background-secondary: rgba(21, 18, 27, 0.86);
+  --color-background-tertiary: rgba(33, 30, 39, 0.82);
+  --color-text-primary: #f3edf7;
+  --color-text-secondary: #cbc3d7;
+  --color-text-tertiary: #a89fb4;
+  --color-border-primary: rgba(233, 195, 73, 0.28);
+  --color-border-secondary: rgba(208, 188, 255, 0.16);
+  --color-shadow: rgba(0, 0, 0, 0.38);
+  --tone-accent: #e9c349;
+  --tone-accent-soft: rgba(233, 195, 73, 0.14);
+  --tone-warning: #e9c349;
+  --tone-warning-soft: rgba(233, 195, 73, 0.14);
+  --tone-warning-strong: #ffd86b;
+  --tone-info: #93c5fd;
+  --tone-info-soft: rgba(147, 197, 253, 0.14);
+  --tone-violet: #d0bcff;
+  --tone-violet-soft: rgba(159, 120, 255, 0.16);
+  --tone-success: #4ade80;
+  --tone-success-soft: rgba(74, 222, 128, 0.14);
+  --tone-success-strong: #86efac;
+  --tone-danger: #ff8a8a;
+  --tone-danger-soft: rgba(255, 138, 138, 0.14);
+  background:
+    radial-gradient(circle at 12% -8%, rgba(159, 120, 255, 0.18), transparent 30%),
+    radial-gradient(circle at 88% 0%, rgba(233, 195, 73, 0.12), transparent 24%),
+    linear-gradient(180deg, #100d16 0%, #15121b 54%, #0f0d15 100%) !important;
+  color: var(--color-text-primary) !important;
+  font-family: "Manrope", "Noto Sans", system-ui, sans-serif;
+}
+
+.sanctuary-root--stitch-trial > section,
+.sanctuary-root--stitch-trial > div > section {
+  position: relative;
+  overflow: hidden;
+  background: var(--sanctuary-panel) !important;
+  border: 0.5px solid var(--sanctuary-gold-border) !important;
+  border-top: 2px solid rgba(233, 195, 73, 0.42) !important;
+  border-radius: 20px !important;
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025) !important;
+}
+
+.sanctuary-root--stitch-trial > section::before,
+.sanctuary-root--stitch-trial > div > section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(233, 195, 73, 0.08), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 42%);
+  opacity: 0.9;
+}
+
+.sanctuary-root--stitch-trial > section > *,
+.sanctuary-root--stitch-trial > div > section > * {
+  position: relative;
+  z-index: 1;
+}
+
+.sanctuary-root--stitch-trial > section:first-of-type {
+  border-top-color: rgba(208, 188, 255, 0.46) !important;
+  background:
+    radial-gradient(circle at 12% 6%, rgba(208, 188, 255, 0.1), transparent 34%),
+    linear-gradient(135deg, rgba(21, 18, 27, 0.92), rgba(33, 30, 39, 0.84)) !important;
+}
+
+.sanctuary-root--stitch-trial button {
+  border-radius: 14px !important;
+}
+
+.sanctuary-root--stitch-trial > section button,
+.sanctuary-root--stitch-trial > div > section button {
+  border: 0.5px solid rgba(233, 195, 73, 0.32) !important;
+  background: rgba(33, 30, 39, 0.9) !important;
+  color: var(--sanctuary-gold) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025) !important;
+}
+
+.sanctuary-root--stitch-trial > section button:disabled,
+.sanctuary-root--stitch-trial > div > section button:disabled {
+  border-color: rgba(203, 195, 215, 0.16) !important;
+  color: rgba(203, 195, 215, 0.48) !important;
+  background: rgba(33, 30, 39, 0.42) !important;
+}
+
+.sanctuary-root--stitch-trial > section [style*="999px"],
+.sanctuary-root--stitch-trial > div > section [style*="999px"] {
+  border: 0.5px solid rgba(233, 195, 73, 0.22) !important;
+  background: rgba(33, 30, 39, 0.76) !important;
+}
+
+.sanctuary-root--stitch-trial > section [style*="font-size: 1rem"],
+.sanctuary-root--stitch-trial > section [style*="fontSize: 1rem"],
+.sanctuary-root--stitch-trial > div > section [style*="font-size: 1rem"],
+.sanctuary-root--stitch-trial > div > section [style*="fontSize: 1rem"] {
+  font-family: "Noto Serif", Georgia, serif;
+  color: var(--sanctuary-gold) !important;
+}
+
+.sanctuary-root--stitch-trial > section [style*="uppercase"],
+.sanctuary-root--stitch-trial > div > section [style*="uppercase"] {
+  letter-spacing: 0.1em !important;
+}
+
+.sanctuary-root--stitch-trial strong {
+  color: var(--sanctuary-gold);
+}
+
+.sanctuary-root--stitch-perf-safe > section,
+.sanctuary-root--stitch-perf-safe > div > section {
+  backdrop-filter: none;
+}
+
+.sanctuary-root--stitch-perf-safe > section::before,
+.sanctuary-root--stitch-perf-safe > div > section::before {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent 46%);
+}
+
+.encargos-root--stitch-trial {
+  --encargos-gold: #e9c176;
+  --encargos-gold-soft: rgba(233, 193, 118, 0.14);
+  --encargos-gold-border: rgba(233, 193, 118, 0.2);
+  --encargos-ritual-top: #f8e0ad;
+  --encargos-ritual-mid: #ddb25a;
+  --encargos-ritual-bottom: #b57c2a;
+  --encargos-ritual-ink: #080500;
+  --encargos-purple: #9f78ff;
+  --encargos-purple-soft: rgba(159, 120, 255, 0.2);
+  --encargos-info: #9f78ff;
+  --encargos-info-soft: rgba(159, 120, 255, 0.18);
+  --encargos-violet-glow: rgba(159, 120, 255, 0.18);
+  --encargos-panel: rgba(21, 18, 27, 0.88);
+  --encargos-panel-raised: rgba(33, 30, 39, 0.84);
+  --color-background-primary: #100d16;
+  --color-background-secondary: rgba(21, 18, 27, 0.88);
+  --color-background-tertiary: rgba(33, 30, 39, 0.84);
+  --color-text-primary: #f3edf7;
+  --color-text-secondary: #cbc3d7;
+  --color-text-tertiary: #a89fb4;
+  --color-border-primary: rgba(255, 255, 255, 0.08);
+  --color-border-secondary: rgba(208, 188, 255, 0.16);
+  --tone-accent: var(--encargos-purple);
+  --tone-accent-soft: var(--encargos-purple-soft);
+  --tone-warning: var(--encargos-gold);
+  --tone-warning-soft: var(--encargos-gold-soft);
+  --tone-info: var(--encargos-info);
+  --tone-info-soft: var(--encargos-info-soft);
+  --tone-violet: #d0bcff;
+  --tone-violet-soft: rgba(159, 120, 255, 0.16);
+  --tone-success: #4ade80;
+  --tone-success-soft: rgba(74, 222, 128, 0.14);
+  --tone-danger: #ff8a8a;
+  --tone-danger-soft: rgba(255, 138, 138, 0.14);
+  background:
+    radial-gradient(circle at 12% -8%, rgba(159, 120, 255, 0.24), transparent 30%),
+    radial-gradient(circle at 78% 14%, rgba(159, 120, 255, 0.07), transparent 22%),
+    radial-gradient(circle at 88% 0%, rgba(233, 193, 118, 0.04), transparent 24%),
+    linear-gradient(180deg, #100d16 0%, #15121b 54%, #0f0d15 100%) !important;
+  color: var(--color-text-primary) !important;
+  font-family: "Manrope", "Noto Sans", system-ui, sans-serif;
+}
+
+.encargos-root--stitch-trial > section,
+.encargos-root--stitch-trial .overlay-split-52-48 > div {
+  position: relative;
+  overflow: hidden;
+  background: var(--encargos-panel) !important;
+  border: 0.5px solid var(--color-border-primary) !important;
+  border-top: 1px solid rgba(159, 120, 255, 0.42) !important;
+  border-radius: 12px !important;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.24),
+    0 0 18px rgba(159, 120, 255, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025) !important;
+}
+
+.encargos-root--stitch-trial > section::before,
+.encargos-root--stitch-trial .overlay-split-52-48 > div::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(159, 120, 255, 0.09), transparent 26%),
+    radial-gradient(circle at 92% 8%, rgba(159, 120, 255, 0.05), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 42%);
+  opacity: 0.9;
+}
+
+.encargos-root--stitch-trial > section > *,
+.encargos-root--stitch-trial .overlay-split-52-48 > div > * {
+  position: relative;
+  z-index: 1;
+}
+
+.encargos-root--stitch-trial > section:first-of-type {
+  border-top-color: rgba(159, 120, 255, 0.42) !important;
+  background:
+    radial-gradient(circle at 12% 6%, rgba(208, 188, 255, 0.1), transparent 34%),
+    linear-gradient(135deg, rgba(21, 18, 27, 0.94), rgba(33, 30, 39, 0.86)) !important;
+}
+
+.encargos-root--stitch-trial button {
+  border-radius: 10px !important;
+  box-shadow:
+    0 0 0 1px rgba(159, 120, 255, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02) !important;
+}
+
+.encargos-root--stitch-trial .encargos-btn--ritual {
+  border-color: rgba(95, 63, 13, 0.98) !important;
+  background: linear-gradient(180deg, var(--encargos-ritual-top) 0%, var(--encargos-ritual-mid) 52%, var(--encargos-ritual-bottom) 100%) !important;
+  color: var(--encargos-ritual-ink) !important;
+  text-shadow: none;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.36) inset,
+    0 -1px 0 rgba(66, 45, 10, 0.5) inset,
+    0 1px 2px rgba(0, 0, 0, 0.3) !important;
+}
+
+.encargos-root--stitch-trial .encargos-btn--ritual:disabled {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(64, 57, 42, 0.6) !important;
+  color: rgba(231, 224, 237, 0.52) !important;
+  box-shadow: none !important;
+}
+
+.encargos-root--stitch-trial span[style*="display: inline-flex"][style*="999px"],
+.encargos-root--stitch-trial span[style*="display:inline-flex"][style*="999px"] {
+  border: 0.5px solid rgba(255, 255, 255, 0.08) !important;
+  background: rgba(33, 30, 39, 0.72) !important;
+  border-radius: 8px !important;
+  box-shadow: inset 0 0 0 1px rgba(159, 120, 255, 0.1);
+}
+
+.encargos-root--stitch-trial span[style*="var(--tone-warning"] {
+  border-color: rgba(233, 193, 118, 0.34) !important;
+  background: rgba(233, 193, 118, 0.12) !important;
+}
+
+.encargos-root--stitch-trial [style*="font-size: 1rem"],
+.encargos-root--stitch-trial [style*="fontSize: 1rem"],
+.encargos-root--stitch-trial [style*="font-size: 1.02rem"],
+.encargos-root--stitch-trial [style*="fontSize: 1.02rem"] {
+  font-family: "Noto Serif", Georgia, serif;
+  color: var(--color-text-primary) !important;
+}
+
+.encargos-root--stitch-trial [style*="uppercase"] {
+  letter-spacing: 0.1em !important;
+}
+
+.talents-root {
+  width: 100%;
+  min-width: 0;
+}
+
+.talents-root--stitch-trial {
+  --talents-violet: #9f78ff;
+  --talents-violet-soft: rgba(159, 120, 255, 0.18);
+  --talents-violet-bright: #d0bcff;
+  --talents-gold: #c5a059;
+  --talents-gold-soft: rgba(197, 160, 89, 0.16);
+  --color-background-primary: #15121b;
+  --color-background-secondary: #1d1a23;
+  --color-background-tertiary: #26232d;
+  --color-text-primary: #e7e0ed;
+  --color-text-secondary: #cbc3d7;
+  --color-text-tertiary: #9f96ac;
+  --color-border-primary: rgba(255, 255, 255, 0.08);
+  --color-border-secondary: #494454;
+  --color-shadow: rgba(0, 0, 0, 0.42);
+  --tone-accent: var(--talents-violet-bright);
+  --tone-accent-soft: rgba(159, 120, 255, 0.2);
+  --tone-warning: var(--talents-gold);
+  --tone-warning-soft: var(--talents-gold-soft);
+  --tone-info: #89bbde;
+  --tone-info-soft: rgba(137, 187, 222, 0.14);
+  --tone-success: #8ed7b0;
+  --tone-success-strong: #b8f2d5;
+  --tone-success-soft: rgba(142, 215, 176, 0.14);
+  --tone-danger: #f29ea0;
+  --tone-danger-soft: rgba(242, 158, 160, 0.14);
+  background:
+    radial-gradient(circle at 12% -10%, rgba(159, 120, 255, 0.18), transparent 34%),
+    radial-gradient(circle at 88% 0%, rgba(197, 160, 89, 0.08), transparent 24%),
+    linear-gradient(180deg, #15121b 0%, #120f18 50%, #0f0d15 100%) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.talents-root--stitch-trial .talents-header,
+.talents-root--stitch-trial .talents-tree-toolbar,
+.talents-root--stitch-trial .talents-tree-body,
+.talents-root--stitch-trial .talents-stage {
+  background: var(--color-background-secondary) !important;
+  border: 1px solid var(--color-border-primary) !important;
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02) !important;
+}
+
+.talents-root--stitch-trial .talents-tree-toolbar,
+.talents-root--stitch-trial .talents-tree-body,
+.talents-root--stitch-trial .talents-stage {
+  border-top-color: rgba(159, 120, 255, 0.28) !important;
+}
+
+.talents-root--stitch-trial .talents-tree-tab {
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.talents-root--stitch-trial .talents-tree-tab--active,
+.talents-root--stitch-trial .talents-filter-chip--active {
+  box-shadow: inset 0 0 0 1px rgba(208, 188, 255, 0.2);
+}
+
+.talents-root--stitch-trial .talents-filter-chip {
+  border-radius: 8px !important;
+}
+
+.talents-root--stitch-trial .talents-node-card {
+  background: var(--color-background-tertiary) !important;
+}
+
+.talents-root--stitch-trial .talents-node-card--requirements-blocked {
+  border-color: rgba(242, 158, 160, 0.44) !important;
+}
+
+.talents-root--stitch-trial .talents-node-card--ready {
+  border-color: rgba(208, 188, 255, 0.36) !important;
+}
+
+.talents-root--stitch-trial .talents-node-card--unlocked {
+  border-color: rgba(142, 215, 176, 0.42) !important;
+}
+
+.talents-root--stitch-trial .talents-node-cta {
+  border-radius: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.talents-root--stitch-trial .talents-node-cta--ready {
+  border-color: rgba(208, 188, 255, 0.56) !important;
+  background: linear-gradient(180deg, rgba(94, 63, 168, 0.84), rgba(64, 42, 112, 0.94)) !important;
+  color: #f4eeff !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.1) inset,
+    0 -1px 0 rgba(12, 10, 20, 0.42) inset !important;
+}
+
+.talents-root--stitch-trial .talents-node-cta--ready:hover:not(:disabled) {
+  border-color: rgba(208, 188, 255, 0.7) !important;
+  background: linear-gradient(180deg, rgba(108, 77, 188, 0.88), rgba(72, 49, 132, 0.96)) !important;
+}
+
+.talents-root--stitch-trial .talents-node-cta--disabled {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(55, 51, 61, 0.7) !important;
+  color: rgba(231, 224, 237, 0.56) !important;
+  box-shadow: none !important;
+}
+
+.talents-root--stitch-trial .talents-node-cta--maxed {
+  border-color: rgba(142, 215, 176, 0.5) !important;
+  background: rgba(142, 215, 176, 0.12) !important;
+  color: #b8f2d5 !important;
+  box-shadow: none !important;
+}
+
+.talents-root--stitch-trial .talents-reset-btn {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  background: rgba(55, 51, 61, 0.78) !important;
+  color: var(--color-text-secondary) !important;
 }
 
 .expedition-root {

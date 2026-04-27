@@ -5,6 +5,10 @@ import useViewport from "./hooks/useViewport";
 import OverlayShell, { OverlaySurface } from "./components/OverlayShell";
 import { getRarityColor } from "./constants/rarity";
 import {
+  ITEM_STAT_LABELS as STAT_LABELS,
+  formatItemStatValue as formatStatValue,
+} from "./utils/itemPresentation";
+import {
   buildRunSigilChoiceProfile,
   buildRunSigilLoadoutProfile,
   formatRunSigilLoadout,
@@ -455,9 +459,28 @@ const PRIMARY_TAB_SPOTLIGHT_KEYFRAMES = `
   }
 `;
 
+// Visual-only Stitch shell trial. Flip to false to restore the previous App shell.
+const APP_STITCH_VISUAL_TRIAL = false;
+// Keeps the global shell skin lightweight: no blur, masks, or continuous animations.
+const APP_STITCH_PERF_SAFE = true;
+
 const APP_VERSION = packageJson?.version || "0.0.0";
 const DEBUG_TRIPLE_CLICK_WINDOW_MS = 750;
 const MAX_RECENT_ERROR_ENTRIES = 20;
+
+function buildReforgeOptionKey(option = {}, index = 0) {
+  return `${option?.id || "opt"}::${option?.stat || "stat"}::${option?.quality || "normal"}::${option?.rolledValue ?? option?.value ?? 0}::${index}`;
+}
+
+function findPlayerItemById(player = {}, itemId = null) {
+  if (!itemId) return null;
+  const inventory = Array.isArray(player?.inventory) ? player.inventory : [];
+  const inventoryMatch = inventory.find(item => item?.id === itemId);
+  if (inventoryMatch) return inventoryMatch;
+  if (player?.equipment?.weapon?.id === itemId) return player.equipment.weapon;
+  if (player?.equipment?.armor?.id === itemId) return player.equipment.armor;
+  return null;
+}
 
 const AppHeader = React.memo(function AppHeader({
   isMobile,
@@ -506,10 +529,14 @@ const DesktopPrimaryTabs = React.memo(function DesktopPrimaryTabs({
   onTabPress,
 }) {
   return (
-    <div style={{ marginBottom: "12px", background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-tertiary, #cbd5e1)", borderRadius: "12px", boxShadow: "0 4px 20px var(--color-shadow, rgba(0,0,0,0.05))", padding: "10px 12px" }}>
+    <div className="app-desktop-primary-tabs" style={{ marginBottom: "12px", background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-tertiary, #cbd5e1)", borderRadius: "12px", boxShadow: "0 4px 20px var(--color-shadow, rgba(0,0,0,0.05))", padding: "10px 12px" }}>
       <nav style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
         {entries.map(entry => (
           <button
+            className={[
+              "app-primary-tab-button",
+              entry.isActive ? "app-primary-tab-button--active" : "",
+            ].filter(Boolean).join(" ")}
             key={entry.id}
             disabled={entry.hardDisabled}
             data-onboarding-target={entry.onboardingTarget}
@@ -565,9 +592,13 @@ const MobilePrimaryTabs = React.memo(function MobilePrimaryTabs({
   onTabPress,
 }) {
   return (
-    <nav style={{ position: "fixed", bottom: 0, left: 0, width: "100%", height: `${navHeight}px`, backgroundColor: "var(--color-background-secondary, #ffffff)", borderTop: "1px solid var(--color-border-secondary, #e2e8f0)", display: "flex", zIndex: 5000, paddingBottom: "env(safe-area-inset-bottom)", boxSizing: "content-box" }}>
+    <nav className="app-mobile-primary-tabs" style={{ position: "fixed", bottom: 0, left: 0, width: "100%", height: `${navHeight}px`, backgroundColor: "var(--color-background-secondary, #ffffff)", borderTop: "1px solid var(--color-border-secondary, #e2e8f0)", display: "flex", zIndex: 5000, paddingBottom: "env(safe-area-inset-bottom)", boxSizing: "content-box" }}>
       {entries.map(entry => (
         <button
+          className={[
+            "app-primary-tab-button",
+            entry.isActive ? "app-primary-tab-button--active" : "",
+          ].filter(Boolean).join(" ")}
           key={entry.id}
           disabled={entry.hardDisabled}
           data-onboarding-target={entry.onboardingTarget}
@@ -1367,6 +1398,11 @@ export default function App() {
     ? "combat"
     : "sanctuary";
   const ActivePrimaryTabComponent = PRIMARY_TAB_COMPONENTS[currentPrimaryTab] || Sanctuary;
+  const appShellRootClassName = [
+    "app-shell-root",
+    APP_STITCH_VISUAL_TRIAL ? "app-shell-root--stitch-trial" : "",
+    APP_STITCH_VISUAL_TRIAL && APP_STITCH_PERF_SAFE ? "app-shell-root--stitch-perf-safe" : "",
+  ].filter(Boolean).join(" ");
 
   function dismissLegacySavePrompt() {
     if (!showLegacySavePrompt) return;
@@ -1380,7 +1416,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell-root">
+    <div className={appShellRootClassName}>
       <AppHeader
         isMobile={isMobile}
         currentPrimaryLabel={currentPrimaryLabel}
@@ -1435,6 +1471,12 @@ export default function App() {
           />
         </Suspense>
       )}
+
+      <ReforgeDecisionOverlay
+        state={state}
+        dispatch={dispatch}
+        isMobile={isMobile}
+      />
 
       <Suspense fallback={null}>
         <OnboardingOverlay state={state} dispatch={dispatch} isMobile={isMobile} />
@@ -1585,6 +1627,217 @@ export default function App() {
 
       {isMobile && <MobilePrimaryTabs entries={primaryTabEntries} navHeight={NAV_HEIGHT_MOBILE} onTabPress={handlePrimaryTabPress} />}
     </div>
+  );
+}
+
+function ReforgeDecisionOverlay({ state, dispatch, isMobile = false }) {
+  const session = state?.combat?.reforgeSession || null;
+  const player = state?.player || {};
+  const item = useMemo(
+    () => findPlayerItemById(player, session?.itemId),
+    [player, session?.itemId]
+  );
+  const affixIndex = Number.isInteger(Number(session?.affixIndex))
+    ? Number(session.affixIndex)
+    : null;
+  const options = useMemo(
+    () => (Array.isArray(session?.options) ? session.options : []),
+    [session?.options]
+  );
+  const [selectedOptionKey, setSelectedOptionKey] = useState(null);
+
+  useEffect(() => {
+    if (!session) {
+      setSelectedOptionKey(null);
+      return;
+    }
+    if (options.length <= 0) {
+      setSelectedOptionKey(null);
+      return;
+    }
+    const hasCurrent = selectedOptionKey && options.some((option, index) => buildReforgeOptionKey(option, index) === selectedOptionKey);
+    if (hasCurrent) return;
+    setSelectedOptionKey(buildReforgeOptionKey(options[0], 0));
+  }, [options, selectedOptionKey, session]);
+
+  const selectedOption = useMemo(() => {
+    if (!selectedOptionKey) return null;
+    const tuple = options.find((option, index) => buildReforgeOptionKey(option, index) === selectedOptionKey);
+    return tuple || null;
+  }, [options, selectedOptionKey]);
+
+  const cancelReforge = () => {
+    dispatch({ type: "CRAFT_CANCEL_REFORGE_SESSION" });
+  };
+
+  const confirmReforge = () => {
+    if (!session?.itemId || affixIndex == null || !selectedOption) return;
+    dispatch({
+      type: "CRAFT_REFORGE_ITEM",
+      payload: {
+        itemId: session.itemId,
+        affixIndex,
+        replacementAffix: selectedOption,
+      },
+    });
+  };
+
+  const selectedAffix = item?.affixes?.[affixIndex] || null;
+  const hasBrokenSession = !item || affixIndex == null || options.length <= 0;
+
+  if (!session) return null;
+
+  return (
+    <OverlayShell
+      isMobile={isMobile}
+      mode="hard"
+      contentLabel="Decision de reforja"
+      closeOnEscape={false}
+      dismissOnBackdrop={false}
+      blockBackgroundScroll
+      zIndex={9950}
+      backdrop="rgba(2,6,23,0.78)"
+    >
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          alignItems: isMobile ? "flex-end" : "center",
+          justifyContent: "center",
+          padding: isMobile ? "10px" : "24px",
+          boxSizing: "border-box",
+          pointerEvents: "auto",
+        }}
+      >
+        <section
+          style={{
+            width: "min(560px, 100%)",
+            maxHeight: isMobile ? "78dvh" : "82vh",
+            overflow: "hidden",
+            border: "1px solid var(--color-border-primary, #e2e8f0)",
+            borderRadius: isMobile ? "16px" : "18px",
+            background: "var(--color-background-secondary, #ffffff)",
+            boxShadow: "0 24px 60px rgba(2,6,23,0.35)",
+            padding: isMobile ? "14px 12px 16px" : "16px 16px 18px",
+            display: "grid",
+            gap: "10px",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" }}>
+                Reforja activa
+              </div>
+              <div style={{ fontSize: "0.92rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.2 }}>
+                {hasBrokenSession ? "Sesion de reforja trabada" : "Elige una opcion y confirma"}
+              </div>
+            </div>
+          </div>
+
+          {item && (
+            <div style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", borderLeft: `3px solid ${getRarityColor(item?.rarity)}`, borderRadius: "10px", padding: "9px", display: "grid", gap: "4px" }}>
+              <div style={{ fontSize: "0.76rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                {item.name}
+              </div>
+              {selectedAffix && (
+                <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #475569)", fontWeight: "800" }}>
+                  Linea objetivo: {STAT_LABELS[selectedAffix?.stat] || selectedAffix?.stat} · +{formatStatValue(selectedAffix?.stat, selectedAffix?.rolledValue ?? selectedAffix?.value ?? 0)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {hasBrokenSession ? (
+            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+              No se pudo reconstruir la preview de reforja. Cancela para destrabar y vuelve a intentar.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: "6px", maxHeight: isMobile ? "34dvh" : "40vh", overflowY: "auto", paddingRight: "2px" }}>
+              {options.map((option, index) => {
+                const optionKey = buildReforgeOptionKey(option, index);
+                const selected = optionKey === selectedOptionKey;
+                return (
+                  <button
+                    key={optionKey}
+                    onClick={() => setSelectedOptionKey(optionKey)}
+                    style={{
+                      border: `1px solid ${selected ? "var(--tone-violet, #7c3aed)" : "var(--color-border-primary, #e2e8f0)"}`,
+                      background: selected ? "var(--tone-violet-soft, #f3e8ff)" : "var(--color-background-secondary, #fff)",
+                      borderRadius: "10px",
+                      padding: "8px 9px",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      display: "grid",
+                      gap: "3px",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "0.69rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                        {STAT_LABELS[option?.stat] || option?.stat || "Affix"}
+                      </span>
+                      <span style={{ fontSize: "0.56rem", fontWeight: "900", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "999px", padding: "2px 7px", color: "var(--color-text-secondary, #475569)", background: "var(--color-background-tertiary, #f8fafc)" }}>
+                        {index === 0 ? "Actual" : "Opcion"}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: "0.64rem", fontWeight: "800", color: "var(--color-text-secondary, #475569)" }}>
+                      +{formatStatValue(option?.stat, option?.rolledValue ?? option?.value ?? 0)}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "8px", alignItems: "center" }}>
+            {hasBrokenSession ? (
+              <button
+                onClick={cancelReforge}
+                style={{
+                  border: "1px solid var(--color-border-primary, #e2e8f0)",
+                  background: "var(--color-background-secondary, #ffffff)",
+                  color: "var(--color-text-primary, #1e293b)",
+                  borderRadius: "10px",
+                  padding: "9px 12px",
+                  fontSize: "0.68rem",
+                  fontWeight: "900",
+                  cursor: "pointer",
+                }}
+              >
+                Cancelar reforja
+              </button>
+            ) : (
+              <button
+                disabled={!selectedOption}
+                onClick={confirmReforge}
+                style={{
+                  border: "1px solid rgba(30,41,59,0.2)",
+                  background: !selectedOption
+                    ? "linear-gradient(180deg, #475569 0%, #334155 100%)"
+                    : "linear-gradient(180deg, #243244 0%, #1e293b 100%)",
+                  color: "#ffffff",
+                  borderRadius: "10px",
+                  minHeight: "58px",
+                  padding: "8px 12px",
+                  fontSize: "0.68rem",
+                  fontWeight: "900",
+                  cursor: !selectedOption ? "not-allowed" : "pointer",
+                  opacity: !selectedOption ? 0.8 : 1,
+                  boxShadow: "0 8px 18px rgba(15,23,42,0.16)",
+                  display: "grid",
+                  gap: "2px",
+                  alignContent: "center",
+                  justifyItems: "center",
+                }}
+              >
+                <span style={{ fontSize: "0.64rem", fontWeight: "900", lineHeight: 1.1 }}>Aplicar opcion</span>
+                <span style={{ fontSize: "0.53rem", fontWeight: "900", lineHeight: 1.1 }}>Costo ya pagado</span>
+              </button>
+            )}
+          </div>
+        </section>
+      </div>
+    </OverlayShell>
   );
 }
 

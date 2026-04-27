@@ -320,7 +320,7 @@ function createEmptySanctuaryState() {
       cargoSlots: 2,
       projectSlots: 1,
       extractedItemSlots: 3,
-      relicSlots: 8,
+      relicSlots: 4,
       insuredCargoSlots: 0,
     },
   };
@@ -1112,7 +1112,11 @@ function baseGameReducer(state, action) {
     }
 
     case "SET_TAB":
-      if (state.combat?.reforgeSession && action.tab !== state.currentTab) {
+      if (
+        state.combat?.reforgeSession &&
+        action.tab !== state.currentTab &&
+        action.tab !== "sanctuary"
+      ) {
         return state;
       }
       if (!state.player?.class && state.expedition?.phase === "setup" && action.tab !== "sanctuary") {
@@ -1747,6 +1751,7 @@ function baseGameReducer(state, action) {
       }
       return withAchievementProgress({
         ...state,
+        currentTab: "sanctuary",
         player: result.newPlayer,
         combat: {
           ...appendCraftingLog(state.combat, result.log),
@@ -1771,6 +1776,19 @@ function baseGameReducer(state, action) {
           log: [...(state.combat.log || []), result.log].slice(-20),
         },
       });
+    }
+
+    case "CRAFT_CANCEL_REFORGE_SESSION": {
+      if (!state?.combat?.reforgeSession) return state;
+      const logEntry = "REFORJA CANCELADA - se descarta la preview actual.";
+      return {
+        ...state,
+        combat: {
+          ...appendCraftingLog(state.combat, logEntry),
+          reforgeSession: null,
+          log: [...(state.combat.log || []), logEntry].slice(-20),
+        },
+      };
     }
 
     case "CRAFT_REFORGE_ITEM": {

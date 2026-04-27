@@ -50,7 +50,7 @@ export function handleExtractionResolutionAction(state, action, dependencies) {
   const existingRelicArmory = Array.isArray(state.sanctuary?.relicArmory)
     ? state.sanctuary.relicArmory.map(relic => normalizeRelicRecord(relic)).filter(Boolean)
     : [];
-  const relicSlotCap = Math.max(1, Number(state?.sanctuary?.extractionUpgrades?.relicSlots || 8));
+  const relicSlotCap = Math.max(1, Number(state?.sanctuary?.extractionUpgrades?.relicSlots || 4));
   const availableRelicSlotsNow = Math.max(0, relicSlotCap - existingRelicArmory.length);
   const keepRequested = selectedProjectDecision !== "discard" && Boolean(selectedProjectItemId);
   const shouldStoreRelic = keepRequested && availableRelicSlotsNow > 0;

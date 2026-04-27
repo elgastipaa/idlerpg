@@ -200,7 +200,7 @@ function createEmptySanctuaryState() {
       cargoSlots: 2,
       projectSlots: 1,
       extractedItemSlots: 3,
-      relicSlots: 8,
+      relicSlots: 4,
       insuredCargoSlots: 0,
     },
   };
@@ -1143,8 +1143,12 @@ export function mergeStateWithDefaults(base, incoming) {
       ...createEmptySanctuaryState().extractionUpgrades,
       ...(rawSanctuary.extractionUpgrades || {}),
       relicSlots: Math.max(
-        Number(createEmptySanctuaryState().extractionUpgrades?.relicSlots || 1),
-        Math.floor(Number(rawSanctuary?.extractionUpgrades?.relicSlots || 0))
+        1,
+        Math.min(
+          Number(createEmptySanctuaryState().extractionUpgrades?.relicSlots || 4),
+          Math.floor(Number(rawSanctuary?.extractionUpgrades?.relicSlots || 0)) ||
+            Number(createEmptySanctuaryState().extractionUpgrades?.relicSlots || 4)
+        )
       ),
     },
   };

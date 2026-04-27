@@ -920,14 +920,38 @@ export function handleRunFlowAction(state, action, dependencies) {
       const relicArmory = Array.isArray(state.sanctuary?.relicArmory)
         ? state.sanctuary.relicArmory.map(relic => normalizeRelicRecord(relic)).filter(Boolean)
         : [];
+      const targetRelic = relicArmory.find(relic => relic.id === relicId) || null;
+      if (!targetRelic) return state;
       const nextRelicArmory = relicArmory.filter(relic => relic.id !== relicId);
-      if (nextRelicArmory.length === relicArmory.length) return state;
       const nextActiveRelics = ensureValidActiveRelics(
         nextRelicArmory,
         state.sanctuary?.activeRelics || {}
       );
+      const rarityTier = {
+        common: 1,
+        magic: 2,
+        rare: 3,
+        epic: 4,
+        legendary: 5,
+      }[targetRelic?.rarity || "common"] || 1;
+      const rarityMult = {
+        common: 1,
+        magic: 1.4,
+        rare: 2,
+        epic: 3,
+        legendary: 5,
+      }[targetRelic?.rarity || "common"] || 1;
+      const tierValue = Math.max(1, Math.floor(Number(targetRelic?.itemTier || 1)));
+      const essenceGained = Math.max(
+        1,
+        Math.floor((rarityTier + Math.floor(tierValue / 2)) * rarityMult)
+      );
       return {
         ...state,
+        player: {
+          ...(state.player || {}),
+          essence: Math.max(0, Number(state.player?.essence || 0)) + essenceGained,
+        },
         sanctuary: {
           ...createEmptySanctuaryState(),
           ...(state.sanctuary || {}),
@@ -938,7 +962,7 @@ export function handleRunFlowAction(state, action, dependencies) {
           ...state.combat,
           log: [
             ...(state?.combat?.log || []),
-            "SANTUARIO: Una reliquia fue retirada del arsenal.",
+            `SANTUARIO: ${targetRelic?.name || "Reliquia"} extraida del arsenal (+${essenceGained} esencia).`,
           ].slice(-20),
         },
       };

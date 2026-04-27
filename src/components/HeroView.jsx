@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from "react";
 import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 import useViewport from "../hooks/useViewport";
+import SubtabDock from "./ui/SubtabDock";
 
 const SUBVIEW_META = {
   character: { label: "Ficha" },
@@ -11,33 +12,6 @@ const SUBVIEW_META = {
 const Character = lazy(() => import("./Character"));
 const Skills = lazy(() => import("./Skills"));
 const Talents = lazy(() => import("./Talents"));
-
-function buttonStyle({ active = false, disabled = false } = {}) {
-  return {
-    border: "1px solid",
-    borderColor: disabled
-      ? "var(--color-border-primary, #e2e8f0)"
-      : active
-        ? "var(--tone-accent, #4338ca)"
-        : "var(--color-border-primary, #e2e8f0)",
-    background: disabled
-      ? "var(--color-background-tertiary, #f8fafc)"
-      : active
-        ? "var(--tone-accent-soft, #eef2ff)"
-        : "var(--color-background-secondary, #ffffff)",
-    color: disabled
-      ? "var(--color-text-tertiary, #94a3b8)"
-      : active
-        ? "var(--tone-accent, #4338ca)"
-        : "var(--color-text-primary, #1e293b)",
-    borderRadius: "12px",
-    padding: "10px 12px",
-    fontSize: "0.72rem",
-    fontWeight: "900",
-    cursor: disabled ? "not-allowed" : "pointer",
-    minWidth: "110px",
-  };
-}
 
 function getHeroSubview(tab = "character") {
   if (tab === "skills" || tab === "talents") return tab;
@@ -83,27 +57,27 @@ export default function HeroView({ state, dispatch }) {
   const mobileSubtabsScrollable = mobileSubviewCount >= 5;
   const onboardingStep = state?.onboarding?.step || null;
   const talentPoints = Math.max(0, Number(state?.player?.talentPoints || 0));
-  const mobileSubviewDockStyle = {
-    position: "fixed",
-    left: 0,
-    right: 0,
-    bottom: "calc(var(--app-bottom-nav-offset, 72px) + env(safe-area-inset-bottom))",
-    zIndex: 4900,
-    background: "var(--color-background-secondary, #ffffff)",
-    borderTop: "1px solid var(--color-border-secondary, #e2e8f0)",
-    boxShadow: "0 -10px 24px rgba(15,23,42,0.08)",
-    padding: "8px 8px 8px",
-  };
-  const mobileSubviewRowStyle = {
-    display: "flex",
-    gap: "8px",
-    flexWrap: "nowrap",
-    width: "100%",
-    overflowX: mobileSubtabsScrollable ? "auto" : "hidden",
-    overflowY: "hidden",
-    scrollbarWidth: mobileSubtabsScrollable ? "none" : "auto",
-    WebkitOverflowScrolling: "touch",
-  };
+  const subtabEntries = Object.entries(SUBVIEW_META).map(([viewId, meta]) => {
+    const spotlight =
+      (onboardingStep === ONBOARDING_STEPS.HERO_CHARACTER_INTRO && viewId === "character") ||
+      (onboardingStep === ONBOARDING_STEPS.HERO_SKILLS_INTRO && viewId === "skills") ||
+      (onboardingStep === ONBOARDING_STEPS.HERO_TALENTS_INTRO && viewId === "talents");
+    return {
+      id: viewId,
+      label: meta.label,
+      disabled: (reforgeLocked && resolvedSubview !== viewId) || (!hasClass && viewId !== "character"),
+      spotlight,
+      onboardingTarget: spotlight
+        ? viewId === "character"
+          ? "hero-subview-character"
+          : viewId === "skills"
+            ? "hero-subview-skills"
+            : "hero-subview-talents"
+        : undefined,
+      badge: viewId === "talents" && talentPoints > 0 ? (talentPoints > 9 ? "9+" : talentPoints) : null,
+      badgeTone: "danger",
+    };
+  });
 
   return (
     <div style={{ display: "grid", gap: "10px", padding: "10px" }}>
@@ -115,132 +89,14 @@ export default function HeroView({ state, dispatch }) {
         }
       `}</style>
       {showSubviewButtons && (
-        isMobile ? (
-          <div style={mobileSubviewDockStyle}>
-            <div style={mobileSubviewRowStyle}>
-              {Object.entries(SUBVIEW_META).map(([viewId, meta]) => {
-                const active = resolvedSubview === viewId;
-                const disabled = (reforgeLocked && !active) || (!hasClass && viewId !== "character");
-                const spotlight =
-                  (onboardingStep === ONBOARDING_STEPS.HERO_CHARACTER_INTRO && viewId === "character") ||
-                  (onboardingStep === ONBOARDING_STEPS.HERO_SKILLS_INTRO && viewId === "skills") ||
-                  (onboardingStep === ONBOARDING_STEPS.HERO_TALENTS_INTRO && viewId === "talents");
-                return (
-                  <button
-                    key={viewId}
-                    onClick={() => dispatch({ type: "SET_TAB", tab: viewId })}
-                    disabled={disabled}
-                    data-onboarding-target={
-                      spotlight
-                        ? viewId === "character"
-                          ? "hero-subview-character"
-                          : viewId === "skills"
-                          ? "hero-subview-skills"
-                          : "hero-subview-talents"
-                        : undefined
-                    }
-                    style={{
-                      ...buttonStyle({ active, disabled }),
-                      minWidth: mobileSubtabsScrollable ? "84px" : 0,
-                      flex: mobileSubtabsScrollable ? "0 0 auto" : "1 1 0",
-                      padding: "8px 10px",
-                      fontSize: "0.68rem",
-                      whiteSpace: mobileSubtabsScrollable ? "nowrap" : "normal",
-                      position: spotlight ? "relative" : "static",
-                      zIndex: spotlight ? 2 : 1,
-                      boxShadow: spotlight
-                        ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.14)"
-                        : buttonStyle({ active, disabled }).boxShadow,
-                      animation: spotlight ? "heroSubviewSpotlightPulse 1600ms ease-in-out infinite" : "none",
-                    }}
-                  >
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                      <span>{meta.label}</span>
-                      {viewId === "talents" && talentPoints > 0 && (
-                        <span
-                          style={{
-                            minWidth: "18px",
-                            height: "18px",
-                            padding: "0 6px",
-                            borderRadius: "999px",
-                            background: "var(--tone-danger, #ef4444)",
-                            color: "#fff",
-                            fontSize: "0.62rem",
-                            fontWeight: "900",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          {talentPoints > 9 ? "9+" : talentPoints}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {Object.entries(SUBVIEW_META).map(([viewId, meta]) => {
-              const active = resolvedSubview === viewId;
-              const disabled = (reforgeLocked && !active) || (!hasClass && viewId !== "character");
-              const spotlight =
-                (onboardingStep === ONBOARDING_STEPS.HERO_CHARACTER_INTRO && viewId === "character") ||
-                (onboardingStep === ONBOARDING_STEPS.HERO_SKILLS_INTRO && viewId === "skills") ||
-                (onboardingStep === ONBOARDING_STEPS.HERO_TALENTS_INTRO && viewId === "talents");
-              return (
-                <button
-                  key={viewId}
-                  onClick={() => dispatch({ type: "SET_TAB", tab: viewId })}
-                  disabled={disabled}
-                  data-onboarding-target={
-                    spotlight
-                      ? viewId === "character"
-                        ? "hero-subview-character"
-                        : viewId === "skills"
-                        ? "hero-subview-skills"
-                        : "hero-subview-talents"
-                      : undefined
-                  }
-                  style={{
-                    ...buttonStyle({ active, disabled }),
-                    position: spotlight ? "relative" : "static",
-                    zIndex: spotlight ? 2 : 1,
-                    boxShadow: spotlight
-                      ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.14)"
-                      : buttonStyle({ active, disabled }).boxShadow,
-                    animation: spotlight ? "heroSubviewSpotlightPulse 1600ms ease-in-out infinite" : "none",
-                  }}
-                >
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                    <span>{meta.label}</span>
-                    {viewId === "talents" && talentPoints > 0 && (
-                      <span
-                        style={{
-                          minWidth: "18px",
-                          height: "18px",
-                          padding: "0 6px",
-                          borderRadius: "999px",
-                          background: "var(--tone-danger, #ef4444)",
-                          color: "#fff",
-                          fontSize: "0.62rem",
-                          fontWeight: "900",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        {talentPoints > 9 ? "9+" : talentPoints}
-                      </span>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )
+        <SubtabDock
+          entries={subtabEntries}
+          activeId={resolvedSubview}
+          onSelect={viewId => dispatch({ type: "SET_TAB", tab: viewId })}
+          isMobile={isMobile}
+          mobileScrollable={mobileSubtabsScrollable}
+          spotlightAnimationName="heroSubviewSpotlightPulse"
+        />
       )}
 
       <div>

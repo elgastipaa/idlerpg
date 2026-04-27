@@ -497,6 +497,7 @@ export function generateReforgeOptions(item, affixIndex, optionCount = 2, favore
   const currentAffixes = item?.affixes || [];
   const targetAffix = currentAffixes[affixIndex];
   if (!targetAffix?.id) return [];
+  const targetStat = normalizeLegacyStatKey(targetAffix.stat);
 
   const kind = getAffixKind(targetAffix);
   const extraKindPool = (extraPool || []).filter(affix => getAffixKind(affix) === kind);
@@ -529,32 +530,50 @@ export function generateReforgeOptions(item, affixIndex, optionCount = 2, favore
     .length;
 
   const eligible = pool.filter(affix => {
+    const normalizedStat = normalizeLegacyStatKey(affix.stat);
     if (usedIds.has(affix.id)) return false;
     if (usedCategories.has(getAffixCategory(affix))) return false;
-    if (usedStats.has(normalizeLegacyStatKey(affix.stat))) return false;
+    if (usedStats.has(normalizedStat)) return false;
     if (affix.id === targetAffix.id) return false;
-    if (!existingStats.has(normalizeLegacyStatKey(affix.stat))) return true;
+    if (normalizedStat === targetStat) return false;
+    if (!existingStats.has(normalizedStat)) return true;
     if (!allowExistingStatOverlap) return false;
     return existingOverlapCount < maxExistingStatOverlaps;
   });
   const itemTier = item?.itemTier || item?.level || 1;
-  const chosen = uniqueWeightedPick(eligible, optionCount, affix => {
-    const weight = getAffixPoolWeight({
-      affix,
-      itemTier,
-      favoredStats,
-      state: {
-        usedAffixIds: new Set(),
-        usedAffixStats: usedStats,
-        existingStats,
-        overlapCount: existingOverlapCount,
-      },
-      allowExistingStatOverlap,
-      overlapPenalty,
-      maxExistingStatOverlaps,
+  const chosen = [];
+  const chosenStats = new Set();
+  const remaining = [...eligible];
+  while (remaining.length > 0 && chosen.length < optionCount) {
+    const picked = weightedPick(remaining, affix => {
+      const weight = getAffixPoolWeight({
+        affix,
+        itemTier,
+        favoredStats,
+        state: {
+          usedAffixIds: new Set(),
+          usedAffixStats: new Set([...usedStats, ...chosenStats]),
+          existingStats,
+          overlapCount: existingOverlapCount,
+        },
+        allowExistingStatOverlap,
+        overlapPenalty,
+        maxExistingStatOverlaps,
+      });
+      return weight;
     });
-    return weight;
-  });
+    if (!picked) break;
+    const pickedStat = normalizeLegacyStatKey(picked.stat);
+    chosen.push(picked);
+    chosenStats.add(pickedStat);
+    for (let index = remaining.length - 1; index >= 0; index -= 1) {
+      const candidate = remaining[index];
+      if (!candidate) continue;
+      if (candidate.id === picked.id || normalizeLegacyStatKey(candidate.stat) === pickedStat) {
+        remaining.splice(index, 1);
+      }
+    }
+  }
 
   return chosen
     .map(affix => {

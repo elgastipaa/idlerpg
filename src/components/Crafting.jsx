@@ -3,7 +3,6 @@ import useViewport from "../hooks/useViewport";
 import {
   buildCraftedItemPreview,
   getCraftActionState,
-  getCraftUsageSummary,
 } from "../engine/crafting/craftingEngine";
 import { getUnlockedLegendaryPowers } from "../engine/progression/codexEngine";
 import { hasAbyssUnlock } from "../engine/progression/abyssProgression";
@@ -15,20 +14,19 @@ import {
   formatItemDiffValue as formatDiffValue,
   getItemLocation,
   getPrioritizedStatEntries,
-  getTopCompareEntries,
-  formatImplicitSummary,
 } from "../utils/itemPresentation";
 import { getCompactRarityLabel, getItemGlyph, getUpgradeBadgeTone, ITEM_SLOT_GLYPHS } from "../utils/itemVisuals";
+import SubtabDock from "./ui/SubtabDock";
 import {
   FORGE_MODE_META,
   FORGE_MODE_ORDER,
   formatCraftCostLabel,
-  getCraftActionBadge,
   getCraftActionHint,
 } from "./crafting/craftingUi";
 
 const RARITY_WEIGHT = Object.freeze({ common: 0, magic: 1, rare: 2, epic: 3, legendary: 4 });
 const RARITY_ORDER = Object.freeze(["common", "magic", "rare", "epic", "legendary"]);
+const USE_GLOBAL_REFORGE_OVERLAY = true;
 const SLOT_FILTERS = Object.freeze([
   { id: "all", label: "Todo" },
   { id: "weapon", label: "Armas" },
@@ -228,7 +226,6 @@ export default function Crafting({ state, dispatch }) {
   const [selectedAscendPowerId, setSelectedAscendPowerId] = useState(null);
   const [selectedExtractIds, setSelectedExtractIds] = useState([]);
   const [confirmExtract, setConfirmExtract] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [slotFilter, setSlotFilter] = useState("all");
   const [rarityFilter, setRarityFilter] = useState("all");
 
@@ -266,12 +263,13 @@ export default function Crafting({ state, dispatch }) {
 
   useEffect(() => {
     if (!reforgeSession?.itemId) return;
-    setMode("reforge");
-    setSelectedItemId(reforgeSession.itemId);
+    if (mode !== "reforge") setMode("reforge");
+    if (selectedItemId !== reforgeSession.itemId) setSelectedItemId(reforgeSession.itemId);
     if (Number.isInteger(Number(reforgeSession.affixIndex))) {
-      setSelectedAffixIndex(Number(reforgeSession.affixIndex));
+      const sessionAffixIndex = Number(reforgeSession.affixIndex);
+      if (selectedAffixIndex !== sessionAffixIndex) setSelectedAffixIndex(sessionAffixIndex);
     }
-  }, [reforgeSession]);
+  }, [mode, reforgeSession, selectedAffixIndex, selectedItemId]);
 
   useEffect(() => {
     if (mode !== "extract") {
@@ -283,6 +281,14 @@ export default function Crafting({ state, dispatch }) {
   }, [mode]);
 
   useEffect(() => {
+    if (reforgeSession?.itemId) {
+      if (selectedItemId !== reforgeSession.itemId) setSelectedItemId(reforgeSession.itemId);
+      if (Number.isInteger(Number(reforgeSession.affixIndex))) {
+        const sessionAffixIndex = Number(reforgeSession.affixIndex);
+        if (selectedAffixIndex !== sessionAffixIndex) setSelectedAffixIndex(sessionAffixIndex);
+      }
+      return;
+    }
     if (filteredItems.length <= 0) {
       if (selectedItemId != null) setSelectedItemId(null);
       return;
@@ -305,7 +311,7 @@ export default function Crafting({ state, dispatch }) {
       setSelectedAffixIndex(null);
       setSelectedReforgeOption(null);
     }
-  }, [filteredItems, selectedItemId, mode, equipment, reforgeSession, pendingImbueByItemId]);
+  }, [filteredItems, selectedItemId, selectedAffixIndex, mode, equipment, reforgeSession, pendingImbueByItemId]);
 
   useEffect(() => {
     if (!selectedItem || !["polish", "reforge"].includes(mode)) {
@@ -334,17 +340,26 @@ export default function Crafting({ state, dispatch }) {
     Number(sanctuaryResources?.relicDust || 0) >= selectedItemImbueRushCost.relicDust &&
     Number(sanctuaryResources?.sigilFlux || 0) >= selectedItemImbueRushCost.sigilFlux;
 
+  const activeReforgeItemId = reforgeSession?.itemId || null;
+  const activeReforgeAffixIndex = Number.isInteger(Number(reforgeSession?.affixIndex))
+    ? Number(reforgeSession.affixIndex)
+    : selectedAffixIndex;
+  const activeReforgeItem = useMemo(
+    () => (activeReforgeItemId ? allItems.find(item => item.id === activeReforgeItemId) || null : null),
+    [allItems, activeReforgeItemId]
+  );
+
   const selectedItemReforgeOptions = useMemo(() => {
-    if (!selectedItem || mode !== "reforge" || selectedAffixIndex == null) return [];
-    if (
-      reforgeSession &&
-      reforgeSession.itemId === selectedItem.id &&
-      Number(reforgeSession.affixIndex) === Number(selectedAffixIndex)
-    ) {
-      return Array.isArray(reforgeSession.options) ? reforgeSession.options : [];
-    }
-    return [];
-  }, [selectedItem, mode, selectedAffixIndex, reforgeSession]);
+    if (!reforgeSession) return [];
+    return Array.isArray(reforgeSession.options) ? reforgeSession.options : [];
+  }, [reforgeSession]);
+  const hasOpenReforgeOptions =
+    Boolean(reforgeSession?.itemId) &&
+    activeReforgeAffixIndex != null &&
+    selectedItemReforgeOptions.length > 0;
+  const hasStalledReforgeSession =
+    Boolean(reforgeSession?.itemId) &&
+    !hasOpenReforgeOptions;
 
   useEffect(() => {
     if (!selectedReforgeOption || selectedItemReforgeOptions.length <= 0) return;
@@ -352,10 +367,10 @@ export default function Crafting({ state, dispatch }) {
     if (!isValid) setSelectedReforgeOption(null);
   }, [selectedReforgeOption, selectedItemReforgeOptions]);
 
-  const selectedCurrentAffix =
-    selectedItem && selectedAffixIndex != null
-      ? selectedItem.affixes?.[selectedAffixIndex] || null
-      : null;
+  useEffect(() => {
+    if (!hasOpenReforgeOptions || selectedReforgeOption) return;
+    setSelectedReforgeOption(selectedItemReforgeOptions[0] || null);
+  }, [hasOpenReforgeOptions, selectedReforgeOption, selectedItemReforgeOptions]);
 
   const selectedActionReq = useMemo(() => {
     if (!selectedItem) return { mode, costs: {}, can: false, reason: "missing_item" };
@@ -370,17 +385,37 @@ export default function Crafting({ state, dispatch }) {
     }) || { mode, costs: {}, can: false, reason: "missing_req" };
   }, [mode, player, selectedAffixIndex, selectedAscendPowerId, selectedItem, unlockedLegendaryPowerMap]);
 
-  const selectedCompareItem = selectedItem
-    ? (selectedItem.type === "weapon" ? equipment.weapon : equipment.armor)
-    : null;
-
-  const selectedItemUsage = selectedItem ? getCraftUsageSummary(selectedItem, selectedAffixIndex) : null;
-  const selectedCompareEntries = useMemo(() => {
+  const selectedBaseEntries = useMemo(() => {
+    if (!selectedItem?.baseBonus) return [];
+    return getPrioritizedStatEntries(selectedItem.baseBonus || {}, 4)
+      .filter(([, value]) => Math.abs(Number(value || 0)) > 0.0001);
+  }, [selectedItem]);
+  const selectedImplicitEntries = useMemo(() => {
     if (!selectedItem) return [];
-    return getTopCompareEntries(selectedItem, selectedCompareItem, 6)
-      .filter(entry => Math.abs(Number(entry?.diff || 0)) > 0.0001)
+    const implicitBonus = selectedItem?.implicitBonus || {};
+    const implicitUpgradeBonus = selectedItem?.implicitUpgradeBonus || {};
+    const keys = Array.from(new Set([
+      ...Object.keys(implicitBonus),
+      ...Object.keys(implicitUpgradeBonus),
+    ]));
+    return keys
+      .map(key => [key, Number(implicitBonus?.[key] || 0) + Number(implicitUpgradeBonus?.[key] || 0)])
+      .filter(([, value]) => Math.abs(Number(value || 0)) > 0.0001)
+      .sort((left, right) => Math.abs(Number(right?.[1] || 0)) - Math.abs(Number(left?.[1] || 0)))
       .slice(0, 4);
-  }, [selectedCompareItem, selectedItem]);
+  }, [selectedItem]);
+  const selectedBaseSummaryText = useMemo(() => {
+    if (selectedBaseEntries.length <= 0) return "Sin stats base.";
+    return selectedBaseEntries
+      .map(([key, value]) => `${STAT_LABELS[key] || key} ${formatStatValue(key, value)}`)
+      .join(" · ");
+  }, [selectedBaseEntries]);
+  const selectedImplicitSummaryText = useMemo(() => {
+    if (selectedImplicitEntries.length <= 0) return "Sin implicitos activos.";
+    return selectedImplicitEntries
+      .map(([key, value]) => `${STAT_LABELS[key] || key} ${formatStatValue(key, value)}`)
+      .join(" · ");
+  }, [selectedImplicitEntries]);
 
   const selectedUpgradePreview = useMemo(() => {
     if (!selectedItem || mode !== "upgrade") return null;
@@ -409,6 +444,14 @@ export default function Crafting({ state, dispatch }) {
       .slice(0, 6);
   }, [selectedItem, selectedUpgradePreview]);
 
+  const selectedUpgradeRatingDelta = useMemo(() => {
+    if (!selectedItem || !selectedUpgradePreview) return 0;
+    return Math.round(Number(selectedUpgradePreview?.rating || 0) - Number(selectedItem?.rating || 0));
+  }, [selectedItem, selectedUpgradePreview]);
+  const visibleUpgradeRowLimit = isMobile ? 3 : 5;
+  const visibleUpgradeRows = selectedUpgradeDeltas.slice(0, visibleUpgradeRowLimit);
+  const hiddenUpgradeRowCount = Math.max(0, selectedUpgradeDeltas.length - visibleUpgradeRows.length);
+
   const selectedImbueCountdownFinished =
     selectedItemImbueJob?.status === "running" && selectedItemImbueRemainingMs <= 0;
   const selectedImbueJobRunning =
@@ -416,36 +459,19 @@ export default function Crafting({ state, dispatch }) {
   const selectedImbueJobClaimable =
     mode === "ascend" && (selectedItemImbueJob?.status === "claimable" || selectedImbueCountdownFinished);
 
-  const selectedCurrentOptionIsKeep =
-    mode === "reforge" &&
-    selectedCurrentAffix &&
-    selectedReforgeOption &&
-    isSameReforgeOption(selectedCurrentAffix, selectedReforgeOption);
-
   const selectedActionDisabled = (() => {
+    if (mode === "reforge" && selectedItemReforgeOptions.length > 0) {
+      if (activeReforgeAffixIndex == null) return true;
+      // Reforge confirm uses the already-paid session; don't gate by a fresh cost check.
+      return !selectedReforgeOption;
+    }
     if (!selectedItem) return true;
     if (mode === "extract") return true;
     if (selectedImbueJobRunning) return true;
     if (mode === "polish" && selectedAffixIndex == null) return true;
-    if (mode === "reforge" && selectedAffixIndex == null) return true;
-    if (mode === "reforge" && selectedItemReforgeOptions.length > 0 && !selectedReforgeOption) return true;
+    if (mode === "reforge" && activeReforgeAffixIndex == null) return true;
     if (mode === "ascend" && selectedImbueJobClaimable) return false;
     return !selectedActionReq.can;
-  })();
-
-  const selectedActionLabel = (() => {
-    if (mode === "ascend") {
-      if (selectedImbueJobClaimable) return "RECLAMAR IMBUIR";
-      if (selectedImbueJobRunning) return "IMBUIR EN CURSO";
-      return "INICIAR IMBUIR";
-    }
-    if (mode === "reforge") {
-      if (selectedItemReforgeOptions.length > 0) {
-        return selectedCurrentOptionIsKeep ? "MANTENER LINEA" : "CONFIRMAR REFORJA";
-      }
-      return "PAGAR REFORJA";
-    }
-    return FORGE_MODE_META[mode]?.cta || "APLICAR";
   })();
 
   const selectedActionHint = (() => {
@@ -461,26 +487,14 @@ export default function Crafting({ state, dispatch }) {
     if (mode === "reforge" && selectedItemReforgeOptions.length > 0) return "Costo ya pagado";
     return formatCraftCostLabel(selectedActionReq?.costs || {});
   })();
+  const selectedActionGoldCost = Math.max(0, Number(selectedActionReq?.costs?.gold || 0));
+  const selectedActionEntropyCost = Math.max(0, Number(selectedActionReq?.costs?.entropy || 0));
 
   const selectedExtractEssence = useMemo(() => {
     if (selectedExtractIds.length <= 0) return 0;
     const byId = Object.fromEntries(allItems.map(item => [item.id, item]));
     return selectedExtractIds.reduce((total, itemId) => total + computeExtractYield(byId[itemId] || {}), 0);
   }, [allItems, selectedExtractIds]);
-
-  const selectedAffixAdvancedData = useMemo(() => {
-    if (!selectedItem || selectedAffixIndex == null) return null;
-    const lineCraft = selectedItem?.crafting?.lineCraftCounts?.[String(selectedAffixIndex)] || { polish: 0, reforge: 0 };
-    const affix = selectedItem?.affixes?.[selectedAffixIndex] || null;
-    if (!affix) return null;
-    return {
-      affix,
-      lineCraft,
-      quality: affix?.quality || (affix?.lootOnlyQuality ? "excellent" : "normal"),
-      source: affix?.source || "base",
-      legacyTier: Number.isInteger(Number(affix?.legacyTier)) ? Number(affix.legacyTier) : null,
-    };
-  }, [selectedAffixIndex, selectedItem]);
 
   const selectedAscendPowers = useMemo(() => {
     if (!selectedItem || mode !== "ascend" || selectedActionReq?.nextRarity !== "legendary") return [];
@@ -489,14 +503,32 @@ export default function Crafting({ state, dispatch }) {
 
   const selectedAscendPower = selectedAscendPowerId ? unlockedLegendaryPowerMap[selectedAscendPowerId] || null : null;
 
+  const isReforgeLocked = Boolean(reforgeSession?.itemId);
+  const canSwitchMode = nextMode => !isReforgeLocked || nextMode === "reforge";
   const hasAnyItems = filteredItems.length > 0;
   const canOpenAbyssAffixes = hasAbyssCraftingAffixes && ["epic", "legendary"].includes(selectedItem?.rarity);
   const selectedEntropyState = selectedItem ? getEntropyState(selectedItem) : null;
   const selectedEntropy = Math.max(0, Number(selectedItem?.crafting?.entropy || 0));
   const selectedEntropyCap = Math.max(1, Number(selectedItem?.crafting?.entropyCap || 1));
+  const selectedEntropyRatio = Math.max(0, Math.min(1, selectedEntropyCap > 0 ? selectedEntropy / selectedEntropyCap : 0));
+  const showTopToolbar = !isMobile || isReforgeLocked;
+  const forgeSubtabEntries = useMemo(
+    () => FORGE_MODE_ORDER.map(modeId => ({
+      id: modeId,
+      label: FORGE_MODE_META[modeId]?.label || modeId,
+      tone: FORGE_MODE_META[modeId]?.color,
+      disabled: !canSwitchMode(modeId),
+    })),
+    [isReforgeLocked]
+  );
+  const selectForgeMode = nextMode => {
+    if (!canSwitchMode(nextMode)) return;
+    setMode(nextMode);
+    setSelectedReforgeOption(null);
+  };
 
   const executePrimaryAction = () => {
-    if (!selectedItem) return;
+    if (!selectedItem && !activeReforgeItemId) return;
 
     if (mode === "upgrade") {
       if (!selectedActionReq.can) return;
@@ -511,15 +543,17 @@ export default function Crafting({ state, dispatch }) {
     }
 
     if (mode === "reforge") {
-      if (selectedAffixIndex == null) return;
+      const targetItemId = activeReforgeItemId || selectedItem.id;
+      const targetAffixIndex = activeReforgeAffixIndex;
+      if (!targetItemId || targetAffixIndex == null) return;
 
       if (selectedItemReforgeOptions.length <= 0) {
         if (!selectedActionReq.can) return;
         dispatch({
           type: "CRAFT_REFORGE_PREVIEW",
           payload: {
-            itemId: selectedItem.id,
-            affixIndex: selectedAffixIndex,
+            itemId: targetItemId,
+            affixIndex: targetAffixIndex,
             favoredStats: [],
             allowAbyssAffixes: canOpenAbyssAffixes,
           },
@@ -532,8 +566,8 @@ export default function Crafting({ state, dispatch }) {
       dispatch({
         type: "CRAFT_REFORGE_ITEM",
         payload: {
-          itemId: selectedItem.id,
-          affixIndex: selectedAffixIndex,
+          itemId: targetItemId,
+          affixIndex: targetAffixIndex,
           replacementAffix: selectedReforgeOption,
         },
       });
@@ -603,58 +637,51 @@ export default function Crafting({ state, dispatch }) {
     setConfirmExtract(false);
   };
 
-  const isReforgeLocked = Boolean(reforgeSession?.itemId);
-  const canSwitchMode = nextMode => !isReforgeLocked || nextMode === "reforge";
+  const cancelReforgePreview = () => {
+    if (!reforgeSession?.itemId) return;
+    dispatch({ type: "CRAFT_CANCEL_REFORGE_SESSION" });
+    setSelectedReforgeOption(null);
+  };
+
+  const confirmActiveReforgeSession = () => {
+    if (!activeReforgeItemId || activeReforgeAffixIndex == null || !selectedReforgeOption) return;
+    dispatch({
+      type: "CRAFT_REFORGE_ITEM",
+      payload: {
+        itemId: activeReforgeItemId,
+        affixIndex: activeReforgeAffixIndex,
+        replacementAffix: selectedReforgeOption,
+      },
+    });
+    setSelectedReforgeOption(null);
+  };
 
   const craftingLog = Array.isArray(state?.combat?.craftingLog) ? state.combat.craftingLog : [];
 
   return (
     <div style={rootStyle(isMobile)}>
-      <section style={topToolbarStyle}>
-        <div style={resourceStripStyle}>
-          <span style={resourceChipStyle}>Oro {formatNumber(player?.gold || 0)}</span>
-          <span style={resourceChipStyle}>Esencia {formatNumber(player?.essence || 0)}</span>
-          <span style={resourceChipStyle}>Polvo {formatNumber(sanctuaryResources?.relicDust || 0)}</span>
-          <span style={resourceChipStyle}>Flux {formatNumber(sanctuaryResources?.sigilFlux || 0)}</span>
-        </div>
+      {showTopToolbar && (
+        <section style={topToolbarStyle}>
+          {!isMobile && (
+            <SubtabDock
+              entries={forgeSubtabEntries}
+              activeId={mode}
+              onSelect={selectForgeMode}
+              isMobile={false}
+              rowStyle={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: "5px" }}
+            />
+          )}
 
-        {!isMobile && (
-          <div style={toolStripStyle}>
-            {FORGE_MODE_ORDER.map(modeId => {
-              const active = modeId === mode;
-              const disabled = !canSwitchMode(modeId);
-              return (
-                <button
-                  key={modeId}
-                  onClick={() => {
-                    if (disabled) return;
-                    setMode(modeId);
-                    setSelectedReforgeOption(null);
-                  }}
-                  disabled={disabled}
-                  style={modeButtonStyle({
-                    active,
-                    disabled,
-                    tone: FORGE_MODE_META[modeId]?.color,
-                    isMobile,
-                  })}
-                >
-                  {FORGE_MODE_META[modeId]?.label || modeId}
-                </button>
-              );
-            })}
-          </div>
-        )}
+          {isReforgeLocked && (
+            <div style={lockNoticeStyle}>
+              Reforja abierta: termina esta decision antes de cambiar de herramienta.
+            </div>
+          )}
+        </section>
+      )}
 
-        {isReforgeLocked && (
-          <div style={lockNoticeStyle}>
-            Reforja abierta: termina esta decision antes de cambiar de herramienta.
-          </div>
-        )}
-      </section>
-
-      <div style={mainGridStyle(isMobile)}>
-        <section style={panelStyle}>
+      <div style={mainGridStyle()}>
+        <section style={inventoryPanelStyle(isMobile)}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ fontSize: "0.78rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
               Items ({filteredItems.length})
@@ -678,7 +705,7 @@ export default function Crafting({ state, dispatch }) {
           )}
 
           {hasAnyItems && (
-            <div style={itemListStyle(isMobile)}>
+            <div style={itemListStyle}>
               {filteredItems.map(item => {
                 const equipped = isItemEquipped(item, equipment);
                 const hasPendingImbueJob = Boolean(pendingImbueByItemId[item.id]);
@@ -787,7 +814,7 @@ export default function Crafting({ state, dispatch }) {
           )}
         </section>
 
-        <section style={panelStyle}>
+        <section style={workbenchPanelStyle(isMobile)}>
           {!selectedItem && (
             <div style={emptyStateStyle}>Selecciona un item para abrir la mesa de trabajo.</div>
           )}
@@ -795,9 +822,10 @@ export default function Crafting({ state, dispatch }) {
           {selectedItem && (
             <div style={{ display: "grid", gap: "10px" }}>
               <div style={workbenchHeaderStyle}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={eyebrowStyle}>Mesa de trabajo</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginTop: "2px" }}>
+                <div style={eyebrowStyle}>Mesa de trabajo</div>
+
+                <div style={workbenchTitleRowStyle}>
+                  <div style={workbenchTitleMainStyle}>
                     <span style={rarityBadgeStyle(selectedItem?.rarity)}>{getCompactRarityLabel(selectedItem?.rarity)}</span>
                     <span style={{ fontSize: "0.78rem", fontWeight: "900", color: "var(--color-text-secondary, #475569)" }}>{getItemGlyph(selectedItem?.name)}</span>
                     <span style={{ fontSize: "0.86rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.25 }}>
@@ -805,333 +833,382 @@ export default function Crafting({ state, dispatch }) {
                     </span>
                     {(selectedItem?.level || 0) > 0 && <span style={upgradeBadgeStyle(selectedItem.level)}>+{selectedItem.level}</span>}
                   </div>
-                  <div style={{ ...subtleTextStyle, marginTop: "4px" }}>
+                  <div style={headerRatingBlockStyle}>
                     Rating {formatNumber(selectedItem?.rating || 0)}
-                    {selectedCompareItem && (
-                      <span>
-                        {" "}· vs equipado {Math.round(Number(selectedItem?.rating || 0) - Number(selectedCompareItem?.rating || 0))}
-                      </span>
-                    )}
-                  </div>
-                  {selectedCompareItem && selectedCompareEntries.length > 0 && (
-                    <div style={compareListStyle}>
-                      {selectedCompareEntries.map(entry => (
-                        <div key={`compare-${entry.key}`} style={compareRowStyle}>
-                          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {STAT_LABELS[entry.key] || entry.key}
-                          </span>
-                          <span style={diffBadgeStyle(entry.diff)}>{formatDiffValue(entry.key, entry.diff)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div style={selectedMetaRowStyle}>
-                    <span style={neutralPillStyle}>Ent {selectedEntropy}/{selectedEntropyCap}</span>
-                    {selectedEntropyState && (
-                      <span style={{ ...neutralPillStyle, ...toneChipStyle(selectedEntropyState.tone) }}>
-                        {selectedEntropyState.label}
-                      </span>
-                    )}
-                    <span style={neutralPillStyle}>{selectedActionCostLabel}</span>
                   </div>
                 </div>
-                <button onClick={() => setShowAdvanced(current => !current)} style={secondaryButtonStyle}>
-                  {showAdvanced ? "Ocultar avanzado" : "Avanzado"}
-                </button>
+
+                <div style={entropyRowStyle}>
+                  <div style={entropyMeterStyle}>
+                    <div style={entropyMeterHeaderStyle}>
+                      <span>Entropia</span>
+                      <span>{selectedEntropy}/{selectedEntropyCap}</span>
+                    </div>
+                    <div style={entropyTrackStyle}>
+                      <div style={entropyFillStyle({ ratio: selectedEntropyRatio, tone: selectedEntropyState?.tone })} />
+                    </div>
+                  </div>
+                  {selectedEntropyState && (
+                    <span style={{ ...neutralPillStyle, ...toneChipStyle(selectedEntropyState.tone) }}>
+                      {selectedEntropyState.label}
+                    </span>
+                  )}
+                </div>
+
+                {mode !== "upgrade" && (
+                  <div style={itemSummaryTextBlockStyle}>
+                    <div style={itemSummaryLineStyle}>
+                      <span style={itemSummaryLineLabelStyle}>Base:</span>
+                      <span style={itemSummaryLineValueStyle}>{selectedBaseSummaryText}</span>
+                    </div>
+                    <div style={itemSummaryLineStyle}>
+                      <span style={itemSummaryLineLabelStyle}>Impl:</span>
+                      <span style={itemSummaryImplicitValueStyle}>{selectedImplicitSummaryText}</span>
+                    </div>
+                  </div>
+                )}
+
               </div>
 
               {mode === "extract" ? (
-                <section style={actionPanelStyle}>
-                  <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-                    Extraccion desde Santuario
-                  </div>
-                  <div style={subtleTextStyle}>
-                    Convierte piezas no equipadas en esencia.
+                <div style={polishInlineLayoutStyle(isMobile)}>
+                  <div style={polishLinesColumnStyle}>
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                      <button onClick={() => selectExtractByRarityLimit("common")} style={secondaryButtonStyle}>Seleccionar common</button>
+                      <button onClick={() => selectExtractByRarityLimit("magic")} style={secondaryButtonStyle}>Hasta magic</button>
+                      <button onClick={() => selectExtractByRarityLimit("rare")} style={secondaryButtonStyle}>Hasta rare</button>
+                      <button onClick={clearExtractSelection} style={secondaryButtonStyle}>Limpiar</button>
+                    </div>
+
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                      <span style={neutralPillStyle}>Items {selectedExtractIds.length}</span>
+                      <span style={neutralPillStyle}>Esencia estimada +{formatNumber(selectedExtractEssence)}</span>
+                    </div>
                   </div>
 
-                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                    <button onClick={() => selectExtractByRarityLimit("common")} style={secondaryButtonStyle}>Seleccionar common</button>
-                    <button onClick={() => selectExtractByRarityLimit("magic")} style={secondaryButtonStyle}>Hasta magic</button>
-                    <button onClick={() => selectExtractByRarityLimit("rare")} style={secondaryButtonStyle}>Hasta rare</button>
-                    <button onClick={clearExtractSelection} style={secondaryButtonStyle}>Limpiar</button>
+                  <div style={polishActionColumnStyle}>
+                    <button
+                      onClick={extractSelected}
+                      disabled={selectedExtractIds.length <= 0}
+                      style={{
+                        ...mainActionButtonStyle({ disabled: selectedExtractIds.length <= 0, danger: true, compact: false }),
+                        width: "100%",
+                        minHeight: isMobile ? "58px" : "64px",
+                        whiteSpace: "normal",
+                        alignSelf: "stretch",
+                        display: "grid",
+                        gap: "2px",
+                        alignContent: "center",
+                        justifyItems: "center",
+                        padding: isMobile ? "7px 8px" : "8px 10px",
+                      }}
+                    >
+                      <span style={upgradeActionButtonLabelStyle}>
+                        {selectedExtractIds.length <= 0
+                          ? "Extraer"
+                          : confirmExtract
+                            ? "Confirmar extraccion"
+                            : "Extraer"}
+                      </span>
+                      <span style={upgradeActionButtonCostStyle}>
+                        {selectedExtractIds.length} items · +{formatNumber(selectedExtractEssence)} esencia
+                      </span>
+                    </button>
                   </div>
-
-                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                    <span style={neutralPillStyle}>Items {selectedExtractIds.length}</span>
-                    <span style={neutralPillStyle}>Esencia estimada +{formatNumber(selectedExtractEssence)}</span>
-                  </div>
-
-                  <button
-                    onClick={extractSelected}
-                    disabled={selectedExtractIds.length <= 0}
-                    style={mainActionButtonStyle({ disabled: selectedExtractIds.length <= 0, danger: true })}
-                  >
-                    {selectedExtractIds.length <= 0
-                      ? "SELECCIONA ITEMS"
-                      : confirmExtract
-                        ? `CONFIRMAR EXTRACCION (${selectedExtractIds.length})`
-                        : `EXTRAER SELECCIONADOS (${selectedExtractIds.length})`}
-                  </button>
-                </section>
+                </div>
               ) : (
                 <React.Fragment>
-                  {(mode === "polish" || mode === "reforge") && (
-                    <section style={actionPanelStyle}>
-                      <div style={{ fontSize: "0.68rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                        Lineas del item
-                      </div>
-                      {(selectedItem?.affixes || []).length <= 0 ? (
-                        <div style={subtleTextStyle}>Esta pieza no tiene lineas para trabajar.</div>
-                      ) : (
-                        <div style={{ display: "grid", gap: "6px" }}>
-                          {(selectedItem?.affixes || []).map((affix, index) => {
-                            const selected = index === selectedAffixIndex;
-                            const isExcellent = affix?.quality === "excellent" || affix?.lootOnlyQuality;
-                            return (
-                              <button
-                                key={`${selectedItem.id}-affix-${index}`}
-                                onClick={() => setSelectedAffixIndex(index)}
-                                style={affixRowButtonStyle({ selected, mode, isExcellent })}
-                              >
-                                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                                  <span style={{ fontSize: "0.68rem", fontWeight: "900" }}>
-                                    {STAT_LABELS[affix?.stat] || affix?.stat}
-                                  </span>
-                                  <span style={{ fontSize: "0.64rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-                                    +{formatStatValue(affix?.stat, affix?.rolledValue ?? affix?.value ?? 0)}
-                                  </span>
-                                </div>
-                                <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", marginTop: "4px" }}>
-                                  <span style={neutralPillStyle}>
-                                    Rango {formatStatValue(affix?.stat, affix?.range?.min ?? 0)} - {formatStatValue(affix?.stat, affix?.range?.max ?? 0)}
-                                  </span>
-                                  {isExcellent && (
-                                    <span style={{ ...neutralPillStyle, borderColor: "var(--tone-warning, #fcd34d)", background: "var(--tone-warning-soft, #fefce8)", color: "#a16207" }}>
-                                      Excelente
+                  {mode === "polish" && (
+                    <div style={polishInlineLayoutStyle(isMobile)}>
+                      <div style={polishLinesColumnStyle}>
+                        {(selectedItem?.affixes || []).length <= 0 ? (
+                          <div style={subtleTextStyle}>Esta pieza no tiene lineas para trabajar.</div>
+                        ) : (
+                          <div style={{ display: "grid", gap: "6px" }}>
+                            {(selectedItem?.affixes || []).map((affix, index) => {
+                              const selected = index === selectedAffixIndex;
+                              const isExcellent = affix?.quality === "excellent" || affix?.lootOnlyQuality;
+                              return (
+                                <button
+                                  key={`${selectedItem.id}-affix-${index}`}
+                                  onClick={() => setSelectedAffixIndex(index)}
+                                  style={affixRowButtonStyle({ selected, mode, isExcellent })}
+                                >
+                                  <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                                    <span style={{ fontSize: "0.68rem", fontWeight: "900" }}>
+                                      {STAT_LABELS[affix?.stat] || affix?.stat}
                                     </span>
-                                  )}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </section>
-                  )}
+                                    <span style={{ fontSize: "0.64rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                                      +{formatStatValue(affix?.stat, affix?.rolledValue ?? affix?.value ?? 0)}
+                                    </span>
+                                  </div>
+                                  <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", marginTop: "4px" }}>
+                                    <span style={neutralPillStyle}>
+                                      Rango {formatStatValue(affix?.stat, affix?.range?.min ?? 0)} - {formatStatValue(affix?.stat, affix?.range?.max ?? 0)}
+                                    </span>
+                                    {isExcellent && (
+                                      <span style={{ ...neutralPillStyle, borderColor: "var(--tone-warning, #fcd34d)", background: "var(--tone-warning-soft, #fefce8)", color: "#a16207" }}>
+                                        Excelente
+                                      </span>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
 
-                  {mode === "upgrade" && (
-                    <section style={actionPanelStyle}>
-                      <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-                        Preview de +1
+                      <div style={polishActionColumnStyle}>
+                        <button
+                          disabled={selectedActionDisabled}
+                          onClick={executePrimaryAction}
+                          style={{
+                            ...mainActionButtonStyle({ disabled: selectedActionDisabled, compact: false }),
+                            width: "100%",
+                            minHeight: isMobile ? "58px" : "64px",
+                            whiteSpace: "normal",
+                            alignSelf: "stretch",
+                            display: "grid",
+                            gap: "2px",
+                            alignContent: "center",
+                            justifyItems: "center",
+                            padding: isMobile ? "7px 8px" : "8px 10px",
+                          }}
+                        >
+                          <span style={upgradeActionButtonLabelStyle}>Afinar</span>
+                          <span style={upgradeActionButtonCostStyle}>{selectedActionCostLabel}</span>
+                        </button>
+                        {selectedActionReq?.maxUses != null && (
+                          <div style={polishActionMetaStyle}>
+                            Limite {selectedActionReq.usedUses || 0}/{selectedActionReq.maxUses}
+                          </div>
+                        )}
                       </div>
-                      {selectedUpgradeDeltas.length <= 0 ? (
-                        <div style={subtleTextStyle}>Sin cambios visibles para el siguiente nivel.</div>
-                      ) : (
-                        <div style={{ display: "grid", gap: "5px" }}>
-                          {selectedUpgradeDeltas.map(entry => (
-                            <div key={`upgrade-delta-${entry.key}`} style={deltaRowStyle}>
-                              <span>{STAT_LABELS[entry.key] || entry.key}</span>
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                                <span style={{ fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-                                  {formatStatValue(entry.key, entry.currentValue)} {"->"} {formatStatValue(entry.key, entry.nextValue)}
-                                </span>
-                                <span style={diffBadgeStyle(entry.delta)}>{formatDiffValue(entry.key, entry.delta)}</span>
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </section>
-                  )}
-
-                  {mode === "polish" && selectedCurrentAffix && (
-                    <section style={actionPanelStyle}>
-                      <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-                        Afinar linea seleccionada
-                      </div>
-                      <div style={subtleTextStyle}>
-                        Ajusta solo el valor de {STAT_LABELS[selectedCurrentAffix?.stat] || selectedCurrentAffix?.stat}. No cambia el atributo ni la calidad.
-                      </div>
-                    </section>
+                    </div>
                   )}
 
                   {mode === "reforge" && (
-                    <section style={actionPanelStyle}>
-                      <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-                        Reforja
-                      </div>
-                      <div style={subtleTextStyle}>
-                        Pool general: mantienes la linea actual o eliges una opcion nueva.
+                    <div style={polishInlineLayoutStyle(isMobile)}>
+                      <div style={polishLinesColumnStyle}>
+                        {(selectedItem?.affixes || []).length <= 0 ? (
+                          <div style={subtleTextStyle}>Esta pieza no tiene lineas para trabajar.</div>
+                        ) : (
+                          <div style={{ display: "grid", gap: "6px" }}>
+                            {(selectedItem?.affixes || []).map((affix, index) => {
+                              const selected = index === selectedAffixIndex;
+                              const isExcellent = affix?.quality === "excellent" || affix?.lootOnlyQuality;
+                              return (
+                                <button
+                                  key={`${selectedItem.id}-affix-${index}`}
+                                  onClick={() => setSelectedAffixIndex(index)}
+                                  style={affixRowButtonStyle({ selected, mode, isExcellent })}
+                                >
+                                  <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                                    <span style={{ fontSize: "0.68rem", fontWeight: "900" }}>
+                                      {STAT_LABELS[affix?.stat] || affix?.stat}
+                                    </span>
+                                    <span style={{ fontSize: "0.64rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                                      +{formatStatValue(affix?.stat, affix?.rolledValue ?? affix?.value ?? 0)}
+                                    </span>
+                                  </div>
+                                  <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", marginTop: "4px" }}>
+                                    <span style={neutralPillStyle}>
+                                      Rango {formatStatValue(affix?.stat, affix?.range?.min ?? 0)} - {formatStatValue(affix?.stat, affix?.range?.max ?? 0)}
+                                    </span>
+                                    {isExcellent && (
+                                      <span style={{ ...neutralPillStyle, borderColor: "var(--tone-warning, #fcd34d)", background: "var(--tone-warning-soft, #fefce8)", color: "#a16207" }}>
+                                        Excelente
+                                      </span>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {selectedItemReforgeOptions.length > 0 && (
+                          <div style={subtleTextStyle}>
+                            Preview abierta: elige opcion en el overlay para confirmar la reforja.
+                          </div>
+                        )}
                       </div>
 
-                      {selectedItemReforgeOptions.length > 0 && selectedAffixIndex != null && (
-                        <div style={{ display: "grid", gap: "6px" }}>
-                          {selectedItemReforgeOptions.map((option, index) => {
-                            const selected = isSameReforgeOption(option, selectedReforgeOption);
-                            const nextAffixes = (selectedItem?.affixes || []).map((affix, affixIndex) => (
-                              affixIndex === selectedAffixIndex ? option : affix
-                            ));
-                            const preview = buildCraftedItemPreview(selectedItem, { affixes: nextAffixes });
-                            const ratingDelta = Math.round(Number(preview?.rating || 0) - Number(selectedItem?.rating || 0));
-
-                            return (
-                              <button
-                                key={`${option?.id || option?.stat}-${index}`}
-                                onClick={() => setSelectedReforgeOption(option)}
-                                style={reforgeOptionCardStyle({ selected })}
-                              >
-                                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                                  <span style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-                                    {index === 0 ? "Mantener actual" : (STAT_LABELS[option?.stat] || option?.stat)}
-                                  </span>
-                                  <span style={neutralPillStyle}>{index === 0 ? "Actual" : "Opcion"}</span>
-                                </div>
-                                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "4px" }}>
-                                  <span style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #475569)", fontWeight: "800" }}>
-                                    +{formatStatValue(option?.stat, option?.rolledValue ?? option?.value ?? 0)}
-                                  </span>
-                                  <span style={{
-                                    ...neutralPillStyle,
-                                    color: ratingDelta > 0
-                                      ? "var(--tone-success-strong, #166534)"
-                                      : ratingDelta < 0
-                                        ? "var(--tone-danger, #D85A30)"
-                                        : "var(--color-text-secondary, #64748b)",
-                                  }}>
-                                    Rating {ratingDelta > 0 ? `+${ratingDelta}` : `${ratingDelta}`}
-                                  </span>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </section>
+                      <div style={polishActionColumnStyle}>
+                        <button
+                          disabled={selectedActionDisabled}
+                          onClick={executePrimaryAction}
+                          style={{
+                            ...mainActionButtonStyle({ disabled: selectedActionDisabled, compact: false }),
+                            width: "100%",
+                            minHeight: isMobile ? "58px" : "64px",
+                            whiteSpace: "normal",
+                            alignSelf: "stretch",
+                            display: "grid",
+                            gap: "2px",
+                            alignContent: "center",
+                            justifyItems: "center",
+                            padding: isMobile ? "7px 8px" : "8px 10px",
+                          }}
+                        >
+                          <span style={upgradeActionButtonLabelStyle}>
+                            {hasOpenReforgeOptions ? "Confirmar reforja" : "Reforjar"}
+                          </span>
+                          <span style={upgradeActionButtonCostStyle}>{selectedActionCostLabel}</span>
+                        </button>
+                        {selectedActionHint && (
+                          <div style={polishActionMetaStyle}>{selectedActionHint}</div>
+                        )}
+                        {selectedActionReq?.maxUses != null && (
+                          <div style={polishActionMetaStyle}>
+                            Limite {selectedActionReq.usedUses || 0}/{selectedActionReq.maxUses}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
 
                   {mode === "ascend" && (
-                    <section style={actionPanelStyle}>
-                      <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-                        Imbuir
+                    <div style={polishInlineLayoutStyle(isMobile)}>
+                      <div style={polishLinesColumnStyle}>
+                        {selectedActionReq?.nextRarity === "legendary" && (
+                          <div style={{ display: "grid", gap: "6px" }}>
+                            <button
+                              onClick={() => setSelectedAscendPowerId(null)}
+                              style={powerOptionStyle({ selected: !selectedAscendPowerId })}
+                            >
+                              Sin poder injertado
+                            </button>
+
+                            {selectedAscendPowers.length > 0 ? selectedAscendPowers.map(power => (
+                              <button
+                                key={power.id}
+                                onClick={() => setSelectedAscendPowerId(power.id)}
+                                style={powerOptionStyle({ selected: selectedAscendPowerId === power.id })}
+                              >
+                                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                                  <span style={{ fontSize: "0.68rem", fontWeight: "900" }}>{power.name}</span>
+                                  <span style={neutralPillStyle}>{power.archetype}</span>
+                                </div>
+                                <div style={{ ...subtleTextStyle, marginTop: "4px" }}>{power.shortLabel}</div>
+                              </button>
+                            )) : (
+                              <div style={subtleTextStyle}>No hay poderes desbloqueados todavia.</div>
+                            )}
+                          </div>
+                        )}
+
+                        {selectedItemImbueJob && (
+                          <div style={{ border: "1px solid rgba(79,70,229,0.24)", background: "var(--tone-accent-soft, #eef2ff)", borderRadius: "10px", padding: "10px", display: "grid", gap: "8px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                              <span style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", color: "var(--tone-accent, #4338ca)" }}>
+                                Job de imbuir
+                              </span>
+                              <span style={neutralPillStyle}>
+                                {selectedImbueJobClaimable ? "Listo" : `Restante ${formatRemainingDuration(selectedItemImbueRemainingMs)}`}
+                              </span>
+                            </div>
+
+                            {selectedImbueJobRunning && (
+                              <button
+                                onClick={() => dispatch({ type: "RUSH_SANCTUARY_JOB", jobId: selectedItemImbueJob.id, now: Date.now() })}
+                                disabled={!selectedItemImbueCanRush}
+                                style={mainActionButtonStyle({ disabled: !selectedItemImbueCanRush, warning: true })}
+                              >
+                                {selectedItemImbueCanRush
+                                  ? `RUSH ${selectedItemImbueRushCost.relicDust} polvo · ${selectedItemImbueRushCost.sigilFlux} flux`
+                                  : `RUSH BLOQUEADO · ${selectedItemImbueRushCost.relicDust} polvo / ${selectedItemImbueRushCost.sigilFlux} flux`}
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
 
-                      {selectedActionReq?.nextRarity === "legendary" && (
-                        <div style={{ display: "grid", gap: "6px" }}>
-                          <button
-                            onClick={() => setSelectedAscendPowerId(null)}
-                            style={powerOptionStyle({ selected: !selectedAscendPowerId })}
-                          >
-                            Sin poder injertado
-                          </button>
-
-                          {selectedAscendPowers.length > 0 ? selectedAscendPowers.map(power => (
-                            <button
-                              key={power.id}
-                              onClick={() => setSelectedAscendPowerId(power.id)}
-                              style={powerOptionStyle({ selected: selectedAscendPowerId === power.id })}
-                            >
-                              <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                                <span style={{ fontSize: "0.68rem", fontWeight: "900" }}>{power.name}</span>
-                                <span style={neutralPillStyle}>{power.archetype}</span>
-                              </div>
-                              <div style={{ ...subtleTextStyle, marginTop: "4px" }}>{power.shortLabel}</div>
-                            </button>
-                          )) : (
-                            <div style={subtleTextStyle}>No hay poderes desbloqueados todavia.</div>
-                          )}
-                        </div>
-                      )}
-
-                      {selectedItemImbueJob && (
-                        <div style={{ border: "1px solid rgba(79,70,229,0.24)", background: "var(--tone-accent-soft, #eef2ff)", borderRadius: "10px", padding: "10px", display: "grid", gap: "8px" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                            <span style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", color: "var(--tone-accent, #4338ca)" }}>
-                              Job de imbuir
-                            </span>
-                            <span style={neutralPillStyle}>
-                              {selectedImbueJobClaimable ? "Listo" : `Restante ${formatRemainingDuration(selectedItemImbueRemainingMs)}`}
-                            </span>
-                          </div>
-
-                          {selectedImbueJobRunning && (
-                            <button
-                              onClick={() => dispatch({ type: "RUSH_SANCTUARY_JOB", jobId: selectedItemImbueJob.id, now: Date.now() })}
-                              disabled={!selectedItemImbueCanRush}
-                              style={mainActionButtonStyle({ disabled: !selectedItemImbueCanRush, warning: true })}
-                            >
-                              {selectedItemImbueCanRush
-                                ? `RUSH ${selectedItemImbueRushCost.relicDust} polvo · ${selectedItemImbueRushCost.sigilFlux} flux`
-                                : `RUSH BLOQUEADO · ${selectedItemImbueRushCost.relicDust} polvo / ${selectedItemImbueRushCost.sigilFlux} flux`}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </section>
-                  )}
-
-                  <section style={actionPanelStyle}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                      <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
-                        {FORGE_MODE_META[mode]?.label || "Accion"}
+                      <div style={polishActionColumnStyle}>
+                        <button
+                          disabled={selectedActionDisabled}
+                          onClick={executePrimaryAction}
+                          style={{
+                            ...mainActionButtonStyle({ disabled: selectedActionDisabled, compact: false }),
+                            width: "100%",
+                            minHeight: isMobile ? "58px" : "64px",
+                            whiteSpace: "normal",
+                            alignSelf: "stretch",
+                            display: "grid",
+                            gap: "2px",
+                            alignContent: "center",
+                            justifyItems: "center",
+                            padding: isMobile ? "7px 8px" : "8px 10px",
+                          }}
+                        >
+                          <span style={upgradeActionButtonLabelStyle}>Imbuir</span>
+                          <span style={upgradeActionButtonCostStyle}>{selectedActionCostLabel}</span>
+                        </button>
                       </div>
                     </div>
-                    <div style={subtleTextStyle}>{selectedActionHint}</div>
+                  )}
 
-                    <button
-                      disabled={selectedActionDisabled}
-                      onClick={executePrimaryAction}
-                      style={mainActionButtonStyle({ disabled: selectedActionDisabled })}
-                    >
-                      {selectedActionLabel}
-                    </button>
-
-                    {selectedActionReq?.maxUses != null && (
-                      <div style={subtleTextStyle}>
-                        Limite {selectedActionReq.usedUses || 0}/{selectedActionReq.maxUses}
-                      </div>
-                    )}
-                  </section>
-
-                  {showAdvanced && (
-                    <section style={actionPanelStyle}>
-                      <div style={{ fontSize: "0.68rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                        Modo avanzado
-                      </div>
-
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                        <span style={neutralPillStyle}>Entropy {Math.max(0, Number(selectedItem?.crafting?.entropy || 0))}/{Math.max(1, Number(selectedItem?.crafting?.entropyCap || 1))}</span>
-                        <span style={neutralPillStyle}>Estado {getEntropyState(selectedItem).label}</span>
-                        <span style={neutralPillStyle}>Reforge {selectedItemUsage?.reforge?.used || 0}/{selectedItemUsage?.reforge?.max == null ? "∞" : selectedItemUsage?.reforge?.max}</span>
-                        <span style={neutralPillStyle}>Polish linea {selectedItemUsage?.polish?.used || 0}/{selectedItemUsage?.polish?.max == null ? "∞" : selectedItemUsage?.polish?.max}</span>
-                        <span style={neutralPillStyle}>{getCraftActionBadge(selectedActionReq, mode)}</span>
-                      </div>
-
-                      {selectedAffixAdvancedData && (
-                        <div style={{ display: "grid", gap: "4px", marginTop: "2px" }}>
-                          <div style={advancedRowStyle}>Calidad: <strong>{selectedAffixAdvancedData.quality}</strong></div>
-                          <div style={advancedRowStyle}>Source: <strong>{selectedAffixAdvancedData.source}</strong></div>
-                          <div style={advancedRowStyle}>Rango: <strong>{formatStatValue(selectedAffixAdvancedData.affix?.stat, selectedAffixAdvancedData.affix?.range?.min ?? 0)} - {formatStatValue(selectedAffixAdvancedData.affix?.stat, selectedAffixAdvancedData.affix?.range?.max ?? 0)}</strong></div>
-                          <div style={advancedRowStyle}>Line craft counts: <strong>Polish {selectedAffixAdvancedData.lineCraft.polish || 0} · Reforge {selectedAffixAdvancedData.lineCraft.reforge || 0}</strong></div>
-                          {selectedAffixAdvancedData.legacyTier != null && (
-                            <div style={advancedRowStyle}>Legacy tier: <strong>T{selectedAffixAdvancedData.legacyTier}</strong></div>
-                          )}
+                  {mode === "upgrade" && (
+                    <section style={primaryActionPanelStyle}>
+                      <div style={upgradeTwoColumnLayoutStyle(isMobile)}>
+                        <div style={upgradeLeftColumnStyle}>
+                          <div style={upgradeStatListStyle}>
+                            {visibleUpgradeRows.length > 0 ? visibleUpgradeRows.map(entry => (
+                              <div key={`upgrade-row-${entry.key}`} style={upgradeStatRowStyle}>
+                                <span style={upgradeStatLabelStyle}>
+                                  {STAT_LABELS[entry.key] || entry.key} {formatStatValue(entry.key, entry.currentValue)}
+                                </span>
+                                <span style={upgradeDeltaBadgeStyle(entry.delta)}>
+                                  {formatDiffValue(entry.key, entry.delta)}
+                                </span>
+                              </div>
+                            )) : (
+                              <span style={subtleTextStyle}>Sin cambios visibles.</span>
+                            )}
+                            {hiddenUpgradeRowCount > 0 && (
+                              <span style={upgradeMoreStatsHintStyle}>+{hiddenUpgradeRowCount} stats mas</span>
+                            )}
+                          </div>
                         </div>
-                      )}
 
-                      {selectedItem?.bonus && (
-                        <div style={{ display: "grid", gap: "4px", marginTop: "2px" }}>
-                          {getPrioritizedStatEntries(selectedItem.bonus || {}, 4).map(([key, value]) => (
-                            <div key={`adv-stat-${key}`} style={advancedRowStyle}>
-                              {STAT_LABELS[key] || key}: <strong>{formatStatValue(key, value)}</strong>
-                            </div>
-                          ))}
-                          {formatImplicitSummary(selectedItem) && (
-                            <div style={advancedRowStyle}>Implicito: <strong>{formatImplicitSummary(selectedItem)}</strong></div>
-                          )}
+                        <div style={upgradeRightColumnStyle}>
+                          <span style={{ ...upgradeDeltaBadgeStyle(selectedUpgradeRatingDelta), justifySelf: "end" }}>
+                            Rating {selectedUpgradeRatingDelta > 0 ? `+${selectedUpgradeRatingDelta}` : `${selectedUpgradeRatingDelta}`}
+                          </span>
+                          <button
+                            disabled={selectedActionDisabled}
+                            onClick={executePrimaryAction}
+                            style={{
+                              ...mainActionButtonStyle({ disabled: selectedActionDisabled, compact: false }),
+                              width: "100%",
+                              minHeight: isMobile ? "58px" : "64px",
+                              whiteSpace: "normal",
+                              alignSelf: "stretch",
+                              display: "grid",
+                              gap: "2px",
+                              alignContent: "center",
+                              justifyItems: "center",
+                              padding: isMobile ? "7px 8px" : "8px 10px",
+                            }}
+                          >
+                            <span style={upgradeActionButtonLabelStyle}>Mejorar</span>
+                            <span style={upgradeActionButtonCostStyle}>
+                              <span style={upgradeActionButtonGoldStyle}>G {formatNumber(selectedActionGoldCost)}</span>
+                              <span style={upgradeActionButtonEntropyStyle}> · Ent {selectedActionEntropyCost}</span>
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {selectedActionReq?.maxUses != null && (
+                        <div style={subtleTextStyle}>
+                          Limite {selectedActionReq.usedUses || 0}/{selectedActionReq.maxUses}
                         </div>
                       )}
                     </section>
                   )}
+
                 </React.Fragment>
               )}
             </div>
@@ -1151,36 +1228,126 @@ export default function Crafting({ state, dispatch }) {
       </details>
 
       {isMobile && (
-        <div style={mobileForgeDockStyle}>
-          <div style={mobileForgeRowStyle}>
-            {FORGE_MODE_ORDER.map(modeId => {
-              const active = modeId === mode;
-              const disabled = !canSwitchMode(modeId);
-              return (
-                <button
-                  key={modeId}
-                  onClick={() => {
-                    if (disabled) return;
-                    setMode(modeId);
-                    setSelectedReforgeOption(null);
-                  }}
-                  disabled={disabled}
-                  style={{
-                    ...modeButtonStyle({
-                      active,
-                      disabled,
-                      tone: FORGE_MODE_META[modeId]?.color,
-                      isMobile: true,
-                    }),
-                    minWidth: "84px",
-                    flex: "0 0 auto",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {FORGE_MODE_META[modeId]?.label || modeId}
-                </button>
-              );
-            })}
+        <SubtabDock
+          entries={forgeSubtabEntries}
+          activeId={mode}
+          onSelect={selectForgeMode}
+          isMobile
+          mobileScrollable
+        />
+      )}
+
+      {!USE_GLOBAL_REFORGE_OVERLAY && hasOpenReforgeOptions && activeReforgeAffixIndex != null && (
+        <div style={reforgeOverlayWrapStyle} role="dialog" aria-modal="true">
+          <div style={reforgeOverlayCardStyle(isMobile)}>
+            <div style={reforgeOverlayHeaderStyle}>
+              <div style={{ minWidth: 0 }}>
+                <div style={eyebrowStyle}>Reforja activa</div>
+                <div style={{ fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.25 }}>
+                  Elige una opcion para cerrar la decision
+                </div>
+              </div>
+              <button onClick={cancelReforgePreview} style={secondaryButtonStyle}>
+                Cancelar
+              </button>
+            </div>
+
+            <div style={subtleTextStyle}>
+              Click afuera no cierra este overlay. Debes confirmar o cancelar.
+            </div>
+
+            <div style={reforgeOverlayOptionsStyle}>
+              {selectedItemReforgeOptions.map((option, index) => {
+                const selected = isSameReforgeOption(option, selectedReforgeOption);
+                const previewBaseItem = activeReforgeItem || selectedItem || null;
+                const nextAffixes = (previewBaseItem?.affixes || []).map((affix, affixIndex) => (
+                  affixIndex === activeReforgeAffixIndex ? option : affix
+                ));
+                const preview = previewBaseItem ? buildCraftedItemPreview(previewBaseItem, { affixes: nextAffixes }) : null;
+                const ratingDelta = previewBaseItem
+                  ? Math.round(Number(preview?.rating || 0) - Number(previewBaseItem?.rating || 0))
+                  : 0;
+
+                return (
+                  <button
+                    key={`${option?.id || option?.stat}-${index}`}
+                    onClick={() => setSelectedReforgeOption(option)}
+                    style={reforgeOptionCardStyle({ selected })}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                        {index === 0 ? "Mantener actual" : (STAT_LABELS[option?.stat] || option?.stat)}
+                      </span>
+                      <span style={neutralPillStyle}>{index === 0 ? "Actual" : "Opcion"}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "4px" }}>
+                      <span style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #475569)", fontWeight: "800" }}>
+                        +{formatStatValue(option?.stat, option?.rolledValue ?? option?.value ?? 0)}
+                      </span>
+                      <span style={{
+                        ...neutralPillStyle,
+                        color: ratingDelta > 0
+                          ? "var(--tone-success-strong, #166534)"
+                          : ratingDelta < 0
+                            ? "var(--tone-danger, #D85A30)"
+                            : "var(--color-text-secondary, #64748b)",
+                      }}>
+                        Rating {ratingDelta > 0 ? `+${ratingDelta}` : `${ratingDelta}`}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={reforgeOverlayFooterStyle(isMobile)}>
+              <button onClick={cancelReforgePreview} style={secondaryButtonStyle}>
+                Volver
+              </button>
+              <button
+                disabled={!activeReforgeItemId || activeReforgeAffixIndex == null || !selectedReforgeOption}
+                onClick={confirmActiveReforgeSession}
+                style={{
+                  ...mainActionButtonStyle({
+                    disabled: !activeReforgeItemId || activeReforgeAffixIndex == null || !selectedReforgeOption,
+                    compact: false,
+                  }),
+                  minHeight: isMobile ? "58px" : "64px",
+                  whiteSpace: "normal",
+                  display: "grid",
+                  gap: "2px",
+                  alignContent: "center",
+                  justifyItems: "center",
+                  padding: isMobile ? "7px 10px" : "8px 12px",
+                }}
+              >
+                <span style={upgradeActionButtonLabelStyle}>Aplicar opcion</span>
+                <span style={upgradeActionButtonCostStyle}>Costo ya pagado</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!USE_GLOBAL_REFORGE_OVERLAY && hasStalledReforgeSession && (
+        <div style={reforgeOverlayWrapStyle} role="dialog" aria-modal="true">
+          <div style={reforgeOverlayCardStyle(isMobile)}>
+            <div style={reforgeOverlayHeaderStyle}>
+              <div style={{ minWidth: 0 }}>
+                <div style={eyebrowStyle}>Reforja activa</div>
+                <div style={{ fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.25 }}>
+                  Sesion trabada
+                </div>
+              </div>
+            </div>
+            <div style={subtleTextStyle}>
+              Hay una reforja pendiente sin opciones visibles. Cancela para destrabar y volver a intentar.
+            </div>
+            <div style={reforgeOverlayFooterStyle(isMobile)}>
+              <button onClick={cancelReforgePreview} style={secondaryButtonStyle}>
+                Cancelar reforja
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1205,42 +1372,6 @@ const topToolbarStyle = {
   gap: "7px",
 };
 
-const resourceStripStyle = {
-  display: "flex",
-  gap: "6px",
-  flexWrap: "wrap",
-  justifyContent: "flex-end",
-};
-
-const toolStripStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-  gap: "5px",
-};
-
-const mobileForgeDockStyle = {
-  position: "fixed",
-  left: 0,
-  right: 0,
-  bottom: "calc(var(--app-bottom-nav-offset, 72px) + env(safe-area-inset-bottom))",
-  zIndex: 4900,
-  background: "var(--color-background-secondary, #ffffff)",
-  borderTop: "1px solid var(--color-border-secondary, #e2e8f0)",
-  boxShadow: "0 -10px 24px rgba(15,23,42,0.08)",
-  padding: "8px",
-};
-
-const mobileForgeRowStyle = {
-  display: "flex",
-  gap: "8px",
-  flexWrap: "nowrap",
-  width: "100%",
-  overflowX: "auto",
-  overflowY: "hidden",
-  scrollbarWidth: "none",
-  WebkitOverflowScrolling: "touch",
-};
-
 const lockNoticeStyle = {
   border: "1px solid var(--tone-violet, #ddd6fe)",
   borderRadius: "8px",
@@ -1261,20 +1392,170 @@ const panelStyle = {
   alignContent: "start",
 };
 
-const mainGridStyle = isMobile => ({
+const mainGridStyle = () => ({
   display: "grid",
-  gridTemplateColumns: isMobile ? "1fr" : "minmax(280px, 0.9fr) minmax(380px, 1.15fr)",
+  gridTemplateColumns: "1fr",
   gap: "8px",
   alignItems: "start",
+});
+
+const workbenchPanelStyle = isMobile => ({
+  ...panelStyle,
+  order: 1,
+  maxHeight: isMobile ? "42dvh" : "46dvh",
+  overflowY: "auto",
+});
+
+const inventoryPanelStyle = isMobile => ({
+  ...panelStyle,
+  order: 2,
+  display: "flex",
+  flexDirection: "column",
+  minHeight: isMobile ? "28dvh" : "250px",
+  maxHeight: isMobile ? "30dvh" : "34dvh",
+  overflow: "hidden",
 });
 
 const actionPanelStyle = {
   border: "1px solid var(--color-border-primary, #e2e8f0)",
   borderRadius: "10px",
   background: "var(--color-background-tertiary, #f8fafc)",
-  padding: "10px",
+  padding: "8px 9px",
   display: "grid",
+  gap: "6px",
+};
+
+const primaryActionPanelStyle = {
+  ...actionPanelStyle,
+  padding: "8px 9px",
+  gap: "6px",
+};
+
+const upgradeTwoColumnLayoutStyle = isMobile => ({
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+  gap: isMobile ? "6px" : "8px",
+  alignItems: "start",
+  minWidth: 0,
+});
+
+const upgradeLeftColumnStyle = {
+  minWidth: 0,
+  display: "grid",
+  gap: "3px",
+};
+
+const upgradeRightColumnStyle = {
+  display: "grid",
+  gap: "6px",
+  alignContent: "start",
+  justifyItems: "end",
+  minWidth: 0,
+};
+
+const polishInlineLayoutStyle = isMobile => ({
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+  gap: isMobile ? "6px" : "8px",
+  alignItems: "start",
+  minWidth: 0,
+});
+
+const polishLinesColumnStyle = {
+  minWidth: 0,
+  display: "grid",
+  gap: "6px",
+};
+
+const polishActionColumnStyle = {
+  display: "grid",
+  gap: "6px",
+  alignContent: "start",
+  justifyItems: "stretch",
+  minWidth: 0,
+};
+
+const polishActionMetaStyle = {
+  fontSize: "0.56rem",
+  color: "var(--color-text-tertiary, #94a3b8)",
+  fontWeight: "800",
+  textAlign: "right",
+  lineHeight: 1.2,
+};
+
+const upgradeActionButtonLabelStyle = {
+  fontSize: "0.64rem",
+  fontWeight: "900",
+  lineHeight: 1.1,
+  letterSpacing: "0.01em",
+};
+
+const upgradeActionButtonCostStyle = {
+  fontSize: "0.53rem",
+  lineHeight: 1.1,
+  fontWeight: "900",
+  whiteSpace: "nowrap",
+};
+
+const upgradeActionButtonGoldStyle = {
+  color: "#fcd34d",
+};
+
+const upgradeActionButtonEntropyStyle = {
+  color: "#c4b5fd",
+};
+
+const upgradeStatListStyle = {
+  display: "grid",
+  gap: "4px",
+  minWidth: 0,
+};
+
+const upgradeStatRowStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
   gap: "8px",
+  minWidth: 0,
+};
+
+const upgradeStatLabelStyle = {
+  fontSize: "0.6rem",
+  color: "var(--color-text-secondary, #475569)",
+  fontWeight: "800",
+  lineHeight: 1.2,
+  minWidth: 0,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const upgradeDeltaBadgeStyle = diff => ({
+  fontSize: "0.56rem",
+  fontWeight: "900",
+  whiteSpace: "nowrap",
+  borderRadius: "999px",
+  padding: "2px 7px",
+  border: "1px solid var(--color-border-primary, #e2e8f0)",
+  color: diff > 0
+    ? "var(--tone-success-strong, #166534)"
+    : diff < 0
+      ? "var(--tone-danger, #D85A30)"
+      : "var(--color-text-secondary, #64748b)",
+  background: diff > 0
+    ? "var(--tone-success-soft, #ecfdf5)"
+    : diff < 0
+      ? "var(--tone-danger-soft, #fff1f2)"
+      : "var(--color-background-tertiary, #f1f5f9)",
+  lineHeight: 1.1,
+  flexShrink: 0,
+});
+
+const upgradeMoreStatsHintStyle = {
+  fontSize: "0.56rem",
+  color: "var(--color-text-tertiary, #94a3b8)",
+  fontWeight: "800",
+  lineHeight: 1.2,
 };
 
 const filterSelectStyle = {
@@ -1300,51 +1581,130 @@ const itemCardStyle = ({ selected, selectable, rarity }) => ({
   textAlign: "left",
 });
 
-const itemListStyle = isMobile => ({
+const itemListStyle = {
   display: "grid",
   gap: "6px",
-  maxHeight: isMobile ? "none" : "62vh",
-  overflowY: isMobile ? "visible" : "auto",
-  paddingRight: isMobile ? 0 : "2px",
-});
+  minHeight: 0,
+  flex: 1,
+  overflowY: "auto",
+  paddingRight: "2px",
+};
 
 const workbenchHeaderStyle = {
+  display: "grid",
+  gap: "4px",
+  borderBottom: "1px solid var(--color-border-primary, #e2e8f0)",
+  paddingBottom: "6px",
+};
+
+const workbenchTitleRowStyle = {
   display: "flex",
   justifyContent: "space-between",
-  gap: "8px",
+  gap: "6px",
   alignItems: "center",
-  flexWrap: "wrap",
-  borderBottom: "1px solid var(--color-border-primary, #e2e8f0)",
-  paddingBottom: "8px",
+  minWidth: 0,
 };
 
-const selectedMetaRowStyle = {
-  marginTop: "6px",
+const workbenchTitleMainStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "6px",
+  flexWrap: "wrap",
+  minWidth: 0,
+};
+
+const headerRatingBlockStyle = {
+  fontSize: "0.62rem",
+  fontWeight: "900",
+  color: "var(--color-text-primary, #334155)",
+  lineHeight: 1.2,
+  whiteSpace: "nowrap",
+  flexShrink: 0,
+};
+
+const entropyRowStyle = {
+  marginTop: "1px",
   display: "flex",
   gap: "5px",
-  flexWrap: "wrap",
+  flexWrap: "nowrap",
   alignItems: "center",
+  minWidth: 0,
 };
 
-const modeButtonStyle = ({ active, disabled, tone, isMobile }) => ({
-  border: `1px solid ${active ? tone : "var(--color-border-primary, #e2e8f0)"}`,
-  background: disabled
-    ? "var(--color-background-tertiary, #f8fafc)"
-    : active
-      ? "var(--tone-accent-soft, #eef2ff)"
-      : "var(--color-background-secondary, #ffffff)",
-  color: disabled
-    ? "var(--color-text-tertiary, #94a3b8)"
-    : active
-      ? (tone || "var(--tone-accent, #4338ca)")
-      : "var(--color-text-primary, #1e293b)",
-  borderRadius: "7px",
-  padding: isMobile ? "7px 4px" : "7px 8px",
-  fontSize: isMobile ? "0.6rem" : "0.66rem",
+const itemSummaryTextBlockStyle = {
+  marginTop: "5px",
+  display: "grid",
+  gap: "2px",
+};
+
+const itemSummaryLineStyle = {
+  display: "flex",
+  alignItems: "baseline",
+  gap: "4px",
+  minWidth: 0,
+};
+
+const itemSummaryLineLabelStyle = {
+  fontSize: "0.56rem",
   fontWeight: "900",
-  cursor: disabled ? "not-allowed" : "pointer",
+  color: "var(--color-text-tertiary, #94a3b8)",
+  lineHeight: 1.2,
+  whiteSpace: "nowrap",
+  flexShrink: 0,
+};
+
+const itemSummaryLineValueStyle = {
+  fontSize: "0.59rem",
+  color: "var(--color-text-secondary, #475569)",
+  lineHeight: 1.2,
+  minWidth: 0,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const itemSummaryImplicitValueStyle = {
+  ...itemSummaryLineValueStyle,
+  color: "var(--tone-info-strong, #075985)",
+};
+
+const entropyMeterStyle = {
+  minWidth: "118px",
+  flex: "1 1 160px",
+  maxWidth: "220px",
+  display: "grid",
+  gap: "3px",
+};
+
+const entropyMeterHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "6px",
+  fontSize: "0.53rem",
+  fontWeight: "900",
+  color: "var(--color-text-secondary, #475569)",
   lineHeight: 1.1,
-});
+};
+
+const entropyTrackStyle = {
+  height: "6px",
+  borderRadius: "999px",
+  border: "1px solid var(--color-border-primary, #e2e8f0)",
+  background: "var(--color-background-tertiary, #f1f5f9)",
+  overflow: "hidden",
+};
+
+const entropyFillStyle = ({ ratio = 0 } = {}) => {
+  const width = `${Math.max(0, Math.min(100, ratio * 100))}%`;
+  return {
+    width,
+    minWidth: ratio > 0 ? "2px" : "0px",
+    height: "100%",
+    borderRadius: "999px",
+    background: "linear-gradient(90deg, #8b5cf6 0%, #7c3aed 100%)",
+    transition: "width 180ms ease-out",
+  };
+};
 
 const neutralPillStyle = {
   border: "1px solid var(--color-border-primary, #e2e8f0)",
@@ -1353,17 +1713,6 @@ const neutralPillStyle = {
   borderRadius: "999px",
   padding: "2px 7px",
   fontSize: "0.56rem",
-  fontWeight: "900",
-  lineHeight: 1.2,
-};
-
-const resourceChipStyle = {
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  background: "var(--color-background-tertiary, #f8fafc)",
-  color: "var(--color-text-secondary, #475569)",
-  borderRadius: "999px",
-  padding: "4px 8px",
-  fontSize: "0.58rem",
   fontWeight: "900",
   lineHeight: 1.2,
 };
@@ -1403,7 +1752,7 @@ const secondaryButtonStyle = {
   cursor: "pointer",
 };
 
-const mainActionButtonStyle = ({ disabled = false, danger = false, warning = false } = {}) => ({
+const mainActionButtonStyle = ({ disabled = false, danger = false, warning = false, compact = false } = {}) => ({
   border: "1px solid",
   borderColor: disabled
     ? "rgba(148,163,184,0.4)"
@@ -1420,9 +1769,9 @@ const mainActionButtonStyle = ({ disabled = false, danger = false, warning = fal
         ? "linear-gradient(180deg, #92400e 0%, #78350f 100%)"
         : "linear-gradient(180deg, #243244 0%, #1e293b 100%)",
   color: "#ffffff",
-  borderRadius: "10px",
-  padding: "10px 12px",
-  fontSize: "0.68rem",
+  borderRadius: compact ? "8px" : "10px",
+  padding: compact ? "7px 10px" : "10px 12px",
+  fontSize: compact ? "0.62rem" : "0.68rem",
   fontWeight: "900",
   cursor: disabled ? "not-allowed" : "pointer",
   opacity: disabled ? 0.8 : 1,
@@ -1461,6 +1810,49 @@ const reforgeOptionCardStyle = ({ selected }) => ({
   gap: "2px",
 });
 
+const reforgeOverlayWrapStyle = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 7600,
+  background: "rgba(15,23,42,0.62)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "14px",
+};
+
+const reforgeOverlayCardStyle = isMobile => ({
+  width: isMobile ? "min(680px, 100%)" : "min(760px, 100%)",
+  maxHeight: isMobile ? "88dvh" : "82vh",
+  overflowY: "auto",
+  border: "1px solid var(--color-border-primary, #e2e8f0)",
+  borderRadius: "14px",
+  background: "var(--color-background-secondary, #ffffff)",
+  boxShadow: "0 24px 50px rgba(15,23,42,0.32)",
+  padding: isMobile ? "12px" : "14px",
+  display: "grid",
+  gap: "10px",
+});
+
+const reforgeOverlayHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "10px",
+};
+
+const reforgeOverlayOptionsStyle = {
+  display: "grid",
+  gap: "8px",
+};
+
+const reforgeOverlayFooterStyle = isMobile => ({
+  display: "grid",
+  gridTemplateColumns: isMobile ? "1fr" : "auto minmax(200px, 1fr)",
+  gap: "8px",
+  alignItems: "center",
+});
+
 const powerOptionStyle = ({ selected }) => ({
   border: `1px solid ${selected ? "var(--tone-warning, #fb923c)" : "var(--color-border-primary, #e2e8f0)"}`,
   background: selected ? "var(--tone-warning-soft, #fff7ed)" : "var(--color-background-secondary, #fff)",
@@ -1470,49 +1862,6 @@ const powerOptionStyle = ({ selected }) => ({
   cursor: "pointer",
   textAlign: "left",
 });
-
-const advancedRowStyle = {
-  fontSize: "0.64rem",
-  color: "var(--color-text-secondary, #475569)",
-  lineHeight: 1.35,
-};
-
-const deltaRowStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "8px",
-  alignItems: "center",
-  fontSize: "0.64rem",
-  color: "var(--color-text-secondary, #475569)",
-  fontWeight: "800",
-};
-
-const diffBadgeStyle = diff => ({
-  fontSize: "0.58rem",
-  color: diff > 0 ? "var(--tone-success-strong, #166534)" : diff < 0 ? "var(--tone-danger, #D85A30)" : "var(--color-text-tertiary, #94a3b8)",
-  background: diff > 0 ? "var(--tone-success-soft, #ecfdf5)" : diff < 0 ? "var(--tone-danger-soft, #fff1f2)" : "var(--color-background-tertiary, #f1f5f9)",
-  padding: "2px 5px",
-  borderRadius: "6px",
-  fontWeight: "900",
-  lineHeight: 1.1,
-});
-
-const compareListStyle = {
-  marginTop: "5px",
-  display: "grid",
-  gap: "3px",
-  maxWidth: "320px",
-};
-
-const compareRowStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "8px",
-  alignItems: "center",
-  fontSize: "0.6rem",
-  color: "var(--color-text-secondary, #475569)",
-  fontWeight: "800",
-};
 
 const logRowStyle = {
   border: "1px solid var(--color-border-primary, #e2e8f0)",

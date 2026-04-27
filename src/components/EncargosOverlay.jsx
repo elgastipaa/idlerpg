@@ -5,6 +5,19 @@ import ActionToast from "./ActionToast";
 import { getSanctuaryErrandCatalog } from "../engine/sanctuary/jobEngine";
 import useRelativeNow from "../hooks/useRelativeNow";
 
+const ENCARGOS_STITCH_TRIAL_STORAGE_KEY = "idlerpg:trial:encargos-stitch";
+
+function isEncargosStitchTrialEnabled() {
+  if (typeof window === "undefined") return false;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("encargos_stitch_trial") === "1") return true;
+    return window.localStorage?.getItem(ENCARGOS_STITCH_TRIAL_STORAGE_KEY) === "1";
+  } catch (_error) {
+    return false;
+  }
+}
+
 function panelStyle(accent = "var(--tone-info, #0369a1)") {
   return {
     background: "var(--color-background-secondary, #ffffff)",
@@ -30,26 +43,45 @@ function metricCardStyle() {
   };
 }
 
-function actionButtonStyle({ primary = false, disabled = false, danger = false, compact = false } = {}) {
+function actionButtonStyle({
+  primary = false,
+  ritual = false,
+  warning = false,
+  disabled = false,
+  danger = false,
+  compact = false,
+} = {}) {
   const tone = danger
     ? "var(--tone-danger, #D85A30)"
+    : ritual
+      ? "var(--encargos-ritual-ink, #261900)"
+    : warning
+      ? "var(--tone-warning, #f59e0b)"
     : primary
       ? "var(--tone-info, #0369a1)"
       : "var(--color-border-primary, #e2e8f0)";
   const surface = danger
     ? "var(--tone-danger-soft, #fff1f2)"
+    : ritual
+      ? "linear-gradient(180deg, var(--encargos-ritual-top, #ffdea5) 0%, var(--tone-warning, #e9c176) 100%)"
+    : warning
+      ? "var(--tone-warning-soft, #fff7ed)"
     : primary
       ? "var(--tone-info-soft, #f0f9ff)"
       : "var(--color-background-secondary, #ffffff)";
   return {
     border: "1px solid",
-    borderColor: disabled ? "var(--color-border-primary, #e2e8f0)" : tone,
+    borderColor: disabled
+      ? "var(--color-border-primary, #e2e8f0)"
+      : ritual
+        ? "rgba(233, 193, 118, 0.62)"
+        : tone,
     background: disabled
       ? "var(--color-background-tertiary, #f8fafc)"
       : surface,
     color: disabled
       ? "var(--color-text-tertiary, #94a3b8)"
-      : danger || primary
+      : danger || primary || warning || ritual
         ? tone
         : "var(--color-text-primary, #1e293b)",
     borderRadius: "12px",
@@ -101,6 +133,16 @@ function getProgressTier(state) {
 
 export default function EncargosOverlay({ state, dispatch, isMobile = false, onClose }) {
   const now = useRelativeNow();
+  const stitchTrialEnabled = useMemo(() => isEncargosStitchTrialEnabled(), []);
+  const infoTone = stitchTrialEnabled
+    ? "var(--encargos-info, #c9b2ff)"
+    : "var(--tone-info, #0369a1)";
+  const progressTone = stitchTrialEnabled
+    ? "var(--tone-warning, #e9c349)"
+    : "var(--tone-info, #0369a1)";
+  const progressTrack = stitchTrialEnabled
+    ? "rgba(255, 255, 255, 0.08)"
+    : "var(--color-background-primary, #e2e8f0)";
   const [actionToast, setActionToast] = useState(null);
   const [expandedSections, setExpandedSections] = useState(() => {
     const sanctuary = state?.sanctuary || {};
@@ -195,19 +237,25 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
   return (
     <OverlayShell isMobile={isMobile} contentLabel="Encargos">
       <OverlaySurface isMobile={isMobile}>
-        <div style={{
-          padding: "1rem",
-          display: "grid",
-          gap: "1rem",
-          alignItems: "start",
-          alignContent: "start",
-          background: "var(--color-background-primary, #f8fafc)",
-          color: "var(--color-text-primary, #1e293b)",
-        }}>
-          <section style={panelStyle("var(--tone-info, #0369a1)")}>
+        <div
+          className={[
+            "encargos-root",
+            stitchTrialEnabled ? "encargos-root--stitch-trial" : "",
+          ].filter(Boolean).join(" ")}
+          style={{
+            padding: "1rem",
+            display: "grid",
+            gap: "1rem",
+            alignItems: "start",
+            alignContent: "start",
+            background: "var(--color-background-primary, #f8fafc)",
+            color: "var(--color-text-primary, #1e293b)",
+          }}
+        >
+          <section style={panelStyle(infoTone)}>
             <div style={{ display: "grid", gap: "12px", alignItems: "start" }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
+                <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: infoTone }}>
                   Encargos
                 </div>
                 <div style={{ fontSize: "1.02rem", fontWeight: "900", marginTop: "4px" }}>
@@ -223,7 +271,7 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
             </div>
 
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <span style={chipLabelStyle("var(--tone-info, #0369a1)")}>
+              <span style={chipLabelStyle(infoTone)}>
                 {runningJobs.length} / {errandSlots} ocupados
               </span>
               <span style={chipLabelStyle("var(--tone-warning, #f59e0b)")}>
@@ -272,13 +320,13 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
           </section>
 
           <section className="overlay-split-52-48">
-            <div style={panelStyle("var(--tone-info, #0369a1)")}>
+            <div style={panelStyle(infoTone)}>
               <div
                 onClick={() => toggleSection("catalog")}
                 style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" }}
               >
                 <div>
-                  <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
+                  <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: infoTone }}>
                     Catalogo de encargos
                   </div>
                   <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
@@ -318,7 +366,7 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                           )}
                         </div>
                         <div style={{ display: "flex", gap: "6px", alignItems: "start", flexWrap: "nowrap" }}>
-                          <span style={chipLabelStyle(entry.familyMeta?.color || "var(--tone-info, #0369a1)")}>
+                          <span style={chipLabelStyle(entry.familyMeta?.color || infoTone)}>
                             {entry.rewardLabel}
                           </span>
                           <button
@@ -339,7 +387,7 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                             <div key={option.id} style={{ ...metricCardStyle(), padding: "9px 10px", gap: "8px" }}>
                               <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
                                 <div style={{ fontSize: "0.74rem", fontWeight: "900" }}>{option.shortLabel}</div>
-                                <span style={chipLabelStyle("var(--tone-info, #0369a1)")}>{option.rewardsLabel}</span>
+                                <span style={chipLabelStyle(infoTone)}>{option.rewardsLabel}</span>
                               </div>
                               <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.35 }}>
                                 {option.summary}
@@ -347,7 +395,13 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                               <button
                                 onClick={() => dispatch({ type: "START_SANCTUARY_ERRAND", errandId: entry.id, durationId: option.id, now })}
                                 disabled={blocked}
-                                style={actionButtonStyle({ primary: !blocked, disabled: blocked, compact: true })}
+                                className={stitchTrialEnabled && !blocked ? "encargos-btn--ritual" : undefined}
+                                style={actionButtonStyle({
+                                  ritual: stitchTrialEnabled && !blocked,
+                                  primary: !stitchTrialEnabled && !blocked,
+                                  disabled: blocked,
+                                  compact: true,
+                                })}
                               >
                                 {blocked ? "Sin equipo libre" : "Asignar"}
                               </button>
@@ -383,7 +437,12 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                           event.stopPropagation();
                           claimAllErrandJobs({ restart: true });
                         }}
-                        style={actionButtonStyle({ compact: true })}
+                        className={stitchTrialEnabled ? "encargos-btn--ritual" : undefined}
+                        style={actionButtonStyle({
+                          ritual: stitchTrialEnabled,
+                          warning: !stitchTrialEnabled,
+                          compact: true,
+                        })}
                       >
                         Todo + repetir
                       </button>
@@ -394,7 +453,12 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                           event.stopPropagation();
                           claimAllErrandJobs();
                         }}
-                        style={actionButtonStyle({ primary: true, compact: true })}
+                        className={stitchTrialEnabled ? "encargos-btn--ritual" : undefined}
+                        style={actionButtonStyle({
+                          ritual: stitchTrialEnabled,
+                          warning: !stitchTrialEnabled,
+                          compact: true,
+                        })}
                       >
                         Reclamar todo
                       </button>
@@ -432,14 +496,24 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                             <button
                               onClick={() => claimErrandJob(job, { nowAt: now })}
-                              style={actionButtonStyle({ primary: true, compact: true })}
+                              className={stitchTrialEnabled ? "encargos-btn--ritual" : undefined}
+                              style={actionButtonStyle({
+                                ritual: stitchTrialEnabled,
+                                warning: !stitchTrialEnabled,
+                                compact: true,
+                              })}
                             >
                               Reclamar recompensa
                             </button>
                             {job?.input?.errandId && (
                               <button
                                 onClick={() => claimErrandJob(job, { restart: true, nowAt: now + 1 })}
-                                style={actionButtonStyle({ compact: true })}
+                                className={stitchTrialEnabled ? "encargos-btn--ritual" : undefined}
+                                style={actionButtonStyle({
+                                  ritual: stitchTrialEnabled,
+                                  warning: !stitchTrialEnabled,
+                                  compact: true,
+                                })}
                               >
                                 Reclamar + repetir
                               </button>
@@ -497,7 +571,8 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                             startedAt={job?.startedAt}
                             endsAt={job?.endsAt}
                             now={now}
-                            tone="var(--tone-info, #0369a1)"
+                            tone={progressTone}
+                            track={progressTrack}
                             rightLabel={formatRemaining(Number(job?.endsAt || 0) - now)}
                             compact
                           />
@@ -507,7 +582,7 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                             </div>
                             <button
                               onClick={() => dispatch({ type: "CANCEL_SANCTUARY_ERRAND", jobId: job.id, now })}
-                              style={actionButtonStyle({ danger: true, compact: true })}
+                              style={actionButtonStyle({ compact: true })}
                             >
                               Retirar equipo
                             </button>
