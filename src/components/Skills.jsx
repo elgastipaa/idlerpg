@@ -1,8 +1,8 @@
 import React, { useEffect } from "react";
-import useViewport from "../hooks/useViewport";
 import { calcStats } from "../engine/combat/statEngine";
 import { getClassBuildStatGroups } from "../utils/classBuildStats";
 import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
+import ForgeIcon from "./icons/ForgeIcon";
 
 const UPGRADES_UI = [
   { id: "damage", name: "Fuerza", description: "+2% dano total", baseCost: 180, costMultiplier: 1.18, maxLevel: 50, icon: "?" },
@@ -28,6 +28,28 @@ const ATTRIBUTE_SECTIONS = [
   },
 ];
 
+const ATTRIBUTE_VISUALS = {
+  damage: { icon: "combat", tone: "red" },
+  maxHp: { icon: "bleed", tone: "green" },
+  critChance: { icon: "mark", tone: "purple" },
+  attackSpeed: { icon: "upgrade", tone: "blue" },
+  goldBonus: { icon: "gold", tone: "gold" },
+  xpBonus: { icon: "xp", tone: "blue" },
+};
+
+function formatGold(value = 0) {
+  return Math.floor(Number(value || 0)).toLocaleString();
+}
+
+function buildProgressNodes(currentLevel = 0, maxLevel = 1) {
+  const nodeCount = 7;
+  const ratio = Math.max(0, Math.min(1, currentLevel / Math.max(1, maxLevel)));
+  return Array.from({ length: nodeCount }, (_, index) => {
+    const threshold = nodeCount <= 1 ? 1 : index / (nodeCount - 1);
+    return threshold <= ratio || (currentLevel > 0 && index === 0);
+  });
+}
+
 export default function Skills({ state, dispatch }) {
   const { player } = state;
   const onboardingStep = state?.onboarding?.step || null;
@@ -36,7 +58,6 @@ export default function Skills({ state, dispatch }) {
   const computedStats = calcStats(player);
   const buildGroups = getClassBuildStatGroups(player.class, computedStats);
   const classLabel = player.class ? `${player.class.charAt(0).toUpperCase()}${player.class.slice(1)}` : "Clase";
-  const { isMobile } = useViewport();
   const upgradeSections = ATTRIBUTE_SECTIONS.map(section => ({
     ...section,
     upgrades: section.upgradeIds
@@ -70,69 +91,52 @@ export default function Skills({ state, dispatch }) {
   }, [spotlightAttributes]);
 
   return (
-    <div style={{ padding: isMobile ? "1rem" : "1.5rem", display: "flex", flexDirection: "column", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
-      <style>{`
-        @keyframes skillsSpotlightPulse {
-          0% { box-shadow: 0 0 0 0 rgba(29,158,117,0.24); }
-          70% { box-shadow: 0 0 0 10px rgba(29,158,117,0); }
-          100% { box-shadow: 0 0 0 0 rgba(29,158,117,0); }
-        }
-      `}</style>
-      {buildGroups.length > 0 && (
-        <section>
-          <header style={headerStyle}>
-            <h2 style={titleStyle}>Lectura actual</h2>
-            <span style={{ color: "#64748b", fontWeight: "900", fontSize: "0.72rem" }}>
-              {classLabel}
-            </span>
-          </header>
-
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(200px, 1fr))", gap: "8px" }}>
-            {buildGroups.map(group => (
-              <div key={group.id} style={readingGroupStyle}>
-                <div style={{ width: "100%" }}>
-                  <div style={{ fontSize: "0.58rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: "900", marginBottom: "8px" }}>
-                    {group.label}
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
-                    {group.entries.map(entry => (
-                      <div key={entry.key} style={readingEntryStyle}>
-                        <div style={{ fontSize: "0.54rem", color: "#64748b", textTransform: "uppercase", fontWeight: "900" }}>{entry.label}</div>
-                        <div style={{ fontSize: "0.82rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", marginTop: "4px" }}>{entry.value}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
+    <div className="skills-root skills-root--forge-light">
+      <section className="forge-skills-shell">
+        <header className="forge-skills-page-header">
+          <div className="forge-skills-title-wrap">
+            <span className="forge-skills-back" aria-hidden="true">«</span>
+            <h2>Atributos</h2>
+            <span className="forge-skills-info" aria-hidden="true">i</span>
           </div>
-        </section>
-      )}
-
-      <section>
-        <header style={headerStyle}>
-          <h2 style={titleStyle}>Atributos</h2>
-          <span style={{ color: "#64748b", fontWeight: "900", fontSize: "0.72rem" }}>Costos en oro</span>
+          <div className="forge-skills-header-actions">
+            <span className="forge-skills-gold-chip">
+              <ForgeIcon name="gold" size={16} />
+              {formatGold(player.gold || 0)} oro
+            </span>
+          </div>
         </header>
 
-        <div style={{ display: "grid", gap: "12px" }}>
+        <div className="forge-skills-tabbar" aria-label="Categorias de atributos">
+          {upgradeSections.map((section, index) => (
+            <span
+              key={section.id}
+              className={[
+                "forge-skills-tab",
+                index === 0 ? "forge-skills-tab--active" : "",
+              ].filter(Boolean).join(" ")}
+            >
+              <ForgeIcon name={section.id === "combat" ? "combat" : "gold"} size={18} />
+              {section.label}
+            </span>
+          ))}
+        </div>
+
+        <div className="forge-attributes-panel">
           {upgradeSections.map(section => (
-            <section key={section.id} style={attributeSectionStyle}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" }}>
-                <div>
-                  <div style={{ fontSize: "0.6rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: "900" }}>
-                    {section.label}
-                  </div>
-                  <div style={{ fontSize: "0.66rem", color: "#94a3b8", marginTop: "3px", lineHeight: 1.35 }}>
-                    {section.description}
-                  </div>
+            <section key={section.id} className="forge-attribute-section">
+              <div className="forge-attribute-section-header">
+                <div className="forge-attribute-section-title">
+                  <ForgeIcon name={section.id === "combat" ? "combat" : "repeat"} size={16} />
+                  <span>{section.label}</span>
+                  <small>{section.description}</small>
                 </div>
-                <div style={{ fontSize: "0.62rem", color: "#64748b", fontWeight: "900" }}>
+                <div className="forge-attribute-section-count">
                   {section.upgrades.length} atributo{section.upgrades.length === 1 ? "" : "s"}
                 </div>
               </div>
 
-              <div style={{ display: "grid", gap: "8px" }}>
+              <div className="forge-attribute-list">
                 {section.upgrades.map(up => {
                   const currentLevel = playerUpgrades[up.id] || 0;
                   const isMaxed = currentLevel >= up.maxLevel;
@@ -141,32 +145,50 @@ export default function Skills({ state, dispatch }) {
                   const spotlightUpgrade = spotlightAttributes && up.id === "damage" && !isMaxed;
                   const lockedByTutorial = spotlightAttributes && up.id !== "damage";
                   const progress = (currentLevel / up.maxLevel) * 100;
+                  const visual = ATTRIBUTE_VISUALS[up.id] || ATTRIBUTE_VISUALS.damage;
+                  const progressNodes = buildProgressNodes(currentLevel, up.maxLevel);
+                  const progressFillProps = { style: { "--forge-attribute-progress": `${progress}%` } };
 
                   return (
                     <div
                       key={up.id}
                       data-onboarding-target={spotlightUpgrade ? "upgrade-attribute-card" : undefined}
-                      style={{
-                        ...attributeRowStyle,
-                        position: spotlightUpgrade ? "relative" : "static",
-                        zIndex: spotlightUpgrade ? 2 : 1,
-                        boxShadow: spotlightUpgrade
-                          ? "0 0 0 2px rgba(29,158,117,0.16), 0 12px 28px rgba(29,158,117,0.14)"
-                          : attributeRowStyle.boxShadow,
-                        animation: spotlightUpgrade ? "skillsSpotlightPulse 1600ms ease-in-out infinite" : "none",
-                        opacity: lockedByTutorial ? 0.42 : 1,
-                      }}
+                      className={[
+                        "forge-attribute-row",
+                        `forge-attribute-row--${visual.tone}`,
+                        canAfford && !isMaxed ? "forge-attribute-row--affordable" : "",
+                        spotlightUpgrade ? "forge-attribute-row--spotlight" : "",
+                        lockedByTutorial ? "forge-attribute-row--tutorial-locked" : "",
+                      ].filter(Boolean).join(" ")}
                     >
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                          <span style={{ fontWeight: "900", fontSize: "0.78rem", color: "var(--color-text-primary, #1e293b)" }}>{up.icon} {up.name}</span>
-                          <span style={{ fontSize: "0.62rem", fontWeight: "900", color: isMaxed ? "#f59e0b" : "#94a3b8" }}>
+                      <div className="forge-attribute-icon" aria-hidden="true">
+                        <ForgeIcon name={visual.icon} size={30} />
+                      </div>
+
+                      <div className="forge-attribute-copy">
+                        <div className="forge-attribute-topline">
+                          <span className="forge-attribute-name">{up.name}</span>
+                          <span className="forge-attribute-level">
                             {currentLevel}/{up.maxLevel}
                           </span>
                         </div>
-                        <div style={{ fontSize: "0.64rem", color: "#64748b", marginTop: "4px", lineHeight: 1.3 }}>{up.description}</div>
-                        <div style={{ ...progressBg, marginTop: "8px", height: "5px" }}>
-                          <div style={{ ...progressFill, width: `${progress}%`, background: isMaxed ? "#f59e0b" : "#1D9E75" }} />
+                        <div className="forge-attribute-description">{up.description}</div>
+                        <div className="forge-attribute-track" aria-hidden="true">
+                          <span className="forge-attribute-track-line" />
+                          <span
+                            className="forge-attribute-track-fill"
+                            data-progress={Math.round(progress)}
+                            {...progressFillProps}
+                          />
+                          {progressNodes.map((active, index) => (
+                            <span
+                              key={`${up.id}-${index}`}
+                              className={[
+                                "forge-attribute-node",
+                                active ? "forge-attribute-node--active" : "",
+                              ].filter(Boolean).join(" ")}
+                            />
+                          ))}
                         </div>
                       </div>
 
@@ -174,20 +196,15 @@ export default function Skills({ state, dispatch }) {
                         disabled={lockedByTutorial || !canAfford || isMaxed}
                         onClick={() => dispatch({ type: "UPGRADE_PLAYER", upgradeId: up.id })}
                         data-onboarding-target={spotlightUpgrade ? "upgrade-attribute" : undefined}
-                        style={{
-                          ...btnUpgradeStyle,
-                          minWidth: "92px",
-                          background: isMaxed ? "transparent" : canAfford ? "#1D9E75" : "#f1f5f9",
-                          color: isMaxed ? "#f59e0b" : canAfford ? "white" : "#94a3b8",
-                          border: isMaxed ? "2px solid #f59e0b" : "none",
-                          position: spotlightUpgrade ? "relative" : "static",
-                          zIndex: spotlightUpgrade ? 3 : 1,
-                          boxShadow: spotlightUpgrade ? "0 0 0 2px rgba(29,158,117,0.18), 0 10px 22px rgba(29,158,117,0.24)" : "none",
-                          cursor: lockedByTutorial ? "not-allowed" : btnUpgradeStyle.cursor,
-                          opacity: lockedByTutorial ? 0.55 : 1,
-                        }}
+                        className={[
+                          "forge-attribute-buy",
+                          canAfford && !isMaxed ? "forge-attribute-buy--ready" : "",
+                          isMaxed ? "forge-attribute-buy--maxed" : "",
+                        ].filter(Boolean).join(" ")}
                       >
-                        {isMaxed ? "MAX" : `${cost} g`}
+                        {!isMaxed && <ForgeIcon name="gold" size={17} />}
+                        <span>{isMaxed ? "MAX" : formatGold(cost)}</span>
+                        {!isMaxed && <small>g</small>}
                       </button>
                     </div>
                   );
@@ -197,99 +214,37 @@ export default function Skills({ state, dispatch }) {
           ))}
         </div>
       </section>
+
+      {buildGroups.length > 0 && (
+        <section className="forge-skills-reading forge-skills-reading--secondary">
+          <header className="forge-skills-section-header">
+            <h2>Lectura actual</h2>
+            <span>
+              {classLabel}
+            </span>
+          </header>
+
+          <div className="forge-skills-reading-grid">
+            {buildGroups.map(group => (
+              <div key={group.id} className="forge-skills-reading-card">
+                <div className="forge-skills-reading-card-content">
+                  <div className="forge-skills-reading-title">
+                    {group.label}
+                  </div>
+                  <div className="forge-skills-reading-entries">
+                    {group.entries.map(entry => (
+                      <div key={entry.key} className="forge-skills-reading-entry">
+                        <div>{entry.label}</div>
+                        <strong>{entry.value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
-
-const headerStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: "1.2rem",
-  borderBottom: "2px solid var(--color-background-tertiary, #f1f5f9)",
-  paddingBottom: "0.6rem",
-};
-
-const titleStyle = {
-  margin: 0,
-  fontSize: "0.75rem",
-  textTransform: "uppercase",
-  letterSpacing: "0.1em",
-  fontWeight: "900",
-  color: "#64748b",
-};
-
-const upgradeCardStyle = {
-  background: "var(--color-background-secondary, #ffffff)",
-  padding: "14px",
-  borderRadius: "12px",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "15px",
-  boxShadow: "0 1px 2px var(--color-shadow, rgba(0,0,0,0.05))",
-};
-
-const readingGroupStyle = {
-  background: "var(--color-background-secondary, #ffffff)",
-  padding: "12px",
-  borderRadius: "12px",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  boxShadow: "0 1px 2px var(--color-shadow, rgba(0,0,0,0.05))",
-};
-
-const readingEntryStyle = {
-  background: "var(--color-background-tertiary, #f1f5f9)",
-  borderRadius: "10px",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  padding: "8px",
-  textAlign: "center",
-};
-
-const attributeSectionStyle = {
-  background: "var(--color-background-secondary, #ffffff)",
-  borderRadius: "12px",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  padding: "12px",
-  display: "grid",
-  gap: "10px",
-  boxShadow: "0 1px 2px var(--color-shadow, rgba(0,0,0,0.05))",
-};
-
-const attributeRowStyle = {
-  background: "var(--color-background-tertiary, #f8fafc)",
-  padding: "10px 12px",
-  borderRadius: "12px",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  display: "grid",
-  gridTemplateColumns: "minmax(0, 1fr) auto",
-  gap: "12px",
-  alignItems: "center",
-  boxShadow: "0 1px 2px var(--color-shadow, rgba(0,0,0,0.04))",
-};
-
-const progressBg = {
-  width: "100%",
-  height: "6px",
-  background: "var(--color-background-tertiary, #f1f5f9)",
-  borderRadius: "3px",
-  overflow: "hidden",
-};
-
-const progressFill = {
-  height: "100%",
-  transition: "width 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-};
-
-const btnUpgradeStyle = {
-  borderRadius: "8px",
-  padding: "10px",
-  fontSize: "0.75rem",
-  fontWeight: "900",
-  cursor: "pointer",
-  minWidth: "85px",
-  textAlign: "center",
-  border: "none",
-  transition: "transform 0.1s",
-};

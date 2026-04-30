@@ -4,6 +4,7 @@ import { refreshStats } from "../combat/statEngine";
 import { CLASSES } from "../../data/classes";
 import { PLAYER_UPGRADES } from "../../data/playerUpgrades";
 import { TALENTS } from "../../data/talents";
+import { getNodesForTree } from "../../data/talentNodes";
 import { canUnlockTalentNode, getProgressValue, getTalentCostForPlayer } from "../talents/treeEngine";
 import { canUnlockNode, getNextTalentForNode } from "../talents/talentTreeEngine";
 import { syncPrestigeBonuses } from "./prestigeEngine";
@@ -627,14 +628,26 @@ export function unlockTalent(state, talentId) {
   };
 }
 
-export function resetTalentTree(state) {
+export function resetTalentTree(state, treeId = null) {
   const unlockedTalents = state.player.unlockedTalents || [];
   if (unlockedTalents.length === 0) return state;
+
+  const treeTalentIds = treeId
+    ? new Set(
+        getNodesForTree(treeId)
+          .flatMap(node => [node.id, ...(node.levels || [])])
+          .filter(Boolean)
+      )
+    : null;
+  const talentsToReset = treeTalentIds
+    ? unlockedTalents.filter(talentId => treeTalentIds.has(talentId))
+    : unlockedTalents;
+  if (talentsToReset.length === 0) return state;
 
   let refundedPoints = 0;
   let p = { ...state.player };
 
-  for (const talentId of unlockedTalents) {
+  for (const talentId of talentsToReset) {
     const talent = TALENTS.find(item => item.id === talentId);
     if (!talent) continue;
     const talentCost = getTalentCostForPlayer(state, talent);
@@ -645,8 +658,11 @@ export function resetTalentTree(state) {
     }
   }
 
-  p.unlockedTalents = [];
-  p.talentLevels = {};
+  p.unlockedTalents = unlockedTalents.filter(talentId => !talentsToReset.includes(talentId));
+  p.talentLevels = deriveTalentLevelsFromUnlockedTalents(
+    p.unlockedTalents,
+    p.talentLevels || state.player.talentLevels || {}
+  );
   p.talentSystemVersion = TALENT_SYSTEM_VERSION;
   p.talentPoints = (p.talentPoints || 0) + refundedPoints;
 

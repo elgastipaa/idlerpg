@@ -5,36 +5,7 @@ function defaultGetOptionId(option, index) {
   return String(index);
 }
 
-function defaultArrowButtonStyle(disabled) {
-  return {
-    minWidth: "34px",
-    padding: "4px 0",
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    background: "var(--color-background-secondary, #ffffff)",
-    color: "var(--color-text-primary, #1e293b)",
-    borderRadius: "10px",
-    fontSize: "0.72rem",
-    fontWeight: "900",
-    lineHeight: 1,
-    cursor: disabled ? "not-allowed" : "pointer",
-    opacity: disabled ? 0.45 : 1,
-  };
-}
-
-function defaultOptionButtonStyle(selected) {
-  return {
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    background: selected ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #ffffff)",
-    color: selected ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #64748b)",
-    borderRadius: "10px",
-    padding: "6px 10px",
-    fontSize: "0.66rem",
-    fontWeight: "900",
-    textAlign: "left",
-    cursor: "pointer",
-    flexShrink: 0,
-  };
-}
+const EMPTY_STYLE = Object.freeze({});
 
 export default function HorizontalOptionSelector({
   options = [],
@@ -46,8 +17,8 @@ export default function HorizontalOptionSelector({
   nextLabel = "→",
   getOptionId = defaultGetOptionId,
   getOptionKey = null,
-  getArrowButtonStyle = ({ disabled }) => defaultArrowButtonStyle(disabled),
-  getOptionButtonStyle = ({ selected }) => defaultOptionButtonStyle(selected),
+  getArrowButtonStyle = null,
+  getOptionButtonStyle = null,
   renderOption = null,
   rootStyle = {},
   headerRowStyle = {},
@@ -67,36 +38,34 @@ export default function HorizontalOptionSelector({
     onSelect(safeOptions[index], index);
   };
 
+  const withStyle = style => (
+    style && typeof style === "object" && Object.keys(style).length > 0
+      ? { style }
+      : EMPTY_STYLE
+  );
+
   return (
-    <div style={{ display: "grid", gap: "8px", ...rootStyle }}>
+    <div className="horizontal-option-selector" {...withStyle(rootStyle)}>
       {(header != null || showArrows) && (
         <div
-          style={{
-            display: "flex",
-            justifyContent: header != null ? "space-between" : "flex-end",
-            gap: "10px",
-            alignItems: "start",
-            flexWrap: "wrap",
-            ...headerRowStyle,
-          }}
+          className={[
+            "horizontal-option-selector__header",
+            header == null ? "horizontal-option-selector__header--end" : "",
+          ].filter(Boolean).join(" ")}
+          {...withStyle(headerRowStyle)}
         >
-          {header != null ? <div style={headerContentStyle}>{header}</div> : null}
+          {header != null ? <div className="horizontal-option-selector__header-content" {...withStyle(headerContentStyle)}>{header}</div> : null}
           {showArrows ? (
             <div
-              style={{
-                display: "flex",
-                gap: "6px",
-                alignItems: "center",
-                flexWrap: "wrap",
-                justifyContent: "flex-end",
-                ...arrowsContainerStyle,
-              }}
+              className="horizontal-option-selector__arrows"
+              {...withStyle(arrowsContainerStyle)}
             >
               <button
                 type="button"
                 onClick={() => selectByIndex(selectedIndex - 1)}
                 disabled={!canMovePrev}
-                style={getArrowButtonStyle({ direction: "prev", disabled: !canMovePrev })}
+                className="horizontal-option-selector__arrow fl2-button"
+                {...withStyle(typeof getArrowButtonStyle === "function" ? getArrowButtonStyle({ direction: "prev", disabled: !canMovePrev }) : null)}
               >
                 {prevLabel}
               </button>
@@ -104,7 +73,8 @@ export default function HorizontalOptionSelector({
                 type="button"
                 onClick={() => selectByIndex(selectedIndex + 1)}
                 disabled={!canMoveNext}
-                style={getArrowButtonStyle({ direction: "next", disabled: !canMoveNext })}
+                className="horizontal-option-selector__arrow fl2-button"
+                {...withStyle(typeof getArrowButtonStyle === "function" ? getArrowButtonStyle({ direction: "next", disabled: !canMoveNext }) : null)}
               >
                 {nextLabel}
               </button>
@@ -114,21 +84,12 @@ export default function HorizontalOptionSelector({
       )}
 
       <div
-        style={{
-          overflowX: "auto",
-          paddingBottom: "2px",
-          scrollbarWidth: "none",
-          scrollBehavior: "smooth",
-          ...scrollWrapStyle,
-        }}
+        className="horizontal-option-selector__scroll"
+        {...withStyle(scrollWrapStyle)}
       >
         <div
-          style={{
-            display: "inline-flex",
-            gap: "6px",
-            minWidth: "max-content",
-            ...optionsRowStyle,
-          }}
+          className="horizontal-option-selector__options"
+          {...withStyle(optionsRowStyle)}
         >
           {safeOptions.map((option, index) => {
             const optionId = getOptionId(option, index);
@@ -142,7 +103,13 @@ export default function HorizontalOptionSelector({
                   if (typeof onSelect !== "function") return;
                   onSelect(option, index);
                 }}
-                style={getOptionButtonStyle({ option, index, selected })}
+                className={[
+                  "horizontal-option-selector__option",
+                  "fl2-button",
+                  selected ? "horizontal-option-selector__option--selected fl2-button--selected" : "",
+                ].filter(Boolean).join(" ")}
+                data-selected={selected ? "true" : undefined}
+                {...withStyle(typeof getOptionButtonStyle === "function" ? getOptionButtonStyle({ option, index, selected }) : null)}
               >
                 {typeof renderOption === "function" ? renderOption({ option, index, selected }) : String(optionId)}
               </button>

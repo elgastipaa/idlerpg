@@ -74,7 +74,7 @@ export function handleMetaProgressionAction(state, action, dependencies) {
     }
 
     case "RESET_TALENT_TREE": {
-      const nextState = resetTalentTree(state);
+      const nextState = resetTalentTree(state, action.treeId || null);
       if (nextState === state) return state;
       return withAchievementProgress({
         ...nextState,

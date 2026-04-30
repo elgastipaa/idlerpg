@@ -19,6 +19,7 @@ import {
 import { getOnboardingFirstEchoNodeId, getOnboardingStepInteractionMode, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 import { buildRunOutcomeSummary } from "../utils/runOutcomeSummary";
 import RunSigilCallout from "./RunSigilCallout";
+import ForgeIcon from "./icons/ForgeIcon";
 
 const PERCENT_KEYS = new Set([
   "damagePct",
@@ -326,18 +327,12 @@ export default function Prestige({ state, dispatch }) {
   }, [spotlightFirstEchoNode, spotlightFirstEchoes, tutorialEchoNodeId, activeBranchId]);
 
   return (
-    <div style={{ padding: "calc(0.85rem * var(--density-scale, 1))", display: "flex", flexDirection: "column", gap: "calc(0.8rem * var(--density-scale, 1))", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
-      <style>{`
-        @keyframes prestigeSpotlightPulse {
-          0% { box-shadow: 0 0 0 0 rgba(199,210,254,0.22); }
-          70% { box-shadow: 0 0 0 10px rgba(199,210,254,0); }
-          100% { box-shadow: 0 0 0 0 rgba(199,210,254,0); }
-        }
-      `}</style>
+    <div className="prestige-root prestige-root--forge-light" {...{ style: { padding: "calc(0.85rem * var(--density-scale, 1))", display: "flex", flexDirection: "column", gap: "calc(0.8rem * var(--density-scale, 1))", color: "var(--color-text-primary, #1e293b)" } }}>
       <section
+        className="prestige-summary-panel prestige-summary-panel--hero"
         data-onboarding-target={spotlightFirstEchoes ? "prestige-summary" : undefined}
         onClick={() => spotlightFirstEchoes && dispatch({ type: "ACK_ONBOARDING_STEP" })}
-        style={{
+        {...{ style: {
           ...summaryPanelStyle,
           position: spotlightFirstEchoes ? "relative" : "static",
           zIndex: spotlightFirstEchoes ? 2 : 1,
@@ -346,43 +341,46 @@ export default function Prestige({ state, dispatch }) {
             : "none",
           animation: spotlightFirstEchoes ? "prestigeSpotlightPulse 1600ms ease-in-out infinite" : "none",
           cursor: spotlightFirstEchoes ? "pointer" : "default",
-        }}
+        } }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "12px", flexWrap: "wrap" }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={sectionTitleStyle}>Ecos</div>
-            <div style={{ fontSize: "1.18rem", color: "#f8fafc", fontWeight: 900, marginTop: "6px" }}>
+        <div className="prestige-hero-head" {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "start", gap: "12px", flexWrap: "wrap" } }}>
+          <div className="forge-prestige-crest" aria-hidden="true">
+            <ForgeIcon name="essence" size={76} />
+          </div>
+          <div className="prestige-hero-copy" {...{ style: { minWidth: 0 } }}>
+            <div {...{ style: sectionTitleStyle }}>Ecos</div>
+            <div {...{ style: { fontSize: "1.18rem", color: "#f8fafc", fontWeight: 900, marginTop: "6px" } }}>
               {prestigeCheck.ok ? `+${formatNumber(echoesOnNext)} ecos al extraer` : "Todavia no rinde extraer por ecos"}
             </div>
-            <div style={{ ...smallCopyStyle, marginTop: "6px", color: "#cbd5e1" }}>
+            <div {...{ style: { ...smallCopyStyle, marginTop: "6px", color: "#cbd5e1" } }}>
               {prestigeCheck.ok
                 ? `${prestigeMomentum.label} · ${formatMultiplier(prestigeMomentum.multiplier)} de momentum.`
                 : "Empuja tier y nivel para volver rentable la proxima extraccion."}
             </div>
           </div>
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: isMobile ? "stretch" : "flex-end" }}>
-            <div style={summaryBadgeStyle}>{formatNumber(prestige.echoes || 0)} disponibles</div>
-            <div style={summaryBadgeStyle}>{formatMultiplier(prestigeMomentum.multiplier)} momentum</div>
+          <div className="prestige-hero-badges" {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: isMobile ? "stretch" : "flex-end" } }}>
+            <div {...{ style: summaryBadgeStyle }}>{formatNumber(prestige.echoes || 0)} disponibles</div>
+            <div {...{ style: summaryBadgeStyle }}>{formatMultiplier(prestigeMomentum.multiplier)} momentum</div>
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "12px" }}>
+        <div className="prestige-breakdown-row" {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "12px" } }}>
           {resetBreakdown.length > 0 ? resetBreakdown.map(entry => (
-            <span key={entry.id} style={compactChipStyle}>
+            <span key={entry.id} {...{ style: compactChipStyle }}>
               {entry.id === "momentum"
                 ? `${entry.label} ${entry.value}${Number(entry.echoes || 0) !== 0 ? ` · ${formatSignedNumber(entry.echoes)}` : ""}`
                 : `${entry.label} +${formatNumber(entry.echoes)}`}
             </span>
           )) : (
-            <span style={{ ...compactChipStyle, color: "#94a3b8" }}>{prestigePreview.minimumRunLabel || "Minimo: Tier 3, Nivel 10 o 50 bajas"}</span>
+            <span {...{ style: { ...compactChipStyle, color: "#94a3b8" } }}>{prestigePreview.minimumRunLabel || "Minimo: Tier 3, Nivel 10 o 50 bajas"}</span>
           )}
         </div>
 
-        <div style={{ ...smallCopyStyle, marginTop: "10px", color: "#94a3b8" }}>
+        <div className="prestige-reset-copy" {...{ style: { ...smallCopyStyle, marginTop: "10px", color: "#94a3b8" } }}>
           Reinicias la run, pero conservas ecos, tablero y resonancia de cuenta.
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px", marginTop: "10px" }}>
+        <div className="prestige-outcome-grid" {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px", marginTop: "10px" } }}>
           <QuickPrestigeOutcomeColumn
             label="Conservas"
             tone="#10b981"
@@ -397,21 +395,21 @@ export default function Prestige({ state, dispatch }) {
           />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, minmax(0, 1fr))", gap: "8px", marginTop: "12px" }}>
-          <div style={resetMetricCardStyle}>
-            <div style={resetMetricLabelStyle}>Tier actual</div>
-            <div style={resetMetricValueStyle}>{formatNumber(prestigeMomentum.currentTier || prestigePreview.progress?.maxTier || 1)}</div>
+        <div className="prestige-metric-grid" {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, minmax(0, 1fr))", gap: "8px", marginTop: "12px" } }}>
+          <div className="prestige-metric-card" {...{ style: resetMetricCardStyle }}>
+            <div {...{ style: resetMetricLabelStyle }}>Tier actual</div>
+            <div {...{ style: resetMetricValueStyle }}>{formatNumber(prestigeMomentum.currentTier || prestigePreview.progress?.maxTier || 1)}</div>
           </div>
-          <div style={resetMetricCardStyle}>
-            <div style={resetMetricLabelStyle}>Momentum</div>
-            <div style={resetMetricValueStyle}>{formatMultiplier(prestigeMomentum.multiplier)}</div>
-            <div style={resetMetricHintStyle}>{prestigeMomentum.label}</div>
+          <div className="prestige-metric-card" {...{ style: resetMetricCardStyle }}>
+            <div {...{ style: resetMetricLabelStyle }}>Momentum</div>
+            <div {...{ style: resetMetricValueStyle }}>{formatMultiplier(prestigeMomentum.multiplier)}</div>
+            <div {...{ style: resetMetricHintStyle }}>{prestigeMomentum.label}</div>
           </div>
-          <div style={resetMetricCardStyle}>
-            <div style={resetMetricLabelStyle}>Base sin momentum</div>
-            <div style={resetMetricValueStyle}>{formatNumber(prestigeMomentum.baseEchoes || 0)}</div>
+          <div className="prestige-metric-card" {...{ style: resetMetricCardStyle }}>
+            <div {...{ style: resetMetricLabelStyle }}>Base sin momentum</div>
+            <div {...{ style: resetMetricValueStyle }}>{formatNumber(prestigeMomentum.baseEchoes || 0)}</div>
             {!!prestigeMomentum.momentumDeltaEchoes && (
-              <div style={resetMetricHintStyle}>
+              <div {...{ style: resetMetricHintStyle }}>
                 {Number(prestigeMomentum.momentumDeltaEchoes || 0) >= 0
                   ? `Bonus ${formatSignedNumber(prestigeMomentum.momentumDeltaEchoes)}`
                   : `Penalidad ${formatSignedNumber(prestigeMomentum.momentumDeltaEchoes)}`}
@@ -422,6 +420,7 @@ export default function Prestige({ state, dispatch }) {
       </section>
 
       {showRunSigilCallout && (
+        <div className="prestige-run-sigil-panel">
         <RunSigilCallout
           runSigilIds={activeRunSigilIds}
           slotCount={runSigilSlotCount}
@@ -430,71 +429,72 @@ export default function Prestige({ state, dispatch }) {
           dark
           showDeltas
         />
+        </div>
       )}
 
-      <section style={summaryPanelStyle}>
-        <div style={{ display: "grid", gap: "4px" }}>
-          <div style={sectionTitleStyle}>Reset de prestige</div>
-          <div style={{ fontSize: "0.96rem", color: "#f8fafc", fontWeight: 900 }}>
+      <section className="prestige-summary-panel" {...{ style: summaryPanelStyle }}>
+        <div {...{ style: { display: "grid", gap: "4px" } }}>
+          <div {...{ style: sectionTitleStyle }}>Reset de prestige</div>
+          <div {...{ style: { fontSize: "0.96rem", color: "#f8fafc", fontWeight: 900 } }}>
             {prestigeOutcomeSummary.title}
           </div>
-          <div style={{ ...smallCopyStyle, color: "#94a3b8" }}>
+          <div {...{ style: { ...smallCopyStyle, color: "#94a3b8" } }}>
             Lectura corta de lo que realmente pasa cuando esa extraccion ya convierte a ecos.
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "10px", marginTop: "12px" }}>
+        <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "10px", marginTop: "12px" } }}>
           {prestigeOutcomeSummary.groups.map(group => (
             <OutcomeSummaryCard key={group.id} group={group} />
           ))}
         </div>
       </section>
 
-      <section style={summaryPanelStyle}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+      <section className="prestige-summary-panel" {...{ style: summaryPanelStyle }}>
+        <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" } }}>
           <div>
-            <div style={sectionTitleStyle}>Ecos disponibles</div>
-            <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "4px" }}>
+            <div {...{ style: sectionTitleStyle }}>Ecos disponibles</div>
+            <div {...{ style: { fontSize: "0.72rem", color: "#94a3b8", marginTop: "4px" } }}>
               Lectura corta del meta actual y de lo que ya impacta en la cuenta.
             </div>
           </div>
-          <div style={summaryBadgeStyle}>{activePrestigeNodes} nodos activos</div>
+          <div {...{ style: summaryBadgeStyle }}>{activePrestigeNodes} nodos activos</div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: "8px", marginTop: "12px" }}>
-          <div style={resetMetricCardStyle}>
-            <div style={resetMetricLabelStyle}>Disponibles</div>
-            <div style={resetMetricValueStyle}>{formatNumber(prestige.echoes || 0)}</div>
+        <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: "8px", marginTop: "12px" } }}>
+          <div className="prestige-metric-card" {...{ style: resetMetricCardStyle }}>
+            <div {...{ style: resetMetricLabelStyle }}>Disponibles</div>
+            <div {...{ style: resetMetricValueStyle }}>{formatNumber(prestige.echoes || 0)}</div>
           </div>
-          <div style={resetMetricCardStyle}>
-            <div style={resetMetricLabelStyle}>Gastados</div>
-            <div style={resetMetricValueStyle}>{formatNumber(prestige.spentEchoes || 0)}</div>
+          <div className="prestige-metric-card" {...{ style: resetMetricCardStyle }}>
+            <div {...{ style: resetMetricLabelStyle }}>Gastados</div>
+            <div {...{ style: resetMetricValueStyle }}>{formatNumber(prestige.spentEchoes || 0)}</div>
           </div>
-          <div style={resetMetricCardStyle}>
-            <div style={resetMetricLabelStyle}>Totales</div>
-            <div style={resetMetricValueStyle}>{formatNumber(prestige.totalEchoesEarned || 0)}</div>
+          <div className="prestige-metric-card" {...{ style: resetMetricCardStyle }}>
+            <div {...{ style: resetMetricLabelStyle }}>Totales</div>
+            <div {...{ style: resetMetricValueStyle }}>{formatNumber(prestige.totalEchoesEarned || 0)}</div>
           </div>
-          <div style={resetMetricCardStyle}>
-            <div style={resetMetricLabelStyle}>Resonancia</div>
-            <div style={resetMetricValueStyle}>{formatNumber(resonanceSummary.totalEchoesEarned || prestige.totalEchoesEarned || 0)}</div>
+          <div className="prestige-metric-card" {...{ style: resetMetricCardStyle }}>
+            <div {...{ style: resetMetricLabelStyle }}>Resonancia</div>
+            <div {...{ style: resetMetricValueStyle }}>{formatNumber(resonanceSummary.totalEchoesEarned || prestige.totalEchoesEarned || 0)}</div>
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+        <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" } }}>
           {highlightedBonuses.length > 0 ? highlightedBonuses.map(([key, value]) => (
-            <div key={key} style={bonusChipStyle}>
-              <span style={{ color: "#94a3b8", textTransform: "uppercase", fontWeight: 900 }}>{BONUS_LABELS[key] || key}</span>
-              <strong style={{ color: "#f8fafc" }}>{formatBonus(key, value)}</strong>
+            <div key={key} {...{ style: bonusChipStyle }}>
+              <span {...{ style: { color: "#94a3b8", textTransform: "uppercase", fontWeight: 900 } }}>{BONUS_LABELS[key] || key}</span>
+              <strong {...{ style: { color: "#f8fafc" } }}>{formatBonus(key, value)}</strong>
             </div>
           )) : (
-            <div style={{ ...bonusChipStyle, color: "#cbd5e1" }}>Todavia no invertiste ecos. El primer prestigio abre el tablero meta.</div>
+            <div {...{ style: { ...bonusChipStyle, color: "#cbd5e1" } }}>Todavia no invertiste ecos. El primer prestigio abre el tablero meta.</div>
           )}
         </div>
 
         {resonanceSummary.nextEchoRows.length > 0 && (
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" }}>
+          <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" } }}>
             {resonanceSummary.nextEchoRows.slice(0, 3).map(([key, value]) => (
-              <span key={key} style={compactChipStyle}>
+              <span key={key} {...{ style: compactChipStyle }}>
                 Prox eco: {BONUS_LABELS[key] || key} {formatBonus(key, value)}
               </span>
             ))}
@@ -502,34 +502,34 @@ export default function Prestige({ state, dispatch }) {
         )}
       </section>
 
-      <section style={summaryPanelStyle}>
+      <section className="prestige-summary-panel" {...{ style: summaryPanelStyle }}>
         <button
           onClick={() => setShowAbyssMilestones(current => !current)}
-          style={{ width: "100%", background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}
+          {...{ style: { width: "100%", background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" } }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" } }}>
             <div>
-              <div style={sectionTitleStyle}>Hitos de Abismo</div>
-              <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "4px" }}>
+              <div {...{ style: sectionTitleStyle }}>Hitos de Abismo</div>
+              <div {...{ style: { fontSize: "0.72rem", color: "#94a3b8", marginTop: "4px" } }}>
                 Progreso historico de cuenta. {showAbyssMilestones ? "Detalle expandido." : "Abre solo cuando quieras revisar milestones."}
               </div>
             </div>
-            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-              <div style={summaryBadgeStyle}>
+            <div {...{ style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" } }}>
+              <div {...{ style: summaryBadgeStyle }}>
                 {highestAbyssDepth > 0 ? `Abismo ${highestAbyssDepth}` : "Mundo base"}
               </div>
-              <span style={{ ...compactChipStyle, color: "#e2e8f0" }}>{showAbyssMilestones ? "Ocultar" : "Ver"}</span>
+              <span {...{ style: { ...compactChipStyle, color: "#e2e8f0" } }}>{showAbyssMilestones ? "Ocultar" : "Ver"}</span>
             </div>
           </div>
         </button>
 
         {showAbyssMilestones && (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: "8px", marginTop: "12px" }}>
+            <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: "8px", marginTop: "12px" } }}>
               {abyssUnlocks.map(unlock => (
                 <div
                   key={unlock.id}
-                  style={{
+                  {...{ style: {
                     borderRadius: "12px",
                     border: "1px solid",
                     borderColor: unlock.unlocked ? "rgba(99,102,241,0.24)" : "rgba(148,163,184,0.18)",
@@ -537,47 +537,47 @@ export default function Prestige({ state, dispatch }) {
                     padding: "10px",
                     display: "grid",
                     gap: "4px",
-                  }}
+                  } }}
                 >
-                  <div style={{ fontSize: "0.62rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: unlock.unlocked ? "#c7d2fe" : "#94a3b8" }}>
+                  <div {...{ style: { fontSize: "0.62rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: unlock.unlocked ? "#c7d2fe" : "#94a3b8" } }}>
                     {unlock.name}
                   </div>
-                  <div style={{ fontSize: "0.78rem", fontWeight: 900, color: unlock.unlocked ? "#f8fafc" : "#e2e8f0" }}>
+                  <div {...{ style: { fontSize: "0.78rem", fontWeight: 900, color: unlock.unlocked ? "#f8fafc" : "#e2e8f0" } }}>
                     {unlock.reward}
                   </div>
-                  <div style={{ fontSize: "0.64rem", color: unlock.unlocked ? "#cbd5e1" : "#94a3b8" }}>
+                  <div {...{ style: { fontSize: "0.64rem", color: unlock.unlocked ? "#cbd5e1" : "#94a3b8" } }}>
                     {unlock.unlocked ? "Registrado" : `Llega al Tier ${unlock.minTier}`}
                   </div>
                 </div>
               ))}
             </div>
 
-            <div style={{ ...smallCopyStyle, marginTop: "10px", color: "#94a3b8" }}>
+            <div {...{ style: { ...smallCopyStyle, marginTop: "10px", color: "#94a3b8" } }}>
               Pico historico: Tier {formatNumber(highestAbyssTier)}.
             </div>
           </>
         )}
       </section>
 
-      <section style={summaryPanelStyle}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+      <section className="prestige-summary-panel" {...{ style: summaryPanelStyle }}>
+        <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" } }}>
           <div>
-            <div style={sectionTitleStyle}>Ramas</div>
-            <div style={{ fontSize: "0.74rem", color: "#94a3b8", marginTop: "4px" }}>Mira una rama a la vez. Es mas facil leer progreso, costos y proximo nodo util.</div>
+            <div {...{ style: sectionTitleStyle }}>Ramas</div>
+            <div {...{ style: { fontSize: "0.74rem", color: "#94a3b8", marginTop: "4px" } }}>Mira una rama a la vez. Es mas facil leer progreso, costos y proximo nodo util.</div>
           </div>
-          {activeBranch && <div style={summaryBadgeStyle}>{activeBranch.name}</div>}
+          {activeBranch && <div {...{ style: summaryBadgeStyle }}>{activeBranch.name}</div>}
         </div>
-        <div style={{ position: "relative", marginTop: "12px" }}>
+        <div {...{ style: { position: "relative", marginTop: "12px" } }}>
           <div
             ref={branchScrollerRef}
-            style={{
+            {...{ style: {
               display: "flex",
               gap: "8px",
               overflowX: "auto",
               padding: "0 18px 2px 0",
               scrollbarWidth: "none",
               scrollBehavior: "smooth",
-            }}
+            } }}
           >
             {PRESTIGE_BRANCHES.map(branch => {
               const active = activeBranch?.id === branch.id;
@@ -587,7 +587,7 @@ export default function Prestige({ state, dispatch }) {
                 <button
                   key={`branch-tab-${branch.id}`}
                   onClick={() => setActiveBranchId(branch.id)}
-                  style={{
+                  {...{ style: {
                     minWidth: isMobile ? "138px" : "158px",
                     border: "1px solid",
                     borderColor: active ? `${branch.color}88` : unlocked ? "rgba(255,255,255,0.12)" : "#334155",
@@ -599,21 +599,21 @@ export default function Prestige({ state, dispatch }) {
                     textAlign: "left",
                     flexShrink: 0,
                     opacity: unlocked ? 1 : 0.78,
-                  }}
+                  } }}
                 >
-                  <div style={{ fontSize: "0.66rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <div {...{ style: { fontSize: "0.66rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em" } }}>
                     {branch.name}{!unlocked ? " · LOCK" : ""}
                   </div>
-                  <div style={{ fontSize: "0.56rem", color: active ? "#e2e8f0" : "#94a3b8", marginTop: "4px", fontWeight: 800 }}>
+                  <div {...{ style: { fontSize: "0.56rem", color: active ? "#e2e8f0" : "#94a3b8", marginTop: "4px", fontWeight: 800 } }}>
                     {summary.activeNodes}/{summary.totalNodes} nodos · {summary.investedLevels} niveles
                   </div>
                   {!unlocked && (
-                    <div style={{ fontSize: "0.54rem", color: "#cbd5e1", marginTop: "4px", fontWeight: 900 }}>
+                    <div {...{ style: { fontSize: "0.54rem", color: "#cbd5e1", marginTop: "4px", fontWeight: 900 } }}>
                       Requiere Abismo I
                     </div>
                   )}
                   {summary.purchasableNow > 0 && (
-                    <div style={{ fontSize: "0.54rem", color: branch.color, marginTop: "4px", fontWeight: 900 }}>
+                    <div {...{ style: { fontSize: "0.54rem", color: branch.color, marginTop: "4px", fontWeight: 900 } }}>
                       {summary.purchasableNow} comprable{summary.purchasableNow === 1 ? "" : "s"}
                     </div>
                   )}
@@ -621,15 +621,15 @@ export default function Prestige({ state, dispatch }) {
               );
             })}
           </div>
-          {canScrollBranchesLeft && <div style={branchFadeStyle("left")} />}
-          {canScrollBranchesRight && <div style={branchFadeStyle("right")} />}
+          {canScrollBranchesLeft && <div {...{ style: branchFadeStyle("left") }} />}
+          {canScrollBranchesRight && <div {...{ style: branchFadeStyle("right") }} />}
           {canScrollBranchesLeft && (
-            <div style={branchScrollHintStyle("left")}>
+            <div {...{ style: branchScrollHintStyle("left") }}>
               ←
             </div>
           )}
           {canScrollBranchesRight && (
-            <div style={branchScrollHintStyle("right")}>
+            <div {...{ style: branchScrollHintStyle("right") }}>
               →
             </div>
           )}
@@ -637,20 +637,20 @@ export default function Prestige({ state, dispatch }) {
       </section>
 
       {activeBranch && (
-        <section style={{ ...summaryPanelStyle, borderColor: `${activeBranch.color}33` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", flexWrap: "wrap" }}>
+        <section className="prestige-summary-panel" {...{ style: { ...summaryPanelStyle, borderColor: `${activeBranch.color}33` } }}>
+          <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", flexWrap: "wrap" } }}>
             <div>
-              <div style={{ ...sectionTitleStyle, color: activeBranch.color }}>{activeBranch.name}</div>
-              <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "4px", lineHeight: 1.4 }}>{activeBranch.description}</div>
+              <div {...{ style: { ...sectionTitleStyle, color: activeBranch.color } }}>{activeBranch.name}</div>
+              <div {...{ style: { fontSize: "0.72rem", color: "#94a3b8", marginTop: "4px", lineHeight: 1.4 } }}>{activeBranch.description}</div>
             </div>
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" } }}>
               {PRESTIGE_NODE_FILTERS.map(filter => {
                 const active = nodeVisibilityFilter === filter.id;
                 return (
                   <button
                     key={filter.id}
                     onClick={() => setNodeVisibilityFilter(filter.id)}
-                    style={{
+                    {...{ style: {
                       border: "1px solid",
                       borderColor: active ? activeBranch.color : "rgba(148,163,184,0.22)",
                       background: active ? `${activeBranch.color}22` : "rgba(255,255,255,0.04)",
@@ -660,7 +660,7 @@ export default function Prestige({ state, dispatch }) {
                       fontSize: "0.58rem",
                       fontWeight: "900",
                       cursor: "pointer",
-                    }}
+                    } }}
                   >
                     {filter.label}
                   </button>
@@ -668,29 +668,29 @@ export default function Prestige({ state, dispatch }) {
               })}
             </div>
           </div>
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" }}>
-              <span style={metaChipStyle}>{branchSummaries[activeBranch.id]?.activeNodes || 0}/{branchSummaries[activeBranch.id]?.totalNodes || activeBranchNodes.length} nodos</span>
-              <span style={metaChipStyle}>{branchSummaries[activeBranch.id]?.investedLevels || 0} niveles</span>
+          <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" } }}>
+              <span {...{ style: metaChipStyle }}>{branchSummaries[activeBranch.id]?.activeNodes || 0}/{branchSummaries[activeBranch.id]?.totalNodes || activeBranchNodes.length} nodos</span>
+              <span {...{ style: metaChipStyle }}>{branchSummaries[activeBranch.id]?.investedLevels || 0} niveles</span>
               {!activeBranchUnlocked && (
-                <span style={{ ...metaChipStyle, borderColor: "#475569", color: "#cbd5e1" }}>
+                <span {...{ style: { ...metaChipStyle, borderColor: "#475569", color: "#cbd5e1" } }}>
                   Desbloquea Abismo I
                 </span>
               )}
               {(branchSummaries[activeBranch.id]?.purchasableNow || 0) > 0 && (
-                <span style={{ ...metaChipStyle, borderColor: `${activeBranch.color}55`, color: activeBranch.color }}>
+                <span {...{ style: { ...metaChipStyle, borderColor: `${activeBranch.color}55`, color: activeBranch.color } }}>
                   {branchSummaries[activeBranch.id]?.purchasableNow || 0} comprables
                 </span>
               )}
             </div>
 
-          <div style={{ display: "grid", gap: "12px", marginTop: "14px" }}>
+          <div {...{ style: { display: "grid", gap: "12px", marginTop: "14px" } }}>
             {filteredActiveBranchTierGroups.length > 0 ? filteredActiveBranchTierGroups.map(group => (
-              <div key={`tier-group-${group.tier}`} style={{ display: "grid", gap: "8px" }}>
-                <div style={tierHeaderStyle}>
+              <div key={`tier-group-${group.tier}`} {...{ style: { display: "grid", gap: "8px" } }}>
+                <div {...{ style: tierHeaderStyle }}>
                   <span>Tier {group.tier}</span>
                   <span>{group.nodes.length}/{group.totalNodes} nodo{group.totalNodes === 1 ? "" : "s"}</span>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+                <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px" } }}>
                   {group.nodes.map(node => {
                     const level = getPrestigeNodeLevel(prestige, node.id);
                     const purchase = canPurchasePrestigeNode(state, node);
@@ -709,7 +709,7 @@ export default function Prestige({ state, dispatch }) {
                       <div
                         key={node.id}
                         data-onboarding-target={spotlightNode ? "buy-first-echo-node-card" : undefined}
-                        style={{
+                        {...{ style: {
                           ...nodeCardCompactStyle({
                             active: level > 0,
                             canBuy: buttonEnabled,
@@ -727,39 +727,39 @@ export default function Prestige({ state, dispatch }) {
                                 tone,
                               }).boxShadow,
                           animation: spotlightNode ? "prestigeSpotlightPulse 1600ms ease-in-out infinite" : "none",
-                        }}
+                        } }}
                         >
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" }}>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                                <span style={{ fontSize: "0.76rem", color: "#f8fafc", fontWeight: 900 }}>{node.name}</span>
-                                {node.capstone && <span style={{ ...metaChipStyle, borderColor: "#f59e0b55", color: "#f59e0b" }}>Capstone</span>}
-                                {node.requiresSpecialization && <span style={{ ...metaChipStyle, borderColor: "#a855f755", color: "#c4b5fd" }}>{node.requiresSpecialization}</span>}
+                          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" } }}>
+                            <div {...{ style: { minWidth: 0 } }}>
+                              <div {...{ style: { display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" } }}>
+                                <span {...{ style: { fontSize: "0.76rem", color: "#f8fafc", fontWeight: 900 } }}>{node.name}</span>
+                                {node.capstone && <span {...{ style: { ...metaChipStyle, borderColor: "#f59e0b55", color: "#f59e0b" } }}>Capstone</span>}
+                                {node.requiresSpecialization && <span {...{ style: { ...metaChipStyle, borderColor: "#a855f755", color: "#c4b5fd" } }}>{node.requiresSpecialization}</span>}
                               </div>
                             </div>
-                          <span style={levelBadgeStyle(level > 0, activeBranch.color)}>{level}/{node.maxLevel}</span>
+                          <span {...{ style: levelBadgeStyle(level > 0, activeBranch.color) }}>{level}/{node.maxLevel}</span>
                         </div>
 
-                        <div style={{ fontSize: "0.64rem", color: "#cbd5e1", fontWeight: 800, marginTop: "10px", lineHeight: 1.4 }}>
-                          Actual: <span style={{ color: "#f8fafc" }}>{currentSummary}</span>
+                        <div {...{ style: { fontSize: "0.64rem", color: "#cbd5e1", fontWeight: 800, marginTop: "10px", lineHeight: 1.4 } }}>
+                          Actual: <span {...{ style: { color: "#f8fafc" } }}>{currentSummary}</span>
                         </div>
                         {!buttonEnabled && purchase.cost != null && level < node.maxLevel && (
-                          <div style={{ fontSize: "0.6rem", color: "#94a3b8", marginTop: "4px", lineHeight: 1.35 }}>
+                          <div {...{ style: { fontSize: "0.6rem", color: "#94a3b8", marginTop: "4px", lineHeight: 1.35 } }}>
                             Costo: {purchase.cost} ecos
                           </div>
                         )}
 
                         {requirementNames.length > 0 && (
-                          <div style={{ fontSize: "0.6rem", color: purchase.reason === "requires" ? "#fca5a5" : "#94a3b8", marginTop: "6px", lineHeight: 1.35 }}>
+                          <div {...{ style: { fontSize: "0.6rem", color: purchase.reason === "requires" ? "#fca5a5" : "#94a3b8", marginTop: "6px", lineHeight: 1.35 } }}>
                             Req: {requirementNames.join(" · ")}
                           </div>
                         )}
-                        <div style={{ ...nodeDescriptionStyle, marginTop: "4px", fontSize: "0.62rem", color: "#94a3b8" }}>
+                        <div {...{ style: { ...nodeDescriptionStyle, marginTop: "4px", fontSize: "0.62rem", color: "#94a3b8" } }}>
                           {node.description}
                         </div>
 
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
-                          <span style={nodeStatusPillStyle(buttonEnabled, tone, activeBranch.color)}>
+                        <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginTop: "10px", flexWrap: "wrap" } }}>
+                          <span {...{ style: nodeStatusPillStyle(buttonEnabled, tone, activeBranch.color) }}>
                             {level >= node.maxLevel
                               ? "Max"
                               : purchase.reason === "unlock"
@@ -778,7 +778,7 @@ export default function Prestige({ state, dispatch }) {
                             onClick={() => dispatch({ type: "BUY_PRESTIGE_NODE", nodeId: node.id })}
                             disabled={!buttonEnabled}
                             data-onboarding-target={spotlightNode ? "buy-first-echo-node" : undefined}
-                            style={nodeBuyButtonStyle(activeBranch.color, buttonEnabled)}
+                            {...{ style: nodeBuyButtonStyle(activeBranch.color, buttonEnabled) }}
                           >
                             {level >= node.maxLevel
                               ? "Maximo"
@@ -797,7 +797,7 @@ export default function Prestige({ state, dispatch }) {
                 </div>
               </div>
             )) : (
-              <div style={{ fontSize: "0.72rem", color: "#94a3b8", lineHeight: 1.45 }}>
+              <div {...{ style: { fontSize: "0.72rem", color: "#94a3b8", lineHeight: 1.45 } }}>
                 {nodeVisibilityFilter === "activos"
                   ? "Todavia no hay nodos activos en esta rama."
                   : "Ahora mismo esta rama no tiene compras inmediatas. Cambia a `Todos` para revisar tiers futuros."}
@@ -1032,7 +1032,8 @@ const branchScrollHintStyle = (side = "right") => ({
 function OutcomeSummaryCard({ group }) {
   return (
     <div
-      style={{
+      className="prestige-outcome-card"
+      {...{ style: {
         borderRadius: "12px",
         border: "1px solid rgba(148,163,184,0.18)",
         background: "rgba(255,255,255,0.04)",
@@ -1040,12 +1041,12 @@ function OutcomeSummaryCard({ group }) {
         display: "grid",
         gap: "8px",
         alignContent: "start",
-      }}
+      } }}
     >
-      <div style={{ fontSize: "0.62rem", color: "#cbd5e1", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+      <div {...{ style: { fontSize: "0.62rem", color: "#cbd5e1", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em" } }}>
         {group.label}
       </div>
-      <ul style={{ margin: 0, paddingLeft: "16px", display: "grid", gap: "6px", color: "#94a3b8", fontSize: "0.68rem", lineHeight: 1.45 }}>
+      <ul {...{ style: { margin: 0, paddingLeft: "16px", display: "grid", gap: "6px", color: "#94a3b8", fontSize: "0.68rem", lineHeight: 1.45 } }}>
         {group.items.map(item => (
           <li key={item}>{item}</li>
         ))}
@@ -1055,9 +1056,15 @@ function OutcomeSummaryCard({ group }) {
 }
 
 function QuickPrestigeOutcomeColumn({ label, tone, items = [], fallback = "" }) {
+  const isKeep = tone === "#10b981";
+
   return (
     <div
-      style={{
+      className={[
+        "prestige-outcome-column",
+        isKeep ? "prestige-outcome-column--keep" : "prestige-outcome-column--reset",
+      ].join(" ")}
+      {...{ style: {
         background: "rgba(15,23,42,0.36)",
         border: "1px solid rgba(148,163,184,0.22)",
         borderTop: `3px solid ${tone}`,
@@ -1065,21 +1072,22 @@ function QuickPrestigeOutcomeColumn({ label, tone, items = [], fallback = "" }) 
         padding: "9px 10px",
         display: "grid",
         gap: "6px",
-      }}
+      } }}
     >
-      <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: tone }}>
-        {label}
+      <div className="prestige-outcome-title" {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: tone } }}>
+        <ForgeIcon name={isKeep ? "essence" : "extract"} size={18} />
+        <span>{label}</span>
       </div>
       {items.length > 0 ? (
-        <div style={{ display: "grid", gap: "4px" }}>
+        <div {...{ style: { display: "grid", gap: "4px" } }}>
           {items.map(item => (
-            <div key={`${label}-${item}`} style={{ fontSize: "0.64rem", color: "#cbd5e1", lineHeight: 1.4 }}>
+            <div key={`${label}-${item}`} {...{ style: { fontSize: "0.64rem", color: "#cbd5e1", lineHeight: 1.4 } }}>
               • {item}
             </div>
           ))}
         </div>
       ) : (
-        <div style={{ fontSize: "0.64rem", color: "#94a3b8", lineHeight: 1.4 }}>
+        <div {...{ style: { fontSize: "0.64rem", color: "#94a3b8", lineHeight: 1.4 } }}>
           {fallback}
         </div>
       )}

@@ -203,7 +203,7 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
   return (
     <OverlayShell isMobile={isMobile} contentLabel="Taller">
       <OverlaySurface isMobile={isMobile}>
-        <div style={{
+        <div {...{ style: {
           padding: "1rem",
           display: "grid",
           gap: "1rem",
@@ -211,82 +211,82 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
           alignContent: "start",
           background: "var(--color-background-primary, #f8fafc)",
           color: "var(--color-text-primary, #1e293b)",
-        }}>
-          <section style={sectionPanelStyle("var(--tone-danger, #D85A30)")}>
-            <div style={{ display: "grid", gap: "12px", alignItems: "start" }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
+        } }}>
+          <section {...{ style: sectionPanelStyle("var(--tone-danger, #D85A30)") }}>
+            <div {...{ style: { display: "grid", gap: "12px", alignItems: "start" } }}>
+              <div {...{ style: { minWidth: 0 } }}>
+                <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" } }}>
                   Taller
                 </div>
-                <div style={{ fontSize: "1.02rem", fontWeight: "900", marginTop: "4px" }}>
+                <div {...{ style: { fontSize: "1.02rem", fontWeight: "900", marginTop: "4px" } }}>
                   Blueprints, afinidad y loadout persistente
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" }}>
+                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" } }}>
                   Ordena piezas rescatadas a largo plazo. El plano guarda dirección de roll, no el item exacto.
                 </div>
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <span style={chipLabelStyle("var(--tone-danger, #D85A30)")}>
+            <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap" } }}>
+              <span {...{ style: chipLabelStyle("var(--tone-danger, #D85A30)") }}>
                 {blueprints.length} plano{blueprints.length !== 1 ? "s" : ""}
               </span>
-              <span style={chipLabelStyle("var(--tone-accent, #4338ca)")}>
+              <span {...{ style: chipLabelStyle("var(--tone-accent, #4338ca)") }}>
                 {totalCharges} cargas
               </span>
-              <span style={chipLabelStyle("var(--tone-info, #0369a1)")}>
+              <span {...{ style: chipLabelStyle("var(--tone-info, #0369a1)") }}>
                 cap {familyChargeCap}/familia
               </span>
-              <span style={chipLabelStyle("var(--tone-warning, #f59e0b)")}>
+              <span {...{ style: chipLabelStyle("var(--tone-warning, #f59e0b)") }}>
                 {extractedItems.length} rescatado{extractedItems.length === 1 ? "" : "s"}
               </span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" }}>
-              <div style={metricCardStyle()}>
-                <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Planos</div>
-                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{blueprints.length}</div>
+            <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" } }}>
+              <div {...{ style: metricCardStyle() }}>
+                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Planos</div>
+                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{blueprints.length}</div>
               </div>
-              <div style={metricCardStyle()}>
-                <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Cargas</div>
-                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{totalCharges}</div>
+              <div {...{ style: metricCardStyle() }}>
+                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Cargas</div>
+                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{totalCharges}</div>
               </div>
-              <div style={metricCardStyle()}>
-                <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Polvo</div>
-                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{Math.floor(relicDustAvailable)}</div>
+              <div {...{ style: metricCardStyle() }}>
+                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Polvo</div>
+                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{Math.floor(relicDustAvailable)}</div>
               </div>
-              <div style={metricCardStyle()}>
-                <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Esencia</div>
-                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{Math.floor(essenceAvailable)}</div>
+              <div {...{ style: metricCardStyle() }}>
+                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Esencia</div>
+                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{Math.floor(essenceAvailable)}</div>
               </div>
-              <div style={metricCardStyle()}>
-                <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Stash</div>
-                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>
+              <div {...{ style: metricCardStyle() }}>
+                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Stash</div>
+                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>
                   {extractedItems.length} / {extractedItemSlots}
                 </div>
               </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button onClick={onClose} style={{ ...actionButtonStyle({ compact: true }), flex: "0 0 auto" }}>
+            <div {...{ style: { display: "flex", justifyContent: "flex-end" } }}>
+              <button onClick={onClose} {...{ style: { ...actionButtonStyle({ compact: true }), flex: "0 0 auto" } }}>
                 Volver
               </button>
             </div>
           </section>
 
-          <section style={sectionPanelStyle("var(--tone-warning, #f59e0b)")}>
+          <section {...{ style: sectionPanelStyle("var(--tone-warning, #f59e0b)") }}>
             <div
               onClick={() => toggleSection("stash")}
-              style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" }}
+              {...{ style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" } }}
             >
               <div>
-                <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
+                <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" } }}>
                   Piezas rescatadas
                 </div>
-                <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+                <div {...{ style: { fontSize: "1rem", fontWeight: "900", marginTop: "4px" } }}>
                   Convierte en plano o desguaza para ganar cargas
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 }}>
+                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 } }}>
                   Stash {extractedItems.length}/{extractedItemSlots} · jobs {deepForgeRunningJobs.length}/{deepForgeSlots} · {deepForgeClaimableJobs.length} listo{deepForgeClaimableJobs.length === 1 ? "" : "s"}.
                 </div>
               </div>
@@ -295,7 +295,7 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                   event.stopPropagation();
                   toggleSection("stash");
                 }}
-                style={{ ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
+                {...{ style: { ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" } }}
               >
                 {expandedSections?.stash ? "-" : "+"}
               </button>
@@ -304,46 +304,46 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
             {expandedSections?.stash && (
               <>
                 {extractedItems.length === 0 ? (
-                  <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                  <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
                     Todavia no hay piezas rescatadas en stash. Al extraer un item desde expedicion, aparecera aqui para decidir si guardarlo como plano o desguazarlo.
                   </div>
                 ) : (
-                  <div style={{ display: "grid", gap: "8px" }}>
+                  <div {...{ style: { display: "grid", gap: "8px" } }}>
                     {extractedItems.map(item => {
                       const affixCount = Array.isArray(item?.affixes) ? item.affixes.length : 0;
                       const scrapBlocked = deepForgeRunningJobs.length >= deepForgeSlots;
                       return (
-                        <div key={item.id} style={panelStyle()}>
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
+                        <div key={item.id} {...{ style: panelStyle() }}>
+                          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" } }}>
                             <div>
-                              <div style={{ fontSize: "0.8rem", fontWeight: "900", color: getRarityColor(item?.rarity || "rare") }}>
+                              <div {...{ style: { fontSize: "0.8rem", fontWeight: "900", color: getRarityColor(item?.rarity || "rare") } }}>
                                 {item?.name || "Pieza rescatada"}
                               </div>
-                              <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
+                              <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 } }}>
                                 {item?.rarity || "rare"} · {item?.type || "weapon"} · rating {Math.round(Number(item?.rating || 0))} · {affixCount} afijo{affixCount === 1 ? "" : "s"}
                               </div>
                             </div>
-                            <span style={chipLabelStyle(item?.legendaryPowerId ? "var(--tone-warning, #f59e0b)" : "var(--tone-info, #0369a1)")}>
+                            <span {...{ style: chipLabelStyle(item?.legendaryPowerId ? "var(--tone-warning, #f59e0b)" : "var(--tone-info, #0369a1)") }}>
                               {item?.legendaryPowerId ? "Legendario" : "Rescatado"}
                             </span>
                           </div>
 
-                          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center" }}>
-                            <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
+                          <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center" } }}>
+                            <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 } }}>
                               Guarda la direccion como blueprint o desguaza para sumar cargas.
                               {scrapBlocked ? ` Cupo de jobs lleno (${deepForgeRunningJobs.length}/${deepForgeSlots}).` : ""}
                             </div>
                             <div className="overlay-responsive-buttons">
                               <button
                                 onClick={() => dispatch({ type: "CONVERT_EXTRACTED_ITEM_TO_BLUEPRINT", extractedItemId: item.id, now: Date.now() })}
-                                style={actionButtonStyle({ primary: true, compact: true })}
+                                {...{ style: actionButtonStyle({ primary: true, compact: true }) }}
                               >
                                 Convertir en plano
                               </button>
                               <button
                                 onClick={() => dispatch({ type: "START_SCRAP_EXTRACTED_ITEM_JOB", extractedItemId: item.id, now: Date.now() })}
                                 disabled={scrapBlocked}
-                                style={actionButtonStyle({ compact: true, disabled: scrapBlocked })}
+                                {...{ style: actionButtonStyle({ compact: true, disabled: scrapBlocked }) }}
                               >
                                 Desguazar
                               </button>
@@ -359,19 +359,19 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
           </section>
 
           <section className="overlay-split-54-46">
-            <div style={sectionPanelStyle("var(--tone-violet, #7c3aed)")}>
+            <div {...{ style: sectionPanelStyle("var(--tone-violet, #7c3aed)") }}>
               <div
                 onClick={() => toggleSection("blueprints")}
-                style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" }}
+                {...{ style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" } }}
               >
                 <div>
-                  <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" }}>
+                  <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" } }}>
                     Blueprints
                   </div>
-                  <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+                  <div {...{ style: { fontSize: "1rem", fontWeight: "900", marginTop: "4px" } }}>
                     Planos persistentes listos para runs futuras
                   </div>
-                  <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 }}>
+                  <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 } }}>
                     Slots activos: arma {activeBlueprints.weapon ? "si" : "no"} · armadura {activeBlueprints.armor ? "si" : "no"}.
                   </div>
                 </div>
@@ -380,7 +380,7 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                     event.stopPropagation();
                     toggleSection("blueprints");
                   }}
-                  style={{ ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
+                  {...{ style: { ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" } }}
                 >
                   {expandedSections?.blueprints ? "-" : "+"}
                 </button>
@@ -389,11 +389,11 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
               {expandedSections?.blueprints && (
                 <>
                   {blueprints.length === 0 ? (
-                    <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                    <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
                       Todavia no hay blueprints. Rescata un item desde extraccion y conviertelo en plano para empezar a construir un loadout persistente.
                     </div>
                   ) : (
-                    <div style={{ display: "grid", gap: "8px" }}>
+                    <div {...{ style: { display: "grid", gap: "8px" } }}>
                       {blueprints
                         .slice()
                         .sort((left, right) => getBlueprintEffectiveBaseRating(right) - getBlueprintEffectiveBaseRating(left))
@@ -402,15 +402,15 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                           const isActiveSlot = activeBlueprints?.[blueprint.slot] === blueprint.id;
                           const effectiveRating = getBlueprintEffectiveBaseRating(blueprint);
                           return (
-                            <button key={blueprint.id} onClick={() => setSelectedBlueprintId(blueprint.id)} style={chipStyle({ active, tone: "var(--tone-violet, #7c3aed)" })}>
-                              <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
+                            <button key={blueprint.id} onClick={() => setSelectedBlueprintId(blueprint.id)} {...{ style: chipStyle({ active, tone: "var(--tone-violet, #7c3aed)" }) }}>
+                              <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" } }}>
                                 <div>
-                                  <div style={{ fontSize: "0.8rem", fontWeight: "900", color: getRarityColor(blueprint.rarity) }}>{blueprint.sourceName}</div>
-                                  <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
+                                  <div {...{ style: { fontSize: "0.8rem", fontWeight: "900", color: getRarityColor(blueprint.rarity) } }}>{blueprint.sourceName}</div>
+                                  <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 } }}>
                                     {blueprint.slot} · {blueprint.rarity} · rating {effectiveRating}
                                   </div>
                                 </div>
-                                <span style={chipLabelStyle(isActiveSlot ? "var(--tone-success, #10b981)" : "var(--color-text-secondary, #475569)")}>
+                                <span {...{ style: chipLabelStyle(isActiveSlot ? "var(--tone-success, #10b981)" : "var(--color-text-secondary, #475569)") }}>
                                   {isActiveSlot ? "Activo" : "Reserva"}
                                 </span>
                               </div>
@@ -423,19 +423,19 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
               )}
             </div>
 
-            <div style={sectionPanelStyle("var(--tone-danger, #D85A30)")}>
+            <div {...{ style: sectionPanelStyle("var(--tone-danger, #D85A30)") }}>
               <div
                 onClick={() => toggleSection("details")}
-                style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" }}
+                {...{ style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" } }}
               >
                 <div>
-                  <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
+                  <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" } }}>
                     Proyecto activo
                   </div>
-                  <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+                  <div {...{ style: { fontSize: "1rem", fontWeight: "900", marginTop: "4px" } }}>
                     Ajuste de estructura, sintonia y afinidades
                   </div>
-                  <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 }}>
+                  <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 } }}>
                     Selecciona un plano y empuja su progresión persistente.
                   </div>
                 </div>
@@ -444,7 +444,7 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                     event.stopPropagation();
                     toggleSection("details");
                   }}
-                  style={{ ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
+                  {...{ style: { ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" } }}
                 >
                   {expandedSections?.details ? "-" : "+"}
                 </button>
@@ -453,75 +453,75 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
               {expandedSections?.details && (
                 <>
                   {!selectedBlueprint ? (
-                    <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                    <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
                       Selecciona un blueprint para ver su direccion de materializacion y gastar cargas en sus familias.
                     </div>
                   ) : (
                     <>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" }}>
+                      <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" } }}>
                         <div>
-                          <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
+                          <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" } }}>
                             Blueprint activo
                           </div>
-                          <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "2px", color: getRarityColor(selectedBlueprint.rarity) }}>
+                          <div {...{ style: { fontSize: "1rem", fontWeight: "900", marginTop: "2px", color: getRarityColor(selectedBlueprint.rarity) } }}>
                             {selectedBlueprint.sourceName}
                           </div>
-                          <div style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.45 }}>
+                          <div {...{ style: { fontSize: "0.7rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.45 } }}>
                             {selectedBlueprint.slot} · familia {selectedBlueprint.familyName || selectedBlueprint.family || "base"} · tier {selectedBlueprint.itemTier}
                             {selectedBlueprint.legendaryPowerId ? " · conserva poder legendario" : ""}
                           </div>
                         </div>
-                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                        <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" } }}>
                           <button
                             onClick={() => dispatch({ type: "SET_ACTIVE_BLUEPRINT", slot: selectedBlueprint.slot, blueprintId: selectedBlueprint.id })}
-                            style={actionButtonStyle({
+                            {...{ style: actionButtonStyle({
                               primary: activeBlueprints?.[selectedBlueprint.slot] !== selectedBlueprint.id,
-                            })}
+                            }) }}
                           >
                             {activeBlueprints?.[selectedBlueprint.slot] === selectedBlueprint.id ? "Activo en run" : `Activar en ${selectedBlueprint.slot}`}
                           </button>
                           <button
                             onClick={() => dispatch({ type: "DISCARD_BLUEPRINT", blueprintId: selectedBlueprint.id })}
-                            style={actionButtonStyle({ primary: true })}
+                            {...{ style: actionButtonStyle({ primary: true }) }}
                           >
                             Descartar plano
                           </button>
                         </div>
                       </div>
 
-                      <div className="overlay-cols-1-3" style={{ gap: "8px" }}>
-                        <div style={panelStyle()}>
-                          <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+                      <div className="overlay-cols-1-3" {...{ style: { gap: "8px" } }}>
+                        <div {...{ style: panelStyle() }}>
+                          <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" } }}>
                             Identidad base
                           </div>
-                          <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.5 }}>
+                          <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.5 } }}>
                             Este blueprint materializa siempre una pieza del mismo slot y familia, con la rareza del item rescatado y su base estructural.
                           </div>
-                          <div style={{ display: "grid", gap: "6px" }}>
-                            <span style={chipLabelStyle("var(--tone-accent, #4338ca)")}>Base rating: {Math.round(Number(selectedBlueprint?.baseRating || 0))}</span>
-                            <span style={chipLabelStyle("var(--tone-accent, #4338ca)")}>Tier efectivo: {getBlueprintEffectiveItemTier(selectedBlueprint)}</span>
-                            <span style={chipLabelStyle("var(--tone-accent, #4338ca)")}>Materializaciones: {Math.max(0, Number(selectedBlueprint?.materializationCount || 0))}</span>
+                          <div {...{ style: { display: "grid", gap: "6px" } }}>
+                            <span {...{ style: chipLabelStyle("var(--tone-accent, #4338ca)") }}>Base rating: {Math.round(Number(selectedBlueprint?.baseRating || 0))}</span>
+                            <span {...{ style: chipLabelStyle("var(--tone-accent, #4338ca)") }}>Tier efectivo: {getBlueprintEffectiveItemTier(selectedBlueprint)}</span>
+                            <span {...{ style: chipLabelStyle("var(--tone-accent, #4338ca)") }}>Materializaciones: {Math.max(0, Number(selectedBlueprint?.materializationCount || 0))}</span>
                           </div>
                         </div>
 
-                        <div style={panelStyle()}>
-                          <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
+                        <div {...{ style: panelStyle() }}>
+                          <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" } }}>
                             Estructura
                           </div>
-                          <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.5 }}>
+                          <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.5 } }}>
                             El polvo de reliquia refuerza el plano entre runs. Mejora base e implicito de cada materializacion, pero con cap para que drops mas profundos sigan importando.
                           </div>
-                          <div style={{ display: "grid", gap: "6px" }}>
-                            <span style={chipLabelStyle("var(--tone-warning, #f59e0b)")}>
+                          <div {...{ style: { display: "grid", gap: "6px" } }}>
+                            <span {...{ style: chipLabelStyle("var(--tone-warning, #f59e0b)") }}>
                               Nivel {structurePreview?.currentLevel || 0} / {getBlueprintLevelCap()}
                             </span>
-                            <span style={chipLabelStyle("var(--tone-warning, #f59e0b)")}>
+                            <span {...{ style: chipLabelStyle("var(--tone-warning, #f59e0b)") }}>
                               Rating estructural {structurePreview?.currentEffectiveRating || Math.round(Number(selectedBlueprint?.baseRating || 0))}
                               {structurePreview && !structurePreview.atCap ? ` -> ${structurePreview.nextEffectiveRating}` : ""}
                             </span>
                           </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                            <div style={{ fontSize: "0.66rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
+                          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" } }}>
+                            <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" } }}>
                               {structurePreview?.atCap
                                 ? "Cap estructural actual alcanzado."
                                 : `${structurePreview?.costs?.relicDust || 0} polvo · base x${Number(structurePreview?.nextMultipliers?.base || 1).toFixed(2)} · implicit x${Number(structurePreview?.nextMultipliers?.implicit || 1).toFixed(2)}`}
@@ -529,25 +529,25 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                             <button
                               onClick={() => dispatch({ type: "UPGRADE_BLUEPRINT_STRUCTURE", blueprintId: selectedBlueprint.id, now: Date.now() })}
                               disabled={!!structurePreview?.atCap || relicDustAvailable < Number(structurePreview?.costs?.relicDust || 0)}
-                              style={actionButtonStyle({
+                              {...{ style: actionButtonStyle({
                                 primary: !structurePreview?.atCap && relicDustAvailable >= Number(structurePreview?.costs?.relicDust || 0),
                                 disabled: !!structurePreview?.atCap || relicDustAvailable < Number(structurePreview?.costs?.relicDust || 0),
-                              })}
+                              }) }}
                               >
                               Reforzar estructura
                             </button>
                           </div>
 
-                          <div style={{ marginTop: "4px", paddingTop: "8px", borderTop: "1px solid var(--color-border-primary, #e2e8f0)", display: "grid", gap: "6px" }}>
-                            <span style={chipLabelStyle("var(--tone-warning, #f59e0b)")}>
+                          <div {...{ style: { marginTop: "4px", paddingTop: "8px", borderTop: "1px solid var(--color-border-primary, #e2e8f0)", display: "grid", gap: "6px" } }}>
+                            <span {...{ style: chipLabelStyle("var(--tone-warning, #f59e0b)") }}>
                               Ascension {ascensionPreview?.currentAscensionTier || 0} / {getBlueprintAscensionCap()}
                             </span>
-                            <div style={{ fontSize: "0.66rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                            <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
                               {ascensionPreview?.atCap
                                 ? "El blueprint ya alcanzo su cap actual."
                                 : `Requiere nivel ${getBlueprintLevelCap()} · ${ascensionPreview?.costs?.relicDust || 0} polvo · ${ascensionPreview?.costs?.essence || 0} esencia`}
                             </div>
-                            <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                            <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
                               {ascensionPreview?.atCap
                                 ? "No puede seguir empujando tier por esta via."
                                 : `Al ascender reinicia la estructura a 0 y empuja la siguiente materializacion de Tier ${ascensionPreview?.currentEffectiveTier || getBlueprintEffectiveItemTier(selectedBlueprint)} a ${ascensionPreview?.nextEffectiveTier || getBlueprintEffectiveItemTier(selectedBlueprint)}.`}
@@ -555,30 +555,30 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                             <button
                               onClick={() => dispatch({ type: "ASCEND_BLUEPRINT", blueprintId: selectedBlueprint.id, now: Date.now() })}
                               disabled={!canAscend.ok}
-                              style={actionButtonStyle({
+                              {...{ style: actionButtonStyle({
                                 primary: canAscend.ok,
                                 disabled: !canAscend.ok,
-                              })}
+                              }) }}
                             >
                               Ascender blueprint
                             </button>
                           </div>
                         </div>
 
-                        <div style={panelStyle()}>
-                          <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-success, #10b981)" }}>
+                        <div {...{ style: panelStyle() }}>
+                          <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-success, #10b981)" } }}>
                             Direccion de roll
                           </div>
-                          <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.5 }}>
+                          <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.5 } }}>
                             La run no recibe el item exacto. Recibe una nueva interpretacion. Las afinidades sesgan el pool de affixes que se rolleara al iniciar la expedicion.
                           </div>
                           {selectedBlueprint.legendaryPowerId ? (
-                            <div style={{ display: "grid", gap: "6px" }}>
-                              <span style={chipLabelStyle("var(--tone-success, #10b981)")}>
+                            <div {...{ style: { display: "grid", gap: "6px" } }}>
+                              <span {...{ style: chipLabelStyle("var(--tone-success, #10b981)") }}>
                                 Sintonia {powerTunePreview?.currentLevel || 0} / {getBlueprintPowerTuneCap()}
                               </span>
-                              <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                                <div style={{ fontSize: "0.66rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
+                              <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" } }}>
+                                <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" } }}>
                                   {powerTunePreview?.atCap
                                     ? "El poder ya esta en su cap actual."
                                     : `${powerTunePreview?.costs?.relicDust || 0} polvo · la sintonia potencia el efecto numerico del poder`}
@@ -586,88 +586,88 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                                 <button
                                   onClick={() => dispatch({ type: "TUNE_BLUEPRINT_POWER", blueprintId: selectedBlueprint.id, now: Date.now() })}
                                   disabled={!!powerTunePreview?.atCap || relicDustAvailable < Number(powerTunePreview?.costs?.relicDust || 0)}
-                                  style={actionButtonStyle({
+                                  {...{ style: actionButtonStyle({
                                     primary: !powerTunePreview?.atCap && relicDustAvailable >= Number(powerTunePreview?.costs?.relicDust || 0),
                                     disabled: !!powerTunePreview?.atCap || relicDustAvailable < Number(powerTunePreview?.costs?.relicDust || 0),
-                                  })}
+                                  }) }}
                                 >
                                   Sintonizar poder
                                 </button>
                               </div>
                             </div>
                           ) : (
-                            <span style={chipLabelStyle("var(--color-text-secondary, #64748b)")}>
+                            <span {...{ style: chipLabelStyle("var(--color-text-secondary, #64748b)") }}>
                               Sin poder legendario
                             </span>
                           )}
                         </div>
                       </div>
 
-                      <div style={panelStyle()}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                      <div {...{ style: panelStyle() }}>
+                        <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" } }}>
                           <div>
-                            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
+                            <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" } }}>
                               Preview de materializacion
                             </div>
-                            <div style={{ fontSize: "0.92rem", fontWeight: "900", marginTop: "2px" }}>
+                            <div {...{ style: { fontSize: "0.92rem", fontWeight: "900", marginTop: "2px" } }}>
                               Forecast generico de la proxima materializacion
                             </div>
                           </div>
-                          <span style={chipLabelStyle("var(--tone-info, #0369a1)")}>
+                          <span {...{ style: chipLabelStyle("var(--tone-info, #0369a1)") }}>
                             rating {materializationPreview?.effectiveRating || getBlueprintEffectiveBaseRating(selectedBlueprint)}
                           </span>
                         </div>
 
                         {materializationPreview ? (
-                          <div style={{ display: "grid", gap: "10px" }}>
-                            <div style={{ display: "grid", gap: "4px" }}>
-                              <div style={{ fontSize: "0.86rem", fontWeight: "900", color: getRarityColor(materializationPreview.rarity) }}>
+                          <div {...{ style: { display: "grid", gap: "10px" } }}>
+                            <div {...{ style: { display: "grid", gap: "4px" } }}>
+                              <div {...{ style: { fontSize: "0.86rem", fontWeight: "900", color: getRarityColor(materializationPreview.rarity) } }}>
                                 {materializationPreview.familyName || (materializationPreview.slot === "weapon" ? "Arma" : "Armadura")} · {materializationPreview.rarity}
                               </div>
-                              <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                              <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
                                 {materializationPreview.slot} · tier efectivo {materializationPreview.effectiveTier} · {materializationPreview.affixCount} afijo{materializationPreview.affixCount === 1 ? "" : "s"}
                                 {materializationPreview.hasLegendaryPower ? ` · sintonia ${materializationPreview.powerTuneLevel || 0}/${getBlueprintPowerTuneCap()}` : ""}
                               </div>
                             </div>
 
-                            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+                            <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 } }}>
                               <strong>Base fija del plano:</strong>{" "}
                               {formatStatList(materializationPreview.baseStats || []) || "sin identidad base especial"}
                             </div>
-                            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+                            <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 } }}>
                               <strong>Implicito que arrastra:</strong>{" "}
                               {formatStatList(materializationPreview.implicitStats || []) || "sin implicito visible"}
                             </div>
-                            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+                            <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 } }}>
                               <strong>Estructura del plano:</strong> base {materializationPreview.structureBands?.base || "leve"} · implicito {materializationPreview.structureBands?.implicit || "leve"}
                             </div>
-                            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+                            <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 } }}>
                               <strong>Tendencia de tiers:</strong> {materializationPreview.tierBias?.label || "Rango medio"}.
                               {" "}{materializationPreview.tierBias?.detail || ""}
                             </div>
 
                             {materializationPreview.topFamilies?.length > 0 ? (
-                              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                              <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
                                 {materializationPreview.topFamilies.map(entry => (
-                                  <span key={`top-family-${entry.familyId}`} style={chipLabelStyle(entry.meta?.color || "var(--tone-info, #0369a1)")}>
+                                  <span key={`top-family-${entry.familyId}`} {...{ style: chipLabelStyle(entry.meta?.color || "var(--tone-info, #0369a1)") }}>
                                     {entry.meta?.label || entry.familyId} · {entry.strengthLabel || "baja"} ({entry.score})
                                   </span>
                                 ))}
                               </div>
                             ) : (
-                              <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+                              <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 } }}>
                                 <strong>Sesgo de familias:</strong> sin afinidades fuertes todavia.
                               </div>
                             )}
 
                             {materializationPreview.likelyStats?.length > 0 && (
-                              <div style={{ display: "grid", gap: "6px" }}>
-                                <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #475569)" }}>
+                              <div {...{ style: { display: "grid", gap: "6px" } }}>
+                                <div {...{ style: { fontSize: "0.68rem", fontWeight: "900", color: "var(--color-text-secondary, #475569)" } }}>
                                   Lineas que pueden aparecer con mas facilidad
                                 </div>
-                                <div style={{ display: "grid", gap: "4px" }}>
+                                <div {...{ style: { display: "grid", gap: "4px" } }}>
                                   {materializationPreview.likelyStats.map(entry => (
-                                    <div key={`likely-stat-${entry.stat}`} style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4 }}>
+                                    <div key={`likely-stat-${entry.stat}`} {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4 } }}>
                                       <strong>{ITEM_STAT_LABELS?.[entry.stat] || entry.stat}</strong> · chance {getWeightLabel(entry.weight)}
                                     </div>
                                   ))}
@@ -676,64 +676,64 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                             )}
                           </div>
                         ) : (
-                          <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                          <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
                             No se pudo generar una preview de materializacion para este blueprint.
                           </div>
                         )}
                       </div>
 
-                      <div style={panelStyle()}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                      <div {...{ style: panelStyle() }}>
+                        <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" } }}>
                           <div>
-                            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" }}>
+                            <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" } }}>
                               Afinidades
                             </div>
-                            <div style={{ fontSize: "0.92rem", fontWeight: "900", marginTop: "2px" }}>
+                            <div {...{ style: { fontSize: "0.92rem", fontWeight: "900", marginTop: "2px" } }}>
                               Gasta cargas para sesgar la primera materializacion
                             </div>
                           </div>
-                          <span style={chipLabelStyle("var(--tone-violet, #7c3aed)")}>
+                          <span {...{ style: chipLabelStyle("var(--tone-violet, #7c3aed)") }}>
                             primaria: {selectedBlueprint.primaryFamily || "ninguna"}
                           </span>
                         </div>
 
-                        <div style={{ display: "grid", gap: "8px" }}>
+                        <div {...{ style: { display: "grid", gap: "8px" } }}>
                           {Object.values(BLUEPRINT_AFFIX_FAMILIES).map(family => {
                             const affinity = Math.max(0, Number(selectedBlueprint?.affinity?.[family.id] || 0));
                             const chargeCount = Math.max(0, Number(familyCharges?.[family.id] || 0));
                             const isPrimary = selectedBlueprint.primaryFamily === family.id;
                             const isSecondary = selectedBlueprint.secondaryFamily === family.id;
                             return (
-                              <div key={family.id} style={{ ...panelStyle(), gap: "8px" }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" }}>
+                              <div key={family.id} {...{ style: { ...panelStyle(), gap: "8px" } }}>
+                                <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" } }}>
                                   <div>
-                                    <div style={{ fontSize: "0.8rem", fontWeight: "900", color: family.color }}>{family.label}</div>
-                                    <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
+                                    <div {...{ style: { fontSize: "0.8rem", fontWeight: "900", color: family.color } }}>{family.label}</div>
+                                    <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 } }}>
                                       {family.stats.join(", ")}
                                     </div>
                                   </div>
-                                  <div style={{ display: "grid", gap: "4px", justifyItems: "end" }}>
-                                    <span style={chipLabelStyle(family.color)}>
+                                  <div {...{ style: { display: "grid", gap: "4px", justifyItems: "end" } }}>
+                                    <span {...{ style: chipLabelStyle(family.color) }}>
                                       afinidad {affinity}
                                     </span>
-                                    <span style={chipLabelStyle(isPrimary ? "var(--tone-danger, #D85A30)" : isSecondary ? "var(--tone-info, #0369a1)" : "var(--color-text-secondary, #475569)")}>
+                                    <span {...{ style: chipLabelStyle(isPrimary ? "var(--tone-danger, #D85A30)" : isSecondary ? "var(--tone-info, #0369a1)" : "var(--color-text-secondary, #475569)") }}>
                                       {isPrimary ? "Principal" : isSecondary ? "Secundaria" : "Secundaria libre"}
                                     </span>
                                   </div>
                                 </div>
 
-                                <div style={affinityBarStyle()}>
-                                  <div style={{ width: `${Math.min(100, (affinity / 70) * 100)}%`, height: "100%", background: family.color }} />
+                                <div {...{ style: affinityBarStyle() }}>
+                                  <div {...{ style: { width: `${Math.min(100, (affinity / 70) * 100)}%`, height: "100%", background: family.color } }} />
                                 </div>
 
-                                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                                  <div style={{ fontSize: "0.66rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
+                                <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" } }}>
+                                  <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" } }}>
                                     {chargeCount}/{familyChargeCap} cargas disponibles
                                   </div>
                                   <button
                                     onClick={() => dispatch({ type: "INVEST_BLUEPRINT_AFFINITY", blueprintId: selectedBlueprint.id, familyId: family.id, charges: 1 })}
                                     disabled={chargeCount <= 0}
-                                    style={actionButtonStyle({ primary: chargeCount > 0, disabled: chargeCount <= 0 })}
+                                    {...{ style: actionButtonStyle({ primary: chargeCount > 0, disabled: chargeCount <= 0 }) }}
                                   >
                                     Invertir 1 carga
                                   </button>
@@ -750,19 +750,19 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
             </div>
           </section>
 
-          <section style={sectionPanelStyle("var(--tone-accent, #4338ca)")}>
+          <section {...{ style: sectionPanelStyle("var(--tone-accent, #4338ca)") }}>
             <div
               onClick={() => toggleSection("bank")}
-              style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" }}
+              {...{ style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" } }}
             >
               <div>
-                <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+                <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" } }}>
                   Banco de Cargas
                 </div>
-                <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+                <div {...{ style: { fontSize: "1rem", fontWeight: "900", marginTop: "4px" } }}>
                   Recursos listos para invertir en afinidad
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 }}>
+                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 } }}>
                   Total disponible: {Object.values(familyCharges || {}).reduce((total, value) => total + Math.max(0, Number(value || 0)), 0)} cargas.
                 </div>
               </div>
@@ -771,24 +771,24 @@ export default function BlueprintForgeOverlay({ state, dispatch, isMobile = fals
                   event.stopPropagation();
                   toggleSection("bank");
                 }}
-                style={{ ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
+                {...{ style: { ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" } }}
               >
                 {expandedSections?.bank ? "-" : "+"}
               </button>
             </div>
 
             {expandedSections?.bank && (
-              <div className="overlay-cols-1-3" style={{ gap: "8px" }}>
+              <div className="overlay-cols-1-3" {...{ style: { gap: "8px" } }}>
                 {Object.values(BLUEPRINT_AFFIX_FAMILIES).map(family => (
-                  <div key={family.id} style={panelStyle()}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
+                  <div key={family.id} {...{ style: panelStyle() }}>
+                    <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" } }}>
                       <div>
-                        <div style={{ fontSize: "0.76rem", fontWeight: "900", color: family.color }}>{family.label}</div>
-                        <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
+                        <div {...{ style: { fontSize: "0.76rem", fontWeight: "900", color: family.color } }}>{family.label}</div>
+                        <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 } }}>
                           {family.stats.join(", ")}
                         </div>
                       </div>
-                      <span style={chipLabelStyle(family.color)}>
+                      <span {...{ style: chipLabelStyle(family.color) }}>
                         {Math.max(0, Number(familyCharges?.[family.id] || 0))}/{familyChargeCap}
                       </span>
                     </div>

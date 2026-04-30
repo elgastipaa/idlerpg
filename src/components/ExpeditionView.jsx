@@ -22,17 +22,7 @@ function getExpeditionSubview(tab = "combat") {
 
 function SubviewLoadingCard({ label = "Vista" }) {
   return (
-    <div
-      style={{
-        border: "1px solid var(--color-border-primary, #e2e8f0)",
-        background: "var(--color-background-secondary, #ffffff)",
-        borderRadius: "12px",
-        padding: "14px 12px",
-        fontSize: "0.72rem",
-        fontWeight: "900",
-        color: "var(--color-text-secondary, #64748b)",
-      }}
-    >
+    <div className="subview-loading-card">
       Cargando {label}...
     </div>
   );
@@ -66,7 +56,11 @@ export default function ExpeditionView({ state, dispatch }) {
   const isCombatSubview = resolvedSubview === "combat";
   const expeditionRootClassName = [
     "expedition-root",
+    state?.forgeLightCombatTrial ? "expedition-root--forge-light-prueba" : "",
+    resolvedSubview === "inventory" ? "expedition-root--inventory" : "",
+    resolvedSubview === "codex" ? "expedition-root--codex" : "",
     isMobile && isCombatSubview ? "expedition-root--combat-mobile" : "",
+    isMobile && resolvedSubview === "inventory" ? "expedition-root--inventory-mobile" : "",
   ].join(" ").trim();
   const runTier = Math.max(1, Number(state?.combat?.currentTier || 1));
   const runBossKills = Math.max(0, Number(state?.combat?.runStats?.bossKills || 0));
@@ -108,23 +102,29 @@ export default function ExpeditionView({ state, dispatch }) {
       badgeTone: "success",
     };
   });
+  const useCombatMobileSideActions = isMobile && isCombatSubview;
+  const combatSideActions = useCombatMobileSideActions
+    ? subtabEntries
+        .filter(entry => entry.id !== "combat")
+        .map(entry => ({
+          ...entry,
+          icon: entry.id === "inventory" ? "inventory" : "library",
+          onSelect: () => dispatch({ type: "SET_TAB", tab: entry.id }),
+        }))
+    : [];
   return (
     <div className={expeditionRootClassName}>
-      <style>{`
-        @keyframes expeditionSubviewSpotlightPulse {
-          0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
-          70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
-          100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
-        }
-      `}</style>
-      <SubtabDock
-        entries={subtabEntries}
-        activeId={resolvedSubview}
-        onSelect={viewId => dispatch({ type: "SET_TAB", tab: viewId })}
-        isMobile={isMobile}
-        mobileScrollable={mobileSubtabsScrollable}
-        spotlightAnimationName="expeditionSubviewSpotlightPulse"
-      />
+      {!useCombatMobileSideActions && (
+        <SubtabDock
+          className="expedition-subtab-dock"
+          entries={subtabEntries}
+          activeId={resolvedSubview}
+          onSelect={viewId => dispatch({ type: "SET_TAB", tab: viewId })}
+          isMobile={isMobile}
+          mobileScrollable={mobileSubtabsScrollable}
+          spotlightAnimationName="expeditionSubviewSpotlightPulse"
+        />
+      )}
 
       {showRunSigilCallout && (
         <RunSigilCallout
@@ -137,47 +137,45 @@ export default function ExpeditionView({ state, dispatch }) {
 
       {isMobile && !isCombatSubview && (
         <div className="expedition-mobile-hint">
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-              <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "999px", padding: "2px 6px" }}>
+          <div className="expedition-mobile-hint__top">
+            <div className="expedition-mobile-hint__chips">
+              <span className="expedition-mobile-hint__chip">
                 T{runTier}
               </span>
-              <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "999px", padding: "2px 6px" }}>
+              <span className="expedition-mobile-hint__chip">
                 Boss {runBossKills}
               </span>
               {resolvedSubview === "inventory" && inventoryUpgrades > 0 && (
-                <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--tone-success, #047857)", border: "1px solid var(--tone-success, #a7f3d0)", background: "var(--tone-success-soft, #ecfdf5)", borderRadius: "999px", padding: "2px 6px" }}>
+                <span className="expedition-mobile-hint__chip expedition-mobile-hint__chip--success">
                   +{inventoryUpgrades} upgrade(s)
                 </span>
               )}
             </div>
             <button
+              className="expedition-mobile-hint__back"
               onClick={() => dispatch({ type: "SET_TAB", tab: "combat" })}
-              style={{
-                border: "1px solid var(--tone-accent, #4338ca)",
-                background: "var(--tone-accent-soft, #eef2ff)",
-                color: "var(--tone-accent, #4338ca)",
-                borderRadius: "10px",
-                padding: "6px 10px",
-                fontSize: "0.62rem",
-                fontWeight: "900",
-                cursor: "pointer",
-              }}
             >
               Volver a combate
             </button>
           </div>
           {subviewActionHint && (
-            <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.35 }}>
+            <div className="expedition-mobile-hint__copy">
               {subviewActionHint}
             </div>
           )}
         </div>
       )}
 
-      <div style={{ width: "100%", minWidth: 0 }}>
+      <div className="expedition-subview-content">
         <Suspense fallback={<SubviewLoadingCard label={SUBVIEW_META[resolvedSubview]?.label || "Vista"} />}>
-          {resolvedSubview === "combat" && <Combat state={state} dispatch={dispatch} />}
+          {resolvedSubview === "combat" && (
+            <Combat
+              state={state}
+              dispatch={dispatch}
+              sideActions={combatSideActions}
+              forgeLightTrial={Boolean(state?.forgeLightCombatTrial)}
+            />
+          )}
           {resolvedSubview === "inventory" && (
             <Inventory
               state={state}

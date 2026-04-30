@@ -36,6 +36,7 @@ function unlockBodyScroll() {
 
 export function OverlaySurface({
   isMobile = false,
+  variant = "default",
   maxWidth = "1220px",
   paddingMobile = "12px 10px 16px",
   paddingDesktop = "14px 14px 16px",
@@ -44,18 +45,25 @@ export function OverlaySurface({
   style = {},
   children,
 }) {
+  const surfaceProps = {
+    style: {
+      "--overlay-surface-max-width": maxWidth,
+      "--overlay-surface-padding-mobile": paddingMobile,
+      "--overlay-surface-padding-desktop": paddingDesktop,
+      "--overlay-surface-gap": gap,
+      ...style,
+    },
+  };
+
   return (
     <div
-      className={`overlay-shell__surface ${className}`.trim()}
-      style={{
-        width: "100%",
-        maxWidth,
-        maxHeight: "100%",
-        "--overlay-surface-padding-mobile": paddingMobile,
-        "--overlay-surface-padding-desktop": paddingDesktop,
-        "--overlay-surface-gap": gap,
-        ...style,
-      }}
+      className={[
+        "overlay-shell__surface",
+        variant !== "default" ? `overlay-shell__surface--${variant}` : "",
+        className,
+      ].filter(Boolean).join(" ")}
+      data-overlay-surface-variant={variant}
+      {...surfaceProps}
     >
       {children}
     </div>
@@ -65,6 +73,8 @@ export function OverlaySurface({
 export default function OverlayShell({
   isMobile = false,
   mode = "soft",
+  variant = "default",
+  className = "",
   respectHeader = mode === "soft",
   blockBackgroundScroll = true,
   dismissOnBackdrop = false,
@@ -72,7 +82,7 @@ export default function OverlayShell({
   onDismiss,
   contentLabel = "Overlay",
   zIndex,
-  backdrop = "rgba(2,6,23,0.72)",
+  backdrop = null,
   children,
 }) {
   const topInset = mode === "soft" && respectHeader
@@ -110,6 +120,14 @@ export default function OverlayShell({
     if (event.target !== event.currentTarget) return;
     onDismiss();
   };
+  const shellProps = {
+    style: {
+      "--overlay-shell-top-inset": topInset,
+      "--overlay-shell-bottom-inset": bottomInset,
+      "--overlay-shell-backdrop": backdrop || "rgba(2, 6, 23, 0.72)",
+      "--overlay-shell-z-index": resolvedZIndex,
+    },
+  };
 
   return (
     <div
@@ -117,14 +135,14 @@ export default function OverlayShell({
       aria-modal="true"
       aria-label={contentLabel}
       data-overlay-shell-mode={mode}
+      data-overlay-shell-variant={variant}
       onClick={handleBackdropClick}
-      className="overlay-shell"
-      style={{
-        position: "fixed",
-        inset: `${topInset} 0 ${bottomInset} 0`,
-        background: backdrop,
-        zIndex: resolvedZIndex,
-      }}
+      className={[
+        "overlay-shell",
+        variant !== "default" ? `overlay-shell--${variant}` : "",
+        className,
+      ].filter(Boolean).join(" ")}
+      {...shellProps}
     >
       {children}
     </div>

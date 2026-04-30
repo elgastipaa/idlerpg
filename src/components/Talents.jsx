@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import useViewport from "../hooks/useViewport";
+import ForgeIcon from "./icons/ForgeIcon";
+import { FlButton, FlIconFrame, FlTalentNode, FlTalentPointCounter } from "./ui/forge";
+import { getTalentAsset } from "../utils/assetRegistry";
 import { TALENTS } from "../data/talents";
 import { getNodesForTree } from "../data/talentNodes";
 import {
@@ -114,11 +117,33 @@ const SEGMENT_META = {
   keystone: { key: "keystone", label: "Tramo 3 · Keystones", order: 3 },
 };
 
-const TALENT_VISIBILITY_FILTERS = [
-  { id: "comprables", label: "Comprables" },
-  { id: "activos", label: "Activos" },
-  { id: "todos", label: "Todos" },
-];
+const FORGE_TALENT_SEGMENT_ORDER = ["basic", "gameplay", "keystone"];
+
+const DEFENSIVE_TALENT_STATS = new Set([
+  "defense",
+  "maxHp",
+  "blockChance",
+  "thorns",
+  "battleHardened",
+  "ironCore",
+  "fortress",
+  "unmovingMountain",
+]);
+
+const SURVIVAL_TALENT_STATS = new Set([
+  "heal",
+  "regen",
+  "lifesteal",
+  "goldBonus",
+  "xpBonus",
+]);
+
+const DOT_TALENT_STATS = new Set([
+  "bleedChance",
+  "bleedDamage",
+  "fractureChance",
+  "enemyDamageTaken",
+]);
 
 const TALENTS_STITCH_TRIAL_STORAGE_KEY = "idlerpg:trial:talents-stitch";
 
@@ -500,6 +525,269 @@ function toTitleCaseLabel(value = "") {
     .join(" ");
 }
 
+function getTalentEffectStats(talent) {
+  return [talent?.effect, ...(talent?.extraEffects || [])]
+    .filter(Boolean)
+    .map(effect => effect.stat)
+    .filter(Boolean);
+}
+
+function getTalentIconName(node, nodeState) {
+  const talent = nodeState?.activeTalent || node?.talent || null;
+  const stats = getTalentEffectStats(talent);
+  const tags = new Set(talent?.tags || []);
+  const displayType = getTalentDisplayType(talent);
+
+  if (tags.has("keystone")) return "talents";
+  if (stats.some(stat => DOT_TALENT_STATS.has(stat))) return stats.includes("fractureChance") ? "fracture" : "bleed";
+  if (stats.some(stat => SURVIVAL_TALENT_STATS.has(stat))) {
+    if (stats.includes("goldBonus")) return "gold";
+    if (stats.includes("xpBonus")) return "xp";
+    return "sanctuary";
+  }
+  if (stats.some(stat => DEFENSIVE_TALENT_STATS.has(stat))) return "armor";
+  if (stats.some(stat => stat === "critChance" || stat === "critDamage")) return "mark";
+  if (stats.some(stat => stat === "attackSpeed" || stat === "multiHitChance")) return "upgrade";
+  if (stats.some(stat => stat === "arcaneEcho" || stat === "arcaneMark" || stat === "arcaneFlow")) return "essence";
+  if (displayType === "stacking") return "upgrade";
+  if (displayType === "triggered") return "fire";
+  return "combat";
+}
+
+function getTreeIconName(tree, playerClass) {
+  if (tree?.id?.includes("berserker")) return "skull";
+  if (tree?.id?.includes("juggernaut")) return "armor";
+  if (tree?.id?.includes("mage") || tree?.id?.includes("sorcerer") || tree?.id?.includes("arcanist")) return "essence";
+  if (playerClass === "mage") return "essence";
+  return "combat";
+}
+
+function getForgeTalentSegments(nodeEntries = []) {
+  const grouped = new Map();
+  for (const entry of nodeEntries) {
+    const segment = SEGMENT_META[entry?.node?.segment] || SEGMENT_META.basic;
+    if (!grouped.has(segment.key)) grouped.set(segment.key, []);
+    grouped.get(segment.key).push(entry);
+  }
+
+  return FORGE_TALENT_SEGMENT_ORDER
+    .map(segmentKey => {
+      const segment = SEGMENT_META[segmentKey] || SEGMENT_META.basic;
+      const entries = grouped.get(segmentKey) || [];
+      return {
+        segmentKey,
+        label: segment.label.replace(" · ", " - "),
+        entries: [...entries].sort((a, b) => (a.node.x || 0) - (b.node.x || 0) || (a.node.y || 0) - (b.node.y || 0)),
+        activeCount: entries.filter(entry => entry.nodeState.currentLevel > 0).length,
+        totalCount: entries.length,
+        levelCount: entries.reduce((total, entry) => total + entry.nodeState.currentLevel, 0),
+        maxLevelCount: entries.reduce((total, entry) => total + entry.nodeState.maxLevel, 0),
+        actionableCount: entries.filter(entry => entry.nodeState.canUnlockNext).length,
+      };
+    })
+    .filter(segment => segment.entries.length > 0);
+}
+
+function getDefaultSelectedTalentEntry(nodeEntries = []) {
+  return (
+    nodeEntries.find(entry => entry.nodeState.canUnlockNext) ||
+    nodeEntries.find(entry => entry.nodeState.currentLevel > 0) ||
+    nodeEntries[0] ||
+    null
+  );
+}
+
+function getForgeSegmentSummary(segment) {
+  if (!segment) return "";
+  return `${segment.levelCount}/${segment.maxLevelCount || 0} niveles · ${segment.actionableCount} comprable${segment.actionableCount === 1 ? "" : "s"}`;
+}
+
+function getForgeSegmentShortLabel(label = "") {
+  return label.replace(/^Tramo\s+/i, "T").replace("Basicos", "Basico");
+}
+
+function getNodeStateLabel(nodeState) {
+  if (nodeState.isMaxed) return "Max";
+  if (nodeState.canUnlockNext) return "Comprable";
+  if (nodeState.currentLevel > 0) return "Activo";
+  return "Bloqueado";
+}
+
+function getNodeStateTone(nodeState) {
+  if (nodeState.isMaxed) return "maxed";
+  if (nodeState.canUnlockNext) return "ready";
+  if (nodeState.currentLevel > 0) return "active";
+  return "locked";
+}
+
+function ForgeTalentNodeButton({
+  entry,
+  isSelected,
+  justUnlocked,
+  spotlight,
+  onSelect,
+}) {
+  const { node, nodeState } = entry;
+  const tone = getNodeStateTone(nodeState);
+  const className = [
+    "forge-talent-node",
+    `forge-talent-node--${tone}`,
+    isSelected ? "forge-talent-node--selected" : "",
+    justUnlocked ? "forge-talent-node--just-unlocked" : "",
+    spotlight ? "forge-talent-node--spotlight" : "",
+    (nodeState.activeTalent?.tags || []).includes("keystone") ? "forge-talent-node--keystone" : "",
+  ].filter(Boolean).join(" ");
+
+  return (
+    <FlTalentNode
+      className={className}
+      talentId={node.talent.id}
+      icon={getTalentIconName(node, nodeState)}
+      state={tone}
+      selected={isSelected}
+      level={nodeState.currentLevel}
+      maxLevel={nodeState.maxLevel}
+      keystone={(nodeState.activeTalent?.tags || []).includes("keystone")}
+      spotlight={spotlight}
+      onClick={onSelect}
+      data-onboarding-node-id={node.talent.id}
+      data-onboarding-target={spotlight ? "buy-talent-card" : undefined}
+      title={`${getNodeTitle(node)} - ${getNodeStateLabel(nodeState)}`}
+    />
+  );
+}
+
+function ForgeTalentTreeGrid({
+  segments,
+  selectedNodeId,
+  recentUnlocks,
+  spotlightTalentPurchase,
+  resolvedTutorialTalentNodeId,
+  onSelect,
+}) {
+  return (
+    <div className="forge-talent-grid" role="list" aria-label="Arbol visual de talentos por tramos">
+      {segments.map(segment => {
+        const slotCount = Math.max(3, segment.entries.length);
+        const columnClassName = [
+          "forge-talent-node-column",
+          slotCount >= 4 ? "forge-talent-node-column--grid" : "forge-talent-node-column--triad",
+        ].join(" ");
+        return (
+          <section key={segment.segmentKey} className="forge-talent-segment" role="listitem">
+            <div className="forge-talent-segment-header">
+              <span>{getForgeSegmentShortLabel(segment.label)}</span>
+              <strong>{segment.activeCount}/{segment.totalCount}</strong>
+            </div>
+            <div className="forge-talent-segment-subtitle">{getForgeSegmentSummary(segment)}</div>
+            <div className={columnClassName}>
+              {Array.from({ length: slotCount }).map((_, index) => {
+                const entry = segment.entries[index] || null;
+                if (!entry) {
+                  return (
+                    <div key={`empty-${segment.segmentKey}-${index}`} className="forge-talent-node-cell forge-talent-node-cell--empty">
+                      <span />
+                    </div>
+                  );
+                }
+
+                const nodeId = entry.node.talent.id;
+                const spotlight = spotlightTalentPurchase && nodeId === resolvedTutorialTalentNodeId;
+                return (
+                  <div key={nodeId} className="forge-talent-node-cell">
+                    <ForgeTalentNodeButton
+                      entry={entry}
+                      isSelected={nodeId === selectedNodeId}
+                      justUnlocked={!!recentUnlocks[nodeId]}
+                      spotlight={spotlight}
+                      onSelect={() => onSelect(nodeId)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function ForgeTalentDetailPanel({
+  entry,
+  state,
+  nodes,
+  dispatch,
+  spotlight,
+}) {
+  if (!entry) return null;
+
+  const { node, nodeState } = entry;
+  const displayType = getTalentDisplayType(nodeState.activeTalent);
+  const prereqText = buildNodeRequirementText(state, node, nodes, nodeState);
+  const currentSummary = buildTalentEffectSummary(nodeState.activeTalent || node.talent);
+  const nextSummary = nodeState.nextTalent ? buildTalentEffectSummary(nodeState.nextTalent) : "";
+  const canUpgrade = nodeState.canUnlockNext && !!nodeState.nextTalent;
+  const requirementLabel = getForgeRequirementLabel(state, nodeState, prereqText);
+  const typeLabel = displayType === "passive" ? "Pasiva" : displayType === "triggered" ? "Reactiva" : displayType;
+  const actionLabel = nodeState.isMaxed ? "MAX" : canUpgrade ? "COMPRAR" : "BLOQUEADO";
+
+  return (
+    <article className="forge-talent-detail-panel">
+      <FlIconFrame
+        size="lg"
+        asset={getTalentAsset(node.talent.id)}
+        kind="talent"
+        fallbackIcon={getTalentIconName(node, nodeState)}
+        selected={canUpgrade}
+        className="forge-talent-detail-icon"
+        aria-hidden="true"
+      />
+      <div className="forge-talent-detail-copy">
+        <div className="forge-talent-detail-title">{getNodeTitle(node)}</div>
+        <div className="forge-talent-detail-meta">
+          <span className={`forge-talent-detail-pill forge-talent-detail-pill--${getNodeStateTone(nodeState)}`}>
+            {typeLabel}
+          </span>
+          <span className="forge-talent-detail-pill">Nivel {nodeState.currentLevel}/{nodeState.maxLevel}</span>
+        </div>
+        <p>{buildTalentDescription(nodeState.activeTalent || node.talent)}</p>
+        <div className="forge-talent-detail-lines">
+          <span>Base: {currentSummary}</span>
+          {!nodeState.isMaxed && nodeState.nextTalent && <span>Proximo nivel: {nextSummary}</span>}
+          {prereqText && <span className="forge-talent-detail-req">{prereqText}</span>}
+        </div>
+      </div>
+      <div className="forge-talent-detail-action">
+        <span>Requisitos</span>
+        <strong
+          className={[
+            "forge-talent-detail-requirement-value",
+            !canUpgrade && !nodeState.isMaxed ? "forge-talent-detail-requirement-value--blocked" : "",
+          ].filter(Boolean).join(" ")}
+          title={requirementLabel}
+        >
+          {requirementLabel}
+        </strong>
+        <FlButton
+          type="button"
+          variant={canUpgrade ? "secondary" : "ghost"}
+          size="sm"
+          className={[
+            "forge-talent-buy-button",
+            canUpgrade ? "forge-talent-buy-button--ready" : "forge-talent-buy-button--disabled",
+          ].filter(Boolean).join(" ")}
+          onClick={() => dispatch({ type: "UPGRADE_TALENT_NODE", nodeId: node.talent.id })}
+          disabled={!canUpgrade}
+          data-onboarding-target={spotlight ? "buy-talent" : undefined}
+        >
+          {actionLabel}
+        </FlButton>
+      </div>
+    </article>
+  );
+}
+
 function getGroupedColumns(nodes = []) {
   const grouped = new Map();
   for (const node of nodes) {
@@ -570,6 +858,20 @@ function buildNodeRequirementText(state, node, nodes, nodeState) {
   return [skillParts.join(" · "), gateParts.join(" · ")].filter(Boolean).join("\n");
 }
 
+function getForgeRequirementLabel(state, nodeState, prereqText = "") {
+  if (nodeState.isMaxed) return "Completo";
+  if (!nodeState.nextTalent) return "Sin mejoras";
+  if (prereqText) return prereqText.replace(/\s*\n\s*/g, " · ");
+
+  const nextCost = Math.max(0, Number(nodeState.nextCost || 0));
+  const availableTalentPoints = Math.max(0, Number(state?.player?.talentPoints || 0));
+  if (availableTalentPoints < nextCost) {
+    return `Faltan ${nextCost - availableTalentPoints} TP`;
+  }
+
+  return `${nextCost} TP`;
+}
+
 function getNodeActionLabel(nodeState, compact = false) {
   if (nodeState.isMaxed || !nodeState.nextTalent) return "MAX";
   if (!nodeState.isBaseUnlocked) return compact ? `+${nodeState.nextCost || 0}` : `DESB. +${nodeState.nextCost || 0} TP`;
@@ -631,7 +933,7 @@ function TalentNodeCard({
         className={nodeCardClassName}
         data-onboarding-node-id={node.talent.id}
         data-onboarding-target={spotlight ? "buy-talent-card" : undefined}
-        style={{
+        {...{ style: {
           background: "var(--color-background-secondary, #fff)",
           border: `1px solid ${justUnlocked ? "var(--tone-success, #22c55e)" : isUnlocked ? "var(--tone-success, #1D9E75)" : nodeState.allRequirementsMet ? "var(--color-border-primary, #e2e8f0)" : "var(--tone-danger, #fecaca)"}`,
           borderRadius: "11px",
@@ -649,49 +951,49 @@ function TalentNodeCard({
               : "none",
           animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
           transition: "all 0.2s ease",
-        }}
+        } }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "7px" }}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: "0.69rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 }}>
+        <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "7px" } }}>
+          <div {...{ style: { minWidth: 0, flex: 1 } }}>
+            <div {...{ style: { fontSize: "0.69rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 } }}>
               {getNodeTitle(node)}
             </div>
-            <div style={{ fontSize: "0.55rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", marginTop: "2px" }}>{nodeState.tierLabel}</div>
+            <div {...{ style: { fontSize: "0.55rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", marginTop: "2px" } }}>{nodeState.tierLabel}</div>
           </div>
           <button
             className={nodeCtaClassName}
             onClick={() => dispatch({ type: "UPGRADE_TALENT_NODE", nodeId: node.talent.id })}
             disabled={!canUpgrade}
             data-onboarding-target={spotlight ? "buy-talent" : undefined}
-            style={{
+            {...{ style: {
               ...treeButtonStyle(nodeState.isMaxed, canUpgrade, true),
               boxShadow: spotlight ? spotlightButtonShadow : "none",
               animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
-            }}
+            } }}
           >
             {compactButtonLabel}
           </button>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap" }}>
+        <div {...{ style: { display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap" } }}>
           {isKeystone && (
-            <div style={miniPillStyle("var(--tone-danger-strong, #9f1239)", "var(--tone-danger-soft, #fff1f2)")}>
+            <div {...{ style: miniPillStyle("var(--tone-danger-strong, #9f1239)", "var(--tone-danger-soft, #fff1f2)") }}>
               Keystone
             </div>
           )}
-          <div style={badgeStyle(typeColor)}>{displayType.toUpperCase()}</div>
+          <div {...{ style: badgeStyle(typeColor) }}>{displayType.toUpperCase()}</div>
           {canUpgrade && (
-            <div style={miniPillStyle("var(--tone-success-strong, #166534)", "var(--tone-success-soft, #ecfdf5)")}>
+            <div {...{ style: miniPillStyle("var(--tone-success-strong, #166534)", "var(--tone-success-soft, #ecfdf5)") }}>
               Disponible
             </div>
           )}
-          <div style={miniPillStyle("var(--tone-accent, #4338ca)", "var(--tone-accent-soft, #eef2ff)")}>
+          <div {...{ style: miniPillStyle("var(--tone-accent, #4338ca)", "var(--tone-accent-soft, #eef2ff)") }}>
             LV {nodeState.currentLevel}/{nodeState.maxLevel}
           </div>
         </div>
 
         <div
-          style={{
+          {...{ style: {
             fontSize: "0.62rem",
             color: "var(--color-text-secondary, #475569)",
             lineHeight: 1.28,
@@ -699,29 +1001,29 @@ function TalentNodeCard({
             WebkitLineClamp: 2,
             WebkitBoxOrient: "vertical",
             overflow: "hidden",
-          }}
+          } }}
         >
           {buildTalentDescription(nodeState.activeTalent || node.talent)}
         </div>
 
-        <div style={{ fontSize: "0.56rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.25 }}>
+        <div {...{ style: { fontSize: "0.56rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.25 } }}>
           {nodeState.currentLevel > 0 ? `Actual: ${currentSummary}` : `Base: ${currentSummary}`}
         </div>
         {!nodeState.isMaxed && nodeState.nextTalent && (
-          <div style={{ fontSize: "0.56rem", color: "var(--tone-accent, #4338ca)", fontWeight: "800", lineHeight: 1.25 }}>
+          <div {...{ style: { fontSize: "0.56rem", color: "var(--tone-accent, #4338ca)", fontWeight: "800", lineHeight: 1.25 } }}>
             {`Proximo: ${nextSummary}`}
           </div>
         )}
 
         {prereqText && (
           <div
-            style={{
+            {...{ style: {
               fontSize: "0.55rem",
               color: nodeState.allRequirementsMet ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #D85A30)",
               fontWeight: "800",
               lineHeight: 1.25,
               whiteSpace: "pre-line",
-            }}
+            } }}
           >
             {prereqText}
           </div>
@@ -735,7 +1037,7 @@ function TalentNodeCard({
       className={nodeCardClassName}
       data-onboarding-node-id={node.talent.id}
       data-onboarding-target={spotlight ? "buy-talent-card" : undefined}
-      style={{
+      {...{ style: {
         background: "var(--color-background-secondary, #fff)",
         border: `1px solid ${justUnlocked ? "var(--tone-success, #22c55e)" : isUnlocked ? "var(--tone-success, #1D9E75)" : nodeState.allRequirementsMet ? "var(--color-border-primary, #e2e8f0)" : "var(--tone-danger, #fecaca)"}`,
         borderRadius: "14px",
@@ -754,39 +1056,39 @@ function TalentNodeCard({
         animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
         transform: spotlight || (justUnlocked && !stitchTrialEnabled) ? "scale(1.01)" : "none",
         transition: "all 0.2s ease",
-      }}
+      } }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "8px" }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: isMobile ? "0.74rem" : "0.84rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 }}>
+      <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "start", gap: "8px" } }}>
+        <div {...{ style: { minWidth: 0 } }}>
+          <div {...{ style: { fontSize: isMobile ? "0.74rem" : "0.84rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 } }}>
             {getNodeTitle(node)}
           </div>
-          <div style={{ fontSize: isMobile ? "0.58rem" : "0.63rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "3px" }}>{nodeState.tierLabel}</div>
+          <div {...{ style: { fontSize: isMobile ? "0.58rem" : "0.63rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "3px" } }}>{nodeState.tierLabel}</div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-          {canUpgrade && <div style={miniPillStyle("var(--tone-success-strong, #166534)", "var(--tone-success-soft, #ecfdf5)")}>Disponible</div>}
-          {isKeystone && <div style={miniPillStyle("var(--tone-danger-strong, #9f1239)", "var(--tone-danger-soft, #fff1f2)")}>Keystone</div>}
-          <div style={badgeStyle(typeColor)}>{displayType.toUpperCase()}</div>
+        <div {...{ style: { display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" } }}>
+          {canUpgrade && <div {...{ style: miniPillStyle("var(--tone-success-strong, #166534)", "var(--tone-success-soft, #ecfdf5)") }}>Disponible</div>}
+          {isKeystone && <div {...{ style: miniPillStyle("var(--tone-danger-strong, #9f1239)", "var(--tone-danger-soft, #fff1f2)") }}>Keystone</div>}
+          <div {...{ style: badgeStyle(typeColor) }}>{displayType.toUpperCase()}</div>
         </div>
       </div>
 
-      <div style={{ fontSize: isMobile ? "0.68rem" : "0.74rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35 }}>
+      <div {...{ style: { fontSize: isMobile ? "0.68rem" : "0.74rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35 } }}>
         {buildTalentDescription(nodeState.activeTalent || node.talent)}
       </div>
 
-      <div style={{ ...upgradeHintStyle, borderColor: nodeState.isMaxed ? "var(--tone-success, #86efac)" : "var(--color-border-primary, #e2e8f0)", background: nodeState.isMaxed ? "var(--tone-success-soft, rgba(34,197,94,0.08))" : "var(--color-background-tertiary, #f8fafc)" }}>
-        <div style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", marginBottom: "4px" }}>
+      <div {...{ style: { ...upgradeHintStyle, borderColor: nodeState.isMaxed ? "var(--tone-success, #86efac)" : "var(--color-border-primary, #e2e8f0)", background: nodeState.isMaxed ? "var(--tone-success-soft, rgba(34,197,94,0.08))" : "var(--color-background-tertiary, #f8fafc)" } }}>
+        <div {...{ style: { fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", marginBottom: "4px" } }}>
           {nodeState.currentLevel > 0 ? `Actual ${nodeState.currentLevel}/${nodeState.maxLevel}` : "Base"}
         </div>
-        <div style={{ fontSize: isMobile ? "0.66rem" : "0.72rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.3 }}>
+        <div {...{ style: { fontSize: isMobile ? "0.66rem" : "0.72rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.3 } }}>
           {currentSummary}
         </div>
         {!nodeState.isMaxed && nodeState.nextTalent && (
-          <div style={{ marginTop: "6px", paddingTop: "6px", borderTop: "1px dashed var(--color-border-primary, #e2e8f0)" }}>
-            <div style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", textTransform: "uppercase", marginBottom: "4px" }}>
+          <div {...{ style: { marginTop: "6px", paddingTop: "6px", borderTop: "1px dashed var(--color-border-primary, #e2e8f0)" } }}>
+            <div {...{ style: { fontSize: "0.58rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", textTransform: "uppercase", marginBottom: "4px" } }}>
               Proximo nivel
             </div>
-            <div style={{ fontSize: isMobile ? "0.66rem" : "0.72rem", color: "var(--tone-accent, #4338ca)", lineHeight: 1.3 }}>
+            <div {...{ style: { fontSize: isMobile ? "0.66rem" : "0.72rem", color: "var(--tone-accent, #4338ca)", lineHeight: 1.3 } }}>
               {nextSummary}
             </div>
           </div>
@@ -795,13 +1097,13 @@ function TalentNodeCard({
 
       {prereqText && (
         <div
-          style={{
+          {...{ style: {
             fontSize: "0.6rem",
             fontWeight: "800",
             color: nodeState.allRequirementsMet ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #D85A30)",
             lineHeight: 1.25,
             whiteSpace: "pre-line",
-          }}
+          } }}
         >
           {prereqText}
         </div>
@@ -812,11 +1114,11 @@ function TalentNodeCard({
         onClick={() => dispatch({ type: "UPGRADE_TALENT_NODE", nodeId: node.talent.id })}
         disabled={!canUpgrade}
         data-onboarding-target={spotlight ? "buy-talent" : undefined}
-        style={{
+        {...{ style: {
           ...treeButtonStyle(nodeState.isMaxed, canUpgrade),
           boxShadow: spotlight ? spotlightButtonShadow : "none",
           animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
-        }}
+        } }}
       >
         {getNodeActionLabel(nodeState)}
       </button>
@@ -845,7 +1147,7 @@ export default function Talents({ state, dispatch }) {
   } = player;
   const { isMobile } = useViewport();
   const [selectedTreeId, setSelectedTreeId] = useState(null);
-  const [visibilityFilter, setVisibilityFilter] = useState("comprables");
+  const [selectedTalentNodeId, setSelectedTalentNodeId] = useState(null);
   const [recentUnlocks, setRecentUnlocks] = useState({});
   const [canScrollTreesLeft, setCanScrollTreesLeft] = useState(false);
   const [canScrollTreesRight, setCanScrollTreesRight] = useState(false);
@@ -895,10 +1197,20 @@ export default function Talents({ state, dispatch }) {
     () => (selectedTree?.nodes || []).map(node => ({ node, nodeState: getNodeState({ state, node }) })),
     [selectedTree, state]
   );
+  const forgeTalentSegments = useMemo(
+    () => getForgeTalentSegments(selectedTreeNodeEntries),
+    [selectedTreeNodeEntries]
+  );
   const selectedTreeBuyableNodes = useMemo(
     () => selectedTreeNodeEntries.filter(entry => entry.nodeState.canUnlockNext).map(entry => entry.node),
     [selectedTreeNodeEntries]
   );
+  const selectedTalentEntry = useMemo(() => {
+    return (
+      selectedTreeNodeEntries.find(entry => entry.node.talent.id === selectedTalentNodeId) ||
+      getDefaultSelectedTalentEntry(selectedTreeNodeEntries)
+    );
+  }, [selectedTalentNodeId, selectedTreeNodeEntries]);
   const tutorialTalentTreeId = useMemo(() => {
     if (!spotlightTalentPurchase || !tutorialTalentNodeId) return null;
     const tutorialTree = treeData.find(item =>
@@ -913,53 +1225,27 @@ export default function Talents({ state, dispatch }) {
     }
     return selectedTreeBuyableNodes[0]?.talent?.id || null;
   }, [selectedTreeBuyableNodes, spotlightTalentPurchase, tutorialTalentNodeId]);
-  const totalBuyableNodes = useMemo(
-    () => treeData.reduce((total, item) => total + item.nodes.filter(node => canUnlockNode(state, node.talent.id)).length, 0),
-    [treeData, state]
-  );
-  const visibleTreeGroups = useMemo(() => {
-    if (!selectedTree) return [];
-    const shouldShowNode = entry => {
-      if (spotlightTalentPurchase && entry.node.talent.id === resolvedTutorialTalentNodeId) {
-        return true;
-      }
-      if (visibilityFilter === "activos") {
-        return entry.nodeState.currentLevel > 0;
-      }
-      if (visibilityFilter === "comprables") {
-        return entry.nodeState.currentLevel > 0 || entry.nodeState.canUnlockNext;
-      }
-      return true;
-    };
+  useEffect(() => {
+    if (selectedTreeNodeEntries.length === 0) {
+      if (selectedTalentNodeId != null) setSelectedTalentNodeId(null);
+      return;
+    }
 
-    const visibleEntriesById = new Map(
-      selectedTreeNodeEntries
-        .filter(shouldShowNode)
-        .map(entry => [entry.node.talent.id, entry])
-    );
+    const tutorialEntry = spotlightTalentPurchase && resolvedTutorialTalentNodeId
+      ? selectedTreeNodeEntries.find(entry => entry.node.talent.id === resolvedTutorialTalentNodeId)
+      : null;
+    const selectedStillExists = selectedTreeNodeEntries.some(entry => entry.node.talent.id === selectedTalentNodeId);
+    const nextEntry = tutorialEntry || (selectedStillExists ? null : getDefaultSelectedTalentEntry(selectedTreeNodeEntries));
 
-    return getGroupedColumns(selectedTree.nodes)
-      .map(group => {
-        const nodeEntries = group.nodes
-          .map(node => visibleEntriesById.get(node.talent.id))
-          .filter(Boolean);
-        const actionableCount = group.nodes.filter(node => canUnlockNode(state, node.talent.id)).length;
-        const activeCount = group.nodes.filter(node => getNodeLevel(state, node.talent.id) > 0).length;
-        return {
-          ...group,
-          nodeEntries,
-          totalNodes: group.nodes.length,
-          actionableCount,
-          activeCount,
-        };
-      })
-      .filter(group => group.nodeEntries.length > 0);
-  }, [selectedTree, selectedTreeNodeEntries, spotlightTalentPurchase, resolvedTutorialTalentNodeId, state, visibilityFilter]);
-  const hasVisibleNodes = visibleTreeGroups.length > 0;
+    if (nextEntry && nextEntry.node.talent.id !== selectedTalentNodeId) {
+      setSelectedTalentNodeId(nextEntry.node.talent.id);
+    }
+  }, [resolvedTutorialTalentNodeId, selectedTalentNodeId, selectedTreeNodeEntries, spotlightTalentPurchase]);
+  const totalPurchasedTalentNodes = Object.values(talentLevels || {}).filter(value => Number(value) > 0).length || unlockedTalents.length;
   const treeHeaderStickyTop = "var(--app-header-offset, 96px)";
   const talentsRootClassName = [
     "talents-root",
-    stitchTrialEnabled ? "talents-root--stitch-trial" : "",
+    "talents-root--forge-light",
   ].filter(Boolean).join(" ");
 
   useEffect(() => {
@@ -1053,9 +1339,9 @@ export default function Talents({ state, dispatch }) {
 
   if (!playerClass) {
     return (
-      <div style={emptyContainerStyle}>
-        <h2 style={{ color: "var(--color-text-tertiary, #9ca3af)", fontWeight: "900" }}>CLASE REQUERIDA</h2>
-        <p style={{ color: "var(--color-text-tertiary, #9ca3af)", fontSize: "0.9rem" }}>Elegi una clase para ver tus talentos disponibles.</p>
+      <div {...{ style: emptyContainerStyle }}>
+        <h2 {...{ style: { color: "var(--color-text-tertiary, #9ca3af)", fontWeight: "900" } }}>CLASE REQUERIDA</h2>
+        <p {...{ style: { color: "var(--color-text-tertiary, #9ca3af)", fontSize: "0.9rem" } }}>Elegi una clase para ver tus talentos disponibles.</p>
       </div>
     );
   }
@@ -1063,42 +1349,29 @@ export default function Talents({ state, dispatch }) {
   return (
     <div
       className={talentsRootClassName}
-      style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "6px", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", minHeight: "100%" }}
+      {...{ style: { padding: "12px", display: "flex", flexDirection: "column", gap: "6px", color: "var(--color-text-primary, #1e293b)", minHeight: "100%" } }}
     >
-      <style>{`
-        @keyframes talentSpotlightPulse {
-          0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.24); }
-          70% { box-shadow: 0 0 0 10px rgba(99,102,241,0); }
-          100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
-        }
-      `}</style>
-      <div className="talents-header-stack" style={{ display: "flex", flexDirection: "column", gap: "10px", paddingBottom: "4px" }}>
-        <header className="talents-header" style={headerStyle}>
-          <div>
-            <div style={{ fontSize: "0.6rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase" }}>Arbol de Talentos</div>
-            <div style={{ fontSize: "1rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{toTitleCaseLabel(playerClass)} {playerSpec && `- ${toTitleCaseLabel(playerSpec)}`}</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: "0.8rem", fontWeight: "900", color: "var(--tone-success, #1D9E75)" }}>{talentPoints} TP</div>
-            <div style={{ fontSize: "0.65rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>{Object.values(talentLevels || {}).filter(value => Number(value) > 0).length || unlockedTalents.length} nodos comprados</div>
-            <div style={{ fontSize: "0.58rem", color: totalBuyableNodes > 0 ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", marginTop: "4px" }}>
-              {totalBuyableNodes > 0 ? `${totalBuyableNodes} nodos comprables ahora` : "Sin compras disponibles ahora"}
+      <div className="talents-header-stack" {...{ style: { display: "flex", flexDirection: "column", gap: "10px", paddingBottom: "4px" } }}>
+        <header className="talents-header" {...{ style: headerStyle }}>
+          <div className="talents-header-main">
+            <span className="talents-header-emblem" aria-hidden="true">
+              <ForgeIcon name={getTreeIconName(selectedTree?.tree, playerClass)} size={32} />
+            </span>
+            <div>
+              <div {...{ style: { fontSize: "0.6rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase" } }}>Talentos</div>
+              <div {...{ style: { fontSize: "1rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>{toTitleCaseLabel(playerClass)} {playerSpec && `- ${toTitleCaseLabel(playerSpec)}`}</div>
             </div>
-            {unlockedTalents.length > 0 && (
-              <button
-                className="talents-reset-btn"
-                onClick={() => dispatch({ type: "RESET_TALENT_TREE" })}
-                style={{ marginTop: "8px", border: "1px solid var(--tone-danger, #fecaca)", background: "var(--tone-danger-soft, #fff1f2)", color: "var(--tone-danger-strong, #be123c)", borderRadius: "10px", padding: "7px 10px", fontSize: "0.64rem", fontWeight: "900", cursor: "pointer" }}
-              >
-                Resetear Arbol
-              </button>
-            )}
           </div>
+          <FlTalentPointCounter
+            value={talentPoints}
+            invested={totalPurchasedTalentNodes}
+            className="talents-header-stats"
+          />
         </header>
 
         {treeData.length > 1 && (
-          <section className="talents-tabs-section" style={{ position: "relative" }}>
-            <div className="talents-tree-tabs" ref={treeTabsScrollerRef} style={tabsWrapStyle}>
+          <section className="talents-tabs-section" {...{ style: { position: "relative" } }}>
+            <div className="talents-tree-tabs" ref={treeTabsScrollerRef} {...{ style: tabsWrapStyle }}>
               {treeData.map(({ tree, progress, nodes }) => {
                 const active = tree.id === selectedTreeId;
                 return (
@@ -1109,50 +1382,50 @@ export default function Talents({ state, dispatch }) {
                     ].filter(Boolean).join(" ")}
                     key={tree.id}
                     onClick={() => setSelectedTreeId(tree.id)}
-                    style={{
+                    {...{ style: {
                       ...tabStyle,
                       background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #fff)",
                       color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #475569)",
                       borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
-                    }}
+                    } }}
                   >
-                    <span style={{ fontWeight: "900" }}>{tree.name}</span>
+                    <span {...{ style: { fontWeight: "900" } }}>{tree.name}</span>
                     {tree.isOffSpec && (
-                      <span style={{ fontSize: "0.54rem", fontWeight: "900", color: "var(--tone-warning, #b45309)" }}>
+                      <span {...{ style: { fontSize: "0.54rem", fontWeight: "900", color: "var(--tone-warning, #b45309)" } }}>
                         Secundario x{OFF_SPEC_COST_MULTIPLIER}
                       </span>
                     )}
-                    <span style={{ opacity: 0.75 }}>{progress}/{nodes.length}</span>
+                    <span {...{ style: { opacity: 0.75 } }}>{progress}/{nodes.length}</span>
                   </button>
                 );
               })}
             </div>
-            {canScrollTreesLeft && <div style={treeTabsFadeStyle("left")} />}
-            {canScrollTreesRight && <div style={treeTabsFadeStyle("right")} />}
-            {canScrollTreesLeft && <div style={treeTabsHintStyle("left")}>←</div>}
-            {canScrollTreesRight && <div style={treeTabsHintStyle("right")}>→</div>}
+            {canScrollTreesLeft && <div {...{ style: treeTabsFadeStyle("left") }} />}
+            {canScrollTreesRight && <div {...{ style: treeTabsFadeStyle("right") }} />}
+            {canScrollTreesLeft && <div {...{ style: treeTabsHintStyle("left") }}>←</div>}
+            {canScrollTreesRight && <div {...{ style: treeTabsHintStyle("right") }}>→</div>}
           </section>
         )}
       </div>
 
       {visibleTrees.map(({ tree, nodes, progress }) => (
-        <section key={tree.id} className="talents-tree-section" style={treeSectionWrapStyle}>
+        <section key={tree.id} className="talents-tree-section" {...{ style: treeSectionWrapStyle }}>
           <div
             className="talents-tree-toolbar-wrap"
             data-onboarding-top-guard={spotlightTalentPurchase ? "true" : undefined}
-            style={{
+            {...{ style: {
               marginInline: "-14px",
               position: "sticky",
               top: treeHeaderStickyTop,
               zIndex: 48,
               marginBottom: 0,
               paddingTop: "6px",
-              background: "var(--color-background-primary, #f8fafc)",
-            }}
+              background: "transparent",
+            } }}
           >
             <div
               className="talents-tree-toolbar"
-              style={{
+              {...{ style: {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "end",
@@ -1164,150 +1437,65 @@ export default function Talents({ state, dispatch }) {
                 border: "1px solid var(--color-border-primary, #e2e8f0)",
                 borderBottom: "1px solid var(--color-border-primary, #e2e8f0)",
                 borderRadius: "18px 18px 0 0",
-              }}
+              } }}
             >
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                  <div style={{ fontSize: "0.7rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: TREE_COLORS[tree.id] || "var(--tone-neutral-strong, #1e293b)" }}>{tree.name}</div>
+                <div {...{ style: { display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" } }}>
+                  <div {...{ style: { fontSize: "0.7rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: TREE_COLORS[tree.id] || "var(--tone-neutral-strong, #1e293b)" } }}>{tree.name}</div>
                   {tree.isOffSpec && (
-                    <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-warning, #9a3412)", background: "var(--tone-warning-soft, #fff7ed)", border: "1px solid var(--tone-warning, #fdba74)", borderRadius: "999px", padding: "2px 7px" }}>
+                    <span {...{ style: { fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-warning, #9a3412)", background: "var(--tone-warning-soft, #fff7ed)", border: "1px solid var(--tone-warning, #fdba74)", borderRadius: "999px", padding: "2px 7px" } }}>
                       SECUNDARIO x{OFF_SPEC_COST_MULTIPLIER}
                     </span>
                   )}
                   {selectedTreeBuyableNodes.length > 0 && (
-                    <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-success-strong, #166534)", background: "var(--tone-success-soft, #ecfdf5)", border: "1px solid var(--tone-success, #86efac)", borderRadius: "999px", padding: "2px 7px" }}>
+                    <span {...{ style: { fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-success-strong, #166534)", background: "var(--tone-success-soft, #ecfdf5)", border: "1px solid var(--tone-success, #86efac)", borderRadius: "999px", padding: "2px 7px" } }}>
                       {selectedTreeBuyableNodes.length} disponibles
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px", lineHeight: 1.35 }}>
-                  {visibilityFilter === "todos"
-                    ? tree.description
-                    : visibilityFilter === "activos"
-                      ? "Solo muestra nodos ya comprados en esta rama."
-                      : "Solo muestra nodos activos o que ya puedes comprar ahora."}
+                <div className="talents-tree-description" {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px", lineHeight: 1.35 } }}>
+                  {tree.description}
                 </div>
               </div>
-              <div style={{ display: "grid", gap: "6px", justifyItems: "end" }}>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>{progress}/{nodes.length}</div>
-                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  {TALENT_VISIBILITY_FILTERS.map(filter => {
-                    const active = visibilityFilter === filter.id;
-                    return (
-                      <button
-                        className={[
-                          "talents-filter-chip",
-                          active ? "talents-filter-chip--active" : "",
-                        ].filter(Boolean).join(" ")}
-                        key={filter.id}
-                        onClick={() => setVisibilityFilter(filter.id)}
-                        style={{
-                          border: "1px solid",
-                          borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
-                          background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #fff)",
-                          color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #64748b)",
-                          borderRadius: "999px",
-                          padding: "3px 8px",
-                          fontSize: "0.56rem",
-                          fontWeight: "900",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {filter.label}
-                      </button>
-                    );
-                  })}
+              <div {...{ style: { display: "grid", gap: "6px", justifyItems: "end" } }}>
+                <div className="talents-tree-actions">
+                  <div className="talents-tree-progress-summary" {...{ style: { fontSize: "0.68rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" } }}>{progress}/{nodes.length}</div>
+                  {progress > 0 && (
+                    <FlButton
+                      className="talents-reset-btn talents-reset-btn--tree"
+                      onClick={() => dispatch({ type: "RESET_TALENT_TREE", treeId: tree.id })}
+                      variant="destructive"
+                      size="sm"
+                    >
+                      Reiniciar
+                    </FlButton>
+                  )}
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="talents-tree-body" style={treeBodyStyle}>
-          {!hasVisibleNodes ? (
-            <div style={{ padding: "10px 2px", fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
-              {visibilityFilter === "activos"
-                ? "Todavia no hay nodos activos en esta rama. Cambia a `Comprables` o `Todos` para explorarla."
-                : "Ahora mismo esta rama no tiene compras directas. Usa `Todos` si quieres ver tiers futuros."}
+          <div className="talents-tree-body" {...{ style: treeBodyStyle }}>
+          <div className={["forge-talents-panel", isMobile ? "forge-talents-panel--mobile" : "forge-talents-panel--desktop"].join(" ")}>
+              <ForgeTalentTreeGrid
+                segments={forgeTalentSegments}
+                selectedNodeId={selectedTalentEntry?.node?.talent?.id || null}
+                recentUnlocks={recentUnlocks}
+                spotlightTalentPurchase={spotlightTalentPurchase}
+                resolvedTutorialTalentNodeId={resolvedTutorialTalentNodeId}
+                onSelect={setSelectedTalentNodeId}
+              />
+              <ForgeTalentDetailPanel
+                entry={selectedTalentEntry}
+                state={state}
+                nodes={nodes}
+                dispatch={dispatch}
+                spotlight={
+                  spotlightTalentPurchase &&
+                  selectedTalentEntry?.node?.talent?.id === resolvedTutorialTalentNodeId
+                }
+              />
             </div>
-          ) : isMobile ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {visibleTreeGroups.map(({ segmentKey, label, nodeEntries, totalNodes, actionableCount, activeCount }) => (
-                <div key={`stage-${segmentKey}`} className="talents-stage talents-stage--mobile" style={mobileStageStyle}>
-                  <div style={mobileStageHeaderStyle}>
-                    <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      {label}
-                    </span>
-                    <span style={{ fontSize: "0.56rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                      {nodeEntries.length}/{totalNodes} nodo{totalNodes === 1 ? "" : "s"} · {activeCount} activo{activeCount === 1 ? "" : "s"} · {actionableCount} comprable{actionableCount === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {nodeEntries.map(({ node, nodeState }) => {
-                      const justUnlocked = !!recentUnlocks[node.talent.id];
-                      const prereqText = buildNodeRequirementText(state, node, nodes, nodeState);
-
-                      return (
-                        <MobileTalentNodeRow
-                          key={node.talent.id}
-                          node={node}
-                          nodeState={nodeState}
-                          justUnlocked={!!justUnlocked}
-                          dispatch={dispatch}
-                          prereqText={prereqText}
-                          stitchTrialEnabled={stitchTrialEnabled}
-                          spotlight={
-                            spotlightTalentPurchase &&
-                            resolvedTutorialTalentNodeId != null &&
-                            node.talent.id === resolvedTutorialTalentNodeId
-                          }
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ overflowX: "auto", paddingBottom: "6px" }}>
-              <div style={{ display: "flex", gap: "12px", alignItems: "stretch", minWidth: "max-content" }}>
-                {visibleTreeGroups.map(({ segmentKey, label, nodeEntries, totalNodes, actionableCount, activeCount }) => (
-                  <div key={`desktop-stage-${segmentKey}`} className="talents-stage talents-stage--desktop" style={desktopStageStyle}>
-                    <div style={desktopStageHeaderStyle}>
-                      <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-secondary, #475569)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                        {label}
-                      </span>
-                      <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                        {nodeEntries.length}/{totalNodes} · {activeCount} activo{activeCount === 1 ? "" : "s"} · {actionableCount} comprable{actionableCount === 1 ? "" : "s"}
-                      </span>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
-                      {nodeEntries.map(({ node, nodeState }) => {
-                        const justUnlocked = !!recentUnlocks[node.talent.id];
-                        const prereqText = buildNodeRequirementText(state, node, nodes, nodeState);
-                        return (
-                          <TalentNodeCard
-                            key={node.talent.id}
-                            node={node}
-                            nodeState={nodeState}
-                            isMobile={false}
-                            justUnlocked={!!justUnlocked}
-                            dispatch={dispatch}
-                            prereqText={prereqText}
-                            stitchTrialEnabled={stitchTrialEnabled}
-                            spotlight={
-                              spotlightTalentPurchase &&
-                              resolvedTutorialTalentNodeId != null &&
-                              node.talent.id === resolvedTutorialTalentNodeId
-                            }
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           </div>
         </section>
       ))}

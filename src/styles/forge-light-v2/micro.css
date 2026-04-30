@@ -1,0 +1,175 @@
+.app-shell-root--forge-light-v2 .fl2-micro-sep {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.app-shell-root--forge-light-v2 .fl2-micro-sep::before,
+.app-shell-root--forge-light-v2 .fl2-micro-sep::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--fl2-divider-line);
+}
+
+.app-shell-root--forge-light-v2 .fl2-micro-sep::after {
+  transform: rotate(180deg);
+}
+
+.app-shell-root--forge-light-v2 .fl2-micro-sep > span,
+.app-shell-root--forge-light-v2 .fl2-micro-bullet {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  background: var(--fl2-gold);
+  transform: rotate(45deg);
+}
+
+.app-shell-root--forge-light-v2 :where(li)::marker {
+  color: var(--fl2-gold);
+}
+
+/* Migrated component keyframes */
+@keyframes lootOverlayEnter {
+  0% { opacity: 0; transform: translateY(26px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes lootOverlayPulse {
+  0% { box-shadow: 0 0 0 0 rgba(245,158,11,0.2), 0 16px 30px rgba(15,23,42,0.12); }
+  100% { box-shadow: 0 0 0 10px rgba(245,158,11,0), 0 22px 42px rgba(245,158,11,0.3); }
+}
+@keyframes lootOverlayExit {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(26px) scale(0.98); }
+}
+@keyframes levelUpFloat {
+  0% { opacity: 0; transform: translate(-50%, 12px) scale(0.86); }
+  15% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -30px) scale(1.04); }
+}
+@keyframes levelUpDingBadge {
+  0% { opacity: 0; transform: translateY(4px) scale(0.92); }
+  22% { opacity: 1; transform: translateY(0) scale(1.06); }
+  100% { opacity: 0.9; transform: translateY(0) scale(1); }
+}
+@keyframes levelUpDingRing {
+  0% { opacity: 0.82; transform: translate(-50%, -50%) scale(0.58); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.9); }
+}
+@keyframes levelUpToastEnter {
+  0% { opacity: 0; transform: translateY(26px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes levelUpToastPulse {
+  0%, 100% { box-shadow: 0 12px 26px rgba(79,70,229,0.16); filter: brightness(1); }
+  50% { box-shadow: 0 16px 34px rgba(79,70,229,0.23); filter: brightness(1.03); }
+}
+@keyframes levelUpToastExit {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(20px) scale(0.97); }
+}
+@keyframes combatFloatDamage {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(0.92); }
+  18% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -34px) scale(1.04); }
+}
+@keyframes combatFloatCrit {
+  0% { opacity: 0; transform: translate(-50%, 10px) scale(0.84); }
+  12% { opacity: 1; transform: translate(-50%, -2px) scale(1.14); }
+  100% { opacity: 0; transform: translate(-50%, -42px) scale(1.05); }
+}
+@keyframes combatFloatHeal {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(0.92); }
+  18% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -30px) scale(1); }
+}
+@keyframes combatFloatXp {
+  0% { opacity: 0; transform: translate(-50%, 6px) scale(0.94); }
+  18% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -26px) scale(1.02); }
+}
+@keyframes combatSpotlightPulse {
+  0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.26); }
+  70% { box-shadow: 0 0 0 10px rgba(99,102,241,0); }
+  100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+}
+@keyframes combatCritStreakPop {
+  0% { transform: translateY(3px) scale(0.92); opacity: 0; }
+  30% { transform: translateY(0) scale(1.06); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes combatFinishZonePulse {
+  0%, 100% { box-shadow: inset 0 0 0 0 rgba(245,158,11,0); filter: brightness(1); }
+  50% { box-shadow: inset 0 0 8px 1px rgba(245,158,11,0.24); filter: brightness(1.03); }
+}
+@keyframes combatBossThresholdPop {
+  0% { transform: translateY(-4px) scale(0.9); opacity: 0; }
+  20% { transform: translateY(0) scale(1.08); opacity: 1; }
+  75% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(0) scale(0.98); opacity: 0; }
+}
+@keyframes combatStatusPillPulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 1px 2px rgba(15,23,42,0.03); filter: brightness(1); }
+  50% { box-shadow: 0 0 0 1px rgba(255,255,255,0.22), 0 0 7px rgba(15,23,42,0.09); filter: brightness(1.04); }
+}
+
+@keyframes appPrimaryTabSpotlightPulse {
+  0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.2); }
+  70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
+  100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
+}
+
+@keyframes heroSubviewSpotlightPulse {
+  0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
+  70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
+  100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
+}
+
+@keyframes expeditionSubviewSpotlightPulse {
+  0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
+  70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
+  100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
+}
+
+@keyframes inventorySpotlightPulse {
+  0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.24); }
+  70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
+  100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
+}
+
+@keyframes talentSpotlightPulse {
+  0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.24); }
+  70% { box-shadow: 0 0 0 10px rgba(99,102,241,0); }
+  100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+}
+
+@keyframes laboratorySpotlightPulse {
+  0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
+  70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
+  100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
+}
+
+@keyframes prestigeSpotlightPulse {
+  0% { box-shadow: 0 0 0 0 rgba(199,210,254,0.22); }
+  70% { box-shadow: 0 0 0 10px rgba(199,210,254,0); }
+  100% { box-shadow: 0 0 0 0 rgba(199,210,254,0); }
+}
+
+@keyframes sanctuarySpotlightPulse {
+  0% { box-shadow: 0 0 0 0 rgba(3,105,161,0.24); }
+  70% { box-shadow: 0 0 0 10px rgba(3,105,161,0); }
+  100% { box-shadow: 0 0 0 0 rgba(3,105,161,0); }
+}
+
+@keyframes extractionSpotlightPulse {
+  0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
+  70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
+  100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
+}
+
+@keyframes distillerySpotlightPulse {
+  0% { box-shadow: 0 0 0 0 rgba(124,58,237,0.22); }
+  70% { box-shadow: 0 0 0 10px rgba(124,58,237,0); }
+  100% { box-shadow: 0 0 0 0 rgba(124,58,237,0); }
+}

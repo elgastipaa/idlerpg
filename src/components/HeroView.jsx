@@ -20,17 +20,7 @@ function getHeroSubview(tab = "character") {
 
 function SubviewLoadingCard({ label = "Vista" }) {
   return (
-    <div
-      style={{
-        border: "1px solid var(--color-border-primary, #e2e8f0)",
-        background: "var(--color-background-secondary, #ffffff)",
-        borderRadius: "12px",
-        padding: "14px 12px",
-        fontSize: "0.72rem",
-        fontWeight: "900",
-        color: "var(--color-text-secondary, #64748b)",
-      }}
-    >
+    <div className="subview-loading-card">
       Cargando {label}...
     </div>
   );
@@ -79,15 +69,13 @@ export default function HeroView({ state, dispatch }) {
     };
   });
 
+  const heroViewClassName = [
+    "hero-view",
+    `hero-view--${resolvedSubview}`,
+  ].join(" ");
+
   return (
-    <div style={{ display: "grid", gap: "10px", padding: "10px" }}>
-      <style>{`
-        @keyframes heroSubviewSpotlightPulse {
-          0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
-          70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
-          100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
-        }
-      `}</style>
+    <div className={heroViewClassName}>
       {showSubviewButtons && (
         <SubtabDock
           entries={subtabEntries}
@@ -99,7 +87,7 @@ export default function HeroView({ state, dispatch }) {
         />
       )}
 
-      <div>
+      <div className="hero-view-content">
         <Suspense fallback={<SubviewLoadingCard label={SUBVIEW_META[resolvedSubview]?.label || "Vista"} />}>
           {resolvedSubview === "character" && <Character player={state.player} dispatch={dispatch} state={state} />}
           {resolvedSubview === "skills" && <Skills state={state} dispatch={dispatch} />}

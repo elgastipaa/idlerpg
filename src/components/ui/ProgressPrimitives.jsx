@@ -1,23 +1,18 @@
 import React from "react";
 
-export function Panel({ children, style = {}, dense = false }) {
+export const Panel = React.forwardRef(function Panel({ children, style = {}, dense = false, ...rest }, ref) {
+  const panelProps = style && Object.keys(style).length > 0 ? { style } : {};
   return (
     <section
-      style={{
-        background: "var(--color-background-secondary, #ffffff)",
-        border: "1px solid var(--color-border-primary, #e2e8f0)",
-        borderRadius: dense ? "12px" : "14px",
-        padding: dense ? "10px" : "12px",
-        display: "grid",
-        gap: dense ? "8px" : "10px",
-        boxShadow: "0 8px 24px var(--color-shadow, rgba(15, 23, 42, 0.08))",
-        ...style,
-      }}
+      {...rest}
+      ref={ref}
+      className={["progress-panel", dense ? "progress-panel--dense" : ""].filter(Boolean).join(" ")}
+      {...panelProps}
     >
       {children}
     </section>
   );
-}
+});
 
 export function CardHeader({
   tag = "",
@@ -27,30 +22,29 @@ export function CardHeader({
   badgeSurface = "var(--tone-accent-soft, #eef2ff)",
   dense = false,
 }) {
+  const badgeProps = {
+    style: {
+      "--progress-chip-tone": badgeTone,
+      "--progress-chip-surface": badgeSurface,
+    },
+  };
+
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: dense ? "8px" : "10px", alignItems: "start", flexWrap: "wrap" }}>
-      <div style={{ minWidth: 0, display: "grid", gap: dense ? "2px" : "3px" }}>
+    <div className={["progress-card-header", dense ? "progress-card-header--dense" : ""].filter(Boolean).join(" ")}>
+      <div className="progress-card-header-copy">
         {tag ? (
-          <div style={{ fontSize: dense ? "0.54rem" : "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-tertiary, #94a3b8)" }}>
+          <div className="progress-card-header-tag">
             {tag}
           </div>
         ) : null}
-        <div style={{ fontSize: dense ? "0.76rem" : "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+        <div className="progress-card-header-title">
           {title}
         </div>
       </div>
       {badge ? (
         <span
-          style={{
-            fontSize: dense ? "0.56rem" : "0.6rem",
-            fontWeight: "900",
-            color: badgeTone,
-            border: `1px solid ${badgeTone}`,
-            background: badgeSurface,
-            borderRadius: "999px",
-            padding: dense ? "3px 6px" : "4px 7px",
-            whiteSpace: "nowrap",
-          }}
+          className="progress-card-header-badge"
+          {...badgeProps}
         >
           {badge}
         </span>
@@ -60,19 +54,16 @@ export function CardHeader({
 }
 
 export function StatusChip({ label = "", tone = "var(--tone-accent, #4338ca)", surface = "var(--tone-accent-soft, #eef2ff)", dense = false }) {
+  const chipProps = {
+    style: {
+      "--progress-chip-tone": tone,
+      "--progress-chip-surface": surface,
+    },
+  };
   return (
     <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        border: `1px solid ${tone}`,
-        background: surface,
-        color: tone,
-        borderRadius: "999px",
-        padding: dense ? "3px 6px" : "4px 8px",
-        fontSize: dense ? "0.56rem" : "0.6rem",
-        fontWeight: "900",
-      }}
+      className={["progress-status-chip", dense ? "progress-status-chip--dense" : ""].filter(Boolean).join(" ")}
+      {...chipProps}
     >
       {label}
     </span>
@@ -81,9 +72,13 @@ export function StatusChip({ label = "", tone = "var(--tone-accent, #4338ca)", s
 
 export function ProgressBar({ percent = 0, tone = "var(--tone-warning, #f59e0b)", dense = false }) {
   const width = Math.max(0, Math.min(100, Number(percent || 0)));
+  const barProps = { style: { "--progress-bar-width": `${width}%`, "--progress-bar-tone": tone } };
   return (
-    <div style={{ width: "100%", height: dense ? "5px" : "6px", borderRadius: "999px", overflow: "hidden", background: "var(--color-background-tertiary, #f1f5f9)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
-      <div style={{ width: `${width}%`, height: "100%", background: tone }} />
+    <div
+      className={["progress-primitive-bar", dense ? "progress-primitive-bar--dense" : ""].filter(Boolean).join(" ")}
+      {...barProps}
+    >
+      <div className="progress-primitive-bar__fill" />
     </div>
   );
 }
@@ -97,21 +92,23 @@ export function InlineAction({
   dense = false,
   filled = false,
 }) {
+  const actionProps = {
+    style: {
+      "--progress-action-tone": tone,
+      "--progress-action-surface": surface,
+    },
+  };
+
   return (
     <button
+      className={[
+        "progress-inline-action",
+        dense ? "progress-inline-action--dense" : "",
+        filled ? "progress-inline-action--filled" : "",
+      ].filter(Boolean).join(" ")}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
-      style={{
-        border: `1px solid ${tone}`,
-        background: filled ? tone : surface,
-        color: filled ? "#fff" : tone,
-        borderRadius: "999px",
-        padding: dense ? "6px 9px" : "7px 10px",
-        fontSize: dense ? "0.58rem" : "0.62rem",
-        fontWeight: "900",
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.65 : 1,
-      }}
+      {...actionProps}
     >
       {children}
     </button>

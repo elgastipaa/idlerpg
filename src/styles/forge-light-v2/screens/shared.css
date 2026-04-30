@@ -1,0 +1,172 @@
+.app-shell-root--forge-light-v2 :where(
+  .sanctuary-root--forge-light,
+  .inventory-root--forge-light,
+  .crafting-root--forge-light,
+  .character-root--forge-light,
+  .skills-root--forge-light,
+  .talents-root--forge-light,
+  .prestige-root--forge-light,
+  .codex-root--forge-light,
+  .account-progress-view,
+  .achievements-root,
+  .registry-view,
+  .registry-view-content,
+  .hero-view,
+  .hero-view-content,
+  .expedition-root
+) {
+  background: transparent !important;
+  color: var(--fl2-text) !important;
+}
+
+.app-shell-root--forge-light-v2 :where(
+  .fl-sanctuary-panel,
+  .fl-inventory-section,
+  .fl-inventory-loot-filter,
+  .fl-inventory-bulk-panel,
+  .fl-crafting-showcase,
+  .fl-crafting-result-card,
+  .fl-crafting-material-panel,
+  .fl-crafting-stat-panel,
+  .fl-crafting-feedback,
+  .forge-character-overview,
+  .forge-character-section,
+  .forge-attributes-panel,
+  .forge-skills-reading,
+  .talents-header,
+  .talents-tree-toolbar,
+  .forge-talents-panel,
+  .prestige-summary-panel,
+  .codex-intro-panel,
+  .codex-radar-panel,
+  .codex-metric-card
+) {
+  color: var(--fl2-text) !important;
+  background:
+    radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.05), transparent 24%),
+    linear-gradient(180deg, rgba(8, 10, 11, 0.58), rgba(5, 8, 10, 0.54)) !important;
+  border-color: rgba(198, 161, 91, 0.2) !important;
+  box-shadow: var(--fl2-surface-shadow) !important;
+}
+
+.app-shell-root--forge-light-v2 :where(.fl-sanctuary-panel, .prestige-summary-panel, .codex-intro-panel, .codex-radar-panel) + :where(.fl-sanctuary-panel, .prestige-summary-panel, .codex-intro-panel, .codex-radar-panel) {
+  position: relative;
+}
+
+.app-shell-root--forge-light-v2 :where(.fl-sanctuary-panel, .prestige-summary-panel, .codex-intro-panel, .codex-radar-panel) + :where(.fl-sanctuary-panel, .prestige-summary-panel, .codex-intro-panel, .codex-radar-panel)::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: -9px;
+  height: 1px;
+  background: var(--fl2-divider-line);
+  pointer-events: none;
+}
+
+.app-shell-root--forge-light-v2 :where(.fl-sanctuary-panel, .prestige-summary-panel, .codex-intro-panel, .codex-radar-panel) + :where(.fl-sanctuary-panel, .prestige-summary-panel, .codex-intro-panel, .codex-radar-panel)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -12px;
+  width: 5px;
+  height: 5px;
+  background: var(--fl2-gold);
+  border: 1px solid rgba(255, 232, 166, 0.48);
+  box-shadow: 0 0 10px rgba(243, 198, 95, 0.26);
+  transform: translateX(-50%) rotate(45deg);
+  pointer-events: none;
+}
+
+.app-shell-root--forge-light-v2 :is(
+  .sanctuary-root--forge-light,
+  .inventory-root--forge-light,
+  .crafting-root--forge-light,
+  .character-root--forge-light,
+  .skills-root--forge-light,
+  .talents-root--forge-light,
+  .prestige-root--forge-light,
+  .codex-root--forge-light,
+  .account-progress-view,
+  .achievements-root,
+  .registry-view,
+  .registry-view-content,
+  .hero-view,
+  .hero-view-content,
+  .expedition-root,
+  .expedition-root--inventory,
+  .expedition-root--inventory-mobile,
+  .expedition-root--codex,
+  .expedition-root--combat-mobile,
+  .expedition-subview-content,
+  .overlay-station-body--forge-crafting,
+  .overlay-station-shell--forge-crafting,
+  .overlay-station-surface--forge,
+  .combat-root
+) {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-shell-root--forge-light-v2 :is(
+  .fl-sanctuary-panel,
+  .fl-inventory-section,
+  .fl-inventory-loot-filter,
+  .fl-inventory-bulk-panel,
+  .fl-inventory-equipped-card,
+  .fl-inventory-row-card,
+  .fl-inventory-loot-rule-card,
+  .fl-inventory-bulk-card,
+  .fl-crafting-showcase,
+  .fl-crafting-stage,
+  .fl-crafting-item-card,
+  .fl-crafting-item-drawer,
+  .fl-crafting-drawer-item,
+  .fl-crafting-legacy-workbench,
+  .fl-crafting-inventory-panel,
+  .fl-crafting-result-card,
+  .fl-crafting-material-panel,
+  .fl-crafting-stat-panel,
+  .fl-crafting-feedback,
+  .forge-character-overview,
+  .forge-character-section,
+  .forge-attributes-panel,
+  .forge-skills-reading,
+  .talents-header,
+  .talents-tree-toolbar,
+  .forge-talents-panel,
+  .prestige-summary-panel,
+  .codex-intro-panel,
+  .codex-radar-panel,
+  .codex-metric-card,
+  .account-progress-panel,
+  .account-progress-card,
+  .achievements-panel,
+  .achievement-card,
+  .expedition-mobile-hint,
+  .subview-loading-card
+) {
+  color: var(--fl2-text) !important;
+  background: var(--fl2-surface-bg) !important;
+  border-color: rgba(198, 161, 91, 0.2) !important;
+  box-shadow: var(--fl2-surface-shadow) !important;
+}
+
+.app-shell-root--forge-light-v2 :where(
+  [style*="background: var(--color-background-primary"],
+  [style*="background:var(--color-background-primary"],
+  [style*="background: transparent"],
+  [style*="background:transparent"]
+) {
+  background: transparent !important;
+}
+
+.app-shell-root--forge-light-v2 :where(
+  [style*="background: var(--color-background-secondary"],
+  [style*="background:var(--color-background-secondary"],
+  [style*="background: var(--color-background-tertiary"],
+  [style*="background:var(--color-background-tertiary"]
+) {
+  background: var(--fl2-surface-bg-soft) !important;
+}

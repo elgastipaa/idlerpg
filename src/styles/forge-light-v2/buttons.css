@@ -1,0 +1,210 @@
+.app-shell-root--forge-light-v2 button {
+  font-family: var(--fl2-font-ui);
+}
+
+.app-shell-root--forge-light-v2 .fl2-button,
+.app-shell-root--forge-light-v2 :where(.fl-button, .fl-sanctuary-button, .subtab-dock-button, .app-primary-tab-button, .fl-crafting-primary-action, .fl-crafting-secondary-action) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--fl2-font-ui) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase;
+  border-radius: var(--fl2-radius-md) !important;
+  border: 1px solid rgba(198, 161, 91, 0.35) !important;
+  background: var(--fl2-bg-card-deep) !important;
+  color: var(--fl2-text-secondary) !important;
+  box-shadow:
+    var(--fl2-shadow-inset),
+    0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease,
+    background 0.12s ease,
+    box-shadow 0.12s ease,
+    transform 0.12s ease !important;
+  user-select: none;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button:hover:not(:disabled),
+.app-shell-root--forge-light-v2 :where(.fl-button, .fl-sanctuary-button, .subtab-dock-button, .app-primary-tab-button, .fl-crafting-primary-action, .fl-crafting-secondary-action):hover:not(:disabled) {
+  border-color: var(--fl2-gold) !important;
+  color: var(--fl2-text) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button:active:not(:disabled),
+.app-shell-root--forge-light-v2 :where(.fl-button, .fl-sanctuary-button, .subtab-dock-button, .app-primary-tab-button, .fl-crafting-primary-action, .fl-crafting-secondary-action):active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6) !important;
+}
+
+.app-shell-root--forge-light-v2 :where(.fl-button[data-state="pressed"], .fl-button--pressed):not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.62) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button:focus-visible,
+.app-shell-root--forge-light-v2 :where(.fl-button, .fl-sanctuary-button, .subtab-dock-button, .app-primary-tab-button, .fl-crafting-primary-action, .fl-crafting-secondary-action):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--fl2-gold-strong) 74%, transparent);
+  outline-offset: 2px;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button--primary,
+.app-shell-root--forge-light-v2 :where(.fl-button--primary, .fl-sanctuary-button--primary, .fl-crafting-primary-action),
+.app-shell-root--forge-light-v2 :where(.app-primary-tab-button--active, .subtab-dock-button--active) {
+  background: linear-gradient(180deg, #2a1e0d 0%, #1a1309 100%) !important;
+  border-color: var(--fl2-gold) !important;
+  color: var(--fl2-text) !important;
+  box-shadow:
+    0 0 0 1px rgba(198, 161, 91, 0.08) inset,
+    var(--fl2-shadow-inset),
+    0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button--primary:hover:not(:disabled),
+.app-shell-root--forge-light-v2 :where(.fl-button--primary, .fl-sanctuary-button--primary, .fl-crafting-primary-action):hover:not(:disabled),
+.app-shell-root--forge-light-v2 :where(.app-primary-tab-button--active, .subtab-dock-button--active):hover:not(:disabled) {
+  border-color: var(--fl2-gold-strong) !important;
+  color: var(--fl2-gold-strong) !important;
+  box-shadow:
+    var(--fl2-glow-gold-soft),
+    var(--fl2-shadow-inset),
+    0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button--cta {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #3d2a0e 0%, #251905 50%, #3d2a0e 100%) !important;
+  border-width: 2px !important;
+  border-color: var(--fl2-gold) !important;
+  color: var(--fl2-gold) !important;
+  text-shadow: 0 0 20px rgba(230, 196, 122, 0.5);
+  box-shadow:
+    var(--fl2-glow-gold-soft),
+    inset 0 1px 0 rgba(255, 232, 180, 0.12),
+    0 6px 20px rgba(0, 0, 0, 0.5) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button--cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 232, 180, 0.06) 0%, transparent 50%);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button--cta:hover:not(:disabled) {
+  border-color: var(--fl2-gold-strong) !important;
+  color: var(--fl2-gold-strong) !important;
+  box-shadow:
+    var(--fl2-glow-gold-strong),
+    inset 0 1px 0 rgba(255, 232, 180, 0.15),
+    0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button--ghost,
+.app-shell-root--forge-light-v2 :where(.fl-button--ghost) {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--fl2-text-muted) !important;
+  box-shadow: none !important;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button--ghost:hover:not(:disabled),
+.app-shell-root--forge-light-v2 :where(.fl-button--ghost):hover:not(:disabled) {
+  border-color: var(--fl2-gold-muted) !important;
+  color: var(--fl2-text-secondary) !important;
+  box-shadow: none !important;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button--danger,
+.app-shell-root--forge-light-v2 :where(.fl-button--danger, .fl-button--danger-ghost, .fl-button--destructive),
+.app-shell-root--forge-light-v2 :where(.fl-inventory-row-action--sell) {
+  background: linear-gradient(180deg, rgba(224, 90, 90, 0.15) 0%, rgba(224, 90, 90, 0.06) 100%) !important;
+  border-color: var(--fl2-danger) !important;
+  color: var(--fl2-danger) !important;
+  box-shadow: 0 0 12px rgba(224, 90, 90, 0.15) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button--danger:hover:not(:disabled),
+.app-shell-root--forge-light-v2 :where(.fl-button--danger, .fl-button--danger-ghost, .fl-button--destructive):hover:not(:disabled),
+.app-shell-root--forge-light-v2 :where(.fl-inventory-row-action--sell):hover:not(:disabled) {
+  box-shadow: var(--fl2-glow-danger) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button--success,
+.app-shell-root--forge-light-v2 :where(.fl-button--success, .fl-button[data-state="success"]),
+.app-shell-root--forge-light-v2 :where(.fl-inventory-row-action--equip) {
+  background: linear-gradient(180deg, rgba(79, 209, 139, 0.15) 0%, rgba(79, 209, 139, 0.06) 100%) !important;
+  border-color: var(--fl2-success) !important;
+  color: var(--fl2-success) !important;
+  box-shadow: 0 0 12px rgba(79, 209, 139, 0.15) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button--selected,
+.app-shell-root--forge-light-v2 :where(.fl-button--selected, .fl-button[data-selected="true"]),
+.app-shell-root--forge-light-v2 :where(.is-active, .is-selected):is(button, .fl-button, .fl-sanctuary-button) {
+  background: linear-gradient(180deg, rgba(198, 161, 91, 0.18) 0%, rgba(198, 161, 91, 0.08) 100%) !important;
+  border-color: var(--fl2-gold-strong) !important;
+  color: var(--fl2-gold-strong) !important;
+  box-shadow: var(--fl2-glow-gold-soft) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button--loading,
+.app-shell-root--forge-light-v2 .fl-button[data-state="loading"] {
+  position: relative;
+  color: transparent !important;
+  cursor: wait !important;
+}
+
+.app-shell-root--forge-light-v2 .fl2-button--loading::after,
+.app-shell-root--forge-light-v2 .fl-button[data-state="loading"]::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--fl2-gold-muted);
+  border-top-color: var(--fl2-gold);
+  border-radius: 50%;
+  animation: fl2-spin 0.7s linear infinite;
+}
+
+.app-shell-root--forge-light-v2 .fl-button__spinner {
+  width: 16px !important;
+  height: 16px !important;
+  border: 2px solid var(--fl2-gold-muted) !important;
+  border-top-color: var(--fl2-gold) !important;
+  border-radius: 50% !important;
+  animation: fl2-spin 0.7s linear infinite !important;
+}
+
+.app-shell-root--forge-light-v2 :where(.fl-button--compact, .fl-button--icon-only, .fl-sanctuary-button--icon) {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0 !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-button[data-state="error"] {
+  border-color: var(--fl2-danger) !important;
+  color: var(--fl2-danger) !important;
+  box-shadow: var(--fl2-glow-danger) !important;
+}
+
+.app-shell-root--forge-light-v2 :where(button, .fl2-button):disabled,
+.app-shell-root--forge-light-v2 :where(.subtab-dock-button--disabled) {
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+  color: var(--fl2-text-muted) !important;
+  border-color: rgba(198, 161, 91, 0.12) !important;
+  box-shadow: none !important;
+}
+
+@keyframes fl2-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -18,6 +18,7 @@ import { formatRunSigilLoadout, normalizeRunSigilIds, summarizeRunSigilLoadout }
 import { getMaxRunSigilSlots } from "../engine/progression/abyssProgression";
 import { getCodexResearchDefinition } from "../engine/sanctuary/jobEngine";
 import HorizontalOptionSelector from "./HorizontalOptionSelector";
+import ForgeIcon from "./icons/ForgeIcon";
 
 const STAT_DESCRIPTIONS = [
   ["damage", "Dano base de tus golpes normales y de varias habilidades."],
@@ -485,68 +486,74 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
     if (!libraryLayerState?.layers?.[layerId]?.unlocked) return;
     dispatch({ type: "START_CODEX_RESEARCH", researchType, targetId });
   };
+  const codexRootClassName = [
+    "codex-root",
+    "codex-root--forge-light",
+    isLibraryMode ? "codex-root--library" : "codex-root--hunt",
+  ].join(" ");
+
   return (
-    <div style={{ padding: "calc(0.85rem * var(--density-scale, 1))", display: "flex", flexDirection: "column", gap: "calc(0.8rem * var(--density-scale, 1))", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
-      <section style={isLibraryMode ? libraryHeroPanelStyle : panelStyle}>
+    <div className={codexRootClassName} {...{ style: { padding: "calc(0.85rem * var(--density-scale, 1))", display: "flex", flexDirection: "column", gap: "calc(0.8rem * var(--density-scale, 1))", color: "var(--color-text-primary, #1e293b)" } }}>
+      <section className="codex-intro-panel" {...{ style: isLibraryMode ? libraryHeroPanelStyle : panelStyle }}>
         {isLibraryMode ? (
           <>
-            <div style={{ display: "grid", gap: "12px", alignItems: "start" }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+            <div {...{ style: { display: "grid", gap: "12px", alignItems: "start" } }}>
+              <div {...{ style: { minWidth: 0 } }}>
+                <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" } }}>
                   Biblioteca
                 </div>
-                <div style={{ fontSize: "1.02rem", fontWeight: "900", marginTop: "4px" }}>
+                <div {...{ style: { fontSize: "1.02rem", fontWeight: "900", marginTop: "4px" } }}>
                   Archivo del Santuario
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" }}>
+                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" } }}>
                   Convierte kills y descubrimientos en progreso permanente con tinta y estudios de Biblioteca.
                 </div>
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <span style={libraryTopChipStyle("var(--tone-accent, #4338ca)")}>
+            <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap" } }}>
+              <span {...{ style: libraryTopChipStyle("var(--tone-accent, #4338ca)") }}>
                 {activePowersCount}/{powerEntries.length} poderes
               </span>
-              <span style={libraryTopChipStyle("var(--tone-success, #10b981)")}>
+              <span {...{ style: libraryTopChipStyle("var(--tone-success, #10b981)") }}>
                 {discoveredFamiliesCount} familias
               </span>
-              <span style={libraryTopChipStyle("var(--tone-info, #0369a1)")}>
+              <span {...{ style: libraryTopChipStyle("var(--tone-info, #0369a1)") }}>
                 {discoveredBossesCount} bosses
               </span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" }}>
-              <div style={libraryTopMetricCardStyle}>
-                <div style={libraryTopMetricLabelStyle}>Tinta</div>
-                <div style={libraryTopMetricValueStyle}>{Math.floor(codexInk).toLocaleString()}</div>
+            <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" } }}>
+              <div {...{ style: libraryTopMetricCardStyle }}>
+                <div {...{ style: libraryTopMetricLabelStyle }}>Tinta</div>
+                <div {...{ style: libraryTopMetricValueStyle }}>{Math.floor(codexInk).toLocaleString()}</div>
               </div>
-              <div style={libraryTopMetricCardStyle}>
-                <div style={libraryTopMetricLabelStyle}>Polvo</div>
-                <div style={libraryTopMetricValueStyle}>{Math.floor(relicDust).toLocaleString()}</div>
+              <div {...{ style: libraryTopMetricCardStyle }}>
+                <div {...{ style: libraryTopMetricLabelStyle }}>Polvo</div>
+                <div {...{ style: libraryTopMetricValueStyle }}>{Math.floor(relicDust).toLocaleString()}</div>
               </div>
-              <div style={libraryTopMetricCardStyle}>
-                <div style={libraryTopMetricLabelStyle}>En curso</div>
-                <div style={libraryTopMetricValueStyle}>{runningResearchJobs.length}</div>
+              <div {...{ style: libraryTopMetricCardStyle }}>
+                <div {...{ style: libraryTopMetricLabelStyle }}>En curso</div>
+                <div {...{ style: libraryTopMetricValueStyle }}>{runningResearchJobs.length}</div>
               </div>
-              <div style={libraryTopMetricCardStyle}>
-                <div style={libraryTopMetricLabelStyle}>Listas</div>
-                <div style={libraryTopMetricValueStyle}>{claimableResearchJobs.length}</div>
+              <div {...{ style: libraryTopMetricCardStyle }}>
+                <div {...{ style: libraryTopMetricLabelStyle }}>Listas</div>
+                <div {...{ style: libraryTopMetricValueStyle }}>{claimableResearchJobs.length}</div>
               </div>
-              <div style={libraryTopMetricCardStyle}>
-                <div style={libraryTopMetricLabelStyle}>Hitos</div>
-                <div style={libraryTopMetricValueStyle}>{Math.floor(unlockedMilestones).toLocaleString()}</div>
+              <div {...{ style: libraryTopMetricCardStyle }}>
+                <div {...{ style: libraryTopMetricLabelStyle }}>Hitos</div>
+                <div {...{ style: libraryTopMetricValueStyle }}>{Math.floor(unlockedMilestones).toLocaleString()}</div>
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              <button onClick={() => setActiveTab("mastery")} style={tabBtnStyle(activeTab === "mastery")}>Archivo</button>
-              <button onClick={() => setActiveTab("glossary")} style={tabBtnStyle(activeTab === "glossary")}>Glosario</button>
+            <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
+              <button onClick={() => setActiveTab("mastery")} {...{ style: tabBtnStyle(activeTab === "mastery") }}>Archivo</button>
+              <button onClick={() => setActiveTab("glossary")} {...{ style: tabBtnStyle(activeTab === "glossary") }}>Glosario</button>
             </div>
 
             {onBack && (
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <button onClick={onBack} style={overlayBackButtonStyle}>
+              <div {...{ style: { display: "flex", justifyContent: "flex-end" } }}>
+                <button onClick={onBack} {...{ style: overlayBackButtonStyle }}>
                   Volver
                 </button>
               </div>
@@ -554,55 +561,55 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
           </>
         ) : (
           <>
-            <div style={titleStyle}>Intel</div>
-            <div style={{ fontSize: "0.78rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>
+            <div {...{ style: titleStyle }}>Intel</div>
+            <div {...{ style: { fontSize: "0.78rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" } }}>
               Radar tactico de esta run: objetivos, bosses y powers utiles sin mezclar investigacion permanente.
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "8px", marginTop: "10px" }}>
+            <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "8px", marginTop: "10px" } }}>
               <div
-                style={{
+                {...{ style: {
                   background: "var(--color-background-tertiary, #f8fafc)",
                   border: "1px solid var(--color-border-primary, #e2e8f0)",
                   borderRadius: "12px",
                   padding: "10px 12px",
                   display: "grid",
                   gap: "4px",
-                }}
+                } }}
               >
-                <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                <div {...{ style: { fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>
                   Biblioteca
                 </div>
-                <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>
+                <div {...{ style: { fontSize: "0.78rem", fontWeight: "900" } }}>
                   Progreso persistente del Santuario
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
+                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 } }}>
                   Tinta, hitos, investigaciones y bonus permanentes.
                 </div>
               </div>
               <div
-                style={{
+                {...{ style: {
                   background: "var(--tone-info-soft, #f0f9ff)",
                   border: "1px solid var(--tone-info, #0369a1)",
                   borderRadius: "12px",
                   padding: "10px 12px",
                   display: "grid",
                   gap: "4px",
-                }}
+                } }}
               >
-                <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", color: "var(--tone-info, #0369a1)" }}>
+                <div {...{ style: { fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", color: "var(--tone-info, #0369a1)" } }}>
                   Intel
                 </div>
-                <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>
+                <div {...{ style: { fontSize: "0.78rem", fontWeight: "900" } }}>
                   Lectura tactica para esta expedicion
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
+                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 } }}>
                   Bosses en ruta, familias vistas y targets ya accesibles hoy.
                 </div>
               </div>
             </div>
             {hasActiveRunSigilBias && (
-              <div style={{ marginTop: "10px", padding: "8px 10px", borderRadius: "10px", background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4, fontWeight: "800" }}>
-                <strong style={{ color: "var(--tone-accent, #4338ca)" }}>{activeRunSigilLoadout}</strong> activo · {activeRunSigilSummary}
+              <div {...{ style: { marginTop: "10px", padding: "8px 10px", borderRadius: "10px", background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4, fontWeight: "800" } }}>
+                <strong {...{ style: { color: "var(--tone-accent, #4338ca)" } }}>{activeRunSigilLoadout}</strong> activo · {activeRunSigilSummary}
               </div>
             )}
           </>
@@ -611,128 +618,137 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
 
       {isHuntMode ? (
         <>
-          <section style={huntHeroPanelStyle}>
-            <div style={{ display: "grid", gap: "12px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", flexWrap: "wrap" }}>
-                <div style={{ display: "grid", gap: "6px" }}>
-                  <div style={huntEyebrowStyle}>Radar tactico</div>
-                  <div style={{ fontSize: "1.06rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+          <section className="codex-radar-panel" {...{ style: huntHeroPanelStyle }}>
+            <div {...{ style: { display: "grid", gap: "12px" } }}>
+              <div className="codex-radar-head" {...{ style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", flexWrap: "wrap" } }}>
+                <div className="codex-radar-copy" {...{ style: { display: "grid", gap: "6px" } }}>
+                  <div {...{ style: huntEyebrowStyle }}>Radar tactico</div>
+                  <div className="codex-radar-tier" {...{ style: { fontSize: "1.06rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
                     {expeditionPhase === "active" ? `Tier ${currentTier} / ${maxUnlockedTier}` : "Fuera de expedicion"}
                   </div>
-                  <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4, maxWidth: "52ch" }}>
+                  <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4, maxWidth: "52ch" } }}>
                     {expeditionPhase === "active"
                       ? "Responde tres cosas rapido: que power puedes ir a buscar, que boss tienes en ruta y que familia ya viste."
                       : "Deja lista la lectura tactica antes de salir, sin recomendar por vos."}
                   </div>
-                  <div style={{ fontSize: "0.64rem", color: "var(--tone-info, #0369a1)", fontWeight: "900", lineHeight: 1.35 }}>
+                  <div {...{ style: { fontSize: "0.64rem", color: "var(--tone-info, #0369a1)", fontWeight: "900", lineHeight: 1.35 } }}>
                     Biblioteca guarda progreso permanente. Intel solo lee esta run.
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  <span style={huntHeroChipStyle("var(--tone-accent, #4338ca)", "var(--tone-accent-soft, #eef2ff)")}>
+                <div className="codex-radar-chips" {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" } }}>
+                  <span {...{ style: huntHeroChipStyle("var(--tone-accent, #4338ca)", "var(--tone-accent-soft, #eef2ff)") }}>
                     {playerSpec ? `${playerSpec}` : playerClass ? `${playerClass}` : "Sin build"}
                   </span>
-                  <span style={huntHeroChipStyle("var(--tone-info, #0369a1)", "var(--tone-info-soft, #f0f9ff)")}>
+                  <span {...{ style: huntHeroChipStyle("var(--tone-info, #0369a1)", "var(--tone-info-soft, #f0f9ff)") }}>
                     {routeBosses.length} bosses en ruta
                   </span>
-                  <span style={huntHeroChipStyle("var(--tone-warning, #f59e0b)", "var(--tone-warning-soft, #fff7ed)")}>
+                  <span {...{ style: huntHeroChipStyle("var(--tone-warning, #f59e0b)", "var(--tone-warning-soft, #fff7ed)") }}>
                     {hiddenPowersCount} powers ocultos
                   </span>
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "8px" }}>
-                <div style={huntMetricCardStyle}>
-                  <div style={huntMetricLabelStyle}>Targets revelados</div>
-                  <div style={huntMetricValueStyle}>{availablePowerTargets.length}</div>
-                  <div style={huntMetricHintStyle}>ya accesibles hoy</div>
+              <div className="codex-metric-grid" {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "8px" } }}>
+                <div className="codex-metric-card" {...{ style: huntMetricCardStyle }}>
+                  <div {...{ style: huntMetricLabelStyle }}>Targets revelados</div>
+                  <div {...{ style: huntMetricValueStyle }}>{availablePowerTargets.length}</div>
+                  <div {...{ style: huntMetricHintStyle }}>ya accesibles hoy</div>
                 </div>
-                <div style={huntMetricCardStyle}>
-                  <div style={huntMetricLabelStyle}>Bosses accesibles</div>
-                  <div style={huntMetricValueStyle}>{accessibleBosses.length}</div>
-                  <div style={huntMetricHintStyle}>dentro de tu frontera</div>
+                <div className="codex-metric-card" {...{ style: huntMetricCardStyle }}>
+                  <div {...{ style: huntMetricLabelStyle }}>Bosses accesibles</div>
+                  <div {...{ style: huntMetricValueStyle }}>{accessibleBosses.length}</div>
+                  <div {...{ style: huntMetricHintStyle }}>dentro de tu frontera</div>
                 </div>
-                <div style={huntMetricCardStyle}>
-                  <div style={huntMetricLabelStyle}>Powers activos</div>
-                  <div style={huntMetricValueStyle}>{activePowersCount}</div>
-                  <div style={huntMetricHintStyle}>ya vistos historicamente</div>
+                <div className="codex-metric-card" {...{ style: huntMetricCardStyle }}>
+                  <div {...{ style: huntMetricLabelStyle }}>Powers activos</div>
+                  <div {...{ style: huntMetricValueStyle }}>{activePowersCount}</div>
+                  <div {...{ style: huntMetricHintStyle }}>ya vistos historicamente</div>
                 </div>
-                <div style={huntMetricCardStyle}>
-                  <div style={huntMetricLabelStyle}>Expedicion</div>
-                  <div style={huntMetricValueStyle}>
+              </div>
+
+              <div className="codex-expedition-banner">
+                <div className="codex-expedition-emblem" aria-hidden="true">
+                  <ForgeIcon name="combat" size={46} />
+                </div>
+                <div className="codex-expedition-copy">
+                  <div className="codex-expedition-kicker">Expedicion</div>
+                  <div className="codex-expedition-state">
                     {expeditionPhase === "active" ? "Activa" : expeditionPhase === "setup" ? "Setup" : "Santuario"}
                   </div>
-                  <div style={huntMetricHintStyle}>
+                  <div className="codex-expedition-hint">
                     {expeditionPhase === "active" ? `empujando Tier ${currentTier}` : "sin combate corriendo"}
                   </div>
+                </div>
+                <div className="codex-expedition-book" aria-hidden="true">
+                  <ForgeIcon name="library" size={54} />
                 </div>
               </div>
             </div>
           </section>
 
-          <section style={panelStyle}>
-            <div style={sectionStyle}>Objetivos revelados</div>
-            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45, marginBottom: "10px" }}>
+          <section {...{ style: panelStyle }}>
+            <div {...{ style: sectionStyle }}>Objetivos revelados</div>
+            <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45, marginBottom: "10px" } }}>
               Solo objetivos tacticos ya disponibles para tu frontera actual. La capa de progreso permanente no aparece aca.
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "10px" }}>
-              <div style={cardStyle}>
-                <div style={huntPanelTitleStyle}>Powers ocultos accesibles ahora</div>
+            <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "10px" } }}>
+              <div {...{ style: cardStyle }}>
+                <div {...{ style: huntPanelTitleStyle }}>Powers ocultos accesibles ahora</div>
                 {availablePowerTargets.length > 0 ? availablePowerTargets.map(entry => (
-                  <div key={`power-now-${entry.id}`} style={huntRowStyle}>
+                  <div key={`power-now-${entry.id}`} {...{ style: huntRowStyle }}>
                     <div>
-                      <div style={{ fontSize: "0.72rem", fontWeight: "900" }}>{entry.name}</div>
-                      <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>
+                      <div {...{ style: { fontSize: "0.72rem", fontWeight: "900" } }}>{entry.name}</div>
+                      <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" } }}>
                         {entry.subtitle} · Tier {entry.tier} · {entry.undiscoveredCount} power{entry.undiscoveredCount === 1 ? "" : "s"}
                       </div>
                     </div>
-                    <button onClick={() => goToTier(entry.tier)} style={miniHuntButtonStyle}>
+                    <button onClick={() => goToTier(entry.tier)} {...{ style: miniHuntButtonStyle }}>
                       Ir
                     </button>
                   </div>
                 )) : (
-                  <div style={huntEmptyStyle}>No tenes objetivos ya revelados con powers ocultos dentro de tu frontera actual.</div>
+                  <div {...{ style: huntEmptyStyle }}>No tenes objetivos ya revelados con powers ocultos dentro de tu frontera actual.</div>
                 )}
               </div>
 
-              <div style={cardStyle}>
-                <div style={huntPanelTitleStyle}>Bosses de esta seed</div>
+              <div {...{ style: cardStyle }}>
+                <div {...{ style: huntPanelTitleStyle }}>Bosses de esta seed</div>
                 {routeBosses.length > 0 ? routeBosses.map(entry => (
-                  <div key={`route-boss-${entry.id}`} style={huntRowStyle}>
+                  <div key={`route-boss-${entry.id}`} {...{ style: huntRowStyle }}>
                     <div>
-                      <div style={{ fontSize: "0.72rem", fontWeight: "900" }}>{entry.name}</div>
-                      <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>
+                      <div {...{ style: { fontSize: "0.72rem", fontWeight: "900" } }}>{entry.name}</div>
+                      <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" } }}>
                         Slot {entry.currentRunSlot} · {entry.bestUnlockedTier != null ? `Tier ${entry.bestUnlockedTier}` : `desbloquea en Tier ${entry.earliestCurrentRunTier}`}
                       </div>
                     </div>
                     {entry.bestUnlockedTier != null ? (
-                      <button onClick={() => goToTier(entry.bestUnlockedTier)} style={miniHuntButtonStyle}>
+                      <button onClick={() => goToTier(entry.bestUnlockedTier)} {...{ style: miniHuntButtonStyle }}>
                         Ir
                       </button>
                     ) : (
-                      <span style={huntMetaStyle}>Aun no</span>
+                      <span {...{ style: huntMetaStyle }}>Aun no</span>
                     )}
                   </div>
                 )) : (
-                  <div style={huntEmptyStyle}>Todavia no revelaste bosses suficientes de la ruta actual.</div>
+                  <div {...{ style: huntEmptyStyle }}>Todavia no revelaste bosses suficientes de la ruta actual.</div>
                 )}
               </div>
             </div>
           </section>
 
-          <section style={panelStyle}>
-            <button onClick={() => toggleSection("huntPowers")} style={compactToggleButtonStyle}>
-              <span style={sectionStyle}>Poderes legendarios</span>
-              <span style={collapseLabelStyle}>{collapsedSections.huntPowers ? "+" : "-"}</span>
+          <section {...{ style: panelStyle }}>
+            <button onClick={() => toggleSection("huntPowers")} {...{ style: compactToggleButtonStyle }}>
+              <span {...{ style: sectionStyle }}>Poderes legendarios</span>
+              <span {...{ style: collapseLabelStyle }}>{collapsedSections.huntPowers ? "+" : "-"}</span>
             </button>
             {!collapsedSections.huntPowers && (
-              <div style={gridStyle}>
+              <div {...{ style: gridStyle }}>
                 {huntPowerEntries.length > 0 ? huntPowersPaging.entries
                   .map(entry => (
-                    <div key={entry.id} style={cardStyle}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
-                        <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{entry.name}</div>
-                        <span style={{
+                    <div key={entry.id} {...{ style: cardStyle }}>
+                      <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" } }}>
+                        <div {...{ style: { fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>{entry.name}</div>
+                        <span {...{ style: {
                           fontSize: "0.5rem",
                           fontWeight: "900",
                           textTransform: "uppercase",
@@ -741,26 +757,26 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                           border: "1px solid var(--tone-warning, #fb923c)",
                           background: "var(--tone-warning-soft, #fff7ed)",
                           color: "var(--tone-danger, #c2410c)",
-                        }}>
+                        } }}>
                           Descubierto
                         </span>
                       </div>
-                      <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "2px", textTransform: "uppercase", fontWeight: "900" }}>
+                      <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "2px", textTransform: "uppercase", fontWeight: "900" } }}>
                         {entry.archetype}
                       </div>
-                      <div style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.35 }}>
+                      <div {...{ style: { fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.35 } }}>
                         {entry.description}
                       </div>
-                      <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "8px", fontWeight: "800" }}>
+                      <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "8px", fontWeight: "800" } }}>
                         Descubrimientos: {entry.discoveries}
                       </div>
                       {entry.sources?.bossIds?.length > 0 && (
-                        <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>
+                        <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" } }}>
                           <strong>Boss:</strong> {entry.sources.bossIds.map(bossId => BOSS_NAME_BY_ID[bossId] || bossId).join(" · ")}
                         </div>
                       )}
                       {entry.sources?.familyIds?.length > 0 && (
-                        <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px" }}>
+                        <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px" } }}>
                           <strong>Familias:</strong> {entry.sources.familyIds.map(familyId => ENEMY_FAMILIES[familyId]?.name || familyId).join(" · ")}
                         </div>
                       )}
@@ -768,14 +784,14 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                         const sourceTier = getBestUnlockedTierForPower(entry, maxUnlockedTier, runContext);
                         if (!sourceTier) return null;
                         return (
-                          <button onClick={() => goToTier(sourceTier)} style={huntButtonStyle}>
+                          <button onClick={() => goToTier(sourceTier)} {...{ style: huntButtonStyle }}>
                             Ir al tier {sourceTier}
                           </button>
                         );
                       })()}
                     </div>
                   )) : (
-                  <div style={cardStyle}>Todavia no descubriste powers legendarios.</div>
+                  <div {...{ style: cardStyle }}>Todavia no descubriste powers legendarios.</div>
                 )}
                 {huntPowersPaging.totalPages > 1 && (
                   <PaginationControls
@@ -789,36 +805,36 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
             )}
           </section>
 
-          <section style={panelStyle}>
-            <button onClick={() => toggleSection("huntFamilies")} style={compactToggleButtonStyle}>
-              <span style={sectionStyle}>Familias reveladas</span>
-              <span style={collapseLabelStyle}>{collapsedSections.huntFamilies ? "+" : "-"}</span>
+          <section {...{ style: panelStyle }}>
+            <button onClick={() => toggleSection("huntFamilies")} {...{ style: compactToggleButtonStyle }}>
+              <span {...{ style: sectionStyle }}>Familias reveladas</span>
+              <span {...{ style: collapseLabelStyle }}>{collapsedSections.huntFamilies ? "+" : "-"}</span>
             </button>
             {!collapsedSections.huntFamilies && (
-              <div style={cardStyle}>
-                <div style={huntPanelTitleStyle}>Familias visibles en esta run</div>
+              <div {...{ style: cardStyle }}>
+                <div {...{ style: huntPanelTitleStyle }}>Familias visibles en esta run</div>
                 {huntFamilyEntries.length > 0 ? huntFamiliesPaging.entries
                   .map(entry => {
                     const familyTier = getHighestUnlockedTierForFamily(entry.id, maxUnlockedTier, runContext);
                     return (
-                      <div key={`family-run-${entry.id}`} style={huntIntelRowStyle}>
-                        <div style={{ display: "grid", gap: "4px" }}>
-                          <div style={{ fontSize: "0.72rem", fontWeight: "900" }}>{entry.name}</div>
-                          <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)" }}>
+                      <div key={`family-run-${entry.id}`} {...{ style: huntIntelRowStyle }}>
+                        <div {...{ style: { display: "grid", gap: "4px" } }}>
+                          <div {...{ style: { fontSize: "0.72rem", fontWeight: "900" } }}>{entry.name}</div>
+                          <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)" } }}>
                             {entry.traitName} · {familyTier != null ? `hasta Tier ${familyTier}` : "presente en la seed actual"}
                           </div>
                         </div>
                         {familyTier != null ? (
-                          <button onClick={() => goToTier(familyTier)} style={miniHuntButtonStyle}>
+                          <button onClick={() => goToTier(familyTier)} {...{ style: miniHuntButtonStyle }}>
                             Ir
                           </button>
                         ) : (
-                          <span style={huntMetaStyle}>Vista</span>
+                          <span {...{ style: huntMetaStyle }}>Vista</span>
                         )}
                       </div>
                     );
                   }) : (
-                  <div style={huntEmptyStyle}>Todavia no viste familias reveladas dentro de esta expedicion.</div>
+                  <div {...{ style: huntEmptyStyle }}>Todavia no viste familias reveladas dentro de esta expedicion.</div>
                 )}
                 {huntFamiliesPaging.totalPages > 1 && (
                   <PaginationControls
@@ -834,29 +850,29 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
         </>
       ) : activeTab === "mastery" ? (
         <>
-          <section style={librarySecondaryPanelStyle}>
-            <div style={librarySectionHeadingWrapStyle}>
-              <div style={librarySectionTitleStyle}>Bonos activos</div>
-              <div style={librarySectionSubtitleStyle}>Efectos permanentes ya aplicados a tu cuenta.</div>
+          <section {...{ style: librarySecondaryPanelStyle }}>
+            <div {...{ style: librarySectionHeadingWrapStyle }}>
+              <div {...{ style: librarySectionTitleStyle }}>Bonos activos</div>
+              <div {...{ style: librarySectionSubtitleStyle }}>Efectos permanentes ya aplicados a tu cuenta.</div>
             </div>
-            <div style={gridStyle}>
+            <div {...{ style: gridStyle }}>
               {visibleBonuses.length > 0 ? visibleBonuses.map(([key, value]) => (
-                <div key={key} style={cardStyle}>
-                  <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{BONUS_LABELS[key] || key}</div>
-                  <div style={{ fontSize: "0.86rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", marginTop: "4px" }}>{formatBonusValue(key, value)}</div>
+                <div key={key} {...{ style: cardStyle }}>
+                  <div {...{ style: { fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>{BONUS_LABELS[key] || key}</div>
+                  <div {...{ style: { fontSize: "0.86rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", marginTop: "4px" } }}>{formatBonusValue(key, value)}</div>
                 </div>
               )) : (
-                <div style={cardStyle}>Todavia no activaste hitos de Biblioteca.</div>
+                <div {...{ style: cardStyle }}>Todavia no activaste hitos de Biblioteca.</div>
               )}
             </div>
           </section>
 
-          <section style={librarySecondaryPanelStyle}>
+          <section {...{ style: librarySecondaryPanelStyle }}>
             <HorizontalOptionSelector
               header={(
-                <div style={librarySectionHeadingWrapStyle}>
-                  <div style={librarySectionTitleStyle}>{selectedMasteryGroupMeta.label}</div>
-                  <div style={librarySectionSubtitleStyle}>{selectedMasteryGroupMeta.subtitle}</div>
+                <div {...{ style: librarySectionHeadingWrapStyle }}>
+                  <div {...{ style: librarySectionTitleStyle }}>{selectedMasteryGroupMeta.label}</div>
+                  <div {...{ style: librarySectionSubtitleStyle }}>{selectedMasteryGroupMeta.subtitle}</div>
                 </div>
               )}
               options={LIBRARY_MASTERY_GROUPS}
@@ -886,8 +902,8 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
               })}
               renderOption={({ option: group }) => (
                 <>
-                  <span style={{ fontSize: "0.64rem", fontWeight: "900" }}>{group.label}</span>
-                  <span style={{ fontSize: "0.56rem", fontWeight: "800", color: "inherit" }}>
+                  <span {...{ style: { fontSize: "0.64rem", fontWeight: "900" } }}>{group.label}</span>
+                  <span {...{ style: { fontSize: "0.56rem", fontWeight: "800", color: "inherit" } }}>
                     {masteryGroupSummary[group.id]}
                   </span>
                 </>
@@ -896,16 +912,16 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
           </section>
 
           {!isLibraryGroupUnlocked(selectedMasteryGroupId) && (
-            <section style={librarySecondaryPanelStyle}>
-              <div style={librarySectionHeadingWrapStyle}>
-                <span style={librarySectionTitleStyle}>{selectedMasteryGroupMeta.label}</span>
-                <span style={librarySectionSubtitleStyle}>Esta capa aun no esta habilitada en tu Biblioteca.</span>
+            <section {...{ style: librarySecondaryPanelStyle }}>
+              <div {...{ style: librarySectionHeadingWrapStyle }}>
+                <span {...{ style: librarySectionTitleStyle }}>{selectedMasteryGroupMeta.label}</span>
+                <span {...{ style: librarySectionSubtitleStyle }}>Esta capa aun no esta habilitada en tu Biblioteca.</span>
               </div>
-              <div style={cardStyle}>
-                <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--tone-warning, #f59e0b)" }}>
+              <div {...{ style: cardStyle }}>
+                <div {...{ style: { fontSize: "0.72rem", fontWeight: "900", color: "var(--tone-warning, #f59e0b)" } }}>
                   Desbloqueo pendiente
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.4 }}>
+                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.4 } }}>
                   Completa <strong>{getLibraryUnlockLabel(selectedMasteryLayerState?.unlockResearchId)}</strong> en el Laboratorio para activar esta capa.
                 </div>
               </div>
@@ -913,17 +929,17 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
           )}
 
           {selectedMasteryGroupId === "libraryPowers" && isLibraryGroupUnlocked("libraryPowers") && (
-          <section style={librarySecondaryPanelStyle}>
-            <div style={librarySectionHeadingWrapStyle}>
-              <span style={librarySectionTitleStyle}>Poderes legendarios</span>
-              <span style={librarySectionSubtitleStyle}>Descubiertos, ocultos y progreso de investigacion.</span>
+          <section {...{ style: librarySecondaryPanelStyle }}>
+            <div {...{ style: librarySectionHeadingWrapStyle }}>
+              <span {...{ style: librarySectionTitleStyle }}>Poderes legendarios</span>
+              <span {...{ style: librarySectionSubtitleStyle }}>Descubiertos, ocultos y progreso de investigacion.</span>
             </div>
-              <div style={gridStyle}>
+              <div {...{ style: gridStyle }}>
                 {visibleLibraryPowerEntries.map(entry => (
-                  <div key={entry.id} style={cardStyle}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
-                    <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{entry.unlocked ? entry.name : "???"}</div>
-                    <span style={{
+                  <div key={entry.id} {...{ style: cardStyle }}>
+                  <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" } }}>
+                    <div {...{ style: { fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>{entry.unlocked ? entry.name : "???"}</div>
+                    <span {...{ style: {
                       fontSize: "0.5rem",
                       fontWeight: "900",
                       textTransform: "uppercase",
@@ -933,48 +949,48 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                       borderColor: entry.unlocked ? "var(--tone-warning, #fb923c)" : "var(--color-border-primary, #cbd5e1)",
                       background: entry.unlocked ? "var(--tone-warning-soft, #fff7ed)" : "var(--color-background-secondary, #fff)",
                       color: entry.unlocked ? "var(--tone-danger, #c2410c)" : "var(--color-text-secondary, #64748b)",
-                    }}>
+                    } }}>
                       {entry.unlocked ? "Descubierto" : "Oculto"}
                     </span>
                   </div>
-                  <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "2px", textTransform: "uppercase", fontWeight: "900" }}>
+                  <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "2px", textTransform: "uppercase", fontWeight: "900" } }}>
                     {entry.unlocked ? entry.archetype : "oculto"}
                   </div>
-                  <div style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.35 }}>
+                  <div {...{ style: { fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.35 } }}>
                     {entry.unlocked ? entry.description : "Derrota a su objetivo de caza al menos una vez para registrar este poder en tu Biblioteca."}
                   </div>
                   {entry.unlocked && (
-                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "8px", fontWeight: "800" }}>
+                    <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "8px", fontWeight: "800" } }}>
                       Descubrimientos: {entry.discoveries} · Investigado: {entry.mastery?.label || "Descubierto"}
                     </div>
                   )}
                   {entry.unlocked && entry.mastery?.rank > 1 && (
-                    <div style={{ fontSize: "0.58rem", color: "var(--tone-accent, #4338ca)", marginTop: "4px", fontWeight: "800", lineHeight: 1.35 }}>
+                    <div {...{ style: { fontSize: "0.58rem", color: "var(--tone-accent, #4338ca)", marginTop: "4px", fontWeight: "800", lineHeight: 1.35 } }}>
                       Injerto -{Math.round((entry.mastery.imprintCostReduction || 0) * 100)}% · Caza +{Math.round((entry.mastery.huntBias || 0) * 100)}%
                     </div>
                   )}
                   {entry.unlocked && entry.mastery?.nextRank && (
-                    <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "3px", fontWeight: "800", lineHeight: 1.35 }}>
+                    <div {...{ style: { fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "3px", fontWeight: "800", lineHeight: 1.35 } }}>
                       Proximo: {entry.mastery.nextRank.label} · {entry.mastery.researchProgress || 0}/{entry.mastery.researchNeeded || entry.mastery.nextRank.discoveries || 0} copias frescas
                     </div>
                   )}
                   {entry.unlocked && entry.mastery?.nextRank && powerResearchDefinitions[entry.id]?.cost && (
-                    <div style={{ fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", fontWeight: "800", lineHeight: 1.35 }}>
+                    <div {...{ style: { fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", fontWeight: "800", lineHeight: 1.35 } }}>
                       Costo: {powerResearchDefinitions[entry.id].cost.ink} tinta{powerResearchDefinitions[entry.id].cost.dust ? ` · ${powerResearchDefinitions[entry.id].cost.dust} polvo` : ""} · {formatRemaining(powerResearchDefinitions[entry.id].cost.durationMs)}
                     </div>
                   )}
                   {entry.unlocked && entry.mastery?.nextRank && (
-                    <div style={{ ...progressBarWrapStyle, marginTop: "6px" }}>
-                      <div style={{ ...progressBarFillStyle, width: `${Math.min(100, (((entry.mastery?.researchProgress || 0) / Math.max(1, entry.mastery?.researchNeeded || 1)) * 100))}%` }} />
+                    <div {...{ style: { ...progressBarWrapStyle, marginTop: "6px" } }}>
+                      <div {...{ style: { ...progressBarFillStyle, width: `${Math.min(100, (((entry.mastery?.researchProgress || 0) / Math.max(1, entry.mastery?.researchNeeded || 1)) * 100))}%` } }} />
                     </div>
                   )}
                   {entry.unlocked && entry.sources?.bossIds?.length > 0 && (
-                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>
+                    <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" } }}>
                       <strong>Boss:</strong> {entry.sources.bossIds.map(bossId => BOSS_NAME_BY_ID[bossId] || bossId).join(" · ")}
                     </div>
                   )}
                   {entry.unlocked && entry.sources?.familyIds?.length > 0 && (
-                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px" }}>
+                    <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px" } }}>
                       <strong>Familias:</strong> {entry.sources.familyIds.map(familyId => ENEMY_FAMILIES[familyId]?.name || familyId).join(" · ")}
                     </div>
                   )}
@@ -982,7 +998,7 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                     const sourceTier = getBestUnlockedTierForPower(entry, maxUnlockedTier, runContext);
                     if (!sourceTier) return null;
                     return (
-                      <button onClick={() => goToTier(sourceTier)} style={huntButtonStyle}>
+                      <button onClick={() => goToTier(sourceTier)} {...{ style: huntButtonStyle }}>
                         Ir al tier {sourceTier}
                       </button>
                     );
@@ -991,17 +1007,17 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                     <button
                       onClick={() => startResearch("power", entry.id)}
                       disabled={hasRunningResearch}
-                      style={{
+                      {...{ style: {
                         ...researchButtonStyle(),
                         marginTop: "8px",
                         opacity: hasRunningResearch ? 0.55 : 1,
                         cursor: hasRunningResearch ? "not-allowed" : "pointer",
-                      }}
+                      } }}
                     >
                       {hasRunningResearch ? "Investigacion ocupada" : `Investigar ${entry.mastery?.nextRank?.label || "siguiente rango"}`}
                     </button>
                   )}
-                  <div style={{ fontSize: "0.58rem", color: entry.unlocked ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", marginTop: "8px", fontWeight: "900" }}>
+                  <div {...{ style: { fontSize: "0.58rem", color: entry.unlocked ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", marginTop: "8px", fontWeight: "900" } }}>
                     {entry.unlocked ? "Disponible para ascender a legendario" : "Todavia no disponible para ascender"}
                   </div>
                 </div>
@@ -1016,7 +1032,7 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                 />
               )}
               {orderedPowerEntries.length > 8 && (
-                <button onClick={() => toggleExpandedGroup("libraryPowers")} style={showMoreButtonStyle}>
+                <button onClick={() => toggleExpandedGroup("libraryPowers")} {...{ style: showMoreButtonStyle }}>
                   {expandedGroups.libraryPowers ? "-" : `+${orderedPowerEntries.length}`}
                 </button>
               )}
@@ -1024,32 +1040,32 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
           )}
 
           {selectedMasteryGroupId === "libraryFamilies" && isLibraryGroupUnlocked("libraryFamilies") && (
-          <section style={librarySecondaryPanelStyle}>
-            <div style={librarySectionHeadingWrapStyle}>
-              <span style={librarySectionTitleStyle}>Familias</span>
-              <span style={librarySectionSubtitleStyle}>Kills, hitos y avance de investigacion por familia.</span>
+          <section {...{ style: librarySecondaryPanelStyle }}>
+            <div {...{ style: librarySectionHeadingWrapStyle }}>
+              <span {...{ style: librarySectionTitleStyle }}>Familias</span>
+              <span {...{ style: librarySectionSubtitleStyle }}>Kills, hitos y avance de investigacion por familia.</span>
             </div>
-              <div style={gridStyle}>
+              <div {...{ style: gridStyle }}>
                 {visibleLibraryFamilyEntries.map(entry => (
-                  <div key={entry.id} style={cardStyle}>
+                  <div key={entry.id} {...{ style: cardStyle }}>
                   {entry.seen ? (
                     <>
-                      <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{entry.name}</div>
-                      <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>{entry.traitName}</div>
-                      <div style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.35 }}>{entry.description}</div>
-                      <div style={{ fontSize: "0.76rem", fontWeight: "900", marginTop: "8px" }}>{entry.kills} bajas</div>
-                      <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", fontWeight: "800" }}>
+                      <div {...{ style: { fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>{entry.name}</div>
+                      <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" } }}>{entry.traitName}</div>
+                      <div {...{ style: { fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.35 } }}>{entry.description}</div>
+                      <div {...{ style: { fontSize: "0.76rem", fontWeight: "900", marginTop: "8px" } }}>{entry.kills} bajas</div>
+                      <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", fontWeight: "800" } }}>
                         Investigado: {entry.researchedRank || 0}/{entry.maxResearchRank || entry.milestones?.length || 0}
                         {entry.nextMilestone ? ` · fresco ${entry.researchProgress || 0}/${entry.researchNeeded || entry.nextMilestone.kills}` : " · maestria completa"}
                       </div>
-                      <div style={{ ...progressBarWrapStyle, marginTop: "6px" }}>
-                        <div style={{ ...progressBarFillStyle, width: `${Math.min(100, (((entry.researchProgress || 0) / Math.max(1, entry.researchNeeded || 1)) * 100))}%` }} />
+                      <div {...{ style: { ...progressBarWrapStyle, marginTop: "6px" } }}>
+                        <div {...{ style: { ...progressBarFillStyle, width: `${Math.min(100, (((entry.researchProgress || 0) / Math.max(1, entry.researchNeeded || 1)) * 100))}%` } }} />
                       </div>
                       {dispatch && (() => {
                         const familyTier = getHighestUnlockedTierForFamily(entry.id, maxUnlockedTier, runContext);
                         if (!familyTier) return null;
                         return (
-                          <button onClick={() => goToTier(familyTier)} style={{ ...huntButtonStyle, marginTop: "8px" }}>
+                          <button onClick={() => goToTier(familyTier)} {...{ style: { ...huntButtonStyle, marginTop: "8px" } }}>
                             Ir al tier {familyTier}
                           </button>
                         );
@@ -1058,28 +1074,28 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                         <button
                           onClick={() => startResearch("family", entry.id)}
                           disabled={hasRunningResearch}
-                          style={{
+                          {...{ style: {
                             ...researchButtonStyle(),
                             marginTop: "8px",
                             opacity: hasRunningResearch ? 0.55 : 1,
                             cursor: hasRunningResearch ? "not-allowed" : "pointer",
-                          }}
+                          } }}
                         >
                           {hasRunningResearch ? "Investigacion ocupada" : `Investigar ${entry.nextMilestone?.label || "siguiente hito"}`}
                         </button>
                       )}
                       {entry.nextMilestone && familyResearchDefinitions[entry.id]?.cost && (
-                        <div style={{ fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", marginTop: "5px", fontWeight: "800", lineHeight: 1.35 }}>
+                        <div {...{ style: { fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", marginTop: "5px", fontWeight: "800", lineHeight: 1.35 } }}>
                           Costo: {familyResearchDefinitions[entry.id].cost.ink} tinta{familyResearchDefinitions[entry.id].cost.dust ? ` · ${familyResearchDefinitions[entry.id].cost.dust} polvo` : ""} · {formatRemaining(familyResearchDefinitions[entry.id].cost.durationMs)}
                         </div>
                       )}
-                      <div style={{ display: "grid", gap: "5px", marginTop: "8px" }}>
+                      <div {...{ style: { display: "grid", gap: "5px", marginTop: "8px" } }}>
                         {entry.milestones.map((milestone, index) => {
                           const unlocked = (entry.researchedRank || 0) > index;
                           return (
-                            <div key={`${entry.id}-milestone-${index}`} style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", fontSize: "0.64rem" }}>
-                              <span style={{ color: unlocked ? "var(--tone-success-strong, #047857)" : "var(--color-text-secondary, #64748b)", fontWeight: "900" }}>{milestone.kills} bajas</span>
-                              <span style={{ color: unlocked ? "var(--tone-success-strong, #047857)" : "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>{milestone.label}</span>
+                            <div key={`${entry.id}-milestone-${index}`} {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", fontSize: "0.64rem" } }}>
+                              <span {...{ style: { color: unlocked ? "var(--tone-success-strong, #047857)" : "var(--color-text-secondary, #64748b)", fontWeight: "900" } }}>{milestone.kills} bajas</span>
+                              <span {...{ style: { color: unlocked ? "var(--tone-success-strong, #047857)" : "var(--color-text-secondary, #64748b)", fontWeight: "800" } }}>{milestone.label}</span>
                             </div>
                           );
                         })}
@@ -1087,9 +1103,9 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                     </>
                   ) : (
                     <>
-                      <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>???</div>
-                      <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>Familia no descubierta</div>
-                      <div style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.35 }}>
+                      <div {...{ style: { fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>???</div>
+                      <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" } }}>Familia no descubierta</div>
+                      <div {...{ style: { fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.35 } }}>
                         Encontra y derrota enemigos de esta familia en alguna run para revelar su ficha en la Biblioteca.
                       </div>
                     </>
@@ -1106,7 +1122,7 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                 />
               )}
               {orderedFamilyEntries.length > 8 && (
-                <button onClick={() => toggleExpandedGroup("libraryFamilies")} style={showMoreButtonStyle}>
+                <button onClick={() => toggleExpandedGroup("libraryFamilies")} {...{ style: showMoreButtonStyle }}>
                   {expandedGroups.libraryFamilies ? "-" : `+${orderedFamilyEntries.length}`}
                 </button>
               )}
@@ -1114,49 +1130,49 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
           )}
 
           {selectedMasteryGroupId === "libraryBosses" && isLibraryGroupUnlocked("libraryBosses") && (
-          <section style={librarySecondaryPanelStyle}>
-            <div style={librarySectionHeadingWrapStyle}>
-              <span style={librarySectionTitleStyle}>Bosses</span>
-              <span style={librarySectionSubtitleStyle}>Registro de caza, ruta y milestones de cada boss.</span>
+          <section {...{ style: librarySecondaryPanelStyle }}>
+            <div {...{ style: librarySectionHeadingWrapStyle }}>
+              <span {...{ style: librarySectionTitleStyle }}>Bosses</span>
+              <span {...{ style: librarySectionSubtitleStyle }}>Registro de caza, ruta y milestones de cada boss.</span>
             </div>
-            <div style={gridStyle}>
+            <div {...{ style: gridStyle }}>
               {visibleLibraryBossEntries.map(entry => (
-                <div key={entry.id} style={cardStyle}>
+                <div key={entry.id} {...{ style: cardStyle }}>
                   {entry.seen ? (
                     <>
-                      <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{entry.name}</div>
-                      <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>
+                      <div {...{ style: { fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>{entry.name}</div>
+                      <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" } }}>
                         {entry.inCurrentRoute
                           ? entry.bestUnlockedTier != null
                             ? `Ruta actual · Slot ${entry.currentRunSlot} · Tier ${entry.bestUnlockedTier}`
                             : `Ruta actual · Slot ${entry.currentRunSlot} · desbloquea en Tier ${entry.earliestCurrentRunTier}`
                           : "Fuera de la seed actual"} · {entry.family}
                       </div>
-                      <div style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.35 }}>{entry.intro}</div>
+                      <div {...{ style: { fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.35 } }}>{entry.intro}</div>
                       {(entry.huntLabel || entry.huntDescription || entry.favoredFamilies?.length || entry.favoredStats?.length) && (
-                        <div style={{ marginTop: "8px", padding: "8px", borderRadius: "10px", background: "var(--tone-accent-soft, #eef2ff)", border: "1px solid rgba(99,102,241,0.16)" }}>
+                        <div {...{ style: { marginTop: "8px", padding: "8px", borderRadius: "10px", background: "var(--tone-accent-soft, #eef2ff)", border: "1px solid rgba(99,102,241,0.16)" } }}>
                           {entry.huntLabel && (
-                            <div style={{ fontSize: "0.62rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                            <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", textTransform: "uppercase", letterSpacing: "0.06em" } }}>
                               {entry.huntLabel}
                             </div>
                           )}
                           {entry.huntDescription && (
-                            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", marginTop: "4px", lineHeight: 1.35 }}>
+                            <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", marginTop: "4px", lineHeight: 1.35 } }}>
                               {entry.huntDescription}
                             </div>
                           )}
                           {entry.favoredFamilies?.length > 0 && (
-                            <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px" }}>
+                            <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px" } }}>
                               <strong>Familias:</strong> {formatHuntFamilies(entry)}
                             </div>
                           )}
                           {entry.favoredStats?.length > 0 && (
-                            <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px" }}>
+                            <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px" } }}>
                               <strong>Atributos:</strong> {formatHuntStats(entry)}
                             </div>
                           )}
                           {entry.legendaryDrops?.length > 0 && (
-                            <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px" }}>
+                            <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px" } }}>
                               <strong>Poderes:</strong> {entry.legendaryDrops.map(drop => drop.name).join(" · ")}
                             </div>
                           )}
@@ -1166,12 +1182,12 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                         <button
                           onClick={() => goToTier(entry.bestUnlockedTier)}
                           disabled={!entry.inCurrentRoute || entry.bestUnlockedTier == null}
-                          style={{
+                          {...{ style: {
                             ...huntButtonStyle,
                             marginTop: "8px",
                             opacity: !entry.inCurrentRoute || entry.bestUnlockedTier == null ? 0.5 : 1,
                             cursor: !entry.inCurrentRoute || entry.bestUnlockedTier == null ? "not-allowed" : "pointer",
-                          }}
+                          } }}
                         >
                           {!entry.inCurrentRoute
                             ? "No aparece en esta run"
@@ -1180,42 +1196,42 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                               : `Ir al tier ${entry.bestUnlockedTier}`}
                         </button>
                       )}
-                      <div style={{ fontSize: "0.76rem", fontWeight: "900", marginTop: "8px" }}>{entry.kills} bajas</div>
-                      <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", fontWeight: "800" }}>
+                      <div {...{ style: { fontSize: "0.76rem", fontWeight: "900", marginTop: "8px" } }}>{entry.kills} bajas</div>
+                      <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", fontWeight: "800" } }}>
                         Investigado: {entry.researchedRank || 0}/{entry.maxResearchRank || entry.milestones?.length || 0}
                         {entry.nextMilestone ? ` · fresco ${entry.researchProgress || 0}/${entry.researchNeeded || entry.nextMilestone.kills}` : " · maestria completa"}
                       </div>
                       {entry.nextMilestone && (
-                        <div style={{ ...progressBarWrapStyle, marginTop: "6px" }}>
-                          <div style={{ ...progressBarFillStyle, width: `${Math.min(100, (((entry.researchProgress || 0) / Math.max(1, entry.researchNeeded || 1)) * 100))}%` }} />
+                        <div {...{ style: { ...progressBarWrapStyle, marginTop: "6px" } }}>
+                          <div {...{ style: { ...progressBarFillStyle, width: `${Math.min(100, (((entry.researchProgress || 0) / Math.max(1, entry.researchNeeded || 1)) * 100))}%` } }} />
                         </div>
                       )}
                       {entry.researchReady && (
                         <button
                           onClick={() => startResearch("boss", entry.id)}
                           disabled={hasRunningResearch}
-                          style={{
+                          {...{ style: {
                             ...researchButtonStyle(),
                             marginTop: "8px",
                             opacity: hasRunningResearch ? 0.55 : 1,
                             cursor: hasRunningResearch ? "not-allowed" : "pointer",
-                          }}
+                          } }}
                         >
                           {hasRunningResearch ? "Investigacion ocupada" : `Investigar ${entry.nextMilestone?.label || "siguiente hito"}`}
                         </button>
                       )}
                       {entry.nextMilestone && bossResearchDefinitions[entry.id]?.cost && (
-                        <div style={{ fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", marginTop: "5px", fontWeight: "800", lineHeight: 1.35 }}>
+                        <div {...{ style: { fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", marginTop: "5px", fontWeight: "800", lineHeight: 1.35 } }}>
                           Costo: {bossResearchDefinitions[entry.id].cost.ink} tinta{bossResearchDefinitions[entry.id].cost.dust ? ` · ${bossResearchDefinitions[entry.id].cost.dust} polvo` : ""} · {formatRemaining(bossResearchDefinitions[entry.id].cost.durationMs)}
                         </div>
                       )}
-                      <div style={{ display: "grid", gap: "5px", marginTop: "8px" }}>
+                      <div {...{ style: { display: "grid", gap: "5px", marginTop: "8px" } }}>
                         {entry.milestones.map((milestone, index) => {
                           const unlocked = (entry.researchedRank || 0) > index;
                           return (
-                            <div key={`${entry.id}-milestone-${index}`} style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", fontSize: "0.64rem" }}>
-                              <span style={{ color: unlocked ? "var(--tone-success-strong, #047857)" : "var(--color-text-secondary, #64748b)", fontWeight: "900" }}>{milestone.kills} bajas</span>
-                              <span style={{ color: unlocked ? "var(--tone-success-strong, #047857)" : "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>{milestone.label}</span>
+                            <div key={`${entry.id}-milestone-${index}`} {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", fontSize: "0.64rem" } }}>
+                              <span {...{ style: { color: unlocked ? "var(--tone-success-strong, #047857)" : "var(--color-text-secondary, #64748b)", fontWeight: "900" } }}>{milestone.kills} bajas</span>
+                              <span {...{ style: { color: unlocked ? "var(--tone-success-strong, #047857)" : "var(--color-text-secondary, #64748b)", fontWeight: "800" } }}>{milestone.label}</span>
                             </div>
                           );
                         })}
@@ -1223,9 +1239,9 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                     </>
                   ) : (
                     <>
-                      <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>???</div>
-                      <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>Boss no descubierto</div>
-                      <div style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.35 }}>
+                      <div {...{ style: { fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>???</div>
+                      <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" } }}>Boss no descubierto</div>
+                      <div {...{ style: { fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.35 } }}>
                         Alcanzalo al menos una vez en alguna run para revelar su pagina de caza y sus posibles drops.
                       </div>
                     </>
@@ -1242,7 +1258,7 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
               />
             )}
             {orderedBossEntries.length > 6 && (
-              <button onClick={() => toggleExpandedGroup("libraryBosses")} style={showMoreButtonStyle}>
+              <button onClick={() => toggleExpandedGroup("libraryBosses")} {...{ style: showMoreButtonStyle }}>
                 {expandedGroups.libraryBosses ? "-" : `+${orderedBossEntries.length}`}
               </button>
             )}
@@ -1251,21 +1267,21 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
         </>
       ) : (
         <>
-          <section style={librarySecondaryPanelStyle}>
-            <button onClick={() => toggleSection("glossarySystems")} style={compactToggleButtonStyle}>
-              <span style={librarySectionHeadingWrapStyle}>
-                <span style={librarySectionTitleStyle}>Sistemas</span>
-                <span style={librarySectionSubtitleStyle}>Conceptos base del loop para consulta rapida.</span>
+          <section {...{ style: librarySecondaryPanelStyle }}>
+            <button onClick={() => toggleSection("glossarySystems")} {...{ style: compactToggleButtonStyle }}>
+              <span {...{ style: librarySectionHeadingWrapStyle }}>
+                <span {...{ style: librarySectionTitleStyle }}>Sistemas</span>
+                <span {...{ style: librarySectionSubtitleStyle }}>Conceptos base del loop para consulta rapida.</span>
               </span>
-              <span style={collapseLabelStyle}>{collapsedSections.glossarySystems ? "+" : "-"}</span>
+              <span {...{ style: collapseLabelStyle }}>{collapsedSections.glossarySystems ? "+" : "-"}</span>
             </button>
             {!collapsedSections.glossarySystems && (
             <>
-            <div style={gridStyle}>
+            <div {...{ style: gridStyle }}>
               {SYSTEMS.map(([name, description]) => (
-                <div key={name} style={cardStyle}>
-                  <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{name}</div>
-                  <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 }}>{description}</div>
+                <div key={name} {...{ style: cardStyle }}>
+                  <div {...{ style: { fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>{name}</div>
+                  <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 } }}>{description}</div>
                 </div>
               ))}
             </div>
@@ -1273,27 +1289,27 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
             )}
           </section>
 
-          <section style={librarySecondaryPanelStyle}>
-            <button onClick={() => toggleSection("glossaryRarity")} style={compactToggleButtonStyle}>
-              <span style={librarySectionHeadingWrapStyle}>
-                <span style={librarySectionTitleStyle}>Rarezas y calidad</span>
-                <span style={librarySectionSubtitleStyle}>Como escala potencia y lectura de una pieza.</span>
+          <section {...{ style: librarySecondaryPanelStyle }}>
+            <button onClick={() => toggleSection("glossaryRarity")} {...{ style: compactToggleButtonStyle }}>
+              <span {...{ style: librarySectionHeadingWrapStyle }}>
+                <span {...{ style: librarySectionTitleStyle }}>Rarezas y calidad</span>
+                <span {...{ style: librarySectionSubtitleStyle }}>Como escala potencia y lectura de una pieza.</span>
               </span>
-              <span style={collapseLabelStyle}>{collapsedSections.glossaryRarity ? "+" : "-"}</span>
+              <span {...{ style: collapseLabelStyle }}>{collapsedSections.glossaryRarity ? "+" : "-"}</span>
             </button>
             {!collapsedSections.glossaryRarity && (
             <>
-            <div style={gridStyle}>
+            <div {...{ style: gridStyle }}>
               {RARITY_GUIDE.map(([name, description]) => (
-                <div key={name} style={cardStyle}>
-                  <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{name}</div>
-                  <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 }}>{description}</div>
+                <div key={name} {...{ style: cardStyle }}>
+                  <div {...{ style: { fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>{name}</div>
+                  <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 } }}>{description}</div>
                 </div>
               ))}
               {AFFIX_QUALITY.map(([name, description]) => (
-                <div key={name} style={cardStyle}>
-                  <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{name}</div>
-                  <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 }}>{description}</div>
+                <div key={name} {...{ style: cardStyle }}>
+                  <div {...{ style: { fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>{name}</div>
+                  <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 } }}>{description}</div>
                 </div>
               ))}
             </div>
@@ -1301,21 +1317,21 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
             )}
           </section>
 
-          <section style={librarySecondaryPanelStyle}>
-            <button onClick={() => toggleSection("glossaryStats")} style={compactToggleButtonStyle}>
-              <span style={librarySectionHeadingWrapStyle}>
-                <span style={librarySectionTitleStyle}>Atributos</span>
-                <span style={librarySectionSubtitleStyle}>Referencia corta de cada stat y su impacto.</span>
+          <section {...{ style: librarySecondaryPanelStyle }}>
+            <button onClick={() => toggleSection("glossaryStats")} {...{ style: compactToggleButtonStyle }}>
+              <span {...{ style: librarySectionHeadingWrapStyle }}>
+                <span {...{ style: librarySectionTitleStyle }}>Atributos</span>
+                <span {...{ style: librarySectionSubtitleStyle }}>Referencia corta de cada stat y su impacto.</span>
               </span>
-              <span style={collapseLabelStyle}>{collapsedSections.glossaryStats ? "+" : "-"}</span>
+              <span {...{ style: collapseLabelStyle }}>{collapsedSections.glossaryStats ? "+" : "-"}</span>
             </button>
             {!collapsedSections.glossaryStats && (
             <>
-            <div style={gridStyle}>
+            <div {...{ style: gridStyle }}>
               {visibleGlossaryStats.map(([name, description]) => (
-                <div key={name} style={cardStyle}>
-                  <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{name}</div>
-                  <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 }}>{description}</div>
+                <div key={name} {...{ style: cardStyle }}>
+                  <div {...{ style: { fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>{name}</div>
+                  <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 } }}>{description}</div>
                 </div>
               ))}
               {expandedGroups.glossaryStats && glossaryStatsPaging.totalPages > 1 && (
@@ -1327,7 +1343,7 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                 />
               )}
               {STAT_DESCRIPTIONS.length > 10 && (
-                <button onClick={() => toggleExpandedGroup("glossaryStats")} style={showMoreButtonStyle}>
+                <button onClick={() => toggleExpandedGroup("glossaryStats")} {...{ style: showMoreButtonStyle }}>
                   {expandedGroups.glossaryStats ? "-" : `+${STAT_DESCRIPTIONS.length}`}
                 </button>
               )}
@@ -1336,22 +1352,22 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
             )}
           </section>
 
-          <section style={librarySecondaryPanelStyle}>
-            <button onClick={() => toggleSection("glossaryFamilies")} style={compactToggleButtonStyle}>
-              <span style={librarySectionHeadingWrapStyle}>
-                <span style={librarySectionTitleStyle}>Familias</span>
-                <span style={librarySectionSubtitleStyle}>Implicitos por familia para comparar rapido.</span>
+          <section {...{ style: librarySecondaryPanelStyle }}>
+            <button onClick={() => toggleSection("glossaryFamilies")} {...{ style: compactToggleButtonStyle }}>
+              <span {...{ style: librarySectionHeadingWrapStyle }}>
+                <span {...{ style: librarySectionTitleStyle }}>Familias</span>
+                <span {...{ style: librarySectionSubtitleStyle }}>Implicitos por familia para comparar rapido.</span>
               </span>
-              <span style={collapseLabelStyle}>{collapsedSections.glossaryFamilies ? "+" : "-"}</span>
+              <span {...{ style: collapseLabelStyle }}>{collapsedSections.glossaryFamilies ? "+" : "-"}</span>
             </button>
             {!collapsedSections.glossaryFamilies && (
             <>
-            <div style={gridStyle}>
+            <div {...{ style: gridStyle }}>
               {visibleGlossaryFamilies.map(([id, family]) => (
-                <div key={id} style={cardStyle}>
-                  <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{family.name}</div>
-                  <div style={{ fontSize: "0.68rem", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", marginTop: "2px" }}>{id}</div>
-                  <div style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.35 }}>
+                <div key={id} {...{ style: cardStyle }}>
+                  <div {...{ style: { fontSize: "0.74rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>{family.name}</div>
+                  <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", marginTop: "2px" } }}>{id}</div>
+                  <div {...{ style: { fontSize: "0.7rem", color: "var(--color-text-secondary, #475569)", marginTop: "6px", lineHeight: 1.35 } }}>
                     {Object.entries(family.implicitByRarity || {}).map(([rarity, implicit]) => (
                       <div key={rarity}><strong>{rarity}:</strong> {formatImplicit(implicit)}</div>
                     ))}
@@ -1367,7 +1383,7 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                 />
               )}
               {Object.keys(ITEM_FAMILIES).length > 8 && (
-                <button onClick={() => toggleExpandedGroup("glossaryFamilies")} style={showMoreButtonStyle}>
+                <button onClick={() => toggleExpandedGroup("glossaryFamilies")} {...{ style: showMoreButtonStyle }}>
                   {expandedGroups.glossaryFamilies ? "-" : `+${Object.keys(ITEM_FAMILIES).length}`}
                 </button>
               )}
@@ -1386,29 +1402,29 @@ function PaginationControls({ page = 0, totalPages = 1, onPrevious, onNext }) {
   const isFirst = page <= 0;
   const isLast = page >= totalPages - 1;
   return (
-    <div style={paginationBarStyle}>
+    <div {...{ style: paginationBarStyle }}>
       <button
         onClick={onPrevious}
         disabled={isFirst}
-        style={{
+        {...{ style: {
           ...paginationButtonStyle,
           opacity: isFirst ? 0.45 : 1,
           cursor: isFirst ? "not-allowed" : "pointer",
-        }}
+        } }}
       >
         -
       </button>
-      <span style={paginationLabelStyle}>
+      <span {...{ style: paginationLabelStyle }}>
         {page + 1}/{totalPages}
       </span>
       <button
         onClick={onNext}
         disabled={isLast}
-        style={{
+        {...{ style: {
           ...paginationButtonStyle,
           opacity: isLast ? 0.45 : 1,
           cursor: isLast ? "not-allowed" : "pointer",
-        }}
+        } }}
       >
         +
       </button>

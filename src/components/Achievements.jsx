@@ -61,66 +61,65 @@ export default function Achievements({ state }) {
     const achievement = ACHIEVEMENTS.find(item => item.id === id);
     return sum + (achievement?.reward || 0);
   }, 0);
+  const rootClassName = [
+    "achievements-root",
+    isMobile ? "achievements-root--mobile" : "",
+  ].filter(Boolean).join(" ");
+  const metricsProps = {
+    style: {
+      "--achievements-metrics-columns": isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
+    },
+  };
+  const listProps = {
+    style: {
+      "--achievements-list-columns": isMobile ? "1fr" : "repeat(auto-fill, minmax(320px, 1fr))",
+    },
+  };
+  const globalProgressProps = { style: { "--achievements-progress": `${progressPercent}%` } };
 
   return (
-    <div style={{ padding: isMobile ? "1rem" : "1.5rem", display: "flex", flexDirection: "column", gap: "1rem", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
-      <section style={panelStyle}>
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: "10px", marginBottom: "12px" }}>
+    <div className={rootClassName}>
+      <section className="achievements-panel fl2-surface">
+        <div className="achievements-metrics" {...metricsProps}>
           <TopMetric label="Completados" value={`${unlockedCount}/${ACHIEVEMENTS.length}`} color="#1D9E75" />
           <TopMetric label="Progreso" value={`${progressPercent}%`} color="#534AB7" />
           <TopMetric label="Oro ganado" value={formatValue(totalReward)} color="#f59e0b" />
           <TopMetric label="Visibles" value={formatValue(filtered.length)} color="#64748b" />
         </div>
 
-        <div style={progressBarBg}>
-          <div style={{ ...progressBarFill, width: `${progressPercent}%` }} />
+        <div className="achievements-progress">
+          <div className="achievements-progress__fill" {...globalProgressProps} />
         </div>
       </section>
 
-      <section style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+      <section className="achievements-filters">
         <button
           onClick={() => setFilterMode("all")}
-          style={{
-            border: "1px solid #e2e8f0",
-            borderRadius: "999px",
-            padding: "7px 10px",
-            fontSize: "0.68rem",
-            fontWeight: "900",
-            cursor: "pointer",
-            background: filterMode === "all" ? "#1e293b" : "var(--color-background-secondary, #fff)",
-            color: filterMode === "all" ? "#fff" : "#475569",
-          }}
+          className={["achievements-filter fl2-button", filterMode === "all" ? "fl2-button--selected" : ""].filter(Boolean).join(" ")}
+          data-selected={filterMode === "all" ? "true" : undefined}
         >
           TODOS
         </button>
         <button
           onClick={() => setFilterMode("pending")}
-          style={{
-            border: "1px solid #e2e8f0",
-            borderRadius: "999px",
-            padding: "7px 10px",
-            fontSize: "0.68rem",
-            fontWeight: "900",
-            cursor: "pointer",
-            background: filterMode === "pending" ? "#1e293b" : "var(--color-background-secondary, #fff)",
-            color: filterMode === "pending" ? "#fff" : "#475569",
-          }}
+          className={["achievements-filter fl2-button", filterMode === "pending" ? "fl2-button--selected" : ""].filter(Boolean).join(" ")}
+          data-selected={filterMode === "pending" ? "true" : undefined}
         >
           NO COMPLETADOS
         </button>
       </section>
 
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(320px, 1fr))", gap: "12px" }}>
+      <div className="achievements-list" {...listProps}>
         {visibleAchievements.map(achievement => (
           <AchievementCard key={achievement.id} achievement={achievement} />
         ))}
       </div>
       {(canShowMore || canShowLess) && (
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <div className="achievements-actions">
           {canShowMore && (
             <button
               onClick={() => setVisibleCount(current => Math.min(filtered.length, current + previewStep))}
-              style={previewButtonStyle("#fff", "#1d4ed8", "1px solid #bfdbfe")}
+              className="achievements-action fl2-button"
             >
               Ver mas ({filtered.length - visibleCount})
             </button>
@@ -128,7 +127,7 @@ export default function Achievements({ state }) {
           {canShowLess && (
             <button
               onClick={() => setVisibleCount(previewStep)}
-              style={previewButtonStyle("#fff", "#64748b", "1px solid #cbd5e1")}
+              className="achievements-action fl2-button fl2-button--ghost"
             >
               Ver menos
             </button>
@@ -140,93 +139,67 @@ export default function Achievements({ state }) {
 }
 
 function TopMetric({ label, value, color }) {
+  const metricProps = { style: { "--achievements-metric-tone": color } };
   return (
-    <div style={{ background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "10px 12px" }}>
-      <div style={{ fontSize: "0.58rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: "900", marginBottom: "4px" }}>{label}</div>
-      <div style={{ fontSize: "1rem", fontWeight: "900", color }}>{value}</div>
+    <div className="achievements-metric" {...metricProps}>
+      <div className="achievements-metric__label">{label}</div>
+      <div className="achievements-metric__value">{value}</div>
     </div>
   );
 }
 
 function AchievementCard({ achievement }) {
   const categoryColor = CATEGORY_COLORS[achievement.category] || "#64748b";
+  const cardProps = {
+    style: {
+      "--achievement-category-tone": categoryColor,
+      "--achievement-progress": `${achievement.percent}%`,
+      "--achievement-progress-fill": achievement.unlocked
+        ? "linear-gradient(90deg, #1D9E75, #34d399)"
+        : `linear-gradient(90deg, ${categoryColor}, ${categoryColor}aa)`,
+    },
+  };
 
   return (
-    <div style={{
-      background: achievement.unlocked ? "var(--color-background-secondary, #ffffff)" : "var(--color-background-tertiary, #f8fafc)",
-      border: `1px solid ${achievement.unlocked ? `${categoryColor}55` : "var(--color-border-primary, #e2e8f0)"}`,
-      borderRadius: "14px",
-      padding: "14px",
-      display: "flex",
-      flexDirection: "column",
-      gap: "10px",
-      boxShadow: achievement.unlocked ? "0 8px 20px rgba(15,23,42,0.05)" : "none",
-      opacity: achievement.unlocked ? 1 : 0.88,
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px" }}>
-        <div style={{ display: "flex", gap: "10px", alignItems: "start" }}>
-          <div style={{ fontSize: "1.25rem", lineHeight: 1 }}>{achievement.icon}</div>
+    <div
+      className={[
+        "achievement-card",
+        achievement.unlocked ? "achievement-card--unlocked" : "achievement-card--locked",
+        "fl-card",
+      ].filter(Boolean).join(" ")}
+      {...cardProps}
+    >
+      <div className="achievement-card__head">
+        <div className="achievement-card__title-row">
+          <div className="achievement-card__icon">{achievement.icon}</div>
           <div>
-            <div style={{ fontSize: "0.85rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>{achievement.name}</div>
-            <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.3 }}>{achievement.description}</div>
+            <div className="achievement-card__name">{achievement.name}</div>
+            <div className="achievement-card__description">{achievement.description}</div>
           </div>
         </div>
-        <div style={{ fontSize: "0.55rem", fontWeight: "900", color: categoryColor, background: `${categoryColor}15`, border: `1px solid ${categoryColor}33`, borderRadius: "999px", padding: "3px 6px", textTransform: "uppercase" }}>
+        <div className="achievement-card__category fl2-badge">
           {achievement.category}
         </div>
       </div>
 
       <div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px" }}>
-          <span style={{ fontSize: "0.62rem", color: "#94a3b8", fontWeight: "900", textTransform: "uppercase" }}>Progreso</span>
-          <span style={{ fontSize: "0.7rem", color: achievement.unlocked ? "#1d9e75" : "#475569", fontWeight: "900" }}>
+        <div className="achievement-card__progress-meta">
+          <span>Progreso</span>
+          <span className={achievement.unlocked ? "achievement-card__progress-value--done" : ""}>
             {formatValue(Math.min(achievement.current, achievement.target))}/{formatValue(achievement.target)}
           </span>
         </div>
-        <div style={progressBarBg}>
-          <div style={{ ...progressBarFill, width: `${achievement.percent}%`, background: achievement.unlocked ? "linear-gradient(90deg, #1D9E75, #34d399)" : `linear-gradient(90deg, ${categoryColor}, ${categoryColor}aa)` }} />
+        <div className="achievements-progress">
+          <div className="achievement-card__progress-fill" />
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #eef2f7", paddingTop: "8px" }}>
-        <span style={{ fontSize: "0.68rem", fontWeight: "900", color: "#f59e0b" }}>+{formatValue(achievement.reward)} oro</span>
-        <span style={{ fontSize: "0.62rem", fontWeight: "900", color: achievement.unlocked ? "#1D9E75" : "#94a3b8" }}>
+      <div className="achievement-card__reward">
+        <span>+{formatValue(achievement.reward)} oro</span>
+        <span className={achievement.unlocked ? "achievement-card__state--done" : ""}>
           {achievement.unlocked ? "COMPLETADO" : `${achievement.percent}%`}
         </span>
       </div>
     </div>
   );
 }
-
-const panelStyle = {
-  background: "var(--color-background-secondary, #ffffff)",
-  padding: "1rem",
-  borderRadius: "16px",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  boxShadow: "0 2px 10px var(--color-shadow, rgba(0,0,0,0.03))",
-};
-
-const progressBarBg = {
-  width: "100%",
-  height: "10px",
-  background: "var(--color-background-tertiary, #f1f5f9)",
-  borderRadius: "999px",
-  overflow: "hidden",
-};
-
-const progressBarFill = {
-  height: "100%",
-  background: "linear-gradient(90deg, #1D9E75, #34d399)",
-  transition: "width 0.4s ease",
-};
-
-const previewButtonStyle = (background, color, border) => ({
-  border: border || "none",
-  background,
-  color,
-  borderRadius: "999px",
-  padding: "7px 10px",
-  fontSize: "0.64rem",
-  fontWeight: "900",
-  cursor: "pointer",
-});

@@ -1,0 +1,72 @@
+.app-shell-root--forge-light-v2 .fl2-badge,
+.app-shell-root--forge-light-v2 .progress-card-header-badge,
+.app-shell-root--forge-light-v2 .progress-status-chip {
+  --fl2-badge-tone: var(--progress-chip-tone, var(--fl2-gold-muted));
+  min-height: 22px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  width: max-content;
+  max-width: 100%;
+  padding: 0 9px !important;
+  color: color-mix(in srgb, var(--fl2-badge-tone) 58%, var(--fl2-text)) !important;
+  font-family: var(--fl2-font-ui) !important;
+  font-size: 0.66rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.06em !important;
+  line-height: 1 !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--fl2-badge-tone) 18%, transparent), transparent 58%),
+    linear-gradient(180deg, rgba(16, 20, 25, 0.96), rgba(7, 9, 12, 0.98)) !important;
+  border: 1px solid color-mix(in srgb, var(--fl2-badge-tone) 52%, transparent) !important;
+  border-radius: var(--fl2-radius-sm) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 232, 180, 0.035) !important;
+  clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0 50%);
+}
+
+.app-shell-root--forge-light-v2 .fl2-badge--pill,
+.app-shell-root--forge-light-v2 .progress-card-header-badge,
+.app-shell-root--forge-light-v2 .progress-status-chip {
+  border-radius: 999px !important;
+  clip-path: none;
+}
+
+.app-shell-root--forge-light-v2 :where(.fl-sanctuary-chip, .forge-character-chip, .forge-talent-detail-pill, .fl-crafting-result-state) {
+  --fl2-badge-tone: var(--fl2-gold);
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 22px !important;
+  width: max-content;
+  max-width: 100%;
+  padding: 0 9px !important;
+  color: color-mix(in srgb, var(--fl2-badge-tone) 58%, var(--fl2-text)) !important;
+  font-family: var(--fl2-font-ui) !important;
+  font-size: 0.66rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.06em !important;
+  line-height: 1 !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--fl2-badge-tone) 18%, transparent), transparent 58%),
+    linear-gradient(180deg, rgba(16, 20, 25, 0.96), rgba(7, 9, 12, 0.98)) !important;
+  border: 1px solid color-mix(in srgb, var(--fl2-badge-tone) 52%, transparent) !important;
+  border-radius: var(--fl2-radius-sm) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 232, 180, 0.035) !important;
+}
+
+.app-shell-root--forge-light-v2 :where(.fl-sanctuary-chip--success, .forge-talent-detail-pill--available) {
+  --fl2-badge-tone: var(--fl2-success);
+}
+
+.app-shell-root--forge-light-v2 :where(.fl-sanctuary-chip--danger, .forge-talent-detail-pill--locked) {
+  --fl2-badge-tone: var(--fl2-danger);
+}
+
+.app-shell-root--forge-light-v2 :where(.fl-sanctuary-chip--info, .forge-talent-detail-pill--owned) {
+  --fl2-badge-tone: var(--fl2-defense);
+}

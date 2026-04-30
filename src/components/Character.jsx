@@ -8,6 +8,9 @@ import { getPlayerBuildTag } from "../utils/buildIdentity";
 import {
   formatItemNumber as formatNumber,
 } from "../utils/itemPresentation";
+import { getClassPortraitAsset } from "../utils/assetRegistry";
+import ForgeIcon from "./icons/ForgeIcon";
+import { FlAsset } from "./ui/forge";
 
 function getRequirementText(unlockCondition = {}) {
   if (unlockCondition.stat === "kills") return `${unlockCondition.value} bajas`;
@@ -68,6 +71,17 @@ function buildCharacterQuickRows(classId, stats = {}) {
   return [...baseRows, ...(classId === "mage" ? mageRows : warriorRows)];
 }
 
+function getQuickReadIcon(label = "") {
+  const normalized = String(label || "").toLowerCase();
+  if (normalized.includes("dano")) return "combat";
+  if (normalized.includes("defensa") || normalized.includes("bloqueo")) return "armor";
+  if (normalized.includes("crit")) return "mark";
+  if (normalized.includes("vida") || normalized.includes("regen") || normalized.includes("robo")) return "bleed";
+  if (normalized.includes("xp")) return "xp";
+  if (normalized.includes("oro")) return "gold";
+  return "hero";
+}
+
 export default function Character({ player, dispatch, state }) {
   const { isMobile, viewportWidth } = useViewport();
 
@@ -101,37 +115,34 @@ export default function Character({ player, dispatch, state }) {
   const quickReadRows = useMemo(() => buildCharacterQuickRows(player.class, computedStats), [player.class, computedStats]);
 
   if (!player.class) {
+    const classChoiceRootClass = [
+      "character-class-choice",
+      isMobile ? "character-class-choice--mobile" : "",
+    ].filter(Boolean).join(" ");
+    const classChoiceGridProps = {
+      style: {
+        "--character-class-grid-columns": isMobile ? "1fr" : "repeat(auto-fit, minmax(250px, 1fr))",
+      },
+    };
+
     return (
-      <div style={{ padding: isMobile ? "calc(0.92rem * var(--density-scale, 1))" : "calc(1.2rem * var(--density-scale, 1))", maxWidth: "800px", margin: "0 auto", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
-        <header style={{ marginBottom: "2rem", textAlign: "center" }}>
-          <div style={{ margin: 0, fontSize: isMobile ? "1.4rem" : "1.7rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>Elige tu Senda</div>
-          <p style={{ color: "#D85A30", fontWeight: "bold", fontSize: "0.85rem", marginTop: "8px" }}>La clase se reinicia con cada prestigio.</p>
+      <div className={classChoiceRootClass}>
+        <header className="character-class-choice__header">
+          <div className="character-class-choice__title">Elige tu Senda</div>
+          <p className="character-class-choice__note">La clase se reinicia con cada prestigio.</p>
         </header>
 
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(250px, 1fr))", gap: "15px" }}>
+        <div className="character-class-choice__grid" {...classChoiceGridProps}>
           {CLASSES.map(clase => (
             <div
               key={clase.id}
               onClick={() => dispatch({ type: "SELECT_CLASS", classId: clase.id })}
-              style={{
-                background: "var(--color-background-secondary, #ffffff)",
-                padding: isMobile
-                  ? "calc(0.95rem * var(--density-scale, 1))"
-                  : "calc(1.15rem * var(--density-scale, 1))",
-                borderRadius: "12px",
-                border: "1px solid var(--color-border-primary, #e2e8f0)",
-                cursor: "pointer",
-                textAlign: "center",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                transition: "transform 0.1s",
-              }}
+              className="character-class-choice__card fl-card"
             >
-              <div style={{ fontSize: "2.5rem", marginBottom: "10px" }}>{clase.icon || "?"}</div>
-              <div style={{ margin: "0 0 5px 0", fontSize: "1.1rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>{clase.name}</div>
-              <span style={{ fontSize: "0.65rem", background: "#534AB7", color: "#ffffff", padding: "3px 10px", borderRadius: "10px", fontWeight: "bold", textTransform: "uppercase" }}>{clase.playstyle || "Clase"}</span>
-              <p style={{ fontSize: "0.8rem", color: "var(--color-text-secondary, #64748b)", marginTop: "12px", lineHeight: "1.4" }}>{clase.description}</p>
+              <div className="character-class-choice__icon">{clase.icon || "?"}</div>
+              <div className="character-class-choice__name">{clase.name}</div>
+              <span className="character-class-choice__playstyle fl2-badge">{clase.playstyle || "Clase"}</span>
+              <p className="character-class-choice__description">{clase.description}</p>
             </div>
           ))}
         </div>
@@ -145,6 +156,7 @@ export default function Character({ player, dispatch, state }) {
   const xpNextLevel = xpRequired(player.level);
   const xpPercentage = Math.min((player.xp / Math.max(1, xpNextLevel)) * 100, 100);
   const currentSpec = selectedClass?.specializations?.find(spec => spec.id === player.specialization) || null;
+  const characterPortraitAsset = getClassPortraitAsset(player.specialization || player.class);
   const modifiers = [
     { val: player.damagePct, label: `+${Math.round((player.damagePct || 0) * 100)}% dano`, color: "#1D9E75" },
     { val: player.hpPct, label: `+${Math.round((player.hpPct || 0) * 100)}% vida`, color: "#1D9E75" },
@@ -153,82 +165,223 @@ export default function Character({ player, dispatch, state }) {
     { val: player.flatCrit, label: `+${Math.round((player.flatCrit || 0) * 100)}% crit`, color: "#D85A30" },
   ].filter(modifier => modifier.val > 0);
 
+  if (player.specialization) {
+    return (
+      <div className="character-root character-root--forge-light">
+        <header
+          className={[
+            "forge-character-hero-card",
+            spotlightHeroOverview ? "forge-character-hero-card--spotlight" : "",
+          ].filter(Boolean).join(" ")}
+          data-onboarding-target={spotlightHeroOverview ? "hero-overview" : undefined}
+          onClick={() => spotlightHeroOverview && dispatch({ type: "ACK_ONBOARDING_STEP" })}
+        >
+          <div className="forge-character-portrait" aria-hidden="true">
+            <div className="forge-character-portrait-glow" />
+            <FlAsset
+              asset={characterPortraitAsset}
+              kind="portrait"
+              size="full"
+              fit="cover"
+              className="forge-character-portrait-asset"
+              imgClassName="forge-character-portrait-img"
+              fallbackIcon="hero"
+              loading="eager"
+              alt=""
+            />
+            <span className="forge-character-level-badge">{formatNumber(player.level || 1)}</span>
+          </div>
+
+          <div className="forge-character-main">
+            <div className="forge-character-heading-row">
+              <div className="forge-character-title-block">
+                <div className="forge-character-kicker">Heroe</div>
+                <div className="forge-character-chip-row">
+                  <span className="forge-character-chip forge-character-chip--class">
+                    <ForgeIcon name="combat" size={16} />
+                    {player.class}
+                  </span>
+                  <span className="forge-character-chip forge-character-chip--spec">
+                    {currentSpec?.name || player.specialization}
+                  </span>
+                  {buildTag?.name && (
+                    <span className="forge-character-chip forge-character-chip--build">
+                      {buildTag.name}
+                    </span>
+                  )}
+                </div>
+                <div className="forge-character-description">
+                  {currentSpec?.description || buildTag?.description || "Tu ficha resume la build activa y el estado real de esta run."}
+                </div>
+              </div>
+
+              <div className="forge-character-level-summary">
+                <span>Nivel {formatNumber(player.level || 1)}</span>
+                <small><ForgeIcon name="skull" size={14} /> {formatNumber(kills)} bajas</small>
+              </div>
+            </div>
+
+            <div className="forge-character-bars">
+              <ForgeCharacterBar
+                icon="bleed"
+                label="Vida"
+                value={`${formatNumber(Math.floor(displayedHp || 0))} / ${formatNumber(displayedMaxHp || 0)}`}
+                percentage={hpPercentage}
+                tone="green"
+              />
+              <ForgeCharacterBar
+                icon="xp"
+                label="Experiencia"
+                value={`${formatNumber(Math.floor(player.xp || 0))} / ${formatNumber(xpNextLevel)}`}
+                percentage={xpPercentage}
+                tone="purple"
+              />
+            </div>
+          </div>
+        </header>
+
+        <section className="forge-character-section">
+          <div className="forge-character-section-title">Build actual</div>
+          <div className="forge-character-build-grid">
+            <article className="forge-character-build-card forge-character-build-card--active">
+              <div className="forge-character-build-icon" aria-hidden="true">
+                <ForgeIcon name="armor" size={32} />
+              </div>
+              <div className="forge-character-build-copy">
+                <strong>{currentSpec?.name || player.specialization}</strong>
+                <span>{currentSpec?.description || "Tu subclase define el enfoque principal de esta run."}</span>
+                <small>Activa</small>
+              </div>
+            </article>
+
+            <article className="forge-character-build-card">
+              <div className="forge-character-build-icon" aria-hidden="true">
+                <ForgeIcon name="hero" size={32} />
+              </div>
+              <div className="forge-character-build-copy">
+                <strong>{buildTag?.name || "Build en desarrollo"}</strong>
+                <span>{buildTag?.description || "Todavia no hay suficiente senal de equipo y talentos para fijar una identidad fuerte."}</span>
+                <small>Identidad de build</small>
+              </div>
+            </article>
+          </div>
+
+          {modifiers.length > 0 && (
+            <div className="forge-character-modifiers">
+              {modifiers.map(modifier => (
+                <span key={modifier.label} {...{ style: { "--modifier-color": modifier.color } }}>
+                  {modifier.label}
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="forge-character-section">
+          <div className="forge-character-section-title">Lectura Rapida</div>
+          <p className="forge-character-section-copy">
+            Metricas activas para esta run y esta build. Si una mecanica no participa, no aparece aca.
+          </p>
+          <div className="forge-character-table">
+            {quickReadRows.map(row => (
+              <div key={row.label} className="forge-character-data-row">
+                <span className="forge-character-data-icon" aria-hidden="true">
+                  <ForgeIcon name={getQuickReadIcon(row.label)} size={18} />
+                </span>
+                <span>{row.label}</span>
+                <strong>{row.value}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  const preSpecRootClass = [
+    "character-pre-spec",
+    isMobile ? "character-pre-spec--mobile" : "",
+  ].filter(Boolean).join(" ");
+  const preSpecHeaderClass = [
+    "character-pre-spec-header",
+    spotlightHeroOverview ? "character-pre-spec-header--spotlight" : "",
+  ].filter(Boolean).join(" ");
+  const barsProps = {
+    style: {
+      "--character-pre-spec-bars-columns": isMobile ? "1fr" : "1fr 1fr",
+    },
+  };
+  const specGridProps = {
+    style: {
+      "--character-spec-grid-columns": availableSpecs.length > 1 ? "repeat(2, minmax(0, 1fr))" : "1fr",
+      "--character-spec-grid-gap": isNarrowMobile ? "6px" : "8px",
+    },
+  };
+
   return (
-    <div style={{ padding: isMobile ? "calc(0.9rem * var(--density-scale, 1))" : "calc(1.1rem * var(--density-scale, 1))", maxWidth: "100%", display: "flex", flexDirection: "column", gap: "calc(0.75rem * var(--density-scale, 1))", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
-      <style>{`
-        @keyframes chooseSpecPulse {
-          0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.2); }
-          70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
-          100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
-        }
-      `}</style>
+    <div className={preSpecRootClass}>
       <header
+        className={preSpecHeaderClass}
         data-onboarding-target={spotlightHeroOverview ? "hero-overview" : undefined}
         onClick={() => spotlightHeroOverview && dispatch({ type: "ACK_ONBOARDING_STEP" })}
-        style={{
-          ...headerCardStyle,
-          position: spotlightHeroOverview ? "relative" : "static",
-          zIndex: spotlightHeroOverview ? 2 : 1,
-          boxShadow: spotlightHeroOverview
-            ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 30px rgba(83,74,183,0.16)"
-            : headerCardStyle.boxShadow,
-          animation: spotlightHeroOverview ? "chooseSpecPulse 1600ms ease-in-out infinite" : "none",
-          cursor: spotlightHeroOverview ? "pointer" : "default",
-        }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", flexWrap: "wrap" }}>
-          <div style={{ display: "grid", gap: "4px" }}>
-            <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em" }}>Heroe</div>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
-              <span style={classChipStyle}>{selectedClass?.icon || "?"} {player.class}</span>
-              {player.specialization && <span style={specChipStyle}>{currentSpec?.name || player.specialization}</span>}
-              {buildTag?.name && <span style={{ ...buildChipStyle, color: buildTag.color || "#1e293b", borderColor: `${buildTag.color || "#534AB7"}33` }}>{buildTag.name}</span>}
+        <div className="character-pre-spec-header__row">
+          <div className="character-pre-spec-header__copy">
+            <div className="character-pre-spec-eyebrow">Heroe</div>
+            <div className="character-pre-spec-chips">
+              <span className="character-pre-spec-chip">{selectedClass?.icon || "?"} {player.class}</span>
+              {player.specialization && <span className="character-pre-spec-chip character-pre-spec-chip--spec">{currentSpec?.name || player.specialization}</span>}
+              {buildTag?.name && (
+                <span className="character-pre-spec-chip character-pre-spec-chip--build" {...{ style: { "--build-chip-tone": buildTag.color || "#534AB7" } }}>
+                  {buildTag.name}
+                </span>
+              )}
             </div>
-            <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.35 }}>
+            <div className="character-pre-spec-description">
               {currentSpec?.description || buildTag?.description || "Tu ficha resume la build activa y el estado real de esta run."}
             </div>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: "0.84rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>Nivel {formatNumber(player.level || 1)}</div>
-            <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "2px" }}>{formatNumber(kills)} bajas</div>
+          <div className="character-pre-spec-level">
+            <div>Nivel {formatNumber(player.level || 1)}</div>
+            <span>{formatNumber(kills)} bajas</span>
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "8px", marginTop: "10px" }}>
+        <div className="character-pre-spec-bars" {...barsProps}>
           <ProgressCard label="Vida" value={`${formatNumber(Math.floor(displayedHp || 0))} / ${formatNumber(displayedMaxHp || 0)}`} percentage={hpPercentage} tone={hpPercentage > 30 ? "var(--tone-success, #1D9E75)" : "var(--tone-danger, #D85A30)"} />
           <ProgressCard label="Experiencia" value={`${formatNumber(Math.floor(player.xp || 0))} / ${formatNumber(xpNextLevel)}`} percentage={xpPercentage} tone="var(--tone-accent, #534AB7)" />
         </div>
       </header>
 
-      <section style={sectionCardStyle}>
-        <div style={sectionTitleStyle}>Build actual</div>
+      <section className="character-pre-spec-section fl-card">
+        <div className="character-pre-spec-section-title">Build actual</div>
         {player.specialization ? (
-          <div style={{ display: "grid", gap: "10px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: "0.92rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>
+          <div className="character-pre-spec-build">
+            <div className="character-pre-spec-build-row">
+              <div className="character-pre-spec-build-copy">
+                <div className="character-pre-spec-build-title">
                   {currentSpec?.name || player.specialization}
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.4 }}>
+                <div className="character-pre-spec-build-description">
                   {currentSpec?.description || "Tu subclase define el enfoque principal de esta run."}
                 </div>
               </div>
-              <div style={{ minWidth: isMobile ? "100%" : "220px", padding: "10px 12px", borderRadius: "12px", background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
-                <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              <div className={["character-pre-spec-build-tag", isMobile ? "character-pre-spec-build-tag--full" : ""].filter(Boolean).join(" ")}>
+                <div className="character-pre-spec-eyebrow">
                   Identidad de build
                 </div>
-                <div style={{ fontSize: "0.82rem", color: buildTag?.color || "var(--color-text-primary, #1e293b)", fontWeight: "900", marginTop: "4px" }}>
+                <div className="character-pre-spec-build-tag-title" {...{ style: { "--build-tag-tone": buildTag?.color || "var(--fl2-text)" } }}>
                   {buildTag?.name || "Build en desarrollo"}
                 </div>
-                <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 }}>
+                <div className="character-pre-spec-build-tag-description">
                   {buildTag?.description || "Todavia no hay suficiente senal de equipo y talentos para fijar una identidad fuerte."}
                 </div>
               </div>
             </div>
             {modifiers.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+              <div className="forge-character-modifiers">
                 {modifiers.map(modifier => (
-                  <span key={modifier.label} style={{ fontSize: "0.62rem", fontWeight: "900", color: modifier.color, background: `${modifier.color}15`, padding: "3px 8px", borderRadius: "999px", border: `1px solid ${modifier.color}22` }}>
+                  <span key={modifier.label} {...{ style: { "--modifier-color": modifier.color } }}>
                     {modifier.label}
                   </span>
                 ))}
@@ -236,13 +389,7 @@ export default function Character({ player, dispatch, state }) {
             )}
           </div>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: availableSpecs.length > 1 ? "repeat(2, minmax(0, 1fr))" : "1fr",
-              gap: isNarrowMobile ? "6px" : "8px",
-            }}
-          >
+          <div className="character-spec-grid" {...specGridProps}>
             {availableSpecs.map(spec => {
               const canUnlock = specTutorialActive || canUnlockSpec(spec, player, kills);
               const reqText = getRequirementText(spec.unlockCondition);
@@ -251,26 +398,17 @@ export default function Character({ player, dispatch, state }) {
                 <div
                   key={spec.id}
                   data-onboarding-target={spotlightSpec ? "choose-spec-card" : undefined}
-                  style={{
-                    background: canUnlock ? "var(--color-background-tertiary, #f8fafc)" : "var(--tone-warning-soft, #fff7ed)",
-                    border: `1px solid ${canUnlock ? "var(--color-border-primary, #e2e8f0)" : "#fed7aa"}`,
-                    borderRadius: "10px",
-                    padding: specTutorialActive && isNarrowMobile ? "8px" : "10px",
-                    display: "grid",
-                    gap: specTutorialActive && isNarrowMobile ? "6px" : "8px",
-                    position: spotlightSpec ? "relative" : "static",
-                    zIndex: spotlightSpec ? 2 : 1,
-                    boxShadow: spotlightSpec
-                      ? "0 0 0 2px rgba(83,74,183,0.2), 0 0 0 8px rgba(83,74,183,0.08), 0 12px 28px rgba(83,74,183,0.18)"
-                      : "none",
-                    animation: spotlightSpec ? "chooseSpecPulse 1600ms ease-in-out infinite" : "none",
-                    transform: spotlightSpec ? "translateY(-1px)" : "none",
-                  }}
+                  className={[
+                    "character-spec-card",
+                    canUnlock ? "character-spec-card--available" : "character-spec-card--locked",
+                    spotlightSpec ? "character-spec-card--spotlight" : "",
+                    specTutorialActive && isNarrowMobile ? "character-spec-card--compact" : "",
+                  ].filter(Boolean).join(" ")}
                 >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: specTutorialActive && isNarrowMobile ? "0.7rem" : "0.76rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>{spec.name}</div>
-                    <div style={{ fontSize: specTutorialActive && isNarrowMobile ? "0.58rem" : "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.35, marginTop: "3px" }}>{spec.description}</div>
-                    <div style={{ fontSize: specTutorialActive && isNarrowMobile ? "0.55rem" : "0.6rem", color: canUnlock ? "var(--tone-success, #1D9E75)" : "var(--tone-danger, #D85A30)", fontWeight: "900", marginTop: "4px" }}>
+                  <div className="character-spec-card__copy">
+                    <div className="character-spec-card__title">{spec.name}</div>
+                    <div className="character-spec-card__description">{spec.description}</div>
+                    <div className={["character-spec-card__requirement", canUnlock ? "character-spec-card__requirement--available" : ""].filter(Boolean).join(" ")}>
                       {specTutorialActive ? "Tutorial: elige una subclase" : `Req: ${reqText}`}
                     </div>
                   </div>
@@ -278,20 +416,12 @@ export default function Character({ player, dispatch, state }) {
                     disabled={!canUnlock}
                     data-onboarding-target={spotlightSpec ? "choose-spec" : undefined}
                     onClick={() => dispatch({ type: "SELECT_SPECIALIZATION", specId: spec.id })}
-                    style={{
-                      background: canUnlock ? "var(--tone-success, #1D9E75)" : "var(--color-background-tertiary, #f1f5f9)",
-                      color: canUnlock ? "#fff" : "var(--color-text-tertiary, #94a3b8)",
-                      border: "none",
-                      padding: "8px 10px",
-                      borderRadius: "8px",
-                      fontSize: "0.66rem",
-                      fontWeight: "900",
-                      cursor: canUnlock ? "pointer" : "not-allowed",
-                      flexShrink: 0,
-                      width: "100%",
-                      position: spotlightSpec ? "relative" : "static",
-                      zIndex: spotlightSpec ? 3 : 1,
-                    }}
+                    className={[
+                      "character-spec-card__button",
+                      "fl2-button",
+                      canUnlock ? "fl2-button--success" : "",
+                      spotlightSpec ? "character-spec-card__button--spotlight" : "",
+                    ].filter(Boolean).join(" ")}
                   >
                     Elegir
                   </button>
@@ -302,12 +432,12 @@ export default function Character({ player, dispatch, state }) {
         )}
       </section>
 
-      <section style={sectionCardStyle}>
-        <div style={sectionTitleStyle}>Lectura Rapida</div>
-        <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4, marginBottom: "10px" }}>
+      <section className="character-pre-spec-section fl-card">
+        <div className="character-pre-spec-section-title">Lectura Rapida</div>
+        <div className="character-pre-spec-section-copy">
           Metricas activas para esta run y esta build. Si una mecanica no participa, no aparece aca.
         </div>
-        <div style={tableStyle}>
+        <div className="character-pre-spec-table">
           {quickReadRows.map((row, index) => (
             <DataRow
               key={row.label}
@@ -324,87 +454,54 @@ export default function Character({ player, dispatch, state }) {
 }
 
 function ProgressCard({ label, value, percentage, tone }) {
+  const fillProps = {
+    style: {
+      "--character-progress-width": `${percentage}%`,
+      "--character-progress-tone": tone,
+    },
+  };
   return (
-    <div style={{ background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "8px 10px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.66rem", marginBottom: "5px", fontWeight: "900", gap: "8px" }}>
+    <div className="character-progress-card">
+      <div className="character-progress-card__meta">
         <span>{label}</span>
-        <span style={{ color: "var(--color-text-secondary, #64748b)" }}>{value}</span>
+        <span>{value}</span>
       </div>
-      <div style={{ width: "100%", height: "6px", background: "var(--color-border-primary, #e2e8f0)", borderRadius: "999px", overflow: "hidden" }}>
-        <div style={{ width: `${percentage}%`, height: "100%", background: tone, transition: "width 0.3s ease" }} />
+      <div className="character-progress-card__track">
+        <div className="character-progress-card__fill" {...fillProps} />
+      </div>
+    </div>
+  );
+}
+
+function ForgeCharacterBar({ icon, label, value, percentage, tone = "green" }) {
+  const fillProps = { style: { "--forge-character-bar-width": `${Math.max(0, Math.min(100, percentage))}%` } };
+  return (
+    <div className={`forge-character-bar forge-character-bar--${tone}`}>
+      <div className="forge-character-bar-icon" aria-hidden="true">
+        <ForgeIcon name={icon} size={26} />
+      </div>
+      <div className="forge-character-bar-copy">
+        <div className="forge-character-bar-meta">
+          <span>{label}</span>
+          <strong>{value}</strong>
+        </div>
+        <div className="forge-character-bar-track">
+          <span {...fillProps} />
+        </div>
       </div>
     </div>
   );
 }
 
 function DataRow({ label, value, accent, isLast = false }) {
+  const rowProps = { style: { "--character-data-accent": accent || "var(--fl2-text)" } };
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", padding: "8px 0", borderBottom: isLast ? "none" : "1px solid #eef2f7" }}>
-      <span style={{ fontSize: "0.7rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>{label}</span>
-      <span style={{ fontSize: "0.76rem", color: accent || "var(--color-text-primary, #1e293b)", fontWeight: "900", textAlign: "right" }}>{value}</span>
+    <div
+      className={["character-data-row", isLast ? "character-data-row--last" : ""].filter(Boolean).join(" ")}
+      {...rowProps}
+    >
+      <span>{label}</span>
+      <span>{value}</span>
     </div>
   );
 }
-
-const headerCardStyle = {
-  background: "var(--color-background-secondary, #fff)",
-  borderRadius: "16px",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  padding: "10px 12px",
-  boxShadow: "0 2px 6px var(--color-shadow, rgba(0,0,0,0.04))",
-};
-
-const sectionCardStyle = {
-  background: "var(--color-background-secondary, #fff)",
-  borderRadius: "16px",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  padding: "12px",
-  boxShadow: "0 2px 6px var(--color-shadow, rgba(0,0,0,0.04))",
-};
-
-const sectionTitleStyle = {
-  fontSize: "0.62rem",
-  color: "var(--color-text-tertiary, #94a3b8)",
-  fontWeight: "900",
-  textTransform: "uppercase",
-  letterSpacing: "0.08em",
-  marginBottom: "10px",
-};
-
-const classChipStyle = {
-  fontSize: "0.62rem",
-  background: "var(--color-background-tertiary, #f8fafc)",
-  color: "var(--color-text-primary, #1e293b)",
-  padding: "4px 10px",
-  borderRadius: "999px",
-  fontWeight: "900",
-  textTransform: "uppercase",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-};
-
-const specChipStyle = {
-  fontSize: "0.6rem",
-  background: "var(--color-background-tertiary, #f8fafc)",
-  color: "var(--color-text-secondary, #475569)",
-  padding: "4px 10px",
-  borderRadius: "999px",
-  fontWeight: "900",
-  textTransform: "uppercase",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-};
-
-const buildChipStyle = {
-  fontSize: "0.6rem",
-  background: "var(--color-background-tertiary, #f8fafc)",
-  padding: "4px 10px",
-  borderRadius: "999px",
-  fontWeight: "900",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-};
-
-const tableStyle = {
-  background: "var(--color-background-tertiary, #f8fafc)",
-  borderRadius: "12px",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  padding: "0 12px",
-};

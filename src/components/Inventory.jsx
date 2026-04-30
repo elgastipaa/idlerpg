@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import useViewport from "../hooks/useViewport";
+import ForgeIcon from "./icons/ForgeIcon";
+import { FlAsset } from "./ui/forge";
 import { getPlayerBuildTag } from "../utils/buildIdentity";
 import { getLootHighlights } from "../utils/lootHighlights";
+import { getItemAsset } from "../utils/assetRegistry";
 import {
   AVAILABLE_HUNT_STATS,
   getHuntProfiles,
@@ -53,6 +56,14 @@ const BASIC_LOOT_FILTER_PRESETS = [
 function getCardHighlights(highlights = []) {
   const allowed = new Set(["legendary", "epic", "enabler", "excellent", "perfect", "wishlist", "hunt", "upgrade", "build"]);
   return highlights.filter(highlight => allowed.has(highlight?.id)).slice(0, 2);
+}
+
+function getInventoryItemIconName(item = {}) {
+  const text = `${item.type || ""} ${item.slot || ""} ${item.familyName || ""} ${item.name || ""}`.toLowerCase();
+  if (text.includes("armadura") || text.includes("armor") || text.includes("yelmo") || text.includes("helmet")) return "armor";
+  if (text.includes("amuleto") || text.includes("anillo") || text.includes("reliquia") || text.includes("void")) return "essence";
+  if (item.type === "weapon" || text.includes("sword") || text.includes("espada") || text.includes("hoja")) return "combat";
+  return "inventory";
 }
 
 function sameWishlist(left = [], right = []) {
@@ -279,19 +290,12 @@ export default function Inventory({ state, player, dispatch }) {
   }).length;
 
   return (
-    <div className="inventory-root">
-      <style>{`
-        @keyframes inventorySpotlightPulse {
-          0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.24); }
-          70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
-          100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
-        }
-      `}</style>
-      <header style={{ borderBottom: "1px solid var(--color-border-primary, #e2e8f0)", paddingBottom: "0.8rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.7rem", gap: "12px" }}>
+    <div className="inventory-root inventory-root--forge-light">
+      <header className="fl-inventory-header" {...{ style: { borderBottom: "1px solid var(--color-border-primary, #e2e8f0)", paddingBottom: "0.8rem" } }}>
+        <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.7rem", gap: "12px" } }}>
           <div>
-            <div style={{ fontSize: "0.92rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>Mochila ({inventory.length}/50)</div>
-            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "2px" }}>
+            <div className="fl-inventory-title" {...{ style: { fontSize: "0.92rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>Mochila ({inventory.length}/50)</div>
+            <div className="fl-inventory-subtitle" {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "2px" } }}>
               {upgradeCount > 0 ? `${upgradeCount} upgrades potenciales · ordenado por poder` : "Ordenado por poder · toca un item para verlo completo"}
             </div>
           </div>
@@ -300,61 +304,59 @@ export default function Inventory({ state, player, dispatch }) {
 
       {visibleOverflowEvent && (
         <section
-          style={{
-            background: isDarkMode ? "rgba(245,158,11,0.12)" : "#fff7ed",
-            border: "1px solid rgba(245,158,11,0.24)",
+          className="fl2-inline-note"
+          {...{ style: {
             borderRadius: "14px",
             padding: "12px",
             display: "grid",
             gap: "8px",
-            boxShadow: "0 8px 20px rgba(15,23,42,0.08)",
-          }}
+          } }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" }}>
+          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" } }}>
             <div>
-              <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
+              <div {...{ style: { fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" } }}>
                 Mochila llena
               </div>
-              <div style={{ fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", marginTop: "4px" }}>
+              <div {...{ style: { fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", marginTop: "4px" } }}>
                 {visibleOverflowEvent.incomingItemKept
                   ? `${visibleOverflowEvent.incomingItemName} entro y desplazó ${visibleOverflowEvent.droppedItemName}.`
                   : `${visibleOverflowEvent.incomingItemName} no entró y se perdió.`}
               </div>
             </div>
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              <span style={summaryPillStyle("warning", isDarkMode)}>
+            <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
+              <span {...{ style: summaryPillStyle("warning", isDarkMode) }}>
                 {Math.max(0, Number(overflowStats.total || 0))} overflow
               </span>
-              <span style={summaryPillStyle("muted", isDarkMode)}>
+              <span {...{ style: summaryPillStyle("muted", isDarkMode) }}>
                 {Math.max(0, Number(overflowStats.lost || 0))} perdidos
               </span>
-              <span style={summaryPillStyle("warning", isDarkMode)}>
+              <span {...{ style: summaryPillStyle("warning", isDarkMode) }}>
                 Entra {getCompactRarityLabel(visibleOverflowEvent.incomingItemRarity)} · P {formatNumber(visibleOverflowEvent.incomingItemRating || 0)}
               </span>
-              <span style={summaryPillStyle("muted", isDarkMode)}>
+              <span {...{ style: summaryPillStyle("muted", isDarkMode) }}>
                 Sale {getCompactRarityLabel(visibleOverflowEvent.droppedItemRarity)} · P {formatNumber(visibleOverflowEvent.droppedItemRating || 0)}
               </span>
             </div>
           </div>
-          <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+          <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
             Si esto se repite, usa un preset rapido del filtro para vender rarezas bajas antes de llegar al cap.
           </div>
-          <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.35 }}>
+          <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.35 } }}>
             Regla activa: {autoLootSummary}.
           </div>
           <div className="overlay-responsive-buttons">
             <button
               onClick={() => setShowLootFilterModal(true)}
-              style={{
+              {...{ style: {
                 ...lootActionButtonStyle(true, "sell", isDarkMode),
                 padding: "8px 12px",
-              }}
+              } }}
             >
               Abrir filtro
             </button>
             <button
               onClick={() => setDismissedOverflowEventId(visibleOverflowEvent.id)}
-              style={{
+              {...{ style: {
                 border: "1px solid var(--color-border-primary, #e2e8f0)",
                 background: "var(--color-background-secondary, #fff)",
                 color: "var(--color-text-secondary, #64748b)",
@@ -363,7 +365,7 @@ export default function Inventory({ state, player, dispatch }) {
                 fontSize: "0.66rem",
                 fontWeight: "900",
                 cursor: "pointer",
-              }}
+              } }}
             >
               Cerrar
             </button>
@@ -371,58 +373,63 @@ export default function Inventory({ state, player, dispatch }) {
         </section>
       )}
 
-      <section>
-        <div style={{ ...sectionTitleStyle, marginBottom: "0.7rem" }}>Equipado</div>
-        <div className="overlay-cols-1-2" style={{ gap: "8px" }}>
+      <section className="fl-inventory-section fl-inventory-equipped-section">
+        <div className="fl-inventory-section-title" {...{ style: { ...sectionTitleStyle, marginBottom: "0.7rem" } }}>Equipado</div>
+        <div className="fl-inventory-equipped-list overlay-cols-1-2" {...{ style: { gap: "8px" } }}>
           <EquippedCard title="Arma" item={equipment.weapon} activeBuildTag={activeBuildTag} wishlistAffixes={wishlistAffixes} isDarkMode={isDarkMode} onOpen={() => equipment.weapon && setDetailItemId(equipment.weapon.id)} />
           <EquippedCard title="Armadura" item={equipment.armor} activeBuildTag={activeBuildTag} wishlistAffixes={wishlistAffixes} isDarkMode={isDarkMode} onOpen={() => equipment.armor && setDetailItemId(equipment.armor.id)} />
         </div>
       </section>
 
       <section>
-        <div style={{ marginBottom: "0.8rem", background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "10px", display: "grid", gap: "10px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", flexWrap: "wrap" }}>
+        <div className="fl-inventory-loot-filter" {...{ style: { marginBottom: "0.8rem", borderRadius: "12px", padding: "10px", display: "grid", gap: "10px" } }}>
+          <div className="fl-inventory-filter-head" {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", flexWrap: "wrap" } }}>
             <div>
-              <div style={{ ...sectionTitleStyle, marginBottom: "2px" }}>Loot Filter</div>
-              <div style={{ fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.3 }}>
+              <div className="fl-inventory-filter-title-row">
+                <span className="fl-inventory-section-mark" aria-hidden="true"><ForgeIcon name="inventory" size={22} /></span>
+                <div className="fl-inventory-filter-title" {...{ style: { ...sectionTitleStyle, marginBottom: "2px" } }}>Filtro de Loot</div>
+              </div>
+              <div className="fl-inventory-filter-copy" {...{ style: { fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.3 } }}>
                 Accion rapida por rareza. El engranaje abre presets, caza y protecciones.
               </div>
             </div>
             <button
+              className="fl-inventory-gear-button"
               onClick={() => setShowLootFilterModal(true)}
               disabled={lockInventorySideActions}
-              style={gearButtonStyle(isDarkMode)}
+              {...{ style: gearButtonStyle(isDarkMode) }}
             >
-              <span style={{ fontSize: "0.85rem", lineHeight: 1 }}>⚙</span>
+              <ForgeIcon name="forge" size={16} />
               Ajustes
             </button>
           </div>
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-            <span style={summaryPillStyle(hasActiveHunt ? "warning" : "muted", isDarkMode)}>
+          <div className="fl-inventory-filter-pills" {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
+            <span {...{ style: summaryPillStyle(hasActiveHunt ? "warning" : "muted", isDarkMode) }}>
               {hasActiveHunt ? "Caza activa" : "Sin caza activa"}
             </span>
-            <span style={summaryPillStyle(activeBasicPreset ? "accent" : "muted", isDarkMode)}>
+            <span {...{ style: summaryPillStyle(activeBasicPreset ? "accent" : "muted", isDarkMode) }}>
               {activeBasicPreset ? activeBasicPreset.label : "Modo custom"}
             </span>
             {protectionSummary.length > 0 ? protectionSummary.map(label => (
-              <span key={label} style={summaryPillStyle("success", isDarkMode)}>{label}</span>
-            )) : <span style={summaryPillStyle("muted", isDarkMode)}>Sin protecciones</span>}
-            <span style={summaryPillStyle("accent", isDarkMode)}>
+              <span key={label} {...{ style: summaryPillStyle("success", isDarkMode) }}>{label}</span>
+            )) : <span {...{ style: summaryPillStyle("muted", isDarkMode) }}>Sin protecciones</span>}
+            <span {...{ style: summaryPillStyle("accent", isDarkMode) }}>
               Ver desde {getCompactRarityLabel(lootRules.minVisibleRarity || "common")}
             </span>
           </div>
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          <div className="fl-inventory-filter-presets" {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
             {BASIC_LOOT_FILTER_PRESETS.map(preset => {
               const active = activeBasicPreset?.id === preset.id;
               return (
                 <button
+                  className={active ? "fl-inventory-preset-button is-active" : "fl-inventory-preset-button"}
                   key={preset.id}
                   onClick={() => dispatch({
                     type: "UPDATE_LOOT_RULES",
                     lootRules: preset.lootRules,
                   })}
                   disabled={lockInventorySideActions}
-                  style={modalOptionPillStyle(active, isDarkMode)}
+                  {...{ style: modalOptionPillStyle(active, isDarkMode) }}
                   title={preset.summary}
                 >
                   {preset.label}
@@ -430,13 +437,13 @@ export default function Inventory({ state, player, dispatch }) {
               );
             })}
           </div>
-          <div style={{ fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.35 }}>
+          <div className="fl-inventory-filter-summary" {...{ style: { fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.35 } }}>
             {activeBasicPreset?.summary || "Ya estas usando una combinacion custom por rareza."}
           </div>
-          <div style={{ fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", lineHeight: 1.35 }}>
+          <div className="fl-inventory-filter-summary" {...{ style: { fontSize: "0.6rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", lineHeight: 1.35 } }}>
             {autoLootSummary}.
           </div>
-          <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "2px" }}>
+          <div className="fl-inventory-filter-rarity-row" {...{ style: { display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "2px" } }}>
             {AUTO_LOOT_RARITIES.map(rarity => (
               <QuickLootRuleRow
                 key={`loot-quick-${rarity}`}
@@ -452,13 +459,17 @@ export default function Inventory({ state, player, dispatch }) {
           </div>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", gap: "10px", flexWrap: "wrap" }}>
-          <div style={{ ...sectionTitleStyle, marginBottom: 0 }}>Inventario</div>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <div className="fl-inventory-list-head" {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", gap: "10px", flexWrap: "wrap" } }}>
+          <div className="fl-inventory-list-title-row">
+            <span className="fl-inventory-section-mark" aria-hidden="true"><ForgeIcon name="shop" size={22} /></span>
+            <div {...{ style: { ...sectionTitleStyle, marginBottom: 0 } }}>Inventario</div>
+          </div>
+          <div {...{ style: { display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" } }}>
             <button
+              className={showOnlyUpgrades ? "fl-inventory-filter-toggle is-active" : "fl-inventory-filter-toggle"}
               onClick={() => setShowOnlyUpgrades(current => !current)}
               disabled={lockInventorySideActions}
-              style={{
+              {...{ style: {
                 border: "1px solid",
                 borderColor: showOnlyUpgrades ? (isDarkMode ? "rgba(16,185,129,0.45)" : "#86efac") : "var(--color-border-primary, #e2e8f0)",
                 background: showOnlyUpgrades ? (isDarkMode ? "rgba(4,120,87,0.18)" : "#ecfdf5") : "var(--color-background-secondary, #fff)",
@@ -468,19 +479,24 @@ export default function Inventory({ state, player, dispatch }) {
                 fontSize: "0.62rem",
                 fontWeight: "900",
                 cursor: "pointer",
-              }}
+              } }}
             >
               MEJOR
             </button>
-            <span style={{ fontSize: "0.66rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>{sortedItems.length} visibles</span>
+            <span {...{ style: { fontSize: "0.66rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" } }}>{sortedItems.length} visibles</span>
           </div>
         </div>
 
-        <div style={{ display: "grid", gap: "6px", marginBottom: "0.8rem" }}>
-          <span style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #475569)", fontWeight: "900" }}>Vender por rareza (doble tap)</span>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "6px", minWidth: 0 }}>
+        <div className="fl-inventory-bulk-panel" {...{ style: { display: "grid", gap: "6px", marginBottom: "0.8rem" } }}>
+          <span className="fl-inventory-bulk-caption" {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #475569)", fontWeight: "900" } }}>Vender por rareza (doble tap)</span>
+          <div className="fl-inventory-bulk-grid" {...{ style: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "6px", minWidth: 0 } }}>
           {bulkSellGroups.map(group => (
             <button
+              className={[
+                "fl-inventory-bulk-card",
+                pendingBulkSell === group.rarity ? "is-pending" : "",
+                group.items.length === 0 ? "is-empty" : "",
+              ].filter(Boolean).join(" ")}
               key={group.rarity}
               onClick={() => {
                 if (pendingBulkSell !== group.rarity) {
@@ -491,18 +507,20 @@ export default function Inventory({ state, player, dispatch }) {
                 setPendingBulkSell(null);
               }}
               disabled={lockInventorySideActions || group.items.length === 0}
-              style={{
+              {...{ style: {
                 ...bulkSellButtonStyle(group, pendingBulkSell === group.rarity, isDarkMode),
+                "--inventory-rarity-color": getRarityColor(group.rarity),
                 cursor: lockInventorySideActions || group.items.length === 0 ? "not-allowed" : "pointer",
-              }}
+              } }}
             >
-              <span style={{ display: "flex", justifyContent: "center" }}>
-                <span style={rarityBadgeStyle(group.rarity)}>{getCompactRarityLabel(group.rarity)}</span>
+              <span className="fl-inventory-rarity-head" {...{ style: { display: "flex", justifyContent: "center" } }}>
+                <span className="fl-inventory-rarity-diamond" aria-hidden="true"><ForgeIcon name="essence" size={17} /></span>
+                <span className="fl-inventory-rarity-badge" {...{ style: rarityBadgeStyle(group.rarity) }}>{getCompactRarityLabel(group.rarity)}</span>
               </span>
-              <span style={{ fontSize: "0.7rem", fontWeight: "900", textAlign: "center", color: pendingBulkSell === group.rarity ? "inherit" : "var(--color-text-primary, #1e293b)" }}>
+              <span {...{ style: { fontSize: "0.7rem", fontWeight: "900", textAlign: "center", color: pendingBulkSell === group.rarity ? "inherit" : "var(--color-text-primary, #1e293b)" } }}>
                 {group.items.length > 0 ? group.items.length : "-"}
               </span>
-              <span style={{ fontSize: "0.56rem", fontWeight: "800", textAlign: "center", color: pendingBulkSell === group.rarity ? "inherit" : "var(--color-text-secondary, #64748b)", whiteSpace: "nowrap" }}>
+              <span {...{ style: { fontSize: "0.56rem", fontWeight: "800", textAlign: "center", color: pendingBulkSell === group.rarity ? "inherit" : "var(--color-text-secondary, #64748b)", whiteSpace: "nowrap" } }}>
                 {group.items.length > 0 ? `${formatNumber(group.gold)}g` : "-"}
               </span>
             </button>
@@ -511,10 +529,10 @@ export default function Inventory({ state, player, dispatch }) {
         </div>
 
         {inventory.length === 0 ? (
-          <div style={emptyStateStyle}>No tenes objetos en la mochila</div>
+          <div {...{ style: emptyStateStyle }}>No tenes objetos en la mochila</div>
         ) : (
           <>
-            <div className="overlay-cols-1-2" style={{ gap: "8px" }}>
+            <div className="overlay-cols-1-2" {...{ style: { gap: "8px" } }}>
               {visibleSortedItems.map(item => {
                 const isTutorialItem = equipTutorialActive && sortedItems[0]?.id === item.id;
                 return (
@@ -545,11 +563,11 @@ export default function Inventory({ state, player, dispatch }) {
               })}
             </div>
             {(canShowMoreInventory || canShowLessInventory) && (
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" }}>
+              <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" } }}>
                 {canShowMoreInventory && (
                   <button
                     onClick={() => setInventoryVisibleCount(current => Math.min(sortedItems.length, current + previewStep))}
-                    style={quickActionButtonStyle("#fff", "#1d4ed8", "1px solid #bfdbfe")}
+                    {...{ style: quickActionButtonStyle("#fff", "#1d4ed8", "1px solid #bfdbfe") }}
                   >
                     Ver mas ({sortedItems.length - inventoryVisibleCount})
                   </button>
@@ -557,7 +575,7 @@ export default function Inventory({ state, player, dispatch }) {
                 {canShowLessInventory && (
                   <button
                     onClick={() => setInventoryVisibleCount(previewStep)}
-                    style={quickActionButtonStyle("#fff", "#64748b", "1px solid #cbd5e1")}
+                    {...{ style: quickActionButtonStyle("#fff", "#64748b", "1px solid #cbd5e1") }}
                   >
                     Ver menos
                   </button>
@@ -613,21 +631,28 @@ export default function Inventory({ state, player, dispatch }) {
 }
 
 function QuickLootRuleRow({ rarity, action, onChange, isDarkMode = false }) {
+  const rarityColor = getRarityColor(rarity);
   return (
-    <div style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", borderTop: `3px solid ${getRarityColor(rarity)}`, borderRadius: "12px", padding: "8px", background: "var(--color-background-tertiary, #f8fafc)", display: "grid", gap: "8px", minWidth: "92px", flex: "0 0 92px" }}>
-      <div style={{ minWidth: 0, textAlign: "center", display: "flex", justifyContent: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", flexWrap: "wrap" }}>
-          <span style={rarityBadgeStyle(rarity)}>{getCompactRarityLabel(rarity)}</span>
+    <div className="fl-inventory-loot-rule-card" {...{ style: { "--inventory-rarity-color": rarityColor, border: "1px solid var(--color-border-primary, #e2e8f0)", borderTop: `3px solid ${rarityColor}`, borderRadius: "12px", padding: "8px", background: "var(--color-background-tertiary, #f8fafc)", display: "grid", gap: "8px", minWidth: "92px", flex: "0 0 92px" } }}>
+      <div className="fl-inventory-loot-rule-head" {...{ style: { minWidth: 0, textAlign: "center", display: "flex", justifyContent: "center" } }}>
+        <div className="fl-inventory-rarity-head" {...{ style: { display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", flexWrap: "wrap" } }}>
+          <span className="fl-inventory-rarity-diamond" aria-hidden="true"><ForgeIcon name="essence" size={19} /></span>
+          <span className="fl-inventory-rarity-badge" {...{ style: rarityBadgeStyle(rarity) }}>{getCompactRarityLabel(rarity)}</span>
         </div>
       </div>
-      <div style={{ display: "grid", gap: "4px" }}>
+      <div className="fl-inventory-loot-rule-actions" {...{ style: { display: "grid", gap: "4px" } }}>
         {LOOT_ACTION_OPTIONS.map(option => {
           const active = action === option.id;
           return (
             <button
+              className={[
+                "fl-inventory-rule-action",
+                `fl-inventory-rule-action--${option.id}`,
+                active ? "is-active" : "",
+              ].filter(Boolean).join(" ")}
               key={`${rarity}-${option.id}`}
               onClick={() => onChange(option.id)}
-              style={lootActionButtonStyle(active, option.id, isDarkMode)}
+              {...{ style: lootActionButtonStyle(active, option.id, isDarkMode) }}
               title={option.label}
             >
               {option.label}
@@ -702,99 +727,100 @@ function LootFilterModal({
   };
 
   return (
-    <div style={{ ...modalWrapStyle, background: `rgba(15,23,42,${backdropAlpha})`, justifyContent: isMobile ? "flex-end" : "center", padding: isMobile ? "0" : "18px" }} onClick={onClose}>
+    <div {...{ style: { ...modalWrapStyle, background: `rgba(15,23,42,${backdropAlpha})`, justifyContent: isMobile ? "flex-end" : "center", padding: isMobile ? "0" : "18px" } }} onClick={onClose}>
       <div
-        style={{
+        className="fl2-inline-modal"
+        {...{ style: {
           ...lootFilterModalCardStyle(isMobile),
           transform: isMobile ? `translateY(${sheetOffsetY}px)` : "none",
           transition: isMobile && !isDraggingSheet ? "transform 180ms ease, box-shadow 180ms ease" : undefined,
-        }}
+        } }}
         onClick={event => event.stopPropagation()}
       >
         {isMobile && (
           <div
-            style={sheetDragHandleWrapStyle}
+            {...{ style: sheetDragHandleWrapStyle }}
             onPointerDown={beginSheetDrag}
             onPointerMove={updateSheetDrag}
             onPointerUp={endSheetDrag}
             onPointerCancel={endSheetDrag}
           >
-            <div style={sheetDragHandleStyle} />
+            <div {...{ style: sheetDragHandleStyle }} />
           </div>
         )}
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" }}>
+        <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" } }}>
           <div>
-            <div style={{ fontSize: "0.95rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>Ajustes de Loot</div>
-            <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.4 }}>
+            <div {...{ style: { fontSize: "0.95rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" } }}>Ajustes de Loot</div>
+            <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.4 } }}>
               Presets, stats custom y protecciones. El selector rapido por rareza queda en la mochila.
             </div>
           </div>
-          <button onClick={onClose} style={{ border: "none", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", width: "32px", height: "32px", borderRadius: "999px", cursor: "pointer", fontWeight: "900" }}>×</button>
+          <button onClick={onClose} {...{ style: { border: "none", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", width: "32px", height: "32px", borderRadius: "999px", cursor: "pointer", fontWeight: "900" } }}>×</button>
         </div>
 
-        <div style={{ display: "grid", gap: "10px", maxHeight: isMobile ? "70vh" : "58vh", overflowY: "auto", paddingRight: isMobile ? 0 : "2px" }}>
-          <section style={detailBlockStyle}>
-            <div style={detailTitleStyle}>Preset de Caza</div>
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+        <div {...{ style: { display: "grid", gap: "10px", maxHeight: isMobile ? "70vh" : "58vh", overflowY: "auto", paddingRight: isMobile ? 0 : "2px" } }}>
+          <section {...{ style: detailBlockStyle }}>
+            <div {...{ style: detailTitleStyle }}>Preset de Caza</div>
+            <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
               {huntProfiles.map(profile => {
                 const active = lootRules.huntPreset === profile.id || sameWishlist(profile.wishlistAffixes, wishlistAffixes);
                 return (
                   <button
                     key={profile.id}
                     onClick={() => onSelectPreset(profile)}
-                    style={modalOptionPillStyle(active, isDarkMode)}
+                    {...{ style: modalOptionPillStyle(active, isDarkMode) }}
                   >
                     {profile.label}
                   </button>
                 );
               })}
             </div>
-            <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "8px", lineHeight: 1.4 }}>
+            <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "8px", lineHeight: 1.4 } }}>
               El preset activo define la caza por build o enemigo. Si tocas stats manuales abajo, pasas a modo custom.
             </div>
           </section>
 
-          <section style={detailBlockStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
-              <div style={{ ...detailTitleStyle, marginBottom: 0 }}>Stats Cazados</div>
+          <section {...{ style: detailBlockStyle }}>
+            <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "8px" } }}>
+              <div {...{ style: { ...detailTitleStyle, marginBottom: 0 } }}>Stats Cazados</div>
               {wishlistAffixes.length > 0 && (
                 <button
                   onClick={onClearWishlist}
-                  style={{ border: "none", background: "none", color: "var(--color-text-info, #2563eb)", fontSize: "0.62rem", fontWeight: "900", cursor: "pointer", padding: 0 }}
+                  {...{ style: { border: "none", background: "none", color: "var(--color-text-info, #2563eb)", fontSize: "0.62rem", fontWeight: "900", cursor: "pointer", padding: 0 } }}
                 >
                   Limpiar
                 </button>
               )}
             </div>
 
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "10px" }}>
+            <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "10px" } }}>
               {wishlistAffixes.length > 0 ? wishlistAffixes.map(stat => (
                 <button
                   key={`active-wish-${stat}`}
                   onClick={() => onToggleWishlistStat(stat)}
                   title="Quitar de la caza"
-                  style={activeWishlistPillStyle(isDarkMode)}
+                  {...{ style: activeWishlistPillStyle(isDarkMode) }}
                 >
                   {STAT_LABELS[stat] || stat}
                 </button>
               )) : (
-                <span style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>
+                <span {...{ style: { fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" } }}>
                   Sin caza activa
                 </span>
               )}
             </div>
 
-            <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginBottom: "8px", lineHeight: 1.4 }}>
+            <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginBottom: "8px", lineHeight: 1.4 } }}>
               Toca un stat para agregarlo o quitarlo del filtro avanzado.
             </div>
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
               {AVAILABLE_HUNT_STATS.map(stat => {
                 const active = wishlistAffixes.includes(stat);
                 return (
                   <button
                     key={`wish-${stat}`}
                     onClick={() => onToggleWishlistStat(stat)}
-                    style={modalOptionPillStyle(active, isDarkMode)}
+                    {...{ style: modalOptionPillStyle(active, isDarkMode) }}
                   >
                     {STAT_LABELS[stat] || stat}
                   </button>
@@ -803,35 +829,35 @@ function LootFilterModal({
             </div>
           </section>
 
-          <section style={detailBlockStyle}>
-            <div style={detailTitleStyle}>Protecciones</div>
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              <button onClick={onToggleProtectHunted} style={togglePillStyle(lootRules.protectHuntedDrops !== false, isDarkMode)}>
+          <section {...{ style: detailBlockStyle }}>
+            <div {...{ style: detailTitleStyle }}>Protecciones</div>
+            <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
+              <button onClick={onToggleProtectHunted} {...{ style: togglePillStyle(lootRules.protectHuntedDrops !== false, isDarkMode) }}>
                 Proteger caza
               </button>
-              <button onClick={onToggleProtectUpgrade} style={togglePillStyle(lootRules.protectUpgradeDrops !== false, isDarkMode)}>
+              <button onClick={onToggleProtectUpgrade} {...{ style: togglePillStyle(lootRules.protectUpgradeDrops !== false, isDarkMode) }}>
                 Proteger upgrades
               </button>
             </div>
-            <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "8px", lineHeight: 1.4 }}>
+            <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "8px", lineHeight: 1.4 } }}>
               Si una rareza entra en vender, los drops cazados y las mejoras claras pueden salvarse automaticamente.
             </div>
           </section>
 
-          <section style={detailBlockStyle}>
-            <div style={detailTitleStyle}>Visibilidad en combate</div>
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          <section {...{ style: detailBlockStyle }}>
+            <div {...{ style: detailTitleStyle }}>Visibilidad en combate</div>
+            <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
               {RARITY_VISIBILITY_OPTIONS.map(rarity => (
                 <button
                   key={`visibility-${rarity}`}
                   onClick={() => onSetMinVisibleRarity(rarity)}
-                  style={modalOptionPillStyle((lootRules.minVisibleRarity || "common") === rarity, isDarkMode)}
+                  {...{ style: modalOptionPillStyle((lootRules.minVisibleRarity || "common") === rarity, isDarkMode) }}
                 >
                   Desde {getCompactRarityLabel(rarity)}
                 </button>
               ))}
             </div>
-            <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "8px", lineHeight: 1.4 }}>
+            <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "8px", lineHeight: 1.4 } }}>
               Reduce ruido en el log de combate ocultando nombres de drops menores. Los drops importantes siguen visibles.
             </div>
           </section>
@@ -843,7 +869,7 @@ function LootFilterModal({
 
 function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode = false, onOpen }) {
   if (!item) {
-    return <div style={{ ...compactCardStyle, border: "1px dashed var(--color-border-secondary, #cbd5e1)", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--color-text-tertiary, #94a3b8)", justifyContent: "center", minHeight: "76px" }}><span style={{ fontSize: "0.72rem", fontWeight: "900", letterSpacing: "0.05em", textTransform: "uppercase" }}>{title} vacio</span></div>;
+    return <div className="fl-inventory-equipped-card fl-inventory-equipped-card--empty" {...{ style: { ...compactCardStyle, border: "1px dashed var(--color-border-secondary, #cbd5e1)", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--color-text-tertiary, #94a3b8)", justifyContent: "center", minHeight: "76px" } }}><span {...{ style: { fontSize: "0.72rem", fontWeight: "900", letterSpacing: "0.05em", textTransform: "uppercase" } }}>{title} vacio</span></div>;
   }
 
   const stats = getItemStats(item);
@@ -853,46 +879,62 @@ function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode
   const topStats = getPrioritizedStatEntries(stats, 2);
   const highlights = getCardHighlights(getLootHighlights({ item, equippedItem: item, activeBuildTag, wishlistAffixes })).slice(0, 2);
   const legendaryPower = getLegendaryPowerSummary(item);
+  const iconName = item.type === "armor" ? "armor" : "combat";
+  const itemAsset = getItemAsset(item);
 
   return (
     <div
+      className="fl-inventory-equipped-card"
       onClick={onOpen}
-      style={{ ...compactCardStyle, borderLeft: `4px solid ${getRarityColor(item.rarity)}`, cursor: "pointer", gap: "8px" }}
+      {...{ style: { ...compactCardStyle, "--inventory-rarity-color": getRarityColor(item.rarity), borderLeft: `4px solid ${getRarityColor(item.rarity)}`, cursor: "pointer", gap: "8px" } }}
       title="Ver detalle"
     >
       {hasExcellent && (
-        <div style={{ position: "absolute", top: "6px", right: "8px", fontSize: "0.8rem", color: "var(--tone-warning, #f59e0b)", textShadow: "0 1px 8px rgba(245,158,11,0.4)" }}>◆</div>
+        <div className="fl-inventory-quality-spark" {...{ style: { position: "absolute", top: "6px", right: "8px", fontSize: "0.8rem", color: "var(--tone-warning, #f59e0b)", textShadow: "0 1px 8px rgba(245,158,11,0.4)" } }}>◆</div>
       )}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "8px" }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: "0.72rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", marginBottom: "2px" }}>{title}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-            <span style={rarityBadgeStyle(item.rarity)}>{getCompactRarityLabel(item.rarity)}</span>
-            <span style={itemGlyphStyle}>{getItemGlyph(item.name)}</span>
-            <div style={{ fontWeight: "900", color: "var(--color-text-primary, #1e293b)", fontSize: "0.78rem", lineHeight: 1.2 }}>{item.name}</div>
-            {(item.level || 0) > 0 && <span style={upgradeBadgeStyle(item.level)}>{`+${item.level}`}</span>}
-            {legendaryPower && <span style={powerBadgeStyle(isDarkMode)}>{legendaryPower.shortLabel}</span>}
-          </div>
-          <div style={{ fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "2px" }}>
-            {item.familyName || "Sin familia"}
-          </div>
-        </div>
-        <span style={{ color: "var(--tone-warning, #f59e0b)", fontSize: "0.78rem", fontWeight: "900", whiteSpace: "nowrap" }}>P {formatNumber(item.rating || 0)}</span>
+      <div className="fl-inventory-equipped-art" aria-hidden="true">
+        <FlAsset
+          className="fl-inventory-equipped-asset"
+          asset={itemAsset}
+          kind="item"
+          rarity={item?.rarity}
+          size="full"
+          fit="contain"
+          alt=""
+          fallbackIcon={iconName}
+        />
       </div>
+      <div className="fl-inventory-equipped-copy">
+        <div className="fl-inventory-equipped-topline" {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "start", gap: "8px" } }}>
+          <div {...{ style: { minWidth: 0 } }}>
+            <div className="fl-inventory-equipped-type" {...{ style: { fontSize: "0.72rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", marginBottom: "2px" } }}>{title}</div>
+            <div className="fl-inventory-equipped-name-row" {...{ style: { display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" } }}>
+            <span className="fl-inventory-rarity-badge" {...{ style: rarityBadgeStyle(item.rarity) }}>{getCompactRarityLabel(item.rarity)}</span>
+            <span className="fl-inventory-glyph" {...{ style: itemGlyphStyle }}>{getItemGlyph(item.name)}</span>
+            <div className="fl-inventory-equipped-name" {...{ style: { fontWeight: "900", color: "var(--color-text-primary, #1e293b)", fontSize: "0.78rem", lineHeight: 1.2 } }}>{item.name}</div>
+            {(item.level || 0) > 0 && <span {...{ style: upgradeBadgeStyle(item.level) }}>{`+${item.level}`}</span>}
+            {legendaryPower && <span {...{ style: powerBadgeStyle(isDarkMode) }}>{legendaryPower.shortLabel}</span>}
+            </div>
+            <div className="fl-inventory-equipped-family" {...{ style: { fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "2px" } }}>
+              {item.familyName || "Sin familia"}
+            </div>
+          </div>
+          <span className="fl-inventory-equipped-power" {...{ style: { color: "var(--tone-warning, #f59e0b)", fontSize: "0.78rem", fontWeight: "900", whiteSpace: "nowrap" } }}>P {formatNumber(item.rating || 0)}</span>
+        </div>
 
       {highlights.length > 0 && (
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-          {highlights.map(highlight => <span key={highlight.id} style={highlightBadgeStyle(highlight.tone, isDarkMode)}>{highlight.label}</span>)}
+        <div className="fl-inventory-highlight-row" {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
+          {highlights.map(highlight => <span key={highlight.id} {...{ style: highlightBadgeStyle(highlight.tone, isDarkMode) }}>{highlight.label}</span>)}
         </div>
       )}
 
       {affixDots.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "0.52rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", marginRight: "2px" }}>
+        <div className="fl-inventory-affix-row" {...{ style: { display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" } }}>
+          <span className="fl-inventory-affix-label" {...{ style: { fontSize: "0.52rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", marginRight: "2px" } }}>
             Afijos
           </span>
           {affixDots.map(dot => (
-            <span key={dot.key} title={dot.label} style={{ fontSize: "0.62rem", fontWeight: "900", color: dot.color }}>
+            <span key={dot.key} title={dot.label} {...{ style: { fontSize: "0.62rem", fontWeight: "900", color: dot.color } }}>
               {dot.symbol}
             </span>
           ))}
@@ -900,22 +942,24 @@ function EquippedCard({ title, item, activeBuildTag, wishlistAffixes, isDarkMode
       )}
 
       {topStats.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+        <div className="fl-inventory-stat-row" {...{ style: { display: "flex", flexWrap: "wrap", gap: "6px" } }}>
           {topStats.map(([key, value]) => (
-            <div key={key} style={miniStatPillStyle}>
-              {STAT_LABELS[key]} <strong style={{ color: "var(--color-text-primary, #1e293b)" }}>+{formatStatValue(key, value)}</strong>
+            <div key={key} className="fl-inventory-stat-pill" {...{ style: miniStatPillStyle }}>
+              {STAT_LABELS[key]} <strong {...{ style: { color: "var(--color-text-primary, #1e293b)" } }}>+{formatStatValue(key, value)}</strong>
             </div>
           ))}
         </div>
       )}
-      {implicitEntries.length > 0 && <div style={{ fontSize: "0.62rem", color: "var(--color-text-info, #4338ca)", fontWeight: "800" }}>Implicito: {formatImplicitSummary(item)}</div>}
-      <div style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", textTransform: "uppercase" }}>Toca para ver detalle</div>
+        {implicitEntries.length > 0 && <div className="fl-inventory-implicit" {...{ style: { fontSize: "0.62rem", color: "var(--color-text-info, #4338ca)", fontWeight: "800" } }}>Implicito: {formatImplicitSummary(item)}</div>}
+        <div className="fl-inventory-detail-hint" {...{ style: { fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", textTransform: "uppercase" } }}>Toca para ver detalle</div>
+      </div>
     </div>
   );
 }
 
 function InventoryRow({ item, tutorialTarget = false, equippedCompare, activeBuildTag, wishlistAffixes, isDarkMode = false, isMobile = false, pendingSell, onOpen, onEquip, onSell, lockInteractions = false, spotlightEquip = false }) {
   const color = getRarityColor(item.rarity);
+  const iconName = getInventoryItemIconName(item);
   const compareItem = equippedCompare || { bonus: {}, rating: 0 };
   const isBetter = (item.rating || 0) > (compareItem.rating || 0);
   const hasExcellent = (item.affixes || []).some(affix => affix?.quality === "excellent");
@@ -925,68 +969,86 @@ function InventoryRow({ item, tutorialTarget = false, equippedCompare, activeBui
   const compareEntries = getTopCompareEntries(item, compareItem, isMobile ? 2 : 3);
   const topStats = getPrioritizedStatEntries(item.bonus || {}, 2);
   const legendaryPower = getLegendaryPowerSummary(item);
+  const itemAsset = getItemAsset(item);
   return (
     <div
+      className="fl-inventory-row-card"
       data-onboarding-target={tutorialTarget ? "tutorial-first-item" : undefined}
-      style={{
+      {...{ style: {
         ...compactCardStyle,
+        "--inventory-rarity-color": color,
         borderLeft: `4px solid ${color}`,
         gap: "8px",
         boxShadow: tutorialTarget
           ? "0 0 0 2px rgba(83,74,183,0.16), 0 10px 24px rgba(83,74,183,0.16)"
           : compactCardStyle.boxShadow,
         animation: tutorialTarget ? "inventorySpotlightPulse 1600ms ease-in-out infinite" : "none",
-      }}
+      } }}
     >
       {hasExcellent && (
-        <div style={{ position: "absolute", top: "6px", right: "8px", fontSize: "0.8rem", color: "var(--tone-warning, #f59e0b)", textShadow: "0 1px 8px rgba(245,158,11,0.4)" }}>◆</div>
+        <div {...{ style: { position: "absolute", top: "6px", right: "8px", fontSize: "0.8rem", color: "var(--tone-warning, #f59e0b)", textShadow: "0 1px 8px rgba(245,158,11,0.4)" } }}>◆</div>
       )}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px" }}>
-        <button onClick={lockInteractions ? undefined : onOpen} disabled={lockInteractions} style={{ flex: 1, minWidth: 0, textAlign: "left", border: "none", background: "none", padding: 0, cursor: lockInteractions ? "default" : "pointer" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-            <span style={rarityBadgeStyle(item.rarity)}>{getCompactRarityLabel(item.rarity)}</span>
-            <span style={itemGlyphStyle}>{getItemGlyph(item.name)}</span>
-            <span style={{ fontWeight: "900", fontSize: "0.82rem", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.2 }}>{item.name}</span>
-            {(item.level || 0) > 0 && <span style={upgradeBadgeStyle(item.level)}>{`+${item.level}`}</span>}
-            {isBetter && <span style={betterBadgeStyle(isDarkMode)}>MEJOR</span>}
-            {legendaryPower && <span style={powerBadgeStyle(isDarkMode)}>{legendaryPower.shortLabel}</span>}
+      <div className="fl-inventory-row-main" {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px" } }}>
+        <button className="fl-inventory-row-art-button" onClick={lockInteractions ? undefined : onOpen} disabled={lockInteractions} aria-label={`Ver ${item.name}`}>
+          <span className="fl-inventory-row-art" aria-hidden="true">
+            <FlAsset
+              className="fl-inventory-row-asset"
+              asset={itemAsset}
+              kind="item"
+              rarity={item?.rarity}
+              size="full"
+              fit="contain"
+              alt=""
+              fallbackIcon={iconName}
+            />
+          </span>
+        </button>
+        <button className="fl-inventory-row-name-button" onClick={lockInteractions ? undefined : onOpen} disabled={lockInteractions} {...{ style: { flex: 1, minWidth: 0, textAlign: "left", border: "none", background: "none", padding: 0, cursor: lockInteractions ? "default" : "pointer" } }}>
+          <div className="fl-inventory-row-name-line" {...{ style: { display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" } }}>
+            <span className="fl-inventory-rarity-badge" {...{ style: rarityBadgeStyle(item.rarity) }}>{getCompactRarityLabel(item.rarity)}</span>
+            <span {...{ style: itemGlyphStyle }}>{getItemGlyph(item.name)}</span>
+            <span {...{ style: { fontWeight: "900", fontSize: "0.82rem", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.2 } }}>{item.name}</span>
+            {(item.level || 0) > 0 && <span {...{ style: upgradeBadgeStyle(item.level) }}>{`+${item.level}`}</span>}
+            {isBetter && <span {...{ style: betterBadgeStyle(isDarkMode) }}>MEJOR</span>}
+            {legendaryPower && <span {...{ style: powerBadgeStyle(isDarkMode) }}>{legendaryPower.shortLabel}</span>}
           </div>
-          <div style={{ fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "2px" }}>
+          <div className="fl-inventory-row-family" {...{ style: { fontSize: "0.58rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "2px" } }}>
             {item.familyName || "Sin familia"}
           </div>
         </button>
-        <div style={{ color: "var(--tone-warning, #f59e0b)", fontWeight: "900", fontSize: "0.86rem", whiteSpace: "nowrap" }}>P {formatNumber(item.rating || 0)}</div>
+        <div className="fl-inventory-row-power" {...{ style: { color: "var(--tone-warning, #f59e0b)", fontWeight: "900", fontSize: "0.86rem", whiteSpace: "nowrap" } }}>P {formatNumber(item.rating || 0)}</div>
       </div>
 
       {highlights.length > 0 && (
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-          {highlights.map(highlight => <span key={highlight.id} style={highlightBadgeStyle(highlight.tone, isDarkMode)}>{highlight.label}</span>)}
+        <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
+          {highlights.map(highlight => <span key={highlight.id} {...{ style: highlightBadgeStyle(highlight.tone, isDarkMode) }}>{highlight.label}</span>)}
         </div>
       )}
 
       {affixDots.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "0.52rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", marginRight: "2px" }}>
+        <div {...{ style: { display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" } }}>
+          <span {...{ style: { fontSize: "0.52rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", marginRight: "2px" } }}>
             Afijos
           </span>
           {affixDots.map(dot => (
-            <span key={dot.key} title={dot.label} style={{ fontSize: "0.62rem", fontWeight: "900", color: dot.color }}>
+            <span key={dot.key} title={dot.label} {...{ style: { fontSize: "0.62rem", fontWeight: "900", color: dot.color } }}>
               {dot.symbol}
             </span>
           ))}
         </div>
       )}
 
-      <div style={{ borderTop: "1px solid var(--color-border-primary, #eef2f7)", paddingTop: "6px", display: "flex", flexDirection: "column", gap: "6px" }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+      <div className="fl-inventory-row-stats-wrap" {...{ style: { borderTop: "1px solid var(--color-border-primary, #eef2f7)", paddingTop: "6px", display: "flex", flexDirection: "column", gap: "6px" } }}>
+        <div {...{ style: { display: "flex", flexWrap: "wrap", gap: "6px" } }}>
           {(compareEntries.length > 0 ? compareEntries : topStats.map(([key, currentVal]) => ({ key, currentVal, diff: currentVal }))).map(entry => (
             <span
+              className="fl-inventory-compare-pill"
               key={`quick-${entry.key}`}
-              style={{
+              {...{ style: {
                 ...miniStatPillStyle,
                 color: entry.diff > 0 ? "var(--tone-success-strong, #166534)" : entry.diff < 0 ? "var(--tone-danger, #D85A30)" : "var(--color-text-secondary, #64748b)",
                 background: entry.diff > 0 ? "var(--tone-success-soft, #ecfdf5)" : entry.diff < 0 ? "var(--tone-danger-soft, #fff1f2)" : "var(--color-background-tertiary, #f1f5f9)",
-              }}
+              } }}
             >
               {STAT_LABELS[entry.key]} <strong>{entry.diff !== 0 ? formatDiffValue(entry.key, entry.diff) : `+${formatStatValue(entry.key, entry.currentVal)}`}</strong>
             </span>
@@ -994,24 +1056,25 @@ function InventoryRow({ item, tutorialTarget = false, equippedCompare, activeBui
         </div>
       </div>
 
-      {implicitEntries.length > 0 && <div style={{ fontSize: "0.62rem", color: "var(--color-text-info, #4338ca)", fontWeight: "800" }}>Implicito: {formatImplicitSummary(item)}</div>}
+      {implicitEntries.length > 0 && <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-info, #4338ca)", fontWeight: "800" } }}>Implicito: {formatImplicitSummary(item)}</div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+      <div {...{ style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" } }}>
         <button
+          className="fl-inventory-row-action fl-inventory-row-action--equip"
           onClick={onEquip}
           data-onboarding-target={spotlightEquip ? "equip-item" : undefined}
-          style={{
+          {...{ style: {
             ...btnBase,
             background: "var(--tone-accent-soft, #ede9fe)",
             color: "var(--tone-accent, #534AB7)",
             padding: "8px 10px",
             boxShadow: spotlightEquip ? "0 0 0 2px rgba(83,74,183,0.16), 0 8px 20px rgba(83,74,183,0.18)" : "none",
             animation: spotlightEquip ? "inventorySpotlightPulse 1600ms ease-in-out infinite" : "none",
-          }}
+          } }}
         >
           EQUIPAR
         </button>
-        <button onClick={lockInteractions ? undefined : onSell} disabled={lockInteractions} style={{ ...btnBase, background: pendingSell ? "#7f1d1d" : "var(--color-background-secondary, #ffffff)", color: pendingSell ? "#fff" : "#D85A30", border: `1px solid ${pendingSell ? "#ef4444" : "#D85A30"}`, opacity: lockInteractions ? 0.45 : 1, cursor: lockInteractions ? "not-allowed" : "pointer" }}>
+        <button className={pendingSell ? "fl-inventory-row-action fl-inventory-row-action--sell is-pending" : "fl-inventory-row-action fl-inventory-row-action--sell"} onClick={lockInteractions ? undefined : onSell} disabled={lockInteractions} {...{ style: { ...btnBase, background: pendingSell ? "#7f1d1d" : "var(--color-background-secondary, #ffffff)", color: pendingSell ? "#fff" : "#D85A30", border: `1px solid ${pendingSell ? "#ef4444" : "#D85A30"}`, opacity: lockInteractions ? 0.45 : 1, cursor: lockInteractions ? "not-allowed" : "pointer" } }}>
           {pendingSell ? `CONFIRMAR ${formatNumber(item.sellValue || 0)}g` : `VENDER ${formatNumber(item.sellValue || 0)}g`}
         </button>
       </div>
@@ -1028,48 +1091,48 @@ function ItemDetailModal({ item, equippedCompare, wishlistAffixes = [], isDarkMo
   const visibleAffixes = showAllAffixes ? affixes : affixes.slice(0, 4);
 
   return (
-    <div style={modalWrapStyle} onClick={onClose}>
-      <div style={modalCardStyle} onClick={event => event.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" }}>
+    <div {...{ style: modalWrapStyle }} onClick={onClose}>
+      <div className="fl2-inline-modal" {...{ style: modalCardStyle }} onClick={event => event.stopPropagation()}>
+        <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start" } }}>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-              <span style={rarityBadgeStyle(item.rarity)}>{getCompactRarityLabel(item.rarity)}</span>
-              <span style={{ ...itemGlyphStyle, fontSize: "0.94rem" }}>{getItemGlyph(item.name)}</span>
-              <div style={{ fontSize: "1rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", marginTop: "2px" }}>{item.name}</div>
-              {(item.level || 0) > 0 && <span style={upgradeBadgeStyle(item.level)}>{`+${item.level}`}</span>}
+            <div {...{ style: { display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" } }}>
+              <span className="fl-inventory-rarity-badge" {...{ style: rarityBadgeStyle(item.rarity) }}>{getCompactRarityLabel(item.rarity)}</span>
+              <span {...{ style: { ...itemGlyphStyle, fontSize: "0.94rem" } }}>{getItemGlyph(item.name)}</span>
+              <div {...{ style: { fontSize: "1rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900", marginTop: "2px" } }}>{item.name}</div>
+              {(item.level || 0) > 0 && <span {...{ style: upgradeBadgeStyle(item.level) }}>{`+${item.level}`}</span>}
             </div>
-            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>{item.familyName || "Sin familia"} · Poder {formatNumber(item.rating || 0)} · Comparado con equipado: {formatNumber((item.rating || 0) - (equippedCompare?.rating || 0))}</div>
+            <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" } }}>{item.familyName || "Sin familia"} · Poder {formatNumber(item.rating || 0)} · Comparado con equipado: {formatNumber((item.rating || 0) - (equippedCompare?.rating || 0))}</div>
           </div>
-          <button onClick={onClose} style={{ border: "none", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", width: "32px", height: "32px", borderRadius: "999px", cursor: "pointer", fontWeight: "900" }}>×</button>
+          <button onClick={onClose} {...{ style: { border: "none", background: "var(--color-background-tertiary, #f8fafc)", color: "var(--color-text-primary, #1e293b)", width: "32px", height: "32px", borderRadius: "999px", cursor: "pointer", fontWeight: "900" } }}>×</button>
         </div>
 
         {legendaryPower && (
-          <section style={{ ...detailBlockStyle, background: isDarkMode ? "rgba(124,58,237,0.14)" : "#faf5ff", borderColor: isDarkMode ? "rgba(196,181,253,0.28)" : "#ddd6fe" }}>
-            <div style={{ ...detailTitleStyle, color: isDarkMode ? "#c4b5fd" : "#6d28d9" }}>Poder Legendario</div>
-            <div style={{ fontSize: "0.78rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>{legendaryPower.name}</div>
-            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.4 }}>{legendaryPower.description}</div>
+          <section {...{ style: { ...detailBlockStyle, background: isDarkMode ? "rgba(124,58,237,0.14)" : "#faf5ff", borderColor: isDarkMode ? "rgba(196,181,253,0.28)" : "#ddd6fe" } }}>
+            <div {...{ style: { ...detailTitleStyle, color: isDarkMode ? "#c4b5fd" : "#6d28d9" } }}>Poder Legendario</div>
+            <div {...{ style: { fontSize: "0.78rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" } }}>{legendaryPower.name}</div>
+            <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.4 } }}>{legendaryPower.description}</div>
           </section>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px", maxHeight: "48vh", overflowY: "auto" }}>
-          <section style={detailBlockStyle}>
-            <div style={{ ...detailTitleStyle, marginBottom: "8px" }}>Tabla Completa</div>
+        <div {...{ style: { display: "grid", gridTemplateColumns: "1fr", gap: "10px", maxHeight: "48vh", overflowY: "auto" } }}>
+          <section {...{ style: detailBlockStyle }}>
+            <div {...{ style: { ...detailTitleStyle, marginBottom: "8px" } }}>Tabla Completa</div>
             {(() => {
               const statKeys = Object.keys(STAT_LABELS).filter(key => (stats[key] || 0) > 0 || (compareItem.bonus?.[key] || 0) > 0);
               return (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "7px" }}>
+                <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "7px" } }}>
                   {[0, 1].map(columnIndex => (
-                    <div key={columnIndex} style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "8px", padding: "6px", background: "var(--color-background-tertiary, #f8fafc)", display: "grid", gap: "6px", alignContent: "start" }}>
+                    <div key={columnIndex} {...{ style: { border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "8px", padding: "6px", background: "var(--color-background-tertiary, #f8fafc)", display: "grid", gap: "6px", alignContent: "start" } }}>
                       {statKeys.filter((_, index) => index % 2 === columnIndex).map(key => {
                         const currentVal = stats[key] || 0;
                         const equippedVal = compareItem.bonus?.[key] || 0;
                         const diff = currentVal - equippedVal;
                         return (
-                          <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px", minWidth: 0 }}>
-                            <span style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #475569)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{STAT_LABELS[key]}</span>
-                            <div style={{ display: "flex", gap: "4px", alignItems: "center", flexShrink: 0 }}>
-                              <span style={{ color: "var(--color-text-primary, #1e293b)", fontWeight: "900", fontSize: "0.66rem" }}>{formatStatValue(key, currentVal)}</span>
-                              <span style={diffBadgeStyle(diff)}>{formatDiffValue(key, diff)}</span>
+                          <div key={key} {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px", minWidth: 0 } }}>
+                            <span {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #475569)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }}>{STAT_LABELS[key]}</span>
+                            <div {...{ style: { display: "flex", gap: "4px", alignItems: "center", flexShrink: 0 } }}>
+                              <span {...{ style: { color: "var(--color-text-primary, #1e293b)", fontWeight: "900", fontSize: "0.66rem" } }}>{formatStatValue(key, currentVal)}</span>
+                              <span {...{ style: diffBadgeStyle(diff) }}>{formatDiffValue(key, diff)}</span>
                             </div>
                           </div>
                         );
@@ -1082,39 +1145,39 @@ function ItemDetailModal({ item, equippedCompare, wishlistAffixes = [], isDarkMo
           </section>
 
           {affixes.length > 0 && (
-            <section style={detailBlockStyle}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                <div style={{ ...detailTitleStyle, marginBottom: 0 }}>Afijos</div>
+            <section {...{ style: detailBlockStyle }}>
+              <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "8px" } }}>
+                <div {...{ style: { ...detailTitleStyle, marginBottom: 0 } }}>Afijos</div>
                 {affixes.length > 4 && (
                   <button
                     onClick={() => setShowAllAffixes(current => !current)}
-                    style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #475569)", borderRadius: "999px", padding: "4px 8px", fontSize: "0.58rem", fontWeight: "900", cursor: "pointer" }}
+                    {...{ style: { border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #475569)", borderRadius: "999px", padding: "4px 8px", fontSize: "0.58rem", fontWeight: "900", cursor: "pointer" } }}
                   >
                     {showAllAffixes ? "Ver menos" : `Ver ${affixes.length - 4} mas`}
                   </button>
                 )}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+              <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" } }}>
                 {visibleAffixes.map((affix, index) => (
                   <div
                     key={`${affix.id}-${index}`}
-                    style={{
+                    {...{ style: {
                       border: affix?.quality === "excellent" ? (isDarkMode ? "1px solid rgba(245,158,11,0.52)" : "1px solid #f59e0b") : "1px solid var(--color-border-primary, #e2e8f0)",
                       borderRadius: "10px",
                       padding: "8px",
                       background: affix?.quality === "excellent" ? (isDarkMode ? "rgba(217,119,6,0.18)" : "#fffbeb") : "var(--color-background-secondary, #ffffff)",
-                    }}
+                    } }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
-                      <div style={{ fontSize: "0.74rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" }}>{STAT_LABELS[affix.stat] || affix.stat}</div>
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                        {affix?.quality === "excellent" && <span style={{ fontSize: "0.58rem", fontWeight: "900", color: isDarkMode ? "#fcd34d" : "#b45309", background: isDarkMode ? "rgba(217,119,6,0.24)" : "#fef3c7", padding: "2px 6px", borderRadius: "999px" }}>EXCELENTE</span>}
-                        {wishlistAffixes.includes(affix.stat) && <span style={{ fontSize: "0.58rem", fontWeight: "900", color: isDarkMode ? "#5eead4" : "#0f766e", background: isDarkMode ? "rgba(13,148,136,0.24)" : "#ccfbf1", padding: "2px 6px", borderRadius: "999px" }}>WISHLIST</span>}
+                    <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" } }}>
+                      <div {...{ style: { fontSize: "0.74rem", color: "var(--color-text-primary, #1e293b)", fontWeight: "900" } }}>{STAT_LABELS[affix.stat] || affix.stat}</div>
+                      <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
+                        {affix?.quality === "excellent" && <span {...{ style: { fontSize: "0.58rem", fontWeight: "900", color: isDarkMode ? "#fcd34d" : "#b45309", background: isDarkMode ? "rgba(217,119,6,0.24)" : "#fef3c7", padding: "2px 6px", borderRadius: "999px" } }}>EXCELENTE</span>}
+                        {wishlistAffixes.includes(affix.stat) && <span {...{ style: { fontSize: "0.58rem", fontWeight: "900", color: isDarkMode ? "#5eead4" : "#0f766e", background: isDarkMode ? "rgba(13,148,136,0.24)" : "#ccfbf1", padding: "2px 6px", borderRadius: "999px" } }}>WISHLIST</span>}
                       </div>
                     </div>
-                    <div style={{ fontSize: "0.78rem", color: affix?.quality === "excellent" ? "#b45309" : "var(--color-text-primary, #0f172a)", fontWeight: "900", marginTop: "4px" }}>+{formatStatValue(affix.stat, affix.rolledValue ?? affix.value ?? 0)}</div>
-                    <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>Rango: {formatStatValue(affix.stat, affix.range?.min ?? 0)} - {formatStatValue(affix.stat, affix.range?.max ?? 0)}</div>
-                    <div style={{ fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "3px" }}>{affix.kind === "prefix" ? "Prefijo" : "Sufijo"} · {affix.qualityLabel || (affix?.quality === "excellent" ? "Excelente" : "Normal")}</div>
+                    <div {...{ style: { fontSize: "0.78rem", color: affix?.quality === "excellent" ? "#b45309" : "var(--color-text-primary, #0f172a)", fontWeight: "900", marginTop: "4px" } }}>+{formatStatValue(affix.stat, affix.rolledValue ?? affix.value ?? 0)}</div>
+                    <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" } }}>Rango: {formatStatValue(affix.stat, affix.range?.min ?? 0)} - {formatStatValue(affix.stat, affix.range?.max ?? 0)}</div>
+                    <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-tertiary, #94a3b8)", marginTop: "3px" } }}>{affix.kind === "prefix" ? "Prefijo" : "Sufijo"} · {affix.qualityLabel || (affix?.quality === "excellent" ? "Excelente" : "Normal")}</div>
                   </div>
                 ))}
               </div>
@@ -1123,25 +1186,25 @@ function ItemDetailModal({ item, equippedCompare, wishlistAffixes = [], isDarkMo
 
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+        <div {...{ style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" } }}>
           <button
             onClick={onEquip}
             data-onboarding-target={spotlightEquip ? "equip-item" : undefined}
-            style={{
+            {...{ style: {
               ...btnBase,
               background: "var(--tone-accent-soft, #ede9fe)",
               color: "var(--tone-accent, #534AB7)",
               padding: "10px",
               boxShadow: spotlightEquip ? "0 0 0 2px rgba(83,74,183,0.16), 0 8px 20px rgba(83,74,183,0.18)" : "none",
               animation: spotlightEquip ? "inventorySpotlightPulse 1600ms ease-in-out infinite" : "none",
-            }}
+            } }}
           >
             EQUIPAR
           </button>
           <button
             onClick={onSell}
             disabled={!canSell}
-            style={{ ...btnBase, background: canSell ? "var(--color-background-secondary, #fff)" : "var(--color-background-tertiary, #f8fafc)", color: canSell ? "#D85A30" : "var(--color-text-tertiary, #94a3b8)", border: `1px solid ${canSell ? "#D85A30" : "var(--color-border-primary, #e2e8f0)"}`, cursor: canSell ? "pointer" : "not-allowed" }}
+            {...{ style: { ...btnBase, background: canSell ? "var(--color-background-secondary, #fff)" : "var(--color-background-tertiary, #f8fafc)", color: canSell ? "#D85A30" : "var(--color-text-tertiary, #94a3b8)", border: `1px solid ${canSell ? "#D85A30" : "var(--color-border-primary, #e2e8f0)"}`, cursor: canSell ? "pointer" : "not-allowed" } }}
           >
             {canSell ? `VENDER ${formatNumber(item.sellValue || 0)}g` : "ITEM EQUIPADO"}
           </button>
@@ -1151,8 +1214,8 @@ function ItemDetailModal({ item, equippedCompare, wishlistAffixes = [], isDarkMo
   );
 }
 
-const compactCardStyle = { background: "var(--color-background-secondary, #ffffff)", borderRadius: "12px", padding: "10px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 1px 2px var(--color-shadow, rgba(0,0,0,0.05))", display: "flex", flexDirection: "column", gap: "8px", minWidth: 0, position: "relative" };
-const miniStatPillStyle = { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", background: "var(--color-background-tertiary, #f1f5f9)", padding: "2px 6px", borderRadius: "999px", lineHeight: 1.2 };
+const compactCardStyle = { borderRadius: "12px", padding: "10px", display: "flex", flexDirection: "column", gap: "8px", minWidth: 0, position: "relative" };
+const miniStatPillStyle = { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", background: "var(--fl2-surface-bg-soft, var(--color-background-tertiary, #f1f5f9))", padding: "2px 6px", borderRadius: "999px", lineHeight: 1.2 };
 const itemGlyphStyle = { fontSize: "0.78rem", fontWeight: "900", color: "var(--color-text-secondary, #475569)", flexShrink: 0 };
 const rarityBadgeStyle = rarity => {
   const color = getRarityColor(rarity);
@@ -1176,8 +1239,8 @@ const upgradeBadgeStyle = level => {
 const betterBadgeStyle = isDarkMode => ({ background: isDarkMode ? "rgba(22,163,74,0.22)" : "var(--tone-success-soft, #ecfdf5)", color: isDarkMode ? "var(--tone-success, #86efac)" : "var(--tone-success-strong, #166534)", fontSize: "0.54rem", padding: "2px 6px", borderRadius: "999px", fontWeight: "900", letterSpacing: "0.03em", border: `1px solid ${isDarkMode ? "rgba(34,197,94,0.44)" : "var(--tone-success, #bbf7d0)"}` });
 const powerBadgeStyle = isDarkMode => ({ background: isDarkMode ? "rgba(124,58,237,0.22)" : "#faf5ff", color: isDarkMode ? "#ddd6fe" : "#6d28d9", fontSize: "0.54rem", padding: "2px 6px", borderRadius: "999px", fontWeight: "900", letterSpacing: "0.03em", border: `1px solid ${isDarkMode ? "rgba(196,181,253,0.35)" : "#ddd6fe"}` });
 const gearButtonStyle = isDarkMode => ({
-  border: "1px solid var(--color-border-secondary, #cbd5e1)",
-  background: isDarkMode ? "rgba(30,41,59,0.55)" : "var(--color-background-secondary, #fff)",
+  border: "1px solid var(--fl2-surface-border, var(--color-border-secondary, #cbd5e1))",
+  background: "var(--fl2-surface-bg-soft, var(--color-background-secondary, #fff))",
   color: "var(--color-text-secondary, #475569)",
   borderRadius: "999px",
   padding: "6px 11px",
@@ -1306,16 +1369,13 @@ const quickActionButtonStyle = (background, color, border) => ({
   cursor: "pointer",
 });
 const sectionTitleStyle = { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginBottom: "0.7rem", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: "800" };
-const emptyStateStyle = { textAlign: "center", padding: "2rem 1rem", color: "var(--color-text-tertiary, #94a3b8)", border: "2px dashed var(--color-border-primary, #e2e8f0)", borderRadius: "12px", fontSize: "0.82rem", background: "var(--color-background-tertiary, #f8fafc)" };
+const emptyStateStyle = { textAlign: "center", padding: "2rem 1rem", color: "var(--color-text-tertiary, #94a3b8)", border: "2px dashed var(--fl2-surface-border, var(--color-border-primary, #e2e8f0))", borderRadius: "12px", fontSize: "0.82rem", background: "var(--fl2-surface-bg-soft, var(--color-background-tertiary, #f8fafc))" };
 const modalWrapStyle = { position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: "18px", zIndex: 7000 };
-const modalCardStyle = { width: "min(760px, 100%)", maxHeight: "85vh", background: "var(--color-background-secondary, #fff)", borderRadius: "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", boxShadow: "0 20px 50px rgba(15,23,42,0.25)", padding: "14px", display: "flex", flexDirection: "column", gap: "12px" };
+const modalCardStyle = { width: "min(760px, 100%)", maxHeight: "85vh", borderRadius: "18px", padding: "14px", display: "flex", flexDirection: "column", gap: "12px" };
 const lootFilterModalCardStyle = isMobile => ({
   width: isMobile ? "100%" : "min(720px, 100%)",
   maxHeight: isMobile ? "88vh" : "82vh",
-  background: "var(--color-background-secondary, #fff)",
   borderRadius: isMobile ? "18px 18px 0 0" : "18px",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  boxShadow: "0 20px 50px rgba(15,23,42,0.25)",
   padding: "14px",
   display: "flex",
   flexDirection: "column",
@@ -1335,7 +1395,7 @@ const sheetDragHandleStyle = {
   borderRadius: "999px",
   background: "rgba(148,163,184,0.65)",
 };
-const detailBlockStyle = { background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "12px", padding: "10px" };
+const detailBlockStyle = { background: "var(--fl2-surface-bg-soft, var(--color-background-secondary, #fff))", border: "1px solid var(--fl2-surface-border, var(--color-border-primary, #e2e8f0))", borderRadius: "12px", padding: "10px" };
 const detailTitleStyle = { fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", fontWeight: "900", letterSpacing: "0.06em", marginBottom: "8px" };
 const diffBadgeStyle = diff => ({ fontSize: "0.62rem", color: diff > 0 ? "var(--tone-success, #1D9E75)" : diff < 0 ? "var(--tone-danger, #D85A30)" : "var(--color-text-tertiary, #94a3b8)", background: diff > 0 ? "var(--tone-success-soft, #ecfdf5)" : diff < 0 ? "var(--tone-danger-soft, #fff1f2)" : "var(--color-background-tertiary, #f1f5f9)", padding: "2px 5px", borderRadius: "6px", fontWeight: "900" });
 

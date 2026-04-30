@@ -1,0 +1,135 @@
+.app-shell-root--forge-light-v2 .combat-forge-hpbar__track,
+.app-shell-root--forge-light-v2 .combat-forge-resourcebar__track {
+  background: rgba(10, 13, 18, 0.82);
+  border-color: rgba(198, 161, 91, 0.32);
+  border-radius: var(--fl2-radius-sm) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl2-progress,
+.app-shell-root--forge-light-v2 :where(.fl-progress, .fl-crafting-preview-entropy-track, .fl-crafting-upgrade-progress, .forge-character-bar-track, .forge-attribute-track, .fl-sanctuary-progress-wrap .fl-progress-track) {
+  background: rgba(10, 13, 18, 0.84) !important;
+  border: 1px solid var(--fl2-gold-muted) !important;
+  border-radius: var(--fl2-radius-sm) !important;
+  overflow: hidden;
+}
+
+.app-shell-root--forge-light-v2 .fl2-progress__fill,
+.app-shell-root--forge-light-v2 :where(.fl-progress-fill, .fl-crafting-preview-entropy-current, .fl-crafting-track-current, .forge-character-bar-fill, .forge-attribute-track-fill) {
+  background: linear-gradient(90deg, #4a2e0a, #8b5a1a, var(--fl2-gold), var(--fl2-gold-strong)) !important;
+  box-shadow: inset 0 0 10px rgba(198, 161, 91, 0.2);
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-shell-root--forge-light-v2 .fl-progress__fill {
+  width: var(--fl-progress-percent, 0%);
+}
+
+.app-shell-root--forge-light-v2 .fl-progress__milestone {
+  left: var(--fl-progress-milestone-left, 0%);
+}
+
+.app-shell-root--forge-light-v2 :where(.forge-character-bar--hp .forge-character-bar-fill, .combat-forge-hpbar__fill) {
+  background: linear-gradient(90deg, #8b1f1f, #c43232, var(--fl2-danger)) !important;
+  box-shadow: inset 0 0 12px rgba(224, 90, 90, 0.3);
+}
+
+.app-shell-root--forge-light-v2 :where(.forge-character-bar--xp .forge-character-bar-fill, .combat-forge-resourcebar__fill) {
+  background: linear-gradient(90deg, #1a3a6e, #2d5fa3, var(--fl2-defense)) !important;
+}
+
+.app-shell-root--forge-light-v2 .job-progress {
+  display: grid;
+  gap: 4px;
+}
+
+.app-shell-root--forge-light-v2 .job-progress--compact {
+  gap: 3px;
+}
+
+.app-shell-root--forge-light-v2 .job-progress__track {
+  width: 100%;
+  height: var(--job-progress-height, 7px);
+  overflow: hidden;
+  background: var(--job-progress-track, rgba(10, 13, 18, 0.84));
+  border: 1px solid var(--fl2-gold-muted);
+  border-radius: 999px;
+}
+
+.app-shell-root--forge-light-v2 .job-progress__fill {
+  position: relative;
+  width: var(--job-progress-width, 0%);
+  height: 100%;
+  overflow: hidden;
+  background:
+    linear-gradient(
+      90deg,
+      var(--job-progress-tone, var(--fl2-defense)) 0%,
+      var(--job-progress-tone, var(--fl2-defense)) 58%,
+      rgba(255, 255, 255, 0.86) 100%
+    );
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(2, 6, 23, 0.08), 0 0 12px rgba(2, 6, 23, 0.08);
+  transition: width 900ms linear;
+}
+
+.app-shell-root--forge-light-v2 .job-progress--active .job-progress__fill {
+  animation: jobProgressPulse 3600ms ease-in-out infinite;
+}
+
+.app-shell-root--forge-light-v2 .job-progress__shine {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: -52%;
+  width: 46%;
+  pointer-events: none;
+  background: linear-gradient(102deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.7) 52%, rgba(255, 255, 255, 0) 100%);
+  border-radius: 999px;
+  opacity: 0;
+}
+
+.app-shell-root--forge-light-v2 .job-progress--active .job-progress__shine {
+  opacity: 1;
+  animation: jobProgressShimmer 2800ms ease-in-out infinite;
+}
+
+.app-shell-root--forge-light-v2 .job-progress__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--fl2-text-secondary);
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.app-shell-root--forge-light-v2 .job-progress--compact .job-progress__meta {
+  font-size: 0.6rem;
+}
+
+@keyframes jobProgressPulse {
+  0%, 100% {
+    filter: brightness(1);
+  }
+
+  50% {
+    filter: brightness(1.09);
+  }
+}
+
+@keyframes jobProgressShimmer {
+  0% {
+    transform: translateX(-145%) skewX(-18deg);
+    opacity: 0;
+  }
+
+  20%,
+  65% {
+    opacity: 0.7;
+  }
+
+  100% {
+    transform: translateX(260%) skewX(-18deg);
+    opacity: 0;
+  }
+}

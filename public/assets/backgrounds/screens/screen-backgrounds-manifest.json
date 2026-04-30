@@ -1,0 +1,53 @@
+{
+  "generatedAt": "2026-04-30T03:11:27.330Z",
+  "assets": [
+    {
+      "id": "combat_ruins",
+      "fileName": "screen_combat_ruins.webp",
+      "path": "/assets/backgrounds/screens/screen_combat_ruins.webp",
+      "cssVar": "--screen-bg-combat"
+    },
+    {
+      "id": "sanctuary_forge",
+      "fileName": "screen_sanctuary_forge.webp",
+      "path": "/assets/backgrounds/screens/screen_sanctuary_forge.webp",
+      "cssVar": "--screen-bg-sanctuary"
+    },
+    {
+      "id": "inventory_armory",
+      "fileName": "screen_inventory_armory.webp",
+      "path": "/assets/backgrounds/screens/screen_inventory_armory.webp",
+      "cssVar": "--screen-bg-inventory"
+    },
+    {
+      "id": "crafting_workshop",
+      "fileName": "screen_crafting_workshop.webp",
+      "path": "/assets/backgrounds/screens/screen_crafting_workshop.webp",
+      "cssVar": "--screen-bg-crafting"
+    },
+    {
+      "id": "talents_sigil",
+      "fileName": "screen_talents_sigil.webp",
+      "path": "/assets/backgrounds/screens/screen_talents_sigil.webp",
+      "cssVar": "--screen-bg-talents"
+    },
+    {
+      "id": "character_hall",
+      "fileName": "screen_character_hall.webp",
+      "path": "/assets/backgrounds/screens/screen_character_hall.webp",
+      "cssVar": "--screen-bg-character"
+    },
+    {
+      "id": "stats_archive",
+      "fileName": "screen_stats_archive.webp",
+      "path": "/assets/backgrounds/screens/screen_stats_archive.webp",
+      "cssVar": "--screen-bg-stats"
+    },
+    {
+      "id": "prestige_altar",
+      "fileName": "screen_prestige_altar.webp",
+      "path": "/assets/backgrounds/screens/screen_prestige_altar.webp",
+      "cssVar": "--screen-bg-prestige"
+    }
+  ]
+}

@@ -1,0 +1,186 @@
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] {
+  color: var(--fl2-text);
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"].app-shell-root--forge-combat {
+  background:
+    var(--fl2-screen-bg, url("/assets/combat/backgrounds/ruinas_olvidadas.png")) center top / cover no-repeat fixed,
+    #05080a !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-root {
+  --color-background-primary: transparent;
+  --color-background-secondary: rgba(8, 10, 11, 0.58);
+  --color-background-tertiary: rgba(5, 8, 10, 0.48);
+  --color-text-primary: var(--fl2-text);
+  --color-text-secondary: var(--fl2-text-secondary);
+  --color-text-tertiary: var(--fl2-text-muted);
+  --color-border-primary: var(--fl2-gold-muted);
+  --color-border-secondary: rgba(198, 161, 91, 0.16);
+  --tone-success: var(--fl2-success);
+  --tone-success-strong: var(--fl2-success);
+  --tone-success-soft: rgba(79, 209, 139, 0.1);
+  --tone-danger: var(--fl2-danger);
+  --tone-danger-strong: var(--fl2-danger);
+  --tone-danger-soft: rgba(224, 90, 90, 0.1);
+  --tone-warning: var(--fl2-warning);
+  --tone-warning-soft: rgba(242, 184, 75, 0.1);
+  --tone-violet: var(--fl2-arcane);
+  --tone-violet-soft: rgba(138, 91, 232, 0.11);
+  --tone-accent: var(--fl2-arcane);
+  --tone-accent-soft: rgba(138, 91, 232, 0.11);
+  color: var(--fl2-text);
+  font-family: var(--fl2-font-ui);
+  position: relative;
+  min-height: calc(100dvh - var(--app-header-offset, 62px) - var(--app-bottom-nav-offset, 0px));
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-root--forge-assets,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-root {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-root--forge-assets::before,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-root::before {
+  content: none !important;
+  background: transparent !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-main-panel,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-stat-grid,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-session-panel,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-log-panel {
+  color: var(--fl2-text) !important;
+  border-color: transparent !important;
+  border-radius: var(--fl2-radius-lg) !important;
+  box-shadow: var(--fl2-surface-shadow) !important;
+  clip-path: none !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-main-panel {
+  position: relative;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(243, 198, 95, 0.04), transparent 34%),
+    linear-gradient(180deg, rgba(7, 10, 11, 0.07), rgba(7, 10, 11, 0.16)) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-stat-grid {
+  position: relative;
+  z-index: 2;
+  overflow: visible !important;
+  background:
+    radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.055), transparent 24%),
+    linear-gradient(180deg, rgba(8, 10, 11, 0.62), rgba(5, 8, 10, 0.58)) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-session-panel,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-log-panel {
+  position: relative;
+  background:
+    radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.05), transparent 24%),
+    linear-gradient(180deg, rgba(8, 10, 11, 0.58), rgba(5, 8, 10, 0.54)) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-stat-grid::before,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-session-panel::before,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-log-panel::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -10px;
+  z-index: 1;
+  width: 5px;
+  height: 5px;
+  background:
+    radial-gradient(circle, var(--fl2-gold-strong) 0 26%, var(--fl2-gold) 62%, rgba(198, 161, 91, 0.72) 100%);
+  border: 1px solid rgba(255, 232, 166, 0.48);
+  box-shadow: 0 0 10px rgba(243, 198, 95, 0.26);
+  transform: translate(-50%, 50%) rotate(45deg);
+  pointer-events: none;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-stat-grid::after,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-session-panel::after,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-log-panel::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: -7px;
+  height: 1px;
+  background: var(--fl2-divider-line);
+  pointer-events: none;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-enemy-stage {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.06) 62%, rgba(0, 0, 0, 0.12)),
+    radial-gradient(circle at 50% 58%, rgba(105, 226, 79, 0.1), transparent 27%),
+    transparent !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-enemy-stage::before {
+  background: radial-gradient(ellipse at center, rgba(105, 226, 79, 0.18), transparent 70%) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-tier__title,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-enemy-name,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-stat-card p:nth-child(2) {
+  color: var(--fl2-gold) !important;
+  font-family: var(--fl2-font-display);
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-tier__zone,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-stat-card p:first-child {
+  color: var(--fl2-text-muted) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-tier__nav,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-tier__auto,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-stage-control,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-side-action,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-session-panel button,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-log-panel button {
+  border-color: rgba(198, 161, 91, 0.35) !important;
+  background: rgba(8, 10, 11, 0.68) !important;
+  color: var(--fl2-text-secondary) !important;
+  box-shadow:
+    var(--fl2-shadow-inset),
+    0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-tier__nav:hover:not(:disabled),
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-tier__auto:hover:not(:disabled),
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-stage-control:hover:not(:disabled),
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-side-action:hover:not(:disabled),
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-session-panel button:hover:not(:disabled),
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-log-panel button:hover:not(:disabled) {
+  border-color: var(--fl2-gold-strong) !important;
+  color: var(--fl2-text) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-stage-control--extract,
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-tier__auto.is-active {
+  border-color: var(--fl2-gold) !important;
+  background: linear-gradient(180deg, #2a1e0d 0%, #1a1309 100%) !important;
+  color: var(--fl2-text) !important;
+  box-shadow:
+    0 0 0 1px rgba(198, 161, 91, 0.08) inset,
+    var(--fl2-shadow-inset),
+    0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-hpbar--hero .combat-forge-hpbar__fill {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--fl2-success) 35%, black), var(--fl2-success));
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-resourcebar__fill {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--fl2-defense) 35%, black), var(--fl2-defense));
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-stat-card {
+  border-right-color: var(--fl2-gold-muted) !important;
+  border-radius: 0 !important;
+}

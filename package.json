@@ -10,6 +10,7 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "playwright": "^1.59.1",
     "vite": "^5.0.0"
   },
   "scripts": {
@@ -20,6 +21,28 @@
     "smoke:contracts-weekly": "node scripts/run-contracts-weekly-regression.mjs",
     "smoke:tick-stages": "node scripts/run-process-tick-stage-regression.mjs",
     "smoke:kpi-mvp": "node scripts/run-mvp-kpi-regression.mjs",
+    "smoke:responsive": "node scripts/smokeResponsiveViewports.mjs",
+    "assets:generate": "node scripts/generate-image-assets.mjs",
+    "assets:items:prepare": "node scripts/prepare-item-asset-prompts.mjs",
+    "assets:items:pilot": "node scripts/generate-image-assets.mjs --input uirefactor/asset-generation/items-pilot-8.md",
+    "assets:items:remaining": "node scripts/generate-image-assets.mjs --input uirefactor/asset-generation/items-remaining-67.md",
+    "assets:items:all": "node scripts/generate-image-assets.mjs --input uirefactor/asset-generation/items-all.md",
+    "assets:bosses:all": "node scripts/generate-image-assets.mjs --input uirefactor/asset-generation/bosses/bosses-all.md --global-prompt uirefactor/asset-generation/bosses/global-boss-rules.md --filter '^boss_' --out public/assets/combat/bosses --size 1024x1536",
+    "assets:bosses:future": "node scripts/generate-image-assets.mjs --input uirefactor/asset-generation/bosses/future-bosses-20.md --global-prompt uirefactor/asset-generation/bosses/global-boss-rules.md --filter '^boss_' --out public/assets/combat/bosses/future --size 1024x1536",
+    "assets:bosses:weekly": "node scripts/generate-image-assets.mjs --input uirefactor/asset-generation/bosses/weekly-bosses-10.md --global-prompt uirefactor/asset-generation/bosses/global-weekly-boss-rules.md --filter '^weekly_boss_' --out public/assets/combat/weekly-bosses --size 1024x1536",
+    "assets:enemies:missing": "node scripts/generate-image-assets.mjs --input uirefactor/asset-generation/enemies/enemies-missing-3.md --global-prompt uirefactor/asset-generation/enemies/global-enemy-rules.md --filter '^enemy_' --out public/assets/combat/enemies --size 1024x1536",
+    "assets:enemies:future": "node scripts/generate-image-assets.mjs --input uirefactor/asset-generation/enemies/future-enemies-40.md --global-prompt uirefactor/asset-generation/enemies/global-enemy-rules.md --filter '^enemy_' --out public/assets/combat/enemies/future --size 1024x1536",
+    "assets:illustrations:sanctuary": "node scripts/generate-image-assets.mjs --input uirefactor/asset-generation/illustrations/sanctuary-stations.md --global-prompt uirefactor/asset-generation/illustrations/global-sanctuary-illustration-rules.md --filter '^station_' --out public/assets/sanctuary/stations --size 1024x1024",
+    "assets:portraits:classes": "node scripts/generate-image-assets.mjs --input uirefactor/asset-generation/portraits/class-portraits.md --global-prompt uirefactor/asset-generation/portraits/global-portrait-rules.md --filter '^portrait_' --out public/assets/portraits/classes --size 1024x1024",
+    "assets:skills:prepare": "node scripts/prepare-skill-icon-prompts.mjs",
+    "assets:skills:talents": "node scripts/generate-image-assets.mjs --input uirefactor/asset-generation/skills/class-talents.md --global-prompt uirefactor/asset-generation/skills/global-skill-icon-rules.md --filter '^skill_' --out public/assets/skills/talents --size 1024x1024",
+    "assets:skills:echoes": "node scripts/generate-image-assets.mjs --input uirefactor/asset-generation/skills/echo-tree.md --global-prompt uirefactor/asset-generation/skills/global-skill-icon-rules.md --filter '^echo_' --out public/assets/skills/echoes --size 1024x1024",
+    "assets:icons:prepare": "node scripts/prepare-system-icon-prompts.mjs",
+    "assets:icons:system": "node scripts/generate-image-assets.mjs --input uirefactor/asset-generation/icons/system-icons-core.md --global-prompt uirefactor/asset-generation/icons/global-system-icon-rules.md --filter '^icon_' --out public/assets/icons/system --size 1024x1024",
+    "assets:textures:forge-light": "node scripts/generate-forge-light-textures.mjs",
+    "assets:backgrounds:screens": "node scripts/generate-screen-backgrounds.mjs",
+    "ui:capture": "node scripts/captureForgeLightScreens.mjs",
+    "ui:capture:full": "node scripts/captureForgeLightFullScreens.mjs",
     "start": "node node_modules/vite/bin/vite.js",
     "dev": "node node_modules/vite/bin/vite.js --host 0.0.0.0",
     "build": "node node_modules/vite/bin/vite.js build"

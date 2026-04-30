@@ -1,0 +1,37 @@
+.app-shell-root--forge-light-v2 .fl2-stat-row,
+.app-shell-root--forge-light-v2 :where(.forge-character-data-row, .stat-row, .forge-skills-reading-entry) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-block: 10px;
+  border-bottom: 1px solid rgba(198, 161, 91, 0.07) !important;
+}
+
+.app-shell-root--forge-light-v2 :where(.forge-character-data-row:last-child, .stat-row:last-child, .forge-skills-reading-entry:last-child) {
+  border-bottom: 0 !important;
+}
+
+.app-shell-root--forge-light-v2 :where(.forge-character-data-row span:first-child, .stat-name, .res-label) {
+  color: var(--fl2-text-secondary) !important;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-shell-root--forge-light-v2 :where(.forge-character-data-row strong, .stat-value, .res-amount) {
+  color: var(--fl2-text) !important;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.app-shell-root--forge-light-v2 .fl2-resource-pill,
+.app-shell-root--forge-light-v2 :where(.fl-header-resource, .resource-pill, .res-pill, .prestige-breakdown-row > *, .codex-radar-chips > *) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(13, 17, 24, 0.78) !important;
+  border: 1px solid var(--fl2-gold-muted) !important;
+  border-radius: var(--fl2-radius-md) !important;
+  color: var(--fl2-text) !important;
+}

@@ -1,0 +1,8 @@
+.app-shell-root--forge-light-v2[data-fl2-screen="stats"] :where(.stats-root, .stats-panel, .stats-card),
+.app-shell-root--forge-light-v2[data-fl2-screen="system"] :where(.stats-root, .stats-panel, .stats-card) {
+  background:
+    radial-gradient(circle at 9% 50%, rgba(74, 143, 231, 0.05), transparent 24%),
+    linear-gradient(180deg, rgba(8, 10, 11, 0.56), rgba(5, 8, 10, 0.52)) !important;
+  border-color: rgba(198, 161, 91, 0.18) !important;
+  color: var(--fl2-text) !important;
+}

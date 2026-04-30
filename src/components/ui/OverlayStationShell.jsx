@@ -1,96 +1,93 @@
 import React from "react";
 import OverlayShell, { OverlaySurface } from "../OverlayShell";
+import FlButton from "./forge/FlButton.jsx";
 
-function closeButtonStyle() {
-  return {
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    background: "var(--color-background-secondary, #ffffff)",
-    color: "var(--color-text-primary, #1e293b)",
-    borderRadius: "12px",
-    padding: "8px 12px",
-    fontSize: "0.68rem",
-    fontWeight: "900",
-    cursor: "pointer",
-  };
+const EMPTY_PROPS = Object.freeze({});
+
+function withStyle(style) {
+  return style && Object.keys(style).length > 0 ? { style } : EMPTY_PROPS;
 }
-
-function headerStyle(accent = "var(--tone-accent, #4338ca)") {
-  return {
-    background: "var(--color-background-secondary, #ffffff)",
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    borderTop: `3px solid ${accent}`,
-    borderRadius: "16px",
-    padding: "14px 16px",
-    boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "10px",
-    flexWrap: "wrap",
-  };
-}
-
-const bodyStyle = {
-  padding: "1rem",
-  display: "grid",
-  gap: "1rem",
-  alignItems: "start",
-  alignContent: "start",
-  background: "var(--color-background-primary, #f8fafc)",
-  color: "var(--color-text-primary, #1e293b)",
-};
 
 export default function OverlayStationShell({
   isMobile = false,
+  variant = "default",
   contentLabel = "Estacion",
   eyebrow,
   title,
   description,
   headerContent = null,
+  shellClassName = "",
+  surfaceClassName = "",
+  bodyClassName = "",
+  headerClassName = "",
+  respectHeader = true,
   accent = "var(--tone-accent, #4338ca)",
   maxWidth = "1220px",
+  zIndex,
   onClose,
   closeLabel = "Volver",
   closeOnEscape = true,
   dismissOnBackdrop = false,
   children,
 }) {
+  const isForge = variant === "forge";
+  const stationStyle = { "--overlay-station-accent": accent };
+
   return (
     <OverlayShell
       isMobile={isMobile}
+      variant={variant}
       contentLabel={contentLabel}
+      className={[isForge ? "overlay-station-shell--forge" : "", shellClassName].filter(Boolean).join(" ")}
+      respectHeader={respectHeader}
+      zIndex={zIndex}
       closeOnEscape={closeOnEscape}
       dismissOnBackdrop={dismissOnBackdrop}
       onDismiss={onClose}
-    >
-      <OverlaySurface
-        isMobile={isMobile}
-        maxWidth={maxWidth}
-        paddingMobile="0"
-        paddingDesktop="0"
-        gap="0"
       >
-        <div style={bodyStyle}>
-          <section style={headerStyle(accent)}>
-            <div>
+        <OverlaySurface
+          isMobile={isMobile}
+          maxWidth={maxWidth}
+          paddingMobile="0"
+          paddingDesktop="0"
+          gap="0"
+          variant={variant}
+          className={[isForge ? "overlay-station-surface--forge" : "", surfaceClassName].filter(Boolean).join(" ")}
+        >
+        <div
+          className={[
+            "overlay-station-body",
+            isForge ? "overlay-station-body--forge" : "",
+            bodyClassName,
+          ].filter(Boolean).join(" ")}
+        >
+          <section
+            className={[
+              "overlay-station-header",
+              isForge ? "overlay-station-header--forge" : "",
+              headerClassName,
+            ].filter(Boolean).join(" ")}
+            {...withStyle(stationStyle)}
+          >
+            <div className="overlay-station-header-copy">
               {eyebrow && (
-                <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: accent }}>
+                <div className="overlay-station-eyebrow">
                   {eyebrow}
                 </div>
               )}
               {headerContent ? (
-                <div style={{ marginTop: eyebrow ? "6px" : 0 }}>
+                <div className={["overlay-station-header-content", eyebrow ? "overlay-station-header-content--with-eyebrow" : ""].filter(Boolean).join(" ")}>
                   {headerContent}
                 </div>
               ) : (
                 <>
                   {title && (
-                    <div style={{ fontSize: "1.02rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", marginTop: eyebrow ? "4px" : 0 }}>
+                    <div className={["overlay-station-title", eyebrow ? "overlay-station-title--with-eyebrow" : ""].filter(Boolean).join(" ")}>
                       {title}
                     </div>
                   )}
                   {description && (
-                    <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" }}>
+                    <div className="overlay-station-description">
                       {description}
                     </div>
                   )}
@@ -98,9 +95,15 @@ export default function OverlayStationShell({
               )}
             </div>
             {onClose && (
-              <button onClick={onClose} style={closeButtonStyle()}>
-                {closeLabel}
-              </button>
+              isForge ? (
+                <FlButton variant="secondary" size="sm" onClick={onClose}>
+                  {closeLabel}
+                </FlButton>
+              ) : (
+                <button className="overlay-station-close fl2-button" onClick={onClose}>
+                  {closeLabel}
+                </button>
+              )
             )}
           </section>
           {children}

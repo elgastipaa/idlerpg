@@ -235,14 +235,14 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
   }
 
   return (
-    <OverlayShell isMobile={isMobile} contentLabel="Encargos">
-      <OverlaySurface isMobile={isMobile}>
+    <OverlayShell isMobile={isMobile} variant="forge" contentLabel="Encargos">
+      <OverlaySurface isMobile={isMobile} variant="forge" className="fl-station-overlay fl-station-overlay--errands">
         <div
           className={[
             "encargos-root",
             stitchTrialEnabled ? "encargos-root--stitch-trial" : "",
           ].filter(Boolean).join(" ")}
-          style={{
+          {...{ style: {
             padding: "1rem",
             display: "grid",
             gap: "1rem",
@@ -250,86 +250,86 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
             alignContent: "start",
             background: "var(--color-background-primary, #f8fafc)",
             color: "var(--color-text-primary, #1e293b)",
-          }}
+          } }}
         >
-          <section style={panelStyle(infoTone)}>
-            <div style={{ display: "grid", gap: "12px", alignItems: "start" }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: infoTone }}>
+          <section {...{ style: panelStyle(infoTone) }}>
+            <div {...{ style: { display: "grid", gap: "12px", alignItems: "start" } }}>
+              <div {...{ style: { minWidth: 0 } }}>
+                <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: infoTone } }}>
                   Encargos
                 </div>
-                <div style={{ fontSize: "1.02rem", fontWeight: "900", marginTop: "4px" }}>
+                <div {...{ style: { fontSize: "1.02rem", fontWeight: "900", marginTop: "4px" } }}>
                   Misiones auxiliares del Santuario
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" }}>
+                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" } }}>
                   Asigna equipos secundarios para recuperar recursos sin frenar la expedición principal.
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px", lineHeight: 1.35, maxWidth: "56ch" }}>
+                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px", lineHeight: 1.35, maxWidth: "56ch" } }}>
                   {statusFlavor}
                 </div>
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <span style={chipLabelStyle(infoTone)}>
+            <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap" } }}>
+              <span {...{ style: chipLabelStyle(infoTone) }}>
                 {runningJobs.length} / {errandSlots} ocupados
               </span>
-              <span style={chipLabelStyle("var(--tone-warning, #f59e0b)")}>
+              <span {...{ style: chipLabelStyle("var(--tone-warning, #f59e0b)") }}>
                 {claimableJobs.length} listos
               </span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" }}>
-              <div style={{ ...metricCardStyle(), padding: "8px 10px", gap: "2px" }}>
-                <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
+            <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" } }}>
+              <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
+                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>
                   Equipos
                 </div>
-                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{errandSlots}</div>
+                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{errandSlots}</div>
               </div>
-              <div style={{ ...metricCardStyle(), padding: "8px 10px", gap: "2px" }}>
-                <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
+              <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
+                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>
                   Libres
                 </div>
-                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{availableSlots}</div>
+                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{availableSlots}</div>
               </div>
-              <div style={{ ...metricCardStyle(), padding: "8px 10px", gap: "2px" }}>
-                <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
+              <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
+                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>
                   Tier
                 </div>
-                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{progressTier}</div>
+                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{progressTier}</div>
               </div>
-              <div style={{ ...metricCardStyle(), padding: "8px 10px", gap: "2px" }}>
-                <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
+              <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
+                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>
                   En curso
                 </div>
-                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{runningJobs.length}</div>
+                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{runningJobs.length}</div>
               </div>
-              <div style={{ ...metricCardStyle(), padding: "8px 10px", gap: "2px" }}>
-                <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
+              <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
+                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>
                   Listas
                 </div>
-                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{claimableJobs.length}</div>
+                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{claimableJobs.length}</div>
               </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button onClick={onClose} style={{ ...actionButtonStyle({ compact: true }), flex: "0 0 auto" }}>
+            <div {...{ style: { display: "flex", justifyContent: "flex-end" } }}>
+              <button onClick={onClose} {...{ style: { ...actionButtonStyle({ compact: true }), flex: "0 0 auto" } }}>
                 Volver
               </button>
             </div>
           </section>
 
           <section className="overlay-split-52-48">
-            <div style={panelStyle(infoTone)}>
+            <div {...{ style: panelStyle(infoTone) }}>
               <div
                 onClick={() => toggleSection("catalog")}
-                style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" }}
+                {...{ style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" } }}
               >
                 <div>
-                  <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: infoTone }}>
+                  <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: infoTone } }}>
                     Catalogo de encargos
                   </div>
-                  <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+                  <div {...{ style: { fontSize: "1rem", fontWeight: "900", marginTop: "4px" } }}>
                     Elegi direccion, duracion y recompensa
                   </div>
                 </div>
@@ -338,35 +338,35 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                     event.stopPropagation();
                     toggleSection("catalog");
                   }}
-                  style={{ ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
+                  {...{ style: { ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" } }}
                 >
                   {expandedSections?.catalog ? "-" : "+"}
                 </button>
               </div>
 
               {expandedSections?.catalog && (
-              <div style={{ display: "grid", gap: "8px" }}>
+              <div {...{ style: { display: "grid", gap: "8px" } }}>
                 {catalog.map(entry => {
                   const blocked = runningJobs.length >= errandSlots;
                   const entryExpanded = Boolean(expandedCatalogEntries?.[entry.id]);
                   return (
-                    <div key={entry.id} style={{ ...metricCardStyle(), padding: "9px 10px", gap: "8px" }}>
+                    <div key={entry.id} {...{ style: { ...metricCardStyle(), padding: "9px 10px", gap: "8px" } }}>
                       <div
                         onClick={() => toggleCatalogEntry(entry.id)}
-                        style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", cursor: "pointer" }}
+                        {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", cursor: "pointer" } }}
                       >
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: "0.8rem", fontWeight: "900", color: entry.familyMeta?.color || "var(--color-text-primary, #1e293b)" }}>
+                        <div {...{ style: { minWidth: 0 } }}>
+                          <div {...{ style: { fontSize: "0.8rem", fontWeight: "900", color: entry.familyMeta?.color || "var(--color-text-primary, #1e293b)" } }}>
                             {entry.label}
                           </div>
                           {entryExpanded && (
-                            <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.35 }}>
+                            <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.35 } }}>
                               {entry.description}
                             </div>
                           )}
                         </div>
-                        <div style={{ display: "flex", gap: "6px", alignItems: "start", flexWrap: "nowrap" }}>
-                          <span style={chipLabelStyle(entry.familyMeta?.color || infoTone)}>
+                        <div {...{ style: { display: "flex", gap: "6px", alignItems: "start", flexWrap: "nowrap" } }}>
+                          <span {...{ style: chipLabelStyle(entry.familyMeta?.color || infoTone) }}>
                             {entry.rewardLabel}
                           </span>
                           <button
@@ -374,7 +374,7 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                               event.stopPropagation();
                               toggleCatalogEntry(entry.id);
                             }}
-                            style={{ ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
+                            {...{ style: { ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" } }}
                           >
                             {entryExpanded ? "-" : "+"}
                           </button>
@@ -382,26 +382,26 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                       </div>
 
                       {entryExpanded && (
-                        <div className="overlay-cols-1-3" style={{ gap: "8px" }}>
+                        <div className="overlay-cols-1-3" {...{ style: { gap: "8px" } }}>
                           {entry.durationOptions.map(option => (
-                            <div key={option.id} style={{ ...metricCardStyle(), padding: "9px 10px", gap: "8px" }}>
-                              <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
-                                <div style={{ fontSize: "0.74rem", fontWeight: "900" }}>{option.shortLabel}</div>
-                                <span style={chipLabelStyle(infoTone)}>{option.rewardsLabel}</span>
+                            <div key={option.id} {...{ style: { ...metricCardStyle(), padding: "9px 10px", gap: "8px" } }}>
+                              <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" } }}>
+                                <div {...{ style: { fontSize: "0.74rem", fontWeight: "900" } }}>{option.shortLabel}</div>
+                                <span {...{ style: chipLabelStyle(infoTone) }}>{option.rewardsLabel}</span>
                               </div>
-                              <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.35 }}>
+                              <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.35 } }}>
                                 {option.summary}
                               </div>
                               <button
                                 onClick={() => dispatch({ type: "START_SANCTUARY_ERRAND", errandId: entry.id, durationId: option.id, now })}
                                 disabled={blocked}
                                 className={stitchTrialEnabled && !blocked ? "encargos-btn--ritual" : undefined}
-                                style={actionButtonStyle({
+                                {...{ style: actionButtonStyle({
                                   ritual: stitchTrialEnabled && !blocked,
                                   primary: !stitchTrialEnabled && !blocked,
                                   disabled: blocked,
                                   compact: true,
-                                })}
+                                }) }}
                               >
                                 {blocked ? "Sin equipo libre" : "Asignar"}
                               </button>
@@ -416,21 +416,21 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
               )}
             </div>
 
-            <div style={{ display: "grid", gap: "12px" }}>
-              <div style={panelStyle("var(--tone-warning, #f59e0b)")}>
+            <div {...{ style: { display: "grid", gap: "12px" } }}>
+              <div {...{ style: panelStyle("var(--tone-warning, #f59e0b)") }}>
                 <div
                   onClick={() => toggleSection("claimable")}
-                  style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" }}
+                  {...{ style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" } }}
                 >
                   <div>
-                    <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
+                    <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" } }}>
                       Recompensas listas
                     </div>
-                    <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+                    <div {...{ style: { fontSize: "1rem", fontWeight: "900", marginTop: "4px" } }}>
                       Equipos que ya volvieron
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <div {...{ style: { display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" } }}>
                     {claimableJobs.length > 0 && canRepeatClaimedErrands && (
                       <button
                         onClick={event => {
@@ -438,11 +438,11 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                           claimAllErrandJobs({ restart: true });
                         }}
                         className={stitchTrialEnabled ? "encargos-btn--ritual" : undefined}
-                        style={actionButtonStyle({
+                        {...{ style: actionButtonStyle({
                           ritual: stitchTrialEnabled,
                           warning: !stitchTrialEnabled,
                           compact: true,
-                        })}
+                        }) }}
                       >
                         Todo + repetir
                       </button>
@@ -454,11 +454,11 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                           claimAllErrandJobs();
                         }}
                         className={stitchTrialEnabled ? "encargos-btn--ritual" : undefined}
-                        style={actionButtonStyle({
+                        {...{ style: actionButtonStyle({
                           ritual: stitchTrialEnabled,
                           warning: !stitchTrialEnabled,
                           compact: true,
-                        })}
+                        }) }}
                       >
                         Reclamar todo
                       </button>
@@ -468,7 +468,7 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                         event.stopPropagation();
                         toggleSection("claimable");
                       }}
-                      style={{ ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
+                      {...{ style: { ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" } }}
                     >
                       {expandedSections?.claimable ? "-" : "+"}
                     </button>
@@ -477,31 +477,31 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
 
                 {expandedSections?.claimable && (
                   claimableJobs.length === 0 ? (
-                    <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                    <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
                       Todavia no hay equipos de regreso. Cuando un encargo termine, podras reclamarlo aca o desde el panel general de claims del Santuario.
                     </div>
                   ) : (
-                    <div style={{ display: "grid", gap: "8px" }}>
+                    <div {...{ style: { display: "grid", gap: "8px" } }}>
                       {claimableJobs.map(job => (
-                        <div key={job.id} style={{ ...metricCardStyle(), padding: "10px 12px", gap: "8px" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
+                        <div key={job.id} {...{ style: { ...metricCardStyle(), padding: "10px 12px", gap: "8px" } }}>
+                          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" } }}>
                             <div>
-                              <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>{job.output?.label || job.input?.label || "Encargo"}</div>
-                              <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.35 }}>
+                              <div {...{ style: { fontSize: "0.78rem", fontWeight: "900" } }}>{job.output?.label || job.input?.label || "Encargo"}</div>
+                              <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.35 } }}>
                                 {job.output?.summary}
                               </div>
                             </div>
-                            <span style={chipLabelStyle("var(--tone-success, #10b981)")}>Listo</span>
+                            <span {...{ style: chipLabelStyle("var(--tone-success, #10b981)") }}>Listo</span>
                           </div>
-                          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                          <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
                             <button
                               onClick={() => claimErrandJob(job, { nowAt: now })}
                               className={stitchTrialEnabled ? "encargos-btn--ritual" : undefined}
-                              style={actionButtonStyle({
+                              {...{ style: actionButtonStyle({
                                 ritual: stitchTrialEnabled,
                                 warning: !stitchTrialEnabled,
                                 compact: true,
-                              })}
+                              }) }}
                             >
                               Reclamar recompensa
                             </button>
@@ -509,11 +509,11 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                               <button
                                 onClick={() => claimErrandJob(job, { restart: true, nowAt: now + 1 })}
                                 className={stitchTrialEnabled ? "encargos-btn--ritual" : undefined}
-                                style={actionButtonStyle({
+                                {...{ style: actionButtonStyle({
                                   ritual: stitchTrialEnabled,
                                   warning: !stitchTrialEnabled,
                                   compact: true,
-                                })}
+                                }) }}
                               >
                                 Reclamar + repetir
                               </button>
@@ -526,16 +526,16 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                 )}
               </div>
 
-              <div style={panelStyle("var(--tone-accent, #4338ca)")}>
+              <div {...{ style: panelStyle("var(--tone-accent, #4338ca)") }}>
                 <div
                   onClick={() => toggleSection("running")}
-                  style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" }}
+                  {...{ style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" } }}
                 >
                   <div>
-                    <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+                    <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" } }}>
                       Misiones en curso
                     </div>
-                    <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+                    <div {...{ style: { fontSize: "1rem", fontWeight: "900", marginTop: "4px" } }}>
                       Equipos actualmente desplegados
                     </div>
                   </div>
@@ -544,7 +544,7 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                       event.stopPropagation();
                       toggleSection("running");
                     }}
-                    style={{ ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
+                    {...{ style: { ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" } }}
                   >
                     {expandedSections?.running ? "-" : "+"}
                   </button>
@@ -552,17 +552,17 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
 
                 {expandedSections?.running && (
                   runningJobs.length === 0 ? (
-                    <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                    <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
                       No hay grupos fuera del Santuario en este momento.
                     </div>
                   ) : (
-                    <div style={{ display: "grid", gap: "8px" }}>
+                    <div {...{ style: { display: "grid", gap: "8px" } }}>
                       {runningJobs.map(job => (
-                        <div key={job.id} style={{ ...metricCardStyle(), padding: "10px 12px", gap: "8px" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
+                        <div key={job.id} {...{ style: { ...metricCardStyle(), padding: "10px 12px", gap: "8px" } }}>
+                          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" } }}>
                             <div>
-                              <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>{job.output?.label || job.input?.label || "Encargo"}</div>
-                              <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.35 }}>
+                              <div {...{ style: { fontSize: "0.78rem", fontWeight: "900" } }}>{job.output?.label || job.input?.label || "Encargo"}</div>
+                              <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.35 } }}>
                                 {job.output?.summary}
                               </div>
                             </div>
@@ -576,13 +576,13 @@ export default function EncargosOverlay({ state, dispatch, isMobile = false, onC
                             rightLabel={formatRemaining(Number(job?.endsAt || 0) - now)}
                             compact
                           />
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                            <div style={{ fontSize: "0.64rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
+                          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" } }}>
+                            <div {...{ style: { fontSize: "0.64rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" } }}>
                               {job.input?.durationLabel || ""} · {job.output?.rewardLabel || "Recurso util"}
                             </div>
                             <button
                               onClick={() => dispatch({ type: "CANCEL_SANCTUARY_ERRAND", jobId: job.id, now })}
-                              style={actionButtonStyle({ compact: true })}
+                              {...{ style: actionButtonStyle({ compact: true }) }}
                             >
                               Retirar equipo
                             </button>

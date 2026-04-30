@@ -1,0 +1,17 @@
+.app-shell-root--forge-light-v2[data-fl2-screen="crafting"] .fl-crafting-title,
+.app-shell-root--forge-light-v2[data-fl2-screen="crafting"] .fl-crafting-item-name,
+.app-shell-root--forge-light-v2[data-fl2-screen="crafting"] .fl-crafting-result-power {
+  color: var(--fl2-text) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="crafting"] :where(.fl-crafting-stage, .fl-crafting-item-card, .fl-crafting-item-drawer, .fl-crafting-drawer-item, .fl-crafting-legacy-workbench, .fl-crafting-inventory-panel) {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(243, 198, 95, 0.045), transparent 32%),
+    linear-gradient(180deg, rgba(8, 10, 11, 0.56), rgba(5, 8, 10, 0.52)) !important;
+  border-color: rgba(198, 161, 91, 0.2) !important;
+  color: var(--fl2-text) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="crafting"] .fl-crafting-stat-arrow {
+  color: var(--fl2-gold) !important;
+}

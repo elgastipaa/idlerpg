@@ -2,6 +2,9 @@ import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import OverlayShell, { OverlaySurface } from "./OverlayShell";
 import JobProgressBar from "./JobProgressBar";
 import ActionToast from "./ActionToast";
+import ForgeIcon from "./icons/ForgeIcon";
+import { FlButton, FlIconFrame } from "./ui/forge";
+import { getStationAsset } from "../utils/assetRegistry";
 import useRelativeNow from "../hooks/useRelativeNow";
 import useViewport from "../hooks/useViewport";
 import { getRarityColor } from "../constants/rarity";
@@ -45,17 +48,6 @@ function sectionCardStyle(accent = "var(--tone-accent, #4338ca)") {
   };
 }
 
-function metricCardStyle() {
-  return {
-    background: "var(--color-background-tertiary, #f8fafc)",
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    borderRadius: "var(--dense-card-radius, 12px)",
-    padding: "var(--dense-panel-padding, 10px)",
-    display: "grid",
-    gap: "4px",
-  };
-}
-
 function actionButtonStyle({ primary = false, disabled = false } = {}) {
   return {
     border: "1px solid",
@@ -74,26 +66,6 @@ function actionButtonStyle({ primary = false, disabled = false } = {}) {
       : primary
         ? "var(--tone-accent, #4338ca)"
         : "var(--color-text-primary, #1e293b)",
-    borderRadius: "var(--dense-card-radius, 12px)",
-    padding: "var(--dense-button-padding, 7px 10px)",
-    fontSize: "0.7rem",
-    lineHeight: 1.15,
-    fontWeight: "900",
-    cursor: disabled ? "not-allowed" : "pointer",
-    boxShadow: disabled ? "none" : "inset 0 0 0 1px rgba(255,255,255,0.02)",
-  };
-}
-
-function stationButtonStyle({
-  tone = "var(--tone-accent, #4338ca)",
-  surface = "var(--tone-accent-soft, #eef2ff)",
-  disabled = false,
-} = {}) {
-  return {
-    border: "1px solid",
-    borderColor: disabled ? "var(--color-border-primary, #e2e8f0)" : tone,
-    background: disabled ? "var(--color-background-tertiary, #f8fafc)" : surface,
-    color: disabled ? "var(--color-text-tertiary, #94a3b8)" : tone,
     borderRadius: "var(--dense-card-radius, 12px)",
     padding: "var(--dense-button-padding, 7px 10px)",
     fontSize: "0.7rem",
@@ -136,13 +108,13 @@ function OverlayLoadingFallback({ label, isMobile = false }) {
         paddingMobile="18px 16px 20px"
         paddingDesktop="20px 22px"
         gap="0"
-        style={{
+        {...{ style: {
           textAlign: "center",
           fontSize: "0.78rem",
           fontWeight: "900",
           color: "var(--color-text-secondary, #64748b)",
           background: "var(--color-background-secondary, #ffffff)",
-        }}
+        } }}
       >
         Cargando {label}...
       </OverlaySurface>
@@ -209,6 +181,32 @@ function getJobProgressFraction(job = {}, nowAt = Date.now()) {
   const endsAt = Number(job?.endsAt || 0);
   if (startedAt <= 0 || endsAt <= startedAt) return 0;
   return Math.max(0, Math.min(1, (Number(nowAt || Date.now()) - startedAt) / (endsAt - startedAt)));
+}
+
+const SANCTUARY_STATION_ICONS = {
+  laboratory: "laboratory",
+  distillery: "distillery",
+  library: "library",
+  errands: "mail",
+  sigils: "sigilAltar",
+  forge: "anvil",
+};
+
+const SANCTUARY_JOB_ICONS = {
+  distillery: "distillery",
+  errands: "mail",
+  sigilInfusion: "sigilAltar",
+  codexResearch: "library",
+  deepForge: "anvil",
+  laboratory: "laboratory",
+};
+
+function getSanctuaryStationIcon(stationId = "") {
+  return SANCTUARY_STATION_ICONS[stationId] || "sanctuary";
+}
+
+function getSanctuaryWorkIcon(row = {}) {
+  return SANCTUARY_JOB_ICONS[row.station] || (row.kind === "claimable" ? "claim" : "repeat");
 }
 
 export default function Sanctuary({ state, dispatch }) {
@@ -812,25 +810,26 @@ export default function Sanctuary({ state, dispatch }) {
 
   const sanctuaryRootClassName = [
     "sanctuary-root",
+    "sanctuary-root--forge-light",
     SANCTUARY_STITCH_VISUAL_TRIAL ? "sanctuary-root--stitch-trial" : "",
     SANCTUARY_STITCH_VISUAL_TRIAL && SANCTUARY_STITCH_PERF_SAFE ? "sanctuary-root--stitch-perf-safe" : "",
   ].filter(Boolean).join(" ");
 
   const noClassContent = (
-    <div className={sanctuaryRootClassName} style={{ padding: "12px", display: "grid", gap: "12px" }}>
-      <section style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
-        <div style={{ display: "grid", gap: "6px" }}>
-          <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+    <div className={`${sanctuaryRootClassName} fl-sanctuary-empty`} {...{ style: { padding: "12px", display: "grid", gap: "12px" } }}>
+      <section className="fl-sanctuary-panel" {...{ style: sectionCardStyle("var(--tone-accent, #4338ca)") }}>
+        <div {...{ style: { display: "grid", gap: "6px" } }}>
+          <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" } }}>
             Santuario
           </div>
-          <div style={{ fontSize: "1rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+          <div {...{ style: { fontSize: "1rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
             {showingSanctuaryIntro
               ? "Inicia tu primera expedicion desde aqui"
               : classSelectionRequested
                 ? "Elige una clase para esta expedicion"
                 : "La clase se define al iniciar expedicion"}
           </div>
-          <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+          <div {...{ style: { fontSize: "0.76rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 } }}>
             {showingSanctuaryIntro
               ? "El Santuario es tu base. Primero aprendes a salir desde aqui; recien despues eliges una clase y entras al combate."
               : classSelectionRequested
@@ -838,15 +837,15 @@ export default function Sanctuary({ state, dispatch }) {
                 : "La clase ya no se elige de antemano. Primero inicia la expedicion y recien ahi decides con que arquetipo sales."}
           </div>
           {(showingSanctuaryIntro || !classSelectionRequested) && (
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "6px" }}>
+            <div {...{ style: { display: "flex", justifyContent: "flex-end", marginTop: "6px" } }}>
               <button
                 onClick={expeditionCta.action}
                 data-onboarding-target={showingSanctuaryIntro ? "start-expedition" : undefined}
-                style={{
+                {...{ style: {
                   ...actionButtonStyle({ primary: true }),
                   boxShadow: "0 0 0 2px rgba(83,74,183,0.16), 0 12px 28px rgba(83,74,183,0.14)",
                   animation: "sanctuarySpotlightPulse 1600ms ease-in-out infinite",
-                }}
+                } }}
               >
                 {expeditionCta.label}
               </button>
@@ -856,21 +855,21 @@ export default function Sanctuary({ state, dispatch }) {
       </section>
 
       {showingSanctuaryIntro || !classSelectionRequested ? (
-        <div style={{ padding: "12px", display: "grid", gap: "12px" }}>
-          <section style={sectionCardStyle("var(--tone-info, #0369a1)")}>
-            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
+        <div {...{ style: { padding: "12px", display: "grid", gap: "12px" } }}>
+          <section className="fl-sanctuary-panel" {...{ style: sectionCardStyle("var(--tone-info, #0369a1)") }}>
+            <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" } }}>
               {showingSanctuaryIntro ? "Primera run" : "Preparar salida"}
             </div>
-            <div style={{ display: "grid", gap: "8px" }}>
-              <div style={{ fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+            <div {...{ style: { display: "grid", gap: "8px" } }}>
+              <div {...{ style: { fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
                 {showingSanctuaryIntro ? "Primero sal desde el Santuario." : "La clase se elige al preparar la expedicion."}
               </div>
-              <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+              <div {...{ style: { fontSize: "0.74rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 } }}>
                 {showingSanctuaryIntro
                   ? <>Toca <strong>Iniciar expedicion</strong>. En el siguiente paso elegirás una clase para esa salida y, recien ahi, entrarás al combate para arrancar la run.</>
                   : <>Toca <strong>Iniciar expedicion</strong>. Cuando se abra la preparacion de la salida, ahi recien vas a elegir la clase de esta run.</>}
               </div>
-              <div style={{ fontSize: "0.68rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)" }}>
+              <div {...{ style: { fontSize: "0.68rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)" } }}>
                 Usa el boton real resaltado arriba, no este panel.
               </div>
             </div>
@@ -879,8 +878,8 @@ export default function Sanctuary({ state, dispatch }) {
       ) : (
         <Suspense
           fallback={(
-            <section style={sectionCardStyle("var(--tone-info, #0369a1)")}>
-              <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
+            <section className="fl-sanctuary-panel" {...{ style: sectionCardStyle("var(--tone-info, #0369a1)") }}>
+              <div {...{ style: { fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" } }}>
                 Cargando selector de clase...
               </div>
             </section>
@@ -1188,8 +1187,10 @@ export default function Sanctuary({ state, dispatch }) {
       return {
         id: `claim-${job.id}`,
         kind: "claimable",
+        station: job.station,
+        stationLabel: jobStationLabel(job.station),
         title: jobTitle(job),
-        detail: jobStationLabel(job.station),
+        detail: jobSummary(job),
         chip: "Listo para reclamar",
         actionLabel: "Reclamar",
         action: () => claimSanctuaryJob(job, { nowAt: now }),
@@ -1200,8 +1201,10 @@ export default function Sanctuary({ state, dispatch }) {
     const runningRows = runningJobsByProgress.map(job => ({
       id: `running-${job.id}`,
       kind: "running",
+      station: job.station,
+      stationLabel: jobStationLabel(job.station),
       title: jobTitle(job),
-      detail: jobStationLabel(job.station),
+      detail: jobSummary(job),
       chip: formatRemaining(Number(job.endsAt || 0) - now),
       startedAt: Number(job?.startedAt || 0),
       endsAt: Number(job?.endsAt || 0),
@@ -1303,7 +1306,9 @@ export default function Sanctuary({ state, dispatch }) {
       id: "laboratory",
       title: "Laboratorio",
       status: laboratoryUnlocked ? `${laboratoryRunningCount} activo(s)` : "Bloqueado",
-      detail: `${laboratoryClaimableCount} disponible(s).`,
+      detail: laboratoryUnlocked
+        ? `Experimentos y mejoras persistentes. ${laboratoryClaimableCount} disponible(s).`
+        : "Investiga infraestructura para encender nuevas estaciones.",
       tone: "var(--tone-accent, #4338ca)",
       actionLabel: laboratoryUnlocked ? "Abrir" : "Cerrado",
       locked: !laboratoryUnlocked,
@@ -1319,7 +1324,9 @@ export default function Sanctuary({ state, dispatch }) {
       id: "distillery",
       title: "Destileria",
       status: distilleryUnlocked ? `${runningByStation.distillery || 0}/${distillerySlots}` : "Bloqueada",
-      detail: `${totalCargoQuantity} bundle(s).`,
+      detail: distilleryUnlocked
+        ? `Convierte cargo recuperado en recursos. ${totalCargoQuantity} bundle(s).`
+        : "Requiere investigacion de Laboratorio.",
       tone: "var(--tone-violet, #7c3aed)",
       actionLabel: distilleryUnlocked ? "Abrir" : "Laboratorio",
       locked: !distilleryUnlocked,
@@ -1342,7 +1349,9 @@ export default function Sanctuary({ state, dispatch }) {
       id: "library",
       title: "Biblioteca",
       status: libraryStation.unlocked ? `${runningLibraryJobs.length}/${librarySlots}` : "Bloqueada",
-      detail: `${claimableLibraryJobs.length} disponible(s).`,
+      detail: libraryStation.unlocked
+        ? `Investiga conocimiento antiguo. ${claimableLibraryJobs.length} disponible(s).`
+        : "Requiere Laboratorio avanzado.",
       tone: "var(--tone-accent, #4338ca)",
       actionLabel: libraryStation.unlocked ? "Abrir" : "Laboratorio",
       locked: !libraryStation.unlocked,
@@ -1352,7 +1361,9 @@ export default function Sanctuary({ state, dispatch }) {
       id: "errands",
       title: "Encargos",
       status: errandStation.unlocked ? `${runningErrandJobs.length}/${errandSlots}` : "Bloqueados",
-      detail: `${Math.max(0, errandSlots - runningErrandJobs.length)} equipo(s) libre(s).`,
+      detail: errandStation.unlocked
+        ? `Envia aliados a recuperar recompensas. ${Math.max(0, errandSlots - runningErrandJobs.length)} equipo(s) libre(s).`
+        : "Requiere investigacion de Laboratorio.",
       tone: "var(--tone-info, #0369a1)",
       actionLabel: errandStation.unlocked ? "Abrir" : "Laboratorio",
       locked: !errandStation.unlocked,
@@ -1362,7 +1373,9 @@ export default function Sanctuary({ state, dispatch }) {
       id: "sigils",
       title: "Altar de Sigilos",
       status: infusionStation.unlocked ? `${runningByStation.sigilInfusion || 0}/${infusionSlots}` : "Bloqueado",
-      detail: `${Object.values(sigilInfusions).reduce((total, entry) => total + Math.max(0, Number(entry?.charges || 0)), 0)} disponible(s).`,
+      detail: infusionStation.unlocked
+        ? `Invoca y mejora sigilos permanentes. ${Object.values(sigilInfusions).reduce((total, entry) => total + Math.max(0, Number(entry?.charges || 0)), 0)} disponible(s).`
+        : "Requiere Laboratorio avanzado.",
       tone: "var(--tone-success, #10b981)",
       actionLabel: infusionStation.unlocked ? "Abrir" : "Laboratorio",
       locked: !infusionStation.unlocked,
@@ -1373,7 +1386,7 @@ export default function Sanctuary({ state, dispatch }) {
           id: "forge",
           title: "Forja",
           status: "Operativa",
-          detail: "Forja de items persistentes.",
+          detail: "Mejora, repara y forja equipo con materiales especiales.",
           tone: "var(--tone-danger, #D85A30)",
           actionLabel: "Abrir",
           locked: false,
@@ -1406,168 +1419,150 @@ export default function Sanctuary({ state, dispatch }) {
     totalCargoQuantity,
   ]);
   const visibleStationOverviewRows = stationOverviewRows;
-  const compactMetricCard = {
-    ...metricCardStyle(),
-    padding: isMobileViewport
-      ? "calc(6px * var(--density-scale, 1)) calc(8px * var(--density-scale, 1))"
-      : "calc(9px * var(--density-scale, 1)) calc(10px * var(--density-scale, 1))",
-    gap: isMobileViewport ? "1px" : "4px",
-  };
-  const compactStatsGridStyle = {
-    display: "grid",
-    gridTemplateColumns: isMobileViewport ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fit, minmax(140px, 1fr))",
-    gap: isMobileViewport ? "6px" : "8px",
-  };
-  const stationOverviewGridStyle = {
-    display: "grid",
-    gridTemplateColumns: isNarrowViewport ? "1fr" : isMobileViewport ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fit, minmax(210px, 1fr))",
-    gap: "8px",
-  };
-  const mobileFullWidthButtonStyle = isMobileViewport ? { width: "100%", justifyContent: "center" } : null;
-
   if (!hasClass && (!infrastructureVisible || classSelectionRequested)) {
     return noClassContent;
   }
 
   return (
-    <div className={sanctuaryRootClassName} style={{ padding: isMobileViewport ? "calc(0.65rem * var(--density-scale, 1))" : "calc(0.8rem * var(--density-scale, 1))", display: "grid", gap: "calc(0.75rem * var(--density-scale, 1))", background: "var(--color-background-primary, #f8fafc)", color: "var(--color-text-primary, #1e293b)" }}>
-      <style>{`
-        @keyframes sanctuarySpotlightPulse {
-          0% { box-shadow: 0 0 0 0 rgba(3,105,161,0.24); }
-          70% { box-shadow: 0 0 0 10px rgba(3,105,161,0); }
-          100% { box-shadow: 0 0 0 0 rgba(3,105,161,0); }
-        }
-      `}</style>
-      <div
-        style={{
-          position: "fixed",
-          left: 0,
-          right: 0,
-          bottom: "calc(var(--app-bottom-nav-offset, 72px) + env(safe-area-inset-bottom))",
-          zIndex: 4900,
-          display: "flex",
-          justifyContent: "center",
-          background: "var(--color-background-secondary, #ffffff)",
-          borderTop: "1px solid var(--color-border-secondary, #e2e8f0)",
-          boxShadow: "0 -10px 24px rgba(15,23,42,0.08)",
-          padding: "8px",
-          pointerEvents: "none",
-        }}
-      >
+    <div className={sanctuaryRootClassName} {...{ style: { padding: isMobileViewport ? "calc(0.5rem * var(--density-scale, 1))" : "calc(0.65rem * var(--density-scale, 1))", display: "grid", gap: "calc(0.5rem * var(--density-scale, 1))", background: "transparent", color: "var(--fl-text-1, #ead7b5)" } }}>
+      <header className="fl-sanctuary-hero">
+        <div>
+          <div className="fl-sanctuary-kicker">Base persistente</div>
+          <h1 className="fl-sanctuary-title">Santuario</h1>
+        </div>
+        <div className="fl-sanctuary-hero-sigil" aria-hidden="true">
+          <ForgeIcon name="sanctuary" size={28} />
+        </div>
+      </header>
+
+      <div className="fl-sanctuary-expedition-cta">
         <button
           onClick={expeditionCta.action}
-          style={{
-            ...actionButtonStyle({ primary: expeditionCta.primary }),
-            background: expeditionCta.primary
-              ? "var(--color-background-info, #e0e7ff)"
-              : "var(--color-background-secondary, #ffffff)",
-            color: expeditionCta.primary
-              ? "var(--color-text-info, #4338ca)"
-              : "var(--color-text-primary, #1e293b)",
-            borderColor: expeditionCta.primary
-              ? "var(--tone-accent, #4338ca)"
-              : "var(--color-border-primary, #e2e8f0)",
-            padding: isMobileViewport ? "9px 12px" : "10px 14px",
-            width: isMobileViewport ? "min(74vw, 250px)" : "auto",
-            minWidth: isMobileViewport ? "0" : "210px",
-            justifyContent: "center",
-            whiteSpace: "nowrap",
-            pointerEvents: "auto",
-          }}
+          className={[
+            "fl-sanctuary-button",
+            "fl-sanctuary-button--back",
+            expeditionCta.primary ? "fl-sanctuary-button--primary" : "",
+          ].filter(Boolean).join(" ")}
+          {...{ style: { width: isMobileViewport ? "min(74vw, 250px)" : "auto", minWidth: isMobileViewport ? "0" : "210px" } }}
         >
+          <ForgeIcon name="combat" size={17} />
           {expeditionCta.label}
         </button>
       </div>
 
-      <section style={sectionCardStyle("var(--tone-info, #0369a1)")}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" }}>
-            Trabajos
+      <section className="fl-sanctuary-panel fl-sanctuary-panel--jobs">
+        <div className="fl-sanctuary-panel__header">
+          <div>
+            <div className="fl-sanctuary-panel__eyebrow">Trabajos</div>
           </div>
-          <div style={chipStyle("var(--tone-info, #0369a1)")}>
-            {claimableJobs.length} listos · {runningJobs.length} corriendo
+          <div className="fl-sanctuary-header-actions">
+            <span className="fl-sanctuary-chip fl-sanctuary-chip--info">
+              {claimableJobs.length} listos · {runningJobs.length} corriendo
+            </span>
+            {claimableJobs.length > 1 && (
+              <FlButton
+                onClick={() => claimAllSanctuaryJobs(claimableJobs)}
+                variant="primary"
+                size="sm"
+                className="fl-sanctuary-button fl-sanctuary-button--primary"
+                icon={<ForgeIcon name="claim" size={16} />}
+              >
+                Reclamar todo
+              </FlButton>
+            )}
+            {canRepeatClaimableJobs && (
+              <FlButton
+                onClick={() => claimAllSanctuaryJobs(claimableJobs, { repeat: true })}
+                variant="secondary"
+                size="sm"
+                className="fl-sanctuary-button fl-sanctuary-button--secondary"
+                icon={<ForgeIcon name="repeat" size={16} />}
+              >
+                Todo + repetir
+              </FlButton>
+            )}
           </div>
         </div>
 
-        {claimableJobs.length > 0 && (
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-            {canRepeatClaimableJobs && (
-              <button
-                onClick={() => claimAllSanctuaryJobs(claimableJobs, { repeat: true })}
-                style={actionButtonStyle()}
-              >
-                Todo + repetir
-              </button>
-            )}
-            {claimableJobs.length > 1 && (
-              <button
-                onClick={() => claimAllSanctuaryJobs(claimableJobs)}
-                style={actionButtonStyle({ primary: true })}
-              >
-                Reclamar todo
-              </button>
-            )}
-          </div>
-        )}
-
         {workRows.length <= 0 ? (
-          <div style={{ fontSize: "0.69rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
+          <div className="fl-sanctuary-empty-state">
             No hay trabajos activos en este momento.
           </div>
         ) : (
-          <div style={{ display: "grid", gap: "8px" }}>
+          <div className="fl-sanctuary-list fl-sanctuary-job-list">
             {workRows.map(row => (
-              <div key={row.id} style={compactMetricCard}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
-                  <div>
-                    <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>{row.title}</div>
-                    {!isMobileViewport && (
-                      <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
-                        {row.detail}
+              <div
+                key={row.id}
+                className={[
+                  "fl-sanctuary-row",
+                  "fl-sanctuary-job-row",
+                  `fl-sanctuary-row--${row.kind}`,
+                ].join(" ")}
+              >
+                <div className="fl-sanctuary-row-icon" aria-hidden="true">
+                  <ForgeIcon name={getSanctuaryWorkIcon(row)} size={34} />
+                  {row.kind === "claimable" && <span className="fl-sanctuary-ready-dot" />}
+                </div>
+                <div className="fl-sanctuary-row-body">
+                  <div className="fl-sanctuary-row-topline">
+                    <div className="fl-sanctuary-row-title-group">
+                      <div className="fl-sanctuary-row-title">{row.title}</div>
+                      <div className={[
+                        "fl-sanctuary-row-state",
+                        row.kind === "claimable" ? "fl-sanctuary-row-state--ready" : "fl-sanctuary-row-state--running",
+                      ].join(" ")}
+                      >
+                        {row.kind === "claimable" ? "Listo para reclamar" : "En progreso..."}
                       </div>
-                    )}
+                    </div>
+                    <span className={[
+                      "fl-sanctuary-chip",
+                      row.kind === "claimable" ? "fl-sanctuary-chip--success" : "fl-sanctuary-chip--info",
+                    ].join(" ")}
+                    >
+                      {row.kind === "claimable" ? row.stationLabel : row.chip}
+                    </span>
+                  </div>
+                  <div className="fl-sanctuary-row-detail">
+                    {row.kind === "claimable" ? row.detail : "Tiempo restante:"}
                   </div>
                   {row.kind === "claimable" ? (
-                    <span style={chipStyle("var(--tone-success, #10b981)")}>{row.chip}</span>
-                  ) : (
-                    <span style={chipStyle("var(--tone-info, #0369a1)")}>{row.chip}</span>
-                  )}
-                </div>
-                {row.kind === "claimable" ? (
-                  <div style={{ display: "flex", justifyContent: isMobileViewport ? "stretch" : "flex-end" }}>
-                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", width: isMobileViewport ? "100%" : "auto" }}>
-                      <button
+                    <div className="fl-sanctuary-row-actions">
+                      <FlButton
                         onClick={row.action}
-                        style={{
-                          ...actionButtonStyle({ primary: !row.secondaryAction }),
-                          ...(row.secondaryAction ? {} : mobileFullWidthButtonStyle),
-                        }}
+                        variant="primary"
+                        size="sm"
+                        className="fl-sanctuary-button fl-sanctuary-button--primary"
                       >
+                        <ForgeIcon name="claim" size={16} />
                         {row.actionLabel}
-                      </button>
+                      </FlButton>
                       {row.secondaryAction && (
                         <button
                           onClick={row.secondaryAction}
-                          style={{
-                            ...actionButtonStyle({ primary: true }),
-                            ...mobileFullWidthButtonStyle,
-                          }}
+                          className="fl-sanctuary-button fl-sanctuary-button--icon"
+                          aria-label={row.secondaryActionLabel}
+                          title={row.secondaryActionLabel}
                         >
-                          {row.secondaryActionLabel}
+                          <ForgeIcon name="repeat" size={19} />
                         </button>
                       )}
                     </div>
-                  </div>
-                ) : (
-                  <JobProgressBar
-                    startedAt={row?.startedAt}
-                    endsAt={row?.endsAt}
-                    now={now}
-                    tone="var(--tone-info, #0369a1)"
-                    rightLabel={row.chip}
-                    compact
-                  />
-                )}
+                  ) : (
+                    <div className="fl-sanctuary-progress-wrap">
+                      <JobProgressBar
+                        startedAt={row?.startedAt}
+                        endsAt={row?.endsAt}
+                        now={now}
+                        tone="var(--tone-info, #6ec9ff)"
+                        track="rgba(255, 218, 138, 0.12)"
+                        leftLabel={row.stationLabel}
+                        rightLabel={row.chip}
+                        compact
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -1575,61 +1570,57 @@ export default function Sanctuary({ state, dispatch }) {
       </section>
 
       {infrastructureVisible && (
-        <section style={sectionCardStyle("var(--tone-accent, #4338ca)")}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" }}>
+        <section className="fl-sanctuary-panel fl-sanctuary-panel--stations">
+          <div className="fl-sanctuary-panel__header">
             <div>
-              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
-                Estaciones
-              </div>
-              <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
-                Accesos operativos del Santuario
-              </div>
+              <div className="fl-sanctuary-panel__eyebrow">Estaciones</div>
+              <div className="fl-sanctuary-panel__subtitle">Accesos operativos del Santuario</div>
             </div>
           </div>
 
-          <div style={stationOverviewGridStyle}>
+          <div className="fl-sanctuary-list fl-sanctuary-station-list">
             {visibleStationOverviewRows.map(row => (
               <div
                 key={row.id}
                 data-onboarding-target={row.onboardingTarget || undefined}
-                style={{
-                  ...compactMetricCard,
-                  position: row.onboardingTarget ? "relative" : compactMetricCard.position,
-                  zIndex: row.onboardingTarget ? 2 : compactMetricCard.zIndex,
-                  boxShadow: row.onboardingTarget
-                    ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 28px rgba(83,74,183,0.14)"
-                    : compactMetricCard.boxShadow,
-                  animation: row.onboardingTarget
-                    ? "sanctuarySpotlightPulse 1600ms ease-in-out infinite"
-                    : "none",
-                }}
+                className={[
+                  "fl-sanctuary-row",
+                  "fl-sanctuary-station-row",
+                  row.locked ? "fl-sanctuary-row--locked" : "",
+                  row.onboardingTarget ? "fl-sanctuary-row--spotlight" : "",
+                ].filter(Boolean).join(" ")}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" }}>
-                  <div>
-                    <div style={{ fontSize: "0.78rem", fontWeight: "900" }}>{row.title}</div>
-                    {!isMobileViewport && (
-                      <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
-                        {row.detail}
-                      </div>
-                    )}
-                  </div>
-                  <span style={chipStyle(row.tone)}>{row.status}</span>
+                <div className="fl-sanctuary-row-icon" aria-hidden="true">
+                  <FlIconFrame
+                    size="lg"
+                    asset={getStationAsset(row.id)}
+                    kind="station"
+                    fallbackIcon={getSanctuaryStationIcon(row.id)}
+                    locked={row.locked}
+                    className="fl-sanctuary-station-asset"
+                  />
                 </div>
-                <div style={{ display: "flex", justifyContent: isMobileViewport ? "stretch" : "flex-end" }}>
-                  <button
+                <div className="fl-sanctuary-row-body">
+                  <div className="fl-sanctuary-row-title">{row.title}</div>
+                  <div className="fl-sanctuary-row-detail">{row.detail}</div>
+                </div>
+                <div className="fl-sanctuary-row-actions fl-sanctuary-row-actions--station">
+                  <span className={[
+                    "fl-sanctuary-chip",
+                    row.locked ? "fl-sanctuary-chip--danger" : "fl-sanctuary-chip--info",
+                  ].join(" ")}
+                  >
+                    {row.status}
+                  </span>
+                  <FlButton
                     onClick={row.action || undefined}
                     disabled={!row.action}
-                    style={{
-                      ...stationButtonStyle({
-                        tone: row.tone,
-                        surface: "var(--color-background-secondary, #ffffff)",
-                        disabled: !row.action,
-                      }),
-                      ...mobileFullWidthButtonStyle,
-                    }}
+                    variant="secondary"
+                    size="sm"
+                    className="fl-sanctuary-button fl-sanctuary-button--secondary"
                   >
                     {row.actionLabel}
-                  </button>
+                  </FlButton>
                 </div>
               </div>
             ))}
@@ -1638,46 +1629,41 @@ export default function Sanctuary({ state, dispatch }) {
       )}
 
       {infrastructureVisible && (
-        <section style={sectionCardStyle("var(--tone-danger, #D85A30)")}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+        <section className="fl-sanctuary-panel fl-sanctuary-panel--relics">
+          <div className="fl-sanctuary-panel__header">
             <div>
-              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
-                Arsenal de Reliquias
-              </div>
-              <div style={{ fontSize: "0.78rem", fontWeight: "900", marginTop: "4px", color: "var(--color-text-secondary, #64748b)" }}>
+              <div className="fl-sanctuary-panel__eyebrow">Arsenal de Reliquias</div>
+              <div className="fl-sanctuary-panel__subtitle">
                 Gestion de reliquias persistentes
               </div>
             </div>
-            <div style={chipStyle("var(--tone-danger, #D85A30)")}>
-              {relicCount} / {relicArmorySlots}
-            </div>
-          </div>
-
-          <div style={compactStatsGridStyle}>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Arma
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {activeRelics?.weapon ? "Activa" : "Sin asignar"}
-              </div>
-            </div>
-            <div style={metricCardStyle()}>
-              <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-                Armadura
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
-                {activeRelics?.armor ? "Activa" : "Sin asignar"}
-              </div>
+            <div className="fl-sanctuary-header-actions">
+              <span className="fl-sanctuary-chip fl-sanctuary-chip--danger">
+                {relicCount} / {relicArmorySlots}
+              </span>
+              <span className={[
+                "fl-sanctuary-chip",
+                activeRelics?.weapon ? "fl-sanctuary-chip--success" : "",
+              ].filter(Boolean).join(" ")}
+              >
+                Arma {activeRelics?.weapon ? "activa" : "vacia"}
+              </span>
+              <span className={[
+                "fl-sanctuary-chip",
+                activeRelics?.armor ? "fl-sanctuary-chip--success" : "",
+              ].filter(Boolean).join(" ")}
+              >
+                Armadura {activeRelics?.armor ? "activa" : "vacia"}
+              </span>
             </div>
           </div>
 
           {sortedRelicArmory.length === 0 ? (
-            <div style={{ fontSize: "0.69rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
+            <div className="fl-sanctuary-empty-state">
               Aun no hay reliquias en el arsenal. Al extraer una pieza desde expedicion aparece aqui para activarla o extraerla.
             </div>
           ) : (
-            <div style={{ display: "grid", gap: "8px", gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+            <div className="fl-sanctuary-list fl-sanctuary-relic-list">
               {sortedRelicArmory.slice(0, relicArmorySlots).map(relic => {
                 const slot = relic?.slot === "armor" ? "armor" : "weapon";
                 const isActive = activeRelics?.[slot] === relic.id;
@@ -1690,67 +1676,78 @@ export default function Sanctuary({ state, dispatch }) {
                   availableRelicDust >= stabilizePlan.relicDustCost &&
                   availableSigilFlux >= stabilizePlan.sigilFluxCost;
                 return (
-                  <div key={relic.id} style={compactMetricCard}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" }}>
-                      <div>
-                        <div style={{ fontSize: "0.78rem", fontWeight: "900", color: getRarityColor(relic?.rarity || "rare") }}>
-                          {relic?.name || "Reliquia"}
-                        </div>
-                        <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
-                          {relic?.rarity || "rare"} · {slot} · rating {Math.round(Number(relic?.rating || 0))} · entropy {entropy}
-                        </div>
+                  <div
+                    key={relic.id}
+                    className={[
+                      "fl-sanctuary-row",
+                      "fl-sanctuary-relic-row",
+                      isActive ? "fl-sanctuary-row--active" : "",
+                    ].filter(Boolean).join(" ")}
+                  >
+                    <div className="fl-sanctuary-row-icon" aria-hidden="true">
+                      <ForgeIcon name={slot === "armor" ? "armor" : "combat"} size={32} />
+                    </div>
+                    <div className="fl-sanctuary-row-body">
+                      <div className="fl-sanctuary-row-title" {...{ style: { color: getRarityColor(relic?.rarity || "rare") } }}>
+                        {relic?.name || "Reliquia"}
                       </div>
-                      <span style={chipStyle(isActive ? "var(--tone-success, #10b981)" : "var(--tone-danger, #D85A30)")}>
+                      <div className="fl-sanctuary-row-detail">
+                        {relic?.rarity || "rare"} · {slot === "armor" ? "armadura" : "arma"} · rating {Math.round(Number(relic?.rating || 0))} · entropy {entropy}
+                      </div>
+                    </div>
+                    <div className="fl-sanctuary-row-actions fl-sanctuary-row-actions--relic">
+                      <span className={[
+                        "fl-sanctuary-chip",
+                        isActive ? "fl-sanctuary-chip--success" : "fl-sanctuary-chip--danger",
+                      ].join(" ")}
+                      >
                         {isActive ? "Activa" : "Reserva"}
                       </span>
-                    </div>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center" }}>
-                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", width: isMobileViewport ? "100%" : "auto" }}>
+                      <button
+                        onClick={() => !isActive && dispatch({ type: "SET_ACTIVE_RELIC", slot, relicId: relic.id })}
+                        disabled={isActive}
+                        className={[
+                          "fl-sanctuary-button",
+                          isActive ? "fl-sanctuary-button--secondary" : "fl-sanctuary-button--primary",
+                        ].join(" ")}
+                      >
+                        {isActive ? "Activa" : "Equipar"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (pendingRelicExtractId !== relic.id) {
+                            setPendingRelicExtractId(relic.id);
+                            return;
+                          }
+                          dispatch({ type: "DISCARD_RELIC", relicId: relic.id });
+                          setPendingRelicExtractId(null);
+                        }}
+                        className={[
+                          "fl-sanctuary-button",
+                          pendingRelicExtractId === relic.id ? "fl-sanctuary-button--primary" : "fl-sanctuary-button--secondary",
+                        ].join(" ")}
+                      >
+                        {pendingRelicExtractId === relic.id ? "Confirmar" : "Extraer"}
+                      </button>
+                      {stabilizePlan.entropyReduced > 0 && (
                         <button
-                          onClick={() => !isActive && dispatch({ type: "SET_ACTIVE_RELIC", slot, relicId: relic.id })}
-                          disabled={isActive}
-                          style={{
-                            ...actionButtonStyle({ primary: !isActive, disabled: isActive }),
-                            ...(isMobileViewport ? { flex: "1 1 100%" } : null),
-                          }}
+                          onClick={() => canStabilize && dispatch({ type: "STABILIZE_RELIC_ENTROPY", relicId: relic.id })}
+                          disabled={!canStabilize}
+                          className={[
+                            "fl-sanctuary-button",
+                            canStabilize ? "fl-sanctuary-button--primary" : "fl-sanctuary-button--secondary",
+                          ].join(" ")}
+                          title={`Reduce ${stabilizePlan.entropyReduced} de entropia por ${stabilizePlan.relicDustCost} polvo y ${stabilizePlan.sigilFluxCost} flux`}
                         >
-                          {isActive ? "Activo en slot" : `Activar en ${slot}`}
+                          Estabilizar
                         </button>
-                        <button
-                          onClick={() => {
-                            if (pendingRelicExtractId !== relic.id) {
-                              setPendingRelicExtractId(relic.id);
-                              return;
-                            }
-                            dispatch({ type: "DISCARD_RELIC", relicId: relic.id });
-                            setPendingRelicExtractId(null);
-                          }}
-                          style={{
-                            ...actionButtonStyle({ primary: pendingRelicExtractId === relic.id }),
-                            ...(isMobileViewport ? { flex: "1 1 100%" } : null),
-                          }}
-                        >
-                          {pendingRelicExtractId === relic.id ? "Confirmar extraer" : "Extraer"}
-                        </button>
-                        {stabilizePlan.entropyReduced > 0 && (
-                          <button
-                            onClick={() => canStabilize && dispatch({ type: "STABILIZE_RELIC_ENTROPY", relicId: relic.id })}
-                            disabled={!canStabilize}
-                            style={{
-                              ...actionButtonStyle({ primary: canStabilize, disabled: !canStabilize }),
-                              ...(isMobileViewport ? { flex: "1 1 100%" } : null),
-                            }}
-                          >
-                            {`Estabilizar -${stabilizePlan.entropyReduced} (${stabilizePlan.relicDustCost} polvo / ${stabilizePlan.sigilFluxCost} flux)`}
-                          </button>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </div>
                 );
               })}
               {sortedRelicArmory.length > relicArmorySlots && (
-                <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", gridColumn: "1 / -1" }}>
+                <div className="fl-sanctuary-list-note">
                   Mostrando {relicArmorySlots} de {sortedRelicArmory.length} reliquias.
                 </div>
               )}

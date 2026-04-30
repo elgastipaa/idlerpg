@@ -1,0 +1,2358 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forge Light — Master UI Kit v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Barlow+Condensed:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+
+<!-- Noise SVG filter -->
+<svg style="position:absolute;width:0;height:0">
+  <defs>
+    <filter id="noise" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="noiseOut"/>
+      <feColorMatrix type="saturate" values="0" in="noiseOut" result="grayNoise"/>
+      <feBlend in="SourceGraphic" in2="grayNoise" mode="overlay" result="blended"/>
+      <feComposite in="blended" in2="SourceGraphic" operator="in"/>
+    </filter>
+    <!-- Ornamental ring definition -->
+    <radialGradient id="ring-normal" cx="50%" cy="50%" r="50%">
+      <stop offset="70%" stop-color="#C6A15B" stop-opacity="0"/>
+      <stop offset="85%" stop-color="#C6A15B" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#E6C47A" stop-opacity="0.9"/>
+    </radialGradient>
+    <radialGradient id="ring-epic" cx="50%" cy="50%" r="50%">
+      <stop offset="70%" stop-color="#B455E8" stop-opacity="0"/>
+      <stop offset="85%" stop-color="#B455E8" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#D080FF" stop-opacity="1"/>
+    </radialGradient>
+    <radialGradient id="ring-legendary" cx="50%" cy="50%" r="50%">
+      <stop offset="70%" stop-color="#F29A2E" stop-opacity="0"/>
+      <stop offset="85%" stop-color="#F29A2E" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#FFB84B" stop-opacity="1"/>
+    </radialGradient>
+  </defs>
+</svg>
+
+<style>
+/* ════════════════════════════════════════════
+   FORGE LIGHT v2 — DESIGN TOKENS
+════════════════════════════════════════════ */
+:root {
+  --fl-bg-main:       #0B0F14;
+  --fl-bg-surface:    #0F1520;
+  --fl-bg-card:       #141B25;
+  --fl-bg-card-deep:  #0B0F17;
+  --fl-bg-inset:      #080C11;
+
+  --fl-gold-border:   #C6A15B;
+  --fl-gold-glow:     #E6C47A;
+  --fl-gold-hover:    #F0D28A;
+  --fl-gold-light:    #F5DFA0;
+  --fl-gold-deep:     #7C531F;
+  --fl-gold-darker:   #3D2805;
+  --fl-gold-muted:    rgba(198,161,91,0.25);
+  --fl-gold-subtle:   rgba(198,161,91,0.08);
+
+  --fl-text-primary:  #F2E6C8;
+  --fl-text-secondary:#B8AA8F;
+  --fl-text-muted:    #7F7564;
+  --fl-text-disabled: #4A4540;
+
+  --fl-success:     #4FD18B;
+  --fl-danger:      #E05A5A;
+  --fl-arcane:      #8A5BE8;
+  --fl-defense:     #4A8FE7;
+  --fl-reward:      #F2B84B;
+
+  --fl-rarity-common:    #8E8E8E;
+  --fl-rarity-magic:     #4FD18B;
+  --fl-rarity-rare:      #4A8FE7;
+  --fl-rarity-epic:      #B455E8;
+  --fl-rarity-legendary: #F29A2E;
+
+  --fl-font-display: 'Cinzel', Georgia, serif;
+  --fl-font-ui:      'Barlow Condensed', 'Arial Narrow', sans-serif;
+
+  --fl-shadow-deep:  0 16px 40px rgba(0,0,0,0.65), 0 4px 12px rgba(0,0,0,0.4);
+  --fl-shadow-inset: inset 0 1px 0 rgba(255,232,180,0.06), inset 0 -1px 0 rgba(0,0,0,0.3);
+  --fl-glow-gold-soft:   0 0 20px rgba(230,196,122,0.20);
+  --fl-glow-gold-strong: 0 0 32px rgba(230,196,122,0.38), 0 0 8px rgba(230,196,122,0.2);
+  --fl-glow-success:     0 0 22px rgba(79,209,139,0.28);
+  --fl-glow-danger:      0 0 22px rgba(224,90,90,0.28);
+  --fl-glow-arcane:      0 0 24px rgba(138,91,232,0.35);
+}
+
+/* ════════ RESET ════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body {
+  background: var(--fl-bg-main);
+  color: var(--fl-text-primary);
+  font-family: var(--fl-font-ui);
+  font-size: 15px; line-height: 1.45;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ════════ NOISE TEXTURE OVERLAY ════════ */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  opacity: 0.028;
+  pointer-events: none; z-index: 9999;
+  mix-blend-mode: overlay;
+}
+
+/* ════════ ATMOSPHERIC BG ════════ */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 70% 40% at 50% -5%,  rgba(198,161,91,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 60% at 95%  50%,  rgba(74,143,231,0.04) 0%, transparent 50%),
+    radial-gradient(ellipse 40% 50% at 5%   60%,  rgba(138,91,232,0.03) 0%, transparent 50%);
+  pointer-events: none; z-index: 0;
+}
+
+/* ════════ HEADER ════════ */
+.kit-header {
+  position: relative; z-index: 1;
+  padding: 52px 40px 40px;
+  text-align: center;
+  border-bottom: 1px solid var(--fl-gold-muted);
+  background: linear-gradient(180deg,rgba(198,161,91,0.05) 0%,transparent 100%);
+  overflow: hidden;
+}
+.kit-header::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 60% 100% at 50% 0%, rgba(198,161,91,0.08), transparent);
+  pointer-events: none;
+}
+.kit-logo { font-size: 13px; letter-spacing: 6px; color: var(--fl-gold-muted); text-transform: uppercase; margin-bottom: 12px; }
+.kit-title {
+  font-family: var(--fl-font-display);
+  font-size: 56px; font-weight: 900; letter-spacing: 6px;
+  background: linear-gradient(180deg, var(--fl-gold-light) 0%, var(--fl-gold-glow) 40%, var(--fl-gold-border) 80%, var(--fl-gold-deep) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  filter: drop-shadow(0 0 24px rgba(230,196,122,0.3));
+}
+.kit-subtitle { font-size: 12px; letter-spacing: 6px; color: var(--fl-text-muted); text-transform: uppercase; margin-top: 8px; }
+.kit-ornament { margin: 20px auto; display: flex; align-items: center; gap: 10px; justify-content: center; max-width: 300px; }
+.kit-ornament::before, .kit-ornament::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--fl-gold-muted)); }
+.kit-ornament::after { background: linear-gradient(270deg, transparent, var(--fl-gold-muted)); }
+.kit-diamond { width: 10px; height: 10px; background: var(--fl-gold-border); transform: rotate(45deg); box-shadow: 0 0 8px rgba(198,161,91,0.5); }
+.kit-tags { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.kit-tag { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--fl-text-muted); border: 1px solid var(--fl-gold-muted); padding: 4px 12px; clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%); }
+
+/* ════════ SECTION NAV ════════ */
+.section-nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(9,12,18,0.96); backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--fl-gold-muted);
+  display: flex; overflow-x: auto; scrollbar-width: none;
+}
+.section-nav::-webkit-scrollbar { display: none; }
+.nav-btn {
+  font-family: var(--fl-font-ui); font-size: 11px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--fl-text-muted);
+  background: none; border: none; padding: 14px 18px;
+  cursor: pointer; white-space: nowrap;
+  border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s;
+}
+.nav-btn:hover { color: var(--fl-text-secondary); }
+.nav-btn.active { color: var(--fl-gold-glow); border-bottom-color: var(--fl-gold-border); }
+
+/* ════════ LAYOUT ════════ */
+.kit-body { max-width: 1200px; margin: 0 auto; padding: 48px 28px 100px; position: relative; z-index: 1; }
+.kit-section { display: none; }
+.kit-section.visible { display: block; }
+.s-gap { margin-bottom: 48px; }
+
+/* ════════ ORNAMENTAL SECTION HEADER ════════ */
+.sec-header {
+  display: flex; align-items: center; gap: 0;
+  margin-bottom: 36px;
+}
+.sec-num { font-family: var(--fl-font-display); font-size: 10px; color: var(--fl-gold-deep); letter-spacing: 3px; margin-right: 12px; flex-shrink: 0; }
+.sec-line-l { height: 1px; flex: 0 0 20px; background: linear-gradient(90deg,transparent,var(--fl-gold-muted)); }
+.sec-diamond { width: 8px; height: 8px; flex-shrink: 0; background: var(--fl-gold-border); transform: rotate(45deg); box-shadow: 0 0 6px rgba(198,161,91,0.4); }
+.sec-title {
+  font-family: var(--fl-font-display); font-size: 14px; font-weight: 600;
+  letter-spacing: 5px; text-transform: uppercase; color: var(--fl-gold-glow);
+  padding: 0 16px; flex-shrink: 0;
+}
+.sec-line-r { height: 1px; flex: 1; background: linear-gradient(90deg, var(--fl-gold-muted), transparent); }
+
+/* Subsection label */
+.sub-label {
+  font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+  color: var(--fl-text-muted); margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+}
+.sub-label::after { content: ''; flex: 1; height: 1px; background: var(--fl-gold-subtle); }
+
+/* ════════ CARD — CHAMFERED ════════ */
+.fl-card {
+  position: relative;
+  background: var(--fl-bg-card);
+  /* Chamfered corners via clip-path */
+  clip-path: polygon(
+    0 10px, 10px 0,
+    calc(100% - 10px) 0, 100% 10px,
+    100% calc(100% - 10px), calc(100% - 10px) 100%,
+    10px 100%, 0 calc(100% - 10px)
+  );
+  box-shadow: var(--fl-shadow-deep), var(--fl-shadow-inset);
+}
+/* Fake border via outline on wrapper */
+.fl-card-wrap {
+  position: relative;
+  padding: 1px;
+  background: linear-gradient(145deg, rgba(198,161,91,0.5) 0%, rgba(198,161,91,0.2) 40%, rgba(198,161,91,0.05) 100%);
+  clip-path: polygon(
+    0 10px, 10px 0,
+    calc(100% - 10px) 0, 100% 10px,
+    100% calc(100% - 10px), calc(100% - 10px) 100%,
+    10px 100%, 0 calc(100% - 10px)
+  );
+  box-shadow: var(--fl-shadow-deep), 0 0 0 1px rgba(198,161,91,0.1);
+}
+.fl-card-wrap.hover { background: linear-gradient(145deg, rgba(230,196,122,0.7) 0%, rgba(198,161,91,0.4) 40%, rgba(198,161,91,0.1) 100%); box-shadow: var(--fl-glow-gold-soft), var(--fl-shadow-deep); }
+.fl-card-wrap.selected { background: linear-gradient(145deg, var(--fl-gold-glow) 0%, var(--fl-gold-border) 50%, rgba(198,161,91,0.2) 100%); box-shadow: var(--fl-glow-gold-strong), var(--fl-shadow-deep); }
+.fl-card-wrap.epic-card { background: linear-gradient(145deg, rgba(180,85,232,0.7) 0%, rgba(180,85,232,0.3) 60%, transparent 100%); box-shadow: var(--fl-glow-arcane), var(--fl-shadow-deep); }
+.fl-card-wrap.danger-card { background: linear-gradient(145deg, rgba(224,90,90,0.6) 0%, rgba(224,90,90,0.2) 60%, transparent 100%); box-shadow: var(--fl-glow-danger), var(--fl-shadow-deep); }
+
+/* Card corner ornaments */
+.fl-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0;
+  width: 24px; height: 24px;
+  background: linear-gradient(135deg, rgba(198,161,91,0.15) 0%, transparent 60%);
+  pointer-events: none;
+}
+.fl-card::after {
+  content: '';
+  position: absolute; bottom: 0; right: 0;
+  width: 24px; height: 24px;
+  background: linear-gradient(315deg, rgba(198,161,91,0.10) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+/* Top highlight line */
+.fl-card-inner {
+  position: relative;
+}
+.fl-card-inner::before {
+  content: '';
+  position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,232,180,0.12), transparent);
+  pointer-events: none;
+}
+
+/* ════════ PANEL SECTION ════════ */
+.fl-panel {
+  position: relative;
+  background: var(--fl-bg-card);
+  border: 1px solid var(--fl-gold-muted);
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: var(--fl-shadow-deep), var(--fl-shadow-inset);
+}
+.fl-panel::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(230,196,122,0.2), transparent);
+  pointer-events: none;
+}
+.fl-panel-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--fl-gold-muted);
+  background: linear-gradient(90deg, rgba(198,161,91,0.06) 0%, transparent 60%);
+}
+.fl-panel-title {
+  font-family: var(--fl-font-ui); font-size: 11px; font-weight: 700;
+  letter-spacing: 4px; text-transform: uppercase; color: var(--fl-gold-border);
+  display: flex; align-items: center; gap: 8px;
+}
+.fl-panel-title::before { content: '◈'; font-size: 12px; }
+.fl-panel-body { padding: 14px 16px; }
+
+/* ════════ ORNAMENTAL SEPARATOR ════════ */
+.orn-sep {
+  display: flex; align-items: center; gap: 0; margin: 28px 0;
+}
+.orn-sep-line { flex: 1; height: 1px; background: var(--fl-gold-muted); }
+.orn-sep-center {
+  display: flex; align-items: center; gap: 6px; padding: 0 12px;
+}
+.orn-diamond { width: 8px; height: 8px; background: var(--fl-gold-border); transform: rotate(45deg); box-shadow: 0 0 6px rgba(198,161,91,0.4); }
+.orn-diamond-sm { width: 5px; height: 5px; background: var(--fl-gold-deep); transform: rotate(45deg); }
+
+/* ════════ BUTTONS ════════ */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  font-family: var(--fl-font-ui); font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  border: none; cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap; position: relative;
+  user-select: none; font-size: 14px;
+}
+/* Chamfered buttons */
+.btn-chamfer {
+  clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);
+}
+/* Primary */
+.btn-primary {
+  padding: 11px 24px;
+  background: linear-gradient(180deg, #2e2008 0%, #1c1305 50%, #251808 100%);
+  border: none; color: var(--fl-text-primary);
+  box-shadow: 0 0 0 1px var(--fl-gold-border), 0 0 0 2px rgba(198,161,91,0.08), var(--fl-shadow-inset), 0 4px 14px rgba(0,0,0,0.5);
+  clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+}
+.btn-primary:hover {
+  color: var(--fl-gold-hover);
+  box-shadow: 0 0 0 1px var(--fl-gold-glow), var(--fl-glow-gold-soft), var(--fl-shadow-inset), 0 4px 14px rgba(0,0,0,0.5);
+}
+.btn-primary:active { transform: translateY(1px); box-shadow: 0 0 0 1px var(--fl-gold-border), inset 0 3px 8px rgba(0,0,0,0.7); }
+
+/* CTA — el botón MEJORAR real */
+.btn-cta {
+  padding: 0; width: 100%; position: relative; overflow: visible;
+  background: none; border: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center;
+}
+.btn-cta-inner {
+  width: 100%;
+  background: linear-gradient(180deg, #3a2408 0%, #2a1a05 30%, #1e1204 60%, #2d1e06 100%);
+  box-shadow:
+    0 0 0 1px var(--fl-gold-border),
+    0 0 0 3px rgba(198,161,91,0.08),
+    inset 0 1px 0 rgba(255,232,180,0.12),
+    inset 0 -2px 0 rgba(0,0,0,0.4),
+    var(--fl-glow-gold-soft),
+    0 8px 24px rgba(0,0,0,0.6);
+  clip-path: polygon(
+    16px 0%, calc(100% - 16px) 0%,
+    100% 50%,
+    calc(100% - 16px) 100%, 16px 100%,
+    0% 50%
+  );
+  padding: 18px 48px 16px;
+  position: relative; overflow: hidden;
+}
+.btn-cta-inner::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(255,232,180,0.07) 0%, transparent 50%);
+}
+.btn-cta-inner::after {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,232,180,0.3), transparent);
+}
+.btn-cta-text {
+  font-family: var(--fl-font-display); font-size: 22px; font-weight: 700;
+  color: var(--fl-gold-glow); letter-spacing: 4px; text-transform: uppercase;
+  text-shadow: 0 0 20px rgba(230,196,122,0.4), 0 2px 4px rgba(0,0,0,0.8);
+  position: relative; z-index: 1;
+}
+.btn-cta-sub {
+  font-family: var(--fl-font-ui); font-size: 12px; font-weight: 500;
+  color: var(--fl-gold-border); letter-spacing: 2px;
+  position: relative; z-index: 1; margin-top: 2px;
+}
+.btn-cta:hover .btn-cta-inner {
+  box-shadow:
+    0 0 0 1px var(--fl-gold-glow),
+    0 0 0 3px rgba(230,196,122,0.12),
+    inset 0 1px 0 rgba(255,232,180,0.18),
+    var(--fl-glow-gold-strong),
+    0 10px 28px rgba(0,0,0,0.6);
+}
+.btn-cta:active .btn-cta-inner { box-shadow: 0 0 0 1px var(--fl-gold-border), inset 0 4px 12px rgba(0,0,0,0.7); }
+
+/* Secondary */
+.btn-secondary {
+  padding: 10px 22px;
+  background: var(--fl-bg-card-deep);
+  box-shadow: 0 0 0 1px rgba(198,161,91,0.3), 0 2px 8px rgba(0,0,0,0.4);
+  color: var(--fl-text-secondary);
+  clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+}
+.btn-secondary:hover { color: var(--fl-text-primary); box-shadow: 0 0 0 1px var(--fl-gold-border), 0 2px 8px rgba(0,0,0,0.4); }
+
+/* Ghost */
+.btn-ghost {
+  padding: 9px 18px; background: transparent;
+  box-shadow: 0 0 0 1px transparent;
+  color: var(--fl-text-muted);
+}
+.btn-ghost:hover { color: var(--fl-text-secondary); box-shadow: 0 0 0 1px var(--fl-gold-muted); clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%); }
+
+/* Danger */
+.btn-danger {
+  padding: 10px 22px;
+  background: linear-gradient(180deg, rgba(224,90,90,0.12) 0%, rgba(224,90,90,0.05) 100%);
+  box-shadow: 0 0 0 1px var(--fl-danger), 0 0 12px rgba(224,90,90,0.15);
+  color: var(--fl-danger);
+  clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+}
+.btn-danger:hover { box-shadow: 0 0 0 1px var(--fl-danger), var(--fl-glow-danger); }
+
+/* Success */
+.btn-success {
+  padding: 10px 22px;
+  background: linear-gradient(180deg, rgba(79,209,139,0.12) 0%, rgba(79,209,139,0.05) 100%);
+  box-shadow: 0 0 0 1px var(--fl-success), 0 0 12px rgba(79,209,139,0.15);
+  color: var(--fl-success);
+  clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+}
+.btn-success:hover { box-shadow: 0 0 0 1px var(--fl-success), var(--fl-glow-success); }
+
+/* Disabled */
+.btn-disabled {
+  padding: 10px 22px;
+  background: var(--fl-bg-inset);
+  box-shadow: 0 0 0 1px rgba(198,161,91,0.1);
+  color: var(--fl-text-disabled); cursor: not-allowed; opacity: 0.7;
+  clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+}
+
+/* Selected */
+.btn-selected {
+  padding: 10px 22px;
+  background: linear-gradient(180deg, rgba(198,161,91,0.15) 0%, rgba(198,161,91,0.06) 100%);
+  box-shadow: 0 0 0 1px var(--fl-gold-glow), var(--fl-glow-gold-soft);
+  color: var(--fl-gold-glow);
+  clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+}
+
+/* Loading */
+.btn-loading {
+  padding: 10px 22px; height: 43px; min-width: 110px;
+  background: linear-gradient(180deg, #2e2008 0%, #1c1305 100%);
+  box-shadow: 0 0 0 1px var(--fl-gold-border);
+  color: transparent; cursor: wait;
+  clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+}
+.btn-loading::after {
+  content: '';
+  position: absolute; width: 16px; height: 16px;
+  border: 2px solid var(--fl-gold-muted); border-top-color: var(--fl-gold-glow);
+  border-radius: 50%; animation: spin 0.75s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Icon Button */
+.btn-icon {
+  width: 44px; height: 44px;
+  background: var(--fl-bg-card);
+  box-shadow: 0 0 0 1px var(--fl-gold-border), var(--fl-shadow-inset), 0 2px 8px rgba(0,0,0,0.4);
+  color: var(--fl-gold-border); cursor: pointer; border: none;
+  clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);
+  font-size: 17px; display: flex; align-items: center; justify-content: center;
+  transition: all 0.12s; position: relative;
+}
+.btn-icon:hover { color: var(--fl-gold-glow); box-shadow: 0 0 0 1px var(--fl-gold-glow), var(--fl-glow-gold-soft); }
+.btn-icon:active { box-shadow: 0 0 0 1px var(--fl-gold-border), inset 0 2px 6px rgba(0,0,0,0.7); }
+.btn-icon.pressed { background: var(--fl-bg-inset); box-shadow: 0 0 0 1px rgba(198,161,91,0.4), inset 0 2px 6px rgba(0,0,0,0.6); }
+.btn-icon.disabled { box-shadow: 0 0 0 1px rgba(198,161,91,0.12); color: var(--fl-text-disabled); cursor: not-allowed; }
+.btn-icon .b-count {
+  position: absolute; top: -7px; right: -7px;
+  min-width: 19px; height: 19px; padding: 0 4px;
+  background: var(--fl-danger); border: 1.5px solid var(--fl-bg-main);
+  border-radius: 10px; font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; color: white;
+}
+
+/* Toggle */
+.fl-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.fl-toggle-track {
+  width: 52px; height: 28px; border-radius: 14px; position: relative;
+  transition: all 0.2s; border: 1px solid;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+}
+.fl-toggle-track.off { background: var(--fl-bg-inset); border-color: rgba(198,161,91,0.2); }
+.fl-toggle-track.on {
+  background: linear-gradient(90deg, #2a1a05, #3a2508);
+  border-color: var(--fl-gold-border); box-shadow: var(--fl-glow-gold-soft), inset 0 2px 4px rgba(0,0,0,0.3);
+}
+.fl-toggle-knob {
+  position: absolute; top: 4px; width: 18px; height: 18px;
+  border-radius: 50%; transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+.fl-toggle-track.off .fl-toggle-knob { left: 4px; background: var(--fl-text-muted); }
+.fl-toggle-track.on .fl-toggle-knob {
+  left: 28px; background: radial-gradient(circle, var(--fl-gold-hover), var(--fl-gold-border));
+  box-shadow: 0 0 10px rgba(230,196,122,0.6), 0 2px 4px rgba(0,0,0,0.4);
+}
+.fl-toggle-label { font-size: 12px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--fl-text-secondary); }
+
+/* ════════ ICON FRAMES ════════ */
+.icon-frame-svg { position: relative; flex-shrink: 0; }
+.icon-frame-svg .inner-icon {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px;
+}
+.icon-frame-svg.sm .inner-icon { font-size: 20px; }
+
+/* ════════ BARS ════════ */
+.fl-bar-wrap { display: flex; flex-direction: column; gap: 5px; }
+.fl-bar-label { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--fl-text-muted); }
+.fl-bar-track {
+  height: 24px; position: relative;
+  background: linear-gradient(180deg, var(--fl-bg-inset) 0%, rgba(0,0,0,0.3) 100%);
+  border: 1px solid rgba(198,161,91,0.15);
+  border-radius: 2px; overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5), inset 0 -1px 0 rgba(255,255,255,0.03);
+}
+.fl-bar-fill {
+  height: 100%; position: relative; overflow: hidden;
+  transition: width 0.7s cubic-bezier(.4,0,.2,1);
+}
+.fl-bar-fill::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 50%, rgba(0,0,0,0.15) 100%);
+}
+.fl-bar-fill::after {
+  content: '';
+  position: absolute; top: 0; left: -100%; width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  animation: bar-shine 3s ease-in-out infinite;
+}
+@keyframes bar-shine { 0%,100% { left: -100%; } 50% { left: 200%; } }
+.fl-bar-text {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+  color: rgba(255,255,255,0.92); text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+  z-index: 2;
+}
+/* HP */
+.fl-bar-hp .fl-bar-fill { background: linear-gradient(90deg, #5c0f0f, #9b1e1e, #d94040, #e05a5a); box-shadow: 0 0 12px rgba(224,90,90,0.3) inset; }
+.fl-bar-hp .fl-bar-track { border-color: rgba(224,90,90,0.25); }
+/* XP */
+.fl-bar-xp .fl-bar-fill { background: linear-gradient(90deg, #0f2550, #1e3f8a, #2f65c8, #4a8fe7); }
+.fl-bar-xp .fl-bar-track { border-color: rgba(74,143,231,0.2); }
+/* Gold */
+.fl-bar-gold .fl-bar-fill { background: linear-gradient(90deg, #3d2005, #7a4010, #b87525, #c6a15b, #e6c47a); }
+.fl-bar-gold .fl-bar-track { border-color: rgba(198,161,91,0.3); }
+/* Success */
+.fl-bar-success .fl-bar-fill { background: linear-gradient(90deg, #0f4029, #1a7048, #30a86a, #4fd18b); box-shadow: 0 0 12px rgba(79,209,139,0.25) inset; }
+.fl-bar-success .fl-bar-track { border-color: rgba(79,209,139,0.2); }
+/* Error */
+.fl-bar-error .fl-bar-fill { background: linear-gradient(90deg, #5c0f0f, #9b1e1e, #d94040); }
+/* Loading */
+.fl-bar-loading .fl-bar-fill {
+  background: linear-gradient(90deg, #3d2005, #c6a15b, #e6c47a, #c6a15b, #3d2005);
+  background-size: 300% 100%; width: 100% !important;
+  animation: bar-load 1.8s linear infinite;
+}
+@keyframes bar-load { 0%{background-position:200%} 100%{background-position:-100%} }
+
+/* Thin bar */
+.fl-bar-thin .fl-bar-track { height: 7px; border-radius: 2px; }
+
+/* Milestone track */
+.milestone-wrap { position: relative; padding-top: 12px; }
+.milestone-node {
+  position: absolute; top: 0; z-index: 5;
+  width: 13px; height: 13px; transform: rotate(45deg) translateX(-50%);
+  background: var(--fl-bg-main); border: 2px solid;
+  transition: all 0.3s;
+}
+.milestone-node.reached { border-color: var(--fl-gold-glow); background: var(--fl-gold-border); box-shadow: 0 0 8px rgba(230,196,122,0.5); }
+.milestone-node.pending { border-color: rgba(198,161,91,0.3); }
+.milestone-labels-row { display: flex; position: relative; margin-top: 16px; height: 14px; }
+.milestone-lbl { position: absolute; transform: translateX(-50%); font-size: 10px; color: var(--fl-text-muted); }
+
+/* ════════ RARITY SYSTEM ════════ */
+/* Icon Frame — SVG ring */
+.ring-frame { position: relative; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ring-frame svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ring-frame .rf-icon { position: relative; z-index: 2; font-size: 28px; }
+.ring-frame.sm .rf-icon { font-size: 18px; }
+.ring-frame.xs .rf-icon { font-size: 13px; }
+
+/* Rarity badges */
+.rar-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px;
+  font-family: var(--fl-font-ui); font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  background: var(--fl-bg-card); border: 1px solid;
+  clip-path: polygon(5px 0%,100% 0%,calc(100% - 5px) 100%,0% 100%);
+}
+.rar-badge.common { border-color: var(--fl-rarity-common); color: var(--fl-rarity-common); }
+.rar-badge.magic { border-color: var(--fl-rarity-magic); color: var(--fl-rarity-magic); }
+.rar-badge.rare { border-color: var(--fl-rarity-rare); color: var(--fl-rarity-rare); }
+.rar-badge.epic { border-color: var(--fl-rarity-epic); color: var(--fl-rarity-epic); }
+.rar-badge.legendary { border-color: var(--fl-rarity-legendary); color: var(--fl-rarity-legendary); }
+
+/* Item border */
+.item-frame-sq {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px;
+  position: relative;
+  background: radial-gradient(circle at 40% 30%, rgba(255,255,255,0.04), var(--fl-bg-inset));
+  clip-path: polygon(6px 0%,100% 0%,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
+}
+.item-frame-sq::before {
+  content: ''; position: absolute; inset: 0;
+  clip-path: inherit;
+  border: 2px solid; border-color: inherit;
+  pointer-events: none; z-index: 2;
+}
+
+/* ════════ BADGES ════════ */
+.fl-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; background: var(--fl-bg-card);
+  font-family: var(--fl-font-ui); font-size: 11px; font-weight: 600;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  border: 1px solid; cursor: default;
+  clip-path: polygon(5px 0%,100% 0%,calc(100% - 5px) 100%,0% 100%);
+}
+.fl-tag.nuevo { border-color: var(--fl-success); color: var(--fl-success); }
+.fl-tag.equipado { border-color: var(--fl-gold-border); color: var(--fl-gold-border); }
+.fl-tag.bloqueado { border-color: var(--fl-text-muted); color: var(--fl-text-muted); }
+.fl-tag.listo { border-color: var(--fl-success); color: var(--fl-success); background: rgba(79,209,139,0.06); }
+.fl-tag.mejorable { border-color: var(--fl-reward); color: var(--fl-reward); }
+.fl-tag.oculto { border-color: var(--fl-arcane); color: var(--fl-arcane); }
+.fl-tag.activo { border-color: var(--fl-gold-border); color: var(--fl-gold-border); background: rgba(198,161,91,0.08); }
+.fl-tag.en-progreso { border-color: var(--fl-defense); color: var(--fl-defense); }
+.fl-tag.no-disponible { border-color: var(--fl-danger); color: var(--fl-danger); }
+.fl-tag.arma { border-color: var(--fl-danger); color: var(--fl-danger); }
+.fl-tag.armadura { border-color: var(--fl-defense); color: var(--fl-defense); }
+.fl-tag.accesorio { border-color: var(--fl-arcane); color: var(--fl-arcane); }
+.fl-tag.mejor { border-color: var(--fl-success); color: var(--fl-success); background: rgba(79,209,139,0.08); }
+
+/* Counter badge */
+.fl-counter {
+  position: relative; width: 46px; height: 46px;
+  background: var(--fl-bg-card); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font-size: 21px;
+  box-shadow: 0 0 0 1px var(--fl-gold-muted), 0 2px 6px rgba(0,0,0,0.4);
+  clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);
+  transition: box-shadow 0.15s;
+}
+.fl-counter:hover { box-shadow: 0 0 0 1px var(--fl-gold-border), var(--fl-glow-gold-soft); }
+.fl-counter .cnt {
+  position: absolute; top: -7px; right: -7px;
+  min-width: 19px; height: 19px; padding: 0 4px;
+  border-radius: 10px; font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--fl-bg-main);
+}
+.cnt.gold-c { background: var(--fl-gold-deep); color: var(--fl-gold-glow); }
+.cnt.alert-c { background: var(--fl-danger); color: white; }
+.cnt.ok-c { background: var(--fl-success); color: #041a0a; }
+
+/* Afix chip */
+.afix-chip {
+  display: inline-flex; align-items: center;
+  font-size: 11px; font-weight: 500;
+  background: var(--fl-bg-inset);
+  border: 1px solid rgba(198,161,91,0.2);
+  padding: 2px 8px;
+  clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);
+  color: var(--fl-text-secondary);
+}
+.afix-chip.bonus { border-color: rgba(79,209,139,0.35); color: var(--fl-success); }
+
+/* ════════ STAT ROW ════════ */
+.stat-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid rgba(198,161,91,0.07);
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-icon { width: 22px; text-align: center; font-size: 14px; flex-shrink: 0; }
+.stat-name { flex: 1; font-size: 12px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--fl-text-muted); }
+.stat-val { font-size: 16px; font-weight: 700; color: var(--fl-text-primary); font-variant-numeric: tabular-nums; }
+.stat-val.pos { color: var(--fl-success); }
+.stat-val.neg { color: var(--fl-danger); }
+.stat-val.gold { color: var(--fl-gold-glow); }
+
+/* ════════ FEEDBACK ════════ */
+.fb-grid {
+  display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;
+  padding: 36px 24px;
+  background:
+    radial-gradient(ellipse 80% 80% at 50% 50%, rgba(198,161,91,0.04), transparent),
+    var(--fl-bg-card-deep);
+  border: 1px solid var(--fl-gold-muted);
+}
+.fb-item { text-align: center; min-width: 100px; }
+.fb-meta { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--fl-text-muted); margin-bottom: 10px; }
+.fb-normal { font-size: 34px; font-weight: 700; color: var(--fl-danger); font-variant-numeric: tabular-nums; }
+.fb-crit { font-size: 46px; font-weight: 900; color: var(--fl-danger); font-variant-numeric: tabular-nums; text-shadow: 0 0 20px rgba(224,90,90,0.5); }
+.fb-heal { font-size: 34px; font-weight: 700; color: var(--fl-success); text-shadow: 0 0 16px rgba(79,209,139,0.4); }
+.fb-success { font-family: var(--fl-font-display); font-size: 28px; font-weight: 700; color: var(--fl-success); text-shadow: var(--fl-glow-success); }
+.fb-fail { font-family: var(--fl-font-display); font-size: 28px; font-weight: 700; color: var(--fl-danger); text-shadow: var(--fl-glow-danger); }
+.fb-new { font-family: var(--fl-font-display); font-size: 26px; font-weight: 700; color: var(--fl-reward); text-shadow: 0 0 20px rgba(242,184,75,0.45); }
+.fb-res { display: flex; align-items: center; gap: 6px; font-size: 22px; font-weight: 700; color: var(--fl-reward); justify-content: center; }
+.fb-lvlup { display: flex; flex-direction: column; align-items: center; }
+.fb-lvlup .lv-lbl { font-family: var(--fl-font-display); font-size: 11px; letter-spacing: 5px; color: var(--fl-gold-border); }
+.fb-lvlup .lv-num { font-family: var(--fl-font-display); font-size: 54px; font-weight: 900; color: var(--fl-gold-glow); text-shadow: var(--fl-glow-gold-strong); line-height: 1; }
+.fb-lvlup .lv-wing { color: var(--fl-gold-border); font-size: 20px; opacity: 0.8; }
+
+/* ════════ NAVIGATION ════════ */
+.top-bar-demo {
+  display: flex; align-items: center; gap: 8px;
+  background: linear-gradient(180deg, var(--fl-bg-surface) 0%, var(--fl-bg-main) 100%);
+  border-bottom: 1px solid var(--fl-gold-muted);
+  padding: 8px 14px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  position: relative;
+}
+.top-bar-demo::after {
+  content: '';
+  position: absolute; bottom: 0; left: 5%; right: 5%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(198,161,91,0.3), transparent);
+}
+.hero-ava {
+  width: 46px; height: 46px; flex-shrink: 0;
+  background: var(--fl-bg-card); position: relative;
+  clip-path: polygon(8px 0%,100% 0%,100% calc(100% - 8px),calc(100% - 8px) 100%,0% 100%,0% 8px);
+  box-shadow: 0 0 0 1px var(--fl-gold-border), 0 0 10px rgba(198,161,91,0.2);
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
+}
+.hero-lvl-badge {
+  position: absolute; bottom: -4px; right: -4px;
+  background: var(--fl-gold-deep); border: 1.5px solid var(--fl-gold-border);
+  clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);
+  font-size: 9px; font-weight: 700; color: var(--fl-gold-glow);
+  padding: 1px 5px;
+}
+.hero-name-txt { font-size: 16px; font-weight: 700; color: var(--fl-text-primary); }
+.hero-class-badge {
+  display: inline-block; font-size: 11px; letter-spacing: 1px;
+  background: var(--fl-bg-inset);
+  border: 1px solid var(--fl-gold-muted);
+  padding: 2px 8px; margin-top: 2px;
+  clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);
+  color: var(--fl-text-muted);
+}
+.res-pill-top {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--fl-bg-inset);
+  border: 1px solid var(--fl-gold-muted);
+  padding: 5px 10px;
+  clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);
+  cursor: pointer; transition: border-color 0.15s;
+}
+.res-pill-top:hover { border-color: var(--fl-gold-border); }
+.res-pill-top .icon { font-size: 17px; }
+.res-pill-top .amt { font-size: 15px; font-weight: 700; color: var(--fl-text-primary); font-variant-numeric: tabular-nums; }
+.res-pill-top .plus { font-size: 15px; color: var(--fl-gold-border); }
+
+/* Bottom Nav */
+.bottom-nav {
+  display: flex;
+  background: linear-gradient(180deg, var(--fl-bg-surface) 0%, #090C12 100%);
+  border-top: 1px solid var(--fl-gold-muted);
+  position: relative;
+}
+.bottom-nav::before {
+  content: '';
+  position: absolute; top: 0; left: 5%; right: 5%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(198,161,91,0.3), transparent);
+}
+.bnav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 11px 6px 12px; cursor: pointer; position: relative;
+  border-top: 2px solid transparent; transition: all 0.15s;
+}
+.bnav-item:hover { background: rgba(198,161,91,0.03); }
+.bnav-item .bi { font-size: 22px; color: var(--fl-text-muted); transition: color 0.15s, filter 0.15s; }
+.bnav-item .bl { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--fl-text-muted); transition: color 0.15s; }
+.bnav-item .bb {
+  position: absolute; top: 4px; right: calc(50% - 18px);
+  min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 9px; font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--fl-bg-main);
+}
+.bnav-item.active {
+  border-top-color: var(--fl-gold-border);
+  background: linear-gradient(180deg, rgba(198,161,91,0.07) 0%, transparent 100%);
+}
+.bnav-item.active .bi { color: var(--fl-gold-glow); filter: drop-shadow(0 0 6px rgba(230,196,122,0.5)); }
+.bnav-item.active .bl { color: var(--fl-gold-glow); }
+
+/* Forge Tabs */
+.forge-tabs {
+  display: flex; gap: 0;
+  background: var(--fl-bg-inset); border: 1px solid var(--fl-gold-muted);
+  padding: 4px; gap: 3px;
+  clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);
+}
+.forge-tab {
+  flex: 1; text-align: center; padding: 9px 8px;
+  font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--fl-text-muted); cursor: pointer; position: relative; transition: all 0.15s;
+  clip-path: polygon(5px 0%,100% 0%,calc(100% - 5px) 100%,0% 100%);
+}
+.forge-tab:hover { color: var(--fl-text-secondary); }
+.forge-tab.active {
+  background: linear-gradient(180deg, rgba(198,161,91,0.12) 0%, rgba(198,161,91,0.05) 100%);
+  color: var(--fl-gold-glow);
+  box-shadow: 0 0 0 1px var(--fl-gold-border), 0 0 8px rgba(198,161,91,0.15);
+}
+.forge-tab.active::after {
+  content: '';
+  position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
+  width: 8px; height: 8px; background: var(--fl-gold-border); transform: translateX(-50%) rotate(45deg);
+  box-shadow: 0 0 6px rgba(198,161,91,0.4);
+}
+
+/* Segmented tabs */
+.seg-tabs-row { display: flex; }
+.seg-tab {
+  flex: 1; text-align: center; padding: 11px 12px; cursor: pointer;
+  font-size: 13px; font-weight: 600; letter-spacing: 1px;
+  color: var(--fl-text-muted); transition: all 0.15s;
+  background: var(--fl-bg-card); border: 1px solid var(--fl-gold-muted);
+  position: relative;
+}
+.seg-tab:not(:first-child) { border-left: none; }
+.seg-tab:first-child { clip-path: polygon(8px 0%,100% 0%,100% 100%,0 100%,0 8px); }
+.seg-tab:last-child { clip-path: polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%); }
+.seg-tab:hover { color: var(--fl-text-secondary); }
+.seg-tab.active { background: rgba(198,161,91,0.1); color: var(--fl-gold-glow); box-shadow: 0 0 0 1px var(--fl-gold-border) inset; z-index: 1; }
+
+/* ════════ MICRO ELEMENTS ════════ */
+.orn-bullet { display: inline-block; width: 8px; height: 8px; background: var(--fl-gold-border); transform: rotate(45deg); box-shadow: 0 0 4px rgba(198,161,91,0.4); flex-shrink: 0; }
+.pagination { display: flex; gap: 8px; align-items: center; }
+.pag-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fl-text-muted); transition: all 0.2s; }
+.pag-dot.active { background: var(--fl-gold-glow); border-radius: 2px; transform: rotate(45deg) scale(1.1); box-shadow: 0 0 6px rgba(230,196,122,0.4); width: 10px; height: 10px; }
+.step-row { display: flex; align-items: center; }
+.step-circle {
+  width: 28px; height: 28px; border-radius: 50%; border: 2px solid;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; transition: all 0.2s;
+  clip-path: polygon(6px 0%,100% 0%,calc(100% - 0px) 50%,100% 100%,6px 100%,0 50%);
+  border-radius: 0;
+}
+.step-circle.done { border-color: var(--fl-gold-border); background: var(--fl-gold-border); color: var(--fl-bg-main); }
+.step-circle.current { border-color: var(--fl-gold-glow); color: var(--fl-gold-glow); box-shadow: 0 0 10px rgba(230,196,122,0.4); }
+.step-circle.pending { border-color: rgba(198,161,91,0.25); color: var(--fl-text-muted); }
+.step-line { width: 28px; height: 2px; }
+.step-line.done { background: var(--fl-gold-border); }
+.step-line.pending { background: rgba(198,161,91,0.15); }
+
+/* Resource Pills */
+.res-pill-lg {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--fl-bg-card);
+  box-shadow: 0 0 0 1px var(--fl-gold-muted), 0 2px 8px rgba(0,0,0,0.4);
+  padding: 10px 14px;
+  clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+}
+.res-pill-lg .r-ico { font-size: 24px; }
+.res-pill-lg .r-meta .r-lbl { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--fl-text-muted); }
+.res-pill-lg .r-meta .r-amt { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--fl-text-primary); }
+
+/* ════════ SCREEN MODULES ════════ */
+/* Job card */
+.job-card-fl {
+  background: var(--fl-bg-card);
+  box-shadow: 0 0 0 1px var(--fl-gold-muted), var(--fl-shadow-deep), var(--fl-shadow-inset);
+  clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+  overflow: hidden;
+}
+.job-card-fl.ready { box-shadow: 0 0 0 1px var(--fl-success), 0 0 14px rgba(79,209,139,0.18), var(--fl-shadow-deep); }
+.job-inner { display: flex; gap: 14px; padding: 14px; align-items: flex-start; }
+.job-ico {
+  width: 54px; height: 54px; flex-shrink: 0;
+  background: var(--fl-bg-inset);
+  box-shadow: 0 0 0 1px var(--fl-gold-muted);
+  clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);
+  display: flex; align-items: center; justify-content: center; font-size: 24px;
+}
+.job-name-txt { font-size: 16px; font-weight: 600; color: var(--fl-text-primary); }
+.job-status-ready { font-size: 13px; color: var(--fl-success); font-weight: 600; margin: 3px 0; }
+.job-status-prog { font-size: 13px; color: var(--fl-defense); font-weight: 600; margin: 3px 0; }
+.job-desc-txt { font-size: 12px; color: var(--fl-text-muted); }
+.job-action-fl { padding: 0 14px 14px; }
+
+/* Station row */
+.station-row-fl {
+  display: flex; align-items: center; gap: 14px; padding: 13px 16px;
+  border-bottom: 1px solid rgba(198,161,91,0.06);
+}
+.station-row-fl:last-child { border-bottom: none; }
+.station-ico {
+  width: 54px; height: 54px; flex-shrink: 0;
+  border-radius: 50%; background: var(--fl-bg-inset);
+  box-shadow: 0 0 0 1px var(--fl-gold-muted), 0 0 0 4px rgba(198,161,91,0.05);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; position: relative;
+}
+.station-ico .s-badge {
+  position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%);
+  background: var(--fl-bg-inset); border: 1px solid var(--fl-gold-muted);
+  padding: 1px 5px; font-size: 9px; color: var(--fl-text-muted); white-space: nowrap;
+  clip-path: polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%);
+}
+.station-name-txt { font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--fl-gold-border); }
+.station-desc-txt { font-size: 12px; color: var(--fl-text-muted); margin-top: 2px; }
+
+/* Talent node */
+.talent-node {
+  width: 76px; height: 76px;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 28px; cursor: pointer; transition: all 0.15s; position: relative;
+}
+.talent-node .tn-count {
+  position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+  background: var(--fl-bg-inset); border: 1px solid var(--fl-gold-muted);
+  padding: 1px 7px; font-size: 10px; color: var(--fl-text-muted);
+  clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);
+  white-space: nowrap;
+}
+.talent-node.basic { box-shadow: 0 0 0 2px var(--fl-success), 0 0 12px rgba(79,209,139,0.2); background: radial-gradient(circle, rgba(79,209,139,0.1), rgba(79,209,139,0.03), transparent); }
+.talent-node.mid { box-shadow: 0 0 0 2px var(--fl-gold-border), 0 0 12px rgba(198,161,91,0.2); background: radial-gradient(circle, rgba(198,161,91,0.1), transparent); }
+.talent-node.keystone { box-shadow: 0 0 0 2px var(--fl-danger), 0 0 14px rgba(224,90,90,0.25); background: radial-gradient(circle, rgba(224,90,90,0.12), transparent); }
+
+/* Ecos card */
+.eco-card {
+  border: 1px solid; border-radius: 2px; padding: 14px 16px; background: var(--fl-bg-inset);
+  clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+}
+.eco-card.conservas { border-color: rgba(79,209,139,0.4); box-shadow: 0 0 14px rgba(79,209,139,0.08); }
+.eco-card.reinicia { border-color: rgba(224,90,90,0.4); box-shadow: 0 0 14px rgba(224,90,90,0.08); }
+.eco-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+.eco-card.conservas .eco-title { color: var(--fl-success); }
+.eco-card.reinicia .eco-title { color: var(--fl-danger); }
+.eco-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.eco-list li { font-size: 12px; color: var(--fl-text-secondary); display: flex; gap: 6px; }
+.eco-list li::before { content: '◆'; font-size: 7px; margin-top: 5px; flex-shrink: 0; }
+.eco-card.conservas .eco-list li::before { color: var(--fl-success); }
+.eco-card.reinicia .eco-list li::before { color: var(--fl-danger); }
+
+/* Item row - inventory */
+.inv-row {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--fl-bg-card);
+  box-shadow: 0 0 0 1px var(--fl-gold-muted), var(--fl-shadow-inset);
+  padding: 12px;
+  clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);
+}
+.inv-row.has-upgrade { box-shadow: 0 0 0 1px var(--fl-success), 0 0 12px rgba(79,209,139,0.12), var(--fl-shadow-inset); }
+
+/* Offline modal */
+.off-modal {
+  background: var(--fl-bg-card);
+  box-shadow: 0 0 0 2px var(--fl-gold-border), 0 0 0 4px rgba(198,161,91,0.08), 0 32px 80px rgba(0,0,0,0.8), var(--fl-glow-gold-soft);
+  clip-path: polygon(12px 0%,calc(100% - 12px) 0%,100% 12px,100% calc(100% - 12px),calc(100% - 12px) 100%,12px 100%,0 calc(100% - 12px),0 12px);
+  overflow: hidden; max-width: 520px;
+}
+.off-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--fl-gold-muted);
+  display: flex; justify-content: space-between; align-items: center;
+  background: linear-gradient(180deg, rgba(198,161,91,0.05) 0%, transparent 100%);
+  position: relative;
+}
+.off-header::after {
+  content: '';
+  position: absolute; bottom: 0; left: 5%; right: 5%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(198,161,91,0.3), transparent);
+}
+.off-title { font-family: var(--fl-font-display); font-size: 26px; color: var(--fl-gold-glow); display: flex; align-items: center; gap: 10px; text-shadow: 0 0 20px rgba(230,196,122,0.3); }
+.off-body { padding: 20px 24px; }
+.rew-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.rew-cell {
+  background: var(--fl-bg-inset);
+  box-shadow: 0 0 0 1px var(--fl-gold-muted);
+  padding: 12px; display: flex; align-items: center; gap: 10px;
+  clip-path: polygon(5px 0%,100% 0%,calc(100% - 5px) 100%,0% 100%);
+}
+.rew-cell .ri { font-size: 22px; }
+.rew-cell .rl { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--fl-text-muted); }
+.rew-cell .rv { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rv.gold { color: var(--fl-reward); } .rv.xp { color: var(--fl-arcane); } .rv.def { color: var(--fl-text-primary); }
+.best-drop {
+  background: var(--fl-bg-inset); box-shadow: 0 0 0 1px var(--fl-gold-muted);
+  padding: 14px; display: flex; gap: 14px; align-items: center;
+  clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);
+}
+.best-drop-frame {
+  width: 58px; height: 58px; flex-shrink: 0; font-size: 28px;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle, rgba(180,85,232,0.15), var(--fl-bg-main));
+  box-shadow: 0 0 0 2px var(--fl-rarity-epic), 0 0 16px rgba(180,85,232,0.35);
+  clip-path: polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);
+}
+.best-drop-lbl { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--fl-success); margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
+.best-drop-lbl::after { content: ''; flex: 1; height: 1px; background: rgba(79,209,139,0.25); }
+.best-drop-name { font-size: 17px; font-weight: 600; color: var(--fl-text-primary); }
+.best-drop-rar { font-size: 13px; color: var(--fl-rarity-epic); margin-top: 2px; }
+
+/* Do/Don't */
+.do-dont-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.do-col { background: rgba(79,209,139,0.04); box-shadow: 0 0 0 1px rgba(79,209,139,0.2); padding: 20px; clip-path: polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%); }
+.dont-col { background: rgba(224,90,90,0.04); box-shadow: 0 0 0 1px rgba(224,90,90,0.18); padding: 20px; clip-path: polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%); }
+.do-col h4 { color: var(--fl-success); margin-bottom: 14px; font-size: 13px; letter-spacing: 3px; }
+.dont-col h4 { color: var(--fl-danger); margin-bottom: 14px; font-size: 13px; letter-spacing: 3px; }
+.rule { display: flex; gap: 8px; margin-bottom: 9px; font-size: 12px; color: var(--fl-text-secondary); line-height: 1.5; }
+.rule::before { flex-shrink: 0; font-weight: 700; margin-top: 1px; }
+.do-col .rule::before { content: '✓'; color: var(--fl-success); }
+.dont-col .rule::before { content: '✗'; color: var(--fl-danger); }
+
+/* ════════ GRIDS ════════ */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.g4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+@media(max-width:700px){ .g2,.g3,.g4,.do-dont-grid{grid-template-columns:1fr} .rew-grid{grid-template-columns:1fr 1fr} }
+
+.palette-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.sw { width: 72px; text-align: center; }
+.sw-color { height: 46px; border-radius: 2px; margin-bottom: 5px; box-shadow: 0 0 0 1px rgba(255,255,255,0.05); }
+.sw-name { font-size: 9px; color: var(--fl-text-muted); letter-spacing: 1px; }
+.sw-hex { font-size: 9px; color: var(--fl-text-disabled); font-family: monospace; }
+
+/* Scroll */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--fl-bg-inset); }
+::-webkit-scrollbar-thumb { background: var(--fl-gold-border); border-radius: 2px; }
+
+/* Ring frame helper */
+.rf-wrap { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+
+/* ════════ STATUS EFFECTS ════════ */
+.effects-group { margin-bottom: 40px; }
+.effects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 14px;
+}
+.effect-card {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 16px 10px 14px;
+  background: var(--fl-bg-card);
+  box-shadow: 0 0 0 1px var(--fl-gold-muted), var(--fl-shadow-inset);
+  clip-path: polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);
+  cursor: pointer; transition: box-shadow 0.15s, transform 0.1s;
+  position: relative;
+}
+.effect-card:hover { transform: translateY(-2px); }
+.effect-card.buff:hover { box-shadow: 0 0 0 1px var(--fl-gold-border), var(--fl-glow-gold-soft); }
+.effect-card.debuff:hover { box-shadow: 0 0 0 1px var(--fl-danger), var(--fl-glow-danger); }
+
+.effect-ring {
+  width: 64px; height: 64px; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.effect-ring svg.ring-svg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  overflow: visible;
+}
+.effect-ring .effect-icon-svg {
+  position: relative; z-index: 2;
+  width: 36px; height: 36px;
+}
+
+.effect-name {
+  font-family: var(--fl-font-display); font-size: 11px; font-weight: 600;
+  color: var(--fl-text-primary); text-align: center; letter-spacing: 0.5px;
+  line-height: 1.2;
+}
+.effect-id {
+  font-family: monospace; font-size: 9px; letter-spacing: 1px;
+  color: var(--fl-text-disabled); text-align: center;
+}
+.effect-type-dot {
+  position: absolute; top: 6px; right: 8px;
+  width: 7px; height: 7px; border-radius: 50%;
+}
+.effect-type-dot.buff { background: var(--fl-gold-border); box-shadow: 0 0 4px rgba(198,161,91,0.5); }
+.effect-type-dot.debuff { background: var(--fl-danger); box-shadow: 0 0 4px rgba(224,90,90,0.5); }
+
+.effect-tooltip {
+  font-size: 11px; color: var(--fl-text-muted); text-align: center; line-height: 1.4;
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="kit-header">
+  <div class="kit-logo">✦ Sistema Visual</div>
+  <div class="kit-title">FORGE LIGHT</div>
+  <div class="kit-subtitle">Master UI Kit · Design System · Idle RPG</div>
+  <div class="kit-ornament"><div class="kit-diamond"></div></div>
+  <div class="kit-tags">
+    <span class="kit-tag">dark fantasy</span>
+    <span class="kit-tag">mobile first</span>
+    <span class="kit-tag">gold as structure</span>
+    <span class="kit-tag">semantic color</span>
+    <span class="kit-tag">high legibility</span>
+    <span class="kit-tag">premium</span>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav class="section-nav" id="sNav">
+  <button class="nav-btn active" data-s="tokens">01 Tokens</button>
+  <button class="nav-btn" data-s="typo">02 Tipografía</button>
+  <button class="nav-btn" data-s="buttons">03 Botones</button>
+  <button class="nav-btn" data-s="cards">04 Cards</button>
+  <button class="nav-btn" data-s="bars">05 Barras</button>
+  <button class="nav-btn" data-s="rarity">06 Rarezas</button>
+  <button class="nav-btn" data-s="badges">07 Badges</button>
+  <button class="nav-btn" data-s="stats">08 Stats</button>
+  <button class="nav-btn" data-s="feedback">09 Feedback</button>
+  <button class="nav-btn" data-s="nav">10 Navegación</button>
+  <button class="nav-btn" data-s="modules">11 Módulos</button>
+  <button class="nav-btn" data-s="micro">12 Micro</button>
+  <button class="nav-btn" data-s="dodont">13 Do/Don't</button>
+  <button class="nav-btn" data-s="effects">14 Efectos</button>
+</nav>
+
+<div class="kit-body">
+
+<!-- 01 TOKENS -->
+<section class="kit-section visible s-gap" id="tokens">
+<div class="sec-header"><span class="sec-num">01</span><div class="sec-line-l"></div><div class="sec-diamond"></div><span class="sec-title">Core Tokens</span><div class="sec-line-r"></div></div>
+
+<div class="sub-label">Paleta de Color</div>
+<div class="palette-grid" style="margin-bottom:36px">
+  <div class="sw"><div class="sw-color" style="background:#0B0F14"></div><div class="sw-name">BG Main</div><div class="sw-hex">#0B0F14</div></div>
+  <div class="sw"><div class="sw-color" style="background:#0F1520"></div><div class="sw-name">Surface</div><div class="sw-hex">#0F1520</div></div>
+  <div class="sw"><div class="sw-color" style="background:#141B25"></div><div class="sw-name">Card</div><div class="sw-hex">#141B25</div></div>
+  <div class="sw"><div class="sw-color" style="background:#0B0F17"></div><div class="sw-name">Card Deep</div><div class="sw-hex">#0B0F17</div></div>
+  <div class="sw"><div class="sw-color" style="background:#C6A15B"></div><div class="sw-name">Gold Border</div><div class="sw-hex">#C6A15B</div></div>
+  <div class="sw"><div class="sw-color" style="background:#E6C47A"></div><div class="sw-name">Gold Glow</div><div class="sw-hex">#E6C47A</div></div>
+  <div class="sw"><div class="sw-color" style="background:#F0D28A"></div><div class="sw-name">Gold Hover</div><div class="sw-hex">#F0D28A</div></div>
+  <div class="sw"><div class="sw-color" style="background:#7C531F"></div><div class="sw-name">Gold Deep</div><div class="sw-hex">#7C531F</div></div>
+  <div class="sw"><div class="sw-color" style="background:#F2E6C8"></div><div class="sw-name">Text Prim</div><div class="sw-hex">#F2E6C8</div></div>
+  <div class="sw"><div class="sw-color" style="background:#B8AA8F"></div><div class="sw-name">Text Sec</div><div class="sw-hex">#B8AA8F</div></div>
+  <div class="sw"><div class="sw-color" style="background:#7F7564"></div><div class="sw-name">Text Muted</div><div class="sw-hex">#7F7564</div></div>
+  <div class="sw"><div class="sw-color" style="background:#4A4540"></div><div class="sw-name">Disabled</div><div class="sw-hex">#4A4540</div></div>
+  <div class="sw"><div class="sw-color" style="background:#4FD18B"></div><div class="sw-name">Success</div><div class="sw-hex">#4FD18B</div></div>
+  <div class="sw"><div class="sw-color" style="background:#E05A5A"></div><div class="sw-name">Danger</div><div class="sw-hex">#E05A5A</div></div>
+  <div class="sw"><div class="sw-color" style="background:#8A5BE8"></div><div class="sw-name">Arcane</div><div class="sw-hex">#8A5BE8</div></div>
+  <div class="sw"><div class="sw-color" style="background:#4A8FE7"></div><div class="sw-name">Defense</div><div class="sw-hex">#4A8FE7</div></div>
+  <div class="sw"><div class="sw-color" style="background:#F2B84B"></div><div class="sw-name">Reward</div><div class="sw-hex">#F2B84B</div></div>
+  <div class="sw"><div class="sw-color" style="background:#8E8E8E"></div><div class="sw-name">Common</div><div class="sw-hex">#8E8E8E</div></div>
+  <div class="sw"><div class="sw-color" style="background:#4FD18B"></div><div class="sw-name">Magic</div><div class="sw-hex">#4FD18B</div></div>
+  <div class="sw"><div class="sw-color" style="background:#4A8FE7"></div><div class="sw-name">Rare</div><div class="sw-hex">#4A8FE7</div></div>
+  <div class="sw"><div class="sw-color" style="background:#B455E8"></div><div class="sw-name">Epic</div><div class="sw-hex">#B455E8</div></div>
+  <div class="sw"><div class="sw-color" style="background:#F29A2E"></div><div class="sw-name">Legendary</div><div class="sw-hex">#F29A2E</div></div>
+</div>
+
+<div class="g2">
+  <div>
+    <div class="sub-label">Glows y Sombras</div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="padding:12px 16px;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);background:var(--fl-bg-card);box-shadow:0 0 20px rgba(230,196,122,0.20)"><span style="font-size:11px;color:var(--fl-text-muted)">glow-gold-soft</span></div>
+      <div style="padding:12px 16px;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);background:var(--fl-bg-card);box-shadow:0 0 32px rgba(230,196,122,0.38),0 0 8px rgba(230,196,122,0.2);border:1px solid rgba(230,196,122,0.2)"><span style="font-size:11px;color:var(--fl-text-muted)">glow-gold-strong</span></div>
+      <div style="padding:12px 16px;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);background:var(--fl-bg-card);box-shadow:0 0 22px rgba(79,209,139,0.28);border:1px solid rgba(79,209,139,0.2)"><span style="font-size:11px;color:var(--fl-text-muted)">glow-success</span></div>
+      <div style="padding:12px 16px;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);background:var(--fl-bg-card);box-shadow:0 0 22px rgba(224,90,90,0.28);border:1px solid rgba(224,90,90,0.2)"><span style="font-size:11px;color:var(--fl-text-muted)">glow-danger</span></div>
+      <div style="padding:12px 16px;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);background:var(--fl-bg-card);box-shadow:0 0 24px rgba(138,91,232,0.35);border:1px solid rgba(138,91,232,0.2)"><span style="font-size:11px;color:var(--fl-text-muted)">glow-arcane</span></div>
+    </div>
+  </div>
+  <div>
+    <div class="sub-label">Esquinas — Chamfer vs Round</div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="padding:16px;background:var(--fl-bg-card);clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);box-shadow:0 0 0 1px var(--fl-gold-muted)"><span style="font-size:11px;color:var(--fl-text-muted)">Botón chamfered horizontal</span></div>
+      <div style="padding:16px;background:var(--fl-bg-card);clip-path:polygon(0 8px,8px 0%,calc(100% - 8px) 0%,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px));box-shadow:0 0 0 1px var(--fl-gold-muted)"><span style="font-size:11px;color:var(--fl-text-muted)">Card chamfered completa</span></div>
+      <div style="padding:16px;background:var(--fl-bg-card);clip-path:polygon(16px 0%,calc(100% - 16px) 0%,100% 50%,calc(100% - 16px) 100%,16px 100%,0 50%);box-shadow:0 0 0 1px var(--fl-gold-border),0 0 16px rgba(198,161,91,0.2)"><span style="font-size:11px;color:var(--fl-text-muted)">CTA hexagonal (MEJORAR)</span></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- 02 TIPOGRAFÍA -->
+<section class="kit-section s-gap" id="typo">
+<div class="sec-header"><span class="sec-num">02</span><div class="sec-line-l"></div><div class="sec-diamond"></div><span class="sec-title">Tipografía</span><div class="sec-line-r"></div></div>
+
+<div style="display:flex;flex-direction:column;gap:0">
+  <div style="display:flex;align-items:baseline;gap:20px;padding:14px 0;border-bottom:1px solid rgba(198,161,91,0.07)">
+    <span style="width:160px;flex-shrink:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--fl-text-muted)">H1 · Cinzel · 40px</span>
+    <span style="font-family:var(--fl-font-display);font-size:40px;font-weight:700;color:var(--fl-text-primary)">Título Principal</span>
+  </div>
+  <div style="display:flex;align-items:baseline;gap:20px;padding:14px 0;border-bottom:1px solid rgba(198,161,91,0.07)">
+    <span style="width:160px;flex-shrink:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--fl-text-muted)">H2 · Cinzel · 26px</span>
+    <span style="font-family:var(--fl-font-display);font-size:26px;font-weight:600;color:var(--fl-text-primary)">Subtítulo de Sistema</span>
+  </div>
+  <div style="display:flex;align-items:baseline;gap:20px;padding:14px 0;border-bottom:1px solid rgba(198,161,91,0.07)">
+    <span style="width:160px;flex-shrink:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--fl-text-muted)">H3 · Cinzel · 20px</span>
+    <span style="font-family:var(--fl-font-display);font-size:20px;font-weight:600;color:var(--fl-gold-glow)">Título de Sección</span>
+  </div>
+  <div style="display:flex;align-items:baseline;gap:20px;padding:14px 0;border-bottom:1px solid rgba(198,161,91,0.07)">
+    <span style="width:160px;flex-shrink:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--fl-text-muted)">Section · 12px · 4ls</span>
+    <span style="font-family:var(--fl-font-ui);font-size:12px;font-weight:700;letter-spacing:4px;text-transform:uppercase;color:var(--fl-gold-border)">◈ Label de sección</span>
+  </div>
+  <div style="display:flex;align-items:baseline;gap:20px;padding:14px 0;border-bottom:1px solid rgba(198,161,91,0.07)">
+    <span style="width:160px;flex-shrink:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--fl-text-muted)">Body · 15px</span>
+    <span style="font-family:var(--fl-font-ui);font-size:15px;color:var(--fl-text-secondary);line-height:1.6">Texto de cuerpo regular para descripciones y información general del juego.</span>
+  </div>
+  <div style="display:flex;align-items:baseline;gap:20px;padding:14px 0;border-bottom:1px solid rgba(198,161,91,0.07)">
+    <span style="width:160px;flex-shrink:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--fl-text-muted)">Label · 11px</span>
+    <span style="font-family:var(--fl-font-ui);font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--fl-text-muted)">Label compacto</span>
+  </div>
+  <div style="display:flex;align-items:baseline;gap:20px;padding:14px 0;border-bottom:1px solid rgba(198,161,91,0.07)">
+    <span style="width:160px;flex-shrink:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--fl-text-muted)">Disabled · 13px</span>
+    <span style="font-family:var(--fl-font-ui);font-size:13px;color:var(--fl-text-disabled)">Texto desactivado</span>
+  </div>
+  <div style="display:flex;align-items:baseline;gap:20px;padding:14px 0">
+    <span style="width:160px;flex-shrink:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--fl-text-muted)">Number · 44px</span>
+    <span style="font-family:var(--fl-font-ui);font-size:44px;font-weight:700;color:var(--fl-text-primary);font-variant-numeric:tabular-nums">12,345</span>
+  </div>
+</div>
+<div class="orn-sep"><div class="orn-sep-line"></div><div class="orn-sep-center"><div class="orn-diamond-sm"></div><div class="orn-diamond"></div><div class="orn-diamond-sm"></div></div><div class="orn-sep-line"></div></div>
+<div class="sub-label">Stat Row canonico</div>
+<div class="fl-panel" style="max-width:360px">
+  <div class="fl-panel-header"><span class="fl-panel-title">Lectura Rápida</span></div>
+  <div class="fl-panel-body">
+    <div class="stat-row"><span class="stat-icon">⚔</span><span class="stat-name">Ataque</span><span class="stat-val gold">1,250</span></div>
+    <div class="stat-row"><span class="stat-icon">🛡</span><span class="stat-name">Defensa</span><span class="stat-val">850</span></div>
+    <div class="stat-row"><span class="stat-icon">💥</span><span class="stat-name">Crítico</span><span class="stat-val pos">24%</span></div>
+    <div class="stat-row"><span class="stat-icon">⚡</span><span class="stat-name">Velocidad</span><span class="stat-val">1.25</span></div>
+    <div class="stat-row"><span class="stat-icon">🪙</span><span class="stat-name">Recurso</span><span class="stat-val gold">99,999</span></div>
+  </div>
+</div>
+</section>
+
+<!-- 03 BOTONES -->
+<section class="kit-section s-gap" id="buttons">
+<div class="sec-header"><span class="sec-num">03</span><div class="sec-line-l"></div><div class="sec-diamond"></div><span class="sec-title">Button Library</span><div class="sec-line-r"></div></div>
+
+<div class="sub-label">Primary — Default / Hover / Pressed / Disabled / Loading</div>
+<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:28px">
+  <button class="btn btn-primary">Abrir</button>
+  <button class="btn btn-primary" style="color:var(--fl-gold-hover);box-shadow:0 0 0 1px var(--fl-gold-glow),var(--fl-glow-gold-soft),var(--fl-shadow-inset)">Hover</button>
+  <button class="btn btn-primary" style="transform:translateY(1px);box-shadow:0 0 0 1px var(--fl-gold-border),inset 0 3px 8px rgba(0,0,0,0.7)">Pressed</button>
+  <button class="btn btn-disabled">Bloqueado</button>
+  <button class="btn btn-loading">·</button>
+</div>
+
+<div class="sub-label">Secondary / Ghost / Semánticos</div>
+<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:28px">
+  <button class="btn btn-secondary">Mejorar</button>
+  <button class="btn btn-ghost">Extraer</button>
+  <button class="btn btn-danger">💀 Vender</button>
+  <button class="btn btn-success">✓ Reclamar</button>
+  <button class="btn btn-selected">Seleccionado</button>
+</div>
+
+<div class="sub-label">Icon Button — Default / Pressed / Disabled / Con Badge</div>
+<div style="display:flex;gap:14px;align-items:center;margin-bottom:28px">
+  <button class="btn-icon">⚔</button>
+  <button class="btn-icon pressed">⚔</button>
+  <button class="btn-icon disabled">⚔</button>
+  <div style="position:relative"><button class="btn-icon">📬<span class="b-count">3</span></button></div>
+  <div style="position:relative"><button class="btn-icon" style="width:50px;height:50px;font-size:20px">🎁<span class="b-count" style="background:var(--fl-success);color:#041a0a">12</span></button></div>
+</div>
+
+<div class="sub-label">Toggle Button — Off / On / On semántico</div>
+<div style="display:flex;gap:28px;align-items:center;margin-bottom:32px">
+  <label class="fl-toggle"><div class="fl-toggle-track off"><div class="fl-toggle-knob"></div></div><span class="fl-toggle-label">Auto</span></label>
+  <label class="fl-toggle"><div class="fl-toggle-track on"><div class="fl-toggle-knob"></div></div><span class="fl-toggle-label" style="color:var(--fl-gold-border)">Auto</span></label>
+  <label class="fl-toggle"><div class="fl-toggle-track on" style="border-color:var(--fl-success)"><div class="fl-toggle-knob" style="background:var(--fl-success);box-shadow:0 0 10px rgba(79,209,139,0.6)"></div></div><span class="fl-toggle-label" style="color:var(--fl-success)">Repetir</span></label>
+</div>
+
+<div class="sub-label">CTA Principal — MEJORAR (hexagonal)</div>
+<div style="max-width:440px">
+  <button class="btn-cta">
+    <div class="btn-cta-inner">
+      <div class="btn-cta-text">MEJORAR</div>
+      <div class="btn-cta-sub">G 45,630 · ENT 4</div>
+    </div>
+  </button>
+</div>
+</section>
+
+<!-- 04 CARDS -->
+<section class="kit-section s-gap" id="cards">
+<div class="sec-header"><span class="sec-num">04</span><div class="sec-line-l"></div><div class="sec-diamond"></div><span class="sec-title">Cards & Panels</span><div class="sec-line-r"></div></div>
+
+<div class="sub-label">Card Normal / Hover / Seleccionada</div>
+<div class="g3" style="margin-bottom:32px">
+  <div class="fl-card-wrap">
+    <div class="fl-card fl-card-inner">
+      <div style="padding:20px;background:var(--fl-bg-inset);display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--fl-gold-muted)">
+        <svg width="72" height="72" viewBox="0 0 72 72"><circle cx="36" cy="36" r="32" fill="none" stroke="#C6A15B" stroke-width="2" opacity="0.6"/><circle cx="36" cy="36" r="26" fill="none" stroke="#C6A15B" stroke-width="1" opacity="0.3"/><text x="36" y="44" text-anchor="middle" font-size="24" fill="#C6A15B">🛡</text></svg>
+      </div>
+      <div style="padding:14px">
+        <div style="font-family:var(--fl-font-display);font-size:15px;font-weight:600;color:var(--fl-text-primary);margin-bottom:5px">Título Card</div>
+        <div style="font-size:13px;color:var(--fl-text-secondary)">Descripción corta del contenido aquí.</div>
+        <div style="font-size:13px;color:var(--fl-gold-border);margin-top:8px">◈ +12%</div>
+      </div>
+    </div>
+  </div>
+  <div class="fl-card-wrap hover">
+    <div class="fl-card fl-card-inner">
+      <div style="padding:20px;background:var(--fl-bg-inset);display:flex;align-items:center;justify-content:center;border-bottom:1px solid rgba(230,196,122,0.25)">
+        <svg width="72" height="72" viewBox="0 0 72 72"><circle cx="36" cy="36" r="32" fill="none" stroke="#E6C47A" stroke-width="2.5"/><circle cx="36" cy="36" r="26" fill="none" stroke="#C6A15B" stroke-width="1" opacity="0.5"/><text x="36" y="44" text-anchor="middle" font-size="24" fill="#E6C47A">🛡</text></svg>
+      </div>
+      <div style="padding:14px">
+        <div style="font-family:var(--fl-font-display);font-size:15px;font-weight:600;color:var(--fl-text-primary);margin-bottom:5px">Título Card</div>
+        <div style="font-size:13px;color:var(--fl-text-secondary)">Descripción corta del contenido aquí.</div>
+        <div style="font-size:13px;color:var(--fl-gold-glow);margin-top:8px">◈ +12%</div>
+      </div>
+    </div>
+  </div>
+  <div class="fl-card-wrap selected">
+    <div class="fl-card fl-card-inner" style="background:linear-gradient(180deg,rgba(198,161,91,0.06) 0%,var(--fl-bg-card) 40%)">
+      <div style="padding:20px;background:rgba(198,161,91,0.05);display:flex;align-items:center;justify-content:center;border-bottom:1px solid rgba(230,196,122,0.3)">
+        <svg width="72" height="72" viewBox="0 0 72 72" style="filter:drop-shadow(0 0 8px rgba(230,196,122,0.5))"><circle cx="36" cy="36" r="32" fill="none" stroke="#E6C47A" stroke-width="3"/><circle cx="36" cy="36" r="26" fill="none" stroke="#C6A15B" stroke-width="1.5" opacity="0.7"/><text x="36" y="44" text-anchor="middle" font-size="24" fill="#F0D28A">🛡</text></svg>
+      </div>
+      <div style="padding:14px">
+        <div style="font-family:var(--fl-font-display);font-size:15px;font-weight:600;color:var(--fl-gold-glow);margin-bottom:5px">Título Card</div>
+        <div style="font-size:13px;color:var(--fl-text-secondary)">Descripción corta del contenido aquí.</div>
+        <div style="font-size:13px;color:var(--fl-gold-glow);margin-top:8px">◈ +12%</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sub-label">Panel Sección / Modal</div>
+<div class="g2" style="margin-bottom:28px">
+  <div class="fl-panel">
+    <div class="fl-panel-header"><span class="fl-panel-title">Atributos</span><span style="margin-left:auto;font-size:11px;color:var(--fl-text-muted)">4 atributos</span></div>
+    <div class="fl-panel-body">
+      <div style="font-size:13px;color:var(--fl-text-secondary)">Descripción del panel. Organizado y legible.</div>
+    </div>
+  </div>
+  <!-- Modal -->
+  <div style="background:var(--fl-bg-surface);box-shadow:0 0 0 1px var(--fl-gold-border),0 0 0 3px rgba(198,161,91,0.08),0 24px 60px rgba(0,0,0,0.7);clip-path:polygon(12px 0%,calc(100% - 12px) 0%,100% 12px,100% calc(100% - 12px),calc(100% - 12px) 100%,12px 100%,0 calc(100% - 12px),0 12px);overflow:hidden">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--fl-gold-muted);background:linear-gradient(180deg,rgba(198,161,91,0.06) 0%,transparent 100%);display:flex;justify-content:space-between;align-items:center">
+      <span style="font-family:var(--fl-font-display);font-size:19px;color:var(--fl-text-primary)">Título Modal</span>
+      <button class="btn-icon" style="width:34px;height:34px;font-size:13px">✕</button>
+    </div>
+    <div style="padding:18px 20px">
+      <p style="color:var(--fl-text-secondary);font-size:13px;line-height:1.6">Descripción del modal o información importante. Confirmaciones, detalles de item, o datos adicionales.</p>
+    </div>
+    <div style="padding:14px 20px;border-top:1px solid var(--fl-gold-muted);display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-ghost" style="padding:8px 16px;font-size:12px">Cancelar</button>
+      <button class="btn btn-primary" style="padding:9px 20px;font-size:12px">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div class="sub-label">Item Row — Inventario (Epic / Rare con MEJOR)</div>
+<div style="display:flex;flex-direction:column;gap:10px;max-width:560px">
+  <div class="inv-row">
+    <div style="width:76px;height:76px;flex-shrink:0;font-size:32px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%,rgba(180,85,232,0.15),var(--fl-bg-inset));box-shadow:0 0 0 2px var(--fl-rarity-epic),0 0 14px rgba(180,85,232,0.3);clip-path:polygon(6px 0%,100% 0%,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)">⚔</div>
+    <div style="flex:1">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:5px">
+        <span class="rar-badge epic">Epic</span>
+        <span style="font-size:17px;font-weight:600;color:var(--fl-text-primary)">Hoja Reliquia de Guerra</span>
+      </div>
+      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--fl-text-muted);margin-bottom:6px">Sword · AFIJOS ◆◆</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">
+        <span class="afix-chip">Daño crítico +24%</span>
+        <span class="afix-chip">Multi-hit +16%</span>
+      </div>
+      <div style="font-size:12px;color:var(--fl-rarity-rare);margin-top:5px">Implícito: +3.4% Crítico</div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+      <div style="font-size:14px;font-weight:700;color:var(--fl-text-primary)"><span style="font-size:11px;color:var(--fl-gold-border)">P</span> 430</div>
+      <button class="btn btn-primary" style="padding:7px 14px;font-size:11px">Equipar</button>
+      <button class="btn btn-danger" style="padding:7px 14px;font-size:11px">Vender</button>
+    </div>
+  </div>
+  <div class="inv-row has-upgrade">
+    <div style="width:76px;height:76px;flex-shrink:0;font-size:32px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%,rgba(74,143,231,0.12),var(--fl-bg-inset));box-shadow:0 0 0 2px var(--fl-rarity-rare),0 0 12px rgba(74,143,231,0.25);clip-path:polygon(6px 0%,100% 0%,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)">🛡</div>
+    <div style="flex:1">
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:5px">
+        <span class="rar-badge rare">Rare</span>
+        <span style="font-size:17px;font-weight:600;color:var(--fl-text-primary)">Armadura Muro de Espinas</span>
+        <span class="fl-tag mejor" style="padding:2px 7px;font-size:10px">↑ Mejor</span>
+      </div>
+      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--fl-text-muted);margin-bottom:6px">Spiked · AFIJOS ◆◆</div>
+      <div style="display:flex;gap:4px">
+        <span class="afix-chip">Espinas +7.1</span>
+        <span class="afix-chip bonus">Bloqueo +2%</span>
+      </div>
+      <div style="font-size:12px;color:var(--fl-defense);margin-top:5px">Implícito: +6.4 Espinas</div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+      <div style="font-size:14px;font-weight:700;color:var(--fl-text-primary)"><span style="font-size:11px;color:var(--fl-gold-border)">P</span> 399</div>
+      <button class="btn btn-primary" style="padding:7px 14px;font-size:11px">Equipar</button>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- 05 BARRAS -->
+<section class="kit-section s-gap" id="bars">
+<div class="sec-header"><span class="sec-num">05</span><div class="sec-line-l"></div><div class="sec-diamond"></div><span class="sec-title">Barras / Meters</span><div class="sec-line-r"></div></div>
+<div class="g2" style="gap:28px">
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div class="fl-bar-wrap fl-bar-hp"><div class="fl-bar-label">Barra de Vida (HP)</div><div class="fl-bar-track"><div class="fl-bar-fill" style="width:62%"></div><div class="fl-bar-text">7,850 / 12,500</div></div></div>
+    <div class="fl-bar-wrap fl-bar-xp"><div class="fl-bar-label">Barra de Experiencia (XP)</div><div class="fl-bar-track"><div class="fl-bar-fill" style="width:56%"></div><div class="fl-bar-text">25,600 / 45,000 (56%)</div></div></div>
+    <div class="fl-bar-wrap fl-bar-gold"><div class="fl-bar-label">Barra de Progreso</div><div class="fl-bar-track"><div class="fl-bar-fill" style="width:75%"></div><div class="fl-bar-text">75%</div></div></div>
+    <div>
+      <div class="fl-bar-label" style="margin-bottom:5px">Barra con Hitos (Upgrade Track)</div>
+      <div class="milestone-wrap">
+        <div class="milestone-node reached" style="left:calc(0% - 0px)"></div>
+        <div class="milestone-node reached" style="left:calc(33% - 6px)"></div>
+        <div class="milestone-node reached" style="left:calc(70% - 6px)"></div>
+        <div class="milestone-node pending" style="left:calc(90% - 6px)"></div>
+        <div class="fl-bar-track fl-bar-gold"><div class="fl-bar-fill" style="width:78%"></div></div>
+        <div class="milestone-labels-row">
+          <span class="milestone-lbl" style="left:0%">+0</span>
+          <span class="milestone-lbl" style="left:33%">+5</span>
+          <span class="milestone-lbl" style="left:70%">+10</span>
+          <span class="milestone-lbl" style="left:90%;font-weight:700;color:var(--fl-gold-glow)">+13</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div class="fl-bar-wrap fl-bar-loading"><div class="fl-bar-label">Loading</div><div class="fl-bar-track"><div class="fl-bar-fill" style="width:100%"></div></div></div>
+    <div class="fl-bar-wrap fl-bar-success"><div class="fl-bar-label">Éxito</div><div class="fl-bar-track"><div class="fl-bar-fill" style="width:100%"></div></div></div>
+    <div class="fl-bar-wrap fl-bar-error"><div class="fl-bar-label">Error</div><div class="fl-bar-track"><div class="fl-bar-fill" style="width:100%"></div></div></div>
+    <div>
+      <div class="fl-bar-label" style="margin-bottom:10px">Display Numérico (% / valor)</div>
+      <div style="text-align:center;padding:18px;background:var(--fl-bg-inset);box-shadow:0 0 0 1px var(--fl-gold-muted);clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)">
+        <div style="font-size:10px;letter-spacing:4px;text-transform:uppercase;color:var(--fl-text-muted);margin-bottom:4px">Porcentaje / Valor</div>
+        <div style="font-family:var(--fl-font-ui);font-size:54px;font-weight:700;color:var(--fl-text-primary);font-variant-numeric:tabular-nums;line-height:1">56%</div>
+      </div>
+    </div>
+    <div>
+      <div class="fl-bar-label" style="margin-bottom:8px">Barras compactas (thin)</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="fl-bar-track fl-bar-hp fl-bar-thin"><div class="fl-bar-fill" style="width:100%"></div></div>
+        <div class="fl-bar-track fl-bar-xp fl-bar-thin"><div class="fl-bar-fill" style="width:31%"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="orn-sep"><div class="orn-sep-line"></div><div class="orn-sep-center"><div class="orn-diamond-sm"></div><div class="orn-diamond"></div><div class="orn-diamond-sm"></div></div><div class="orn-sep-line"></div></div>
+<div class="sub-label">Entropy Bar (Forja)</div>
+<div style="max-width:500px;background:var(--fl-bg-inset);box-shadow:0 0 0 1px var(--fl-gold-muted);clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%);padding:12px 16px;display:flex;align-items:center;gap:12px">
+  <span style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--fl-text-muted);min-width:80px">Entropía</span>
+  <span style="font-size:13px;font-weight:700;color:var(--fl-text-primary)">72/100</span>
+  <span style="font-size:12px;color:var(--fl-success);font-weight:700">+4</span>
+  <div style="flex:1"><div class="fl-bar-track fl-bar-gold" style="height:14px"><div class="fl-bar-fill" style="width:72%"></div></div></div>
+  <span style="font-size:18px;cursor:pointer;opacity:0.6">⚙</span>
+</div>
+</section>
+
+<!-- 06 RAREZAS -->
+<section class="kit-section s-gap" id="rarity">
+<div class="sec-header"><span class="sec-num">06</span><div class="sec-line-l"></div><div class="sec-diamond"></div><span class="sec-title">Sistema de Rarezas</span><div class="sec-line-r"></div></div>
+
+<div class="sub-label">Icon Frames Circulares — SVG con anillos</div>
+<div class="rf-wrap" style="margin-bottom:36px;justify-content:center">
+  <!-- Normal -->
+  <div style="text-align:center">
+    <div style="width:80px;height:80px;position:relative;margin:0 auto 8px;display:flex;align-items:center;justify-content:center">
+      <svg width="80" height="80" viewBox="0 0 80 80" style="position:absolute;inset:0"><circle cx="40" cy="40" r="36" fill="rgba(11,15,20,0.8)" stroke="#C6A15B" stroke-width="1.5" opacity="0.7"/><circle cx="40" cy="40" r="30" fill="none" stroke="#C6A15B" stroke-width="0.8" opacity="0.3"/></svg>
+      <span style="font-size:28px;position:relative;z-index:2">⚔</span>
+    </div>
+    <div style="font-size:9px;letter-spacing:2px;color:var(--fl-gold-border)">NORMAL</div>
+  </div>
+  <!-- Activo -->
+  <div style="text-align:center">
+    <div style="width:80px;height:80px;position:relative;margin:0 auto 8px;display:flex;align-items:center;justify-content:center">
+      <svg width="80" height="80" viewBox="0 0 80 80" style="position:absolute;inset:0"><circle cx="40" cy="40" r="36" fill="rgba(198,161,91,0.06)" stroke="#E6C47A" stroke-width="2" filter="url(#blur)"/><circle cx="40" cy="40" r="30" fill="none" stroke="#C6A15B" stroke-width="1" opacity="0.5"/><circle cx="40" cy="40" r="36" fill="none" stroke="#E6C47A" stroke-width="2" stroke-dasharray="4 3" opacity="0.3"/></svg>
+      <span style="font-size:28px;position:relative;z-index:2;filter:drop-shadow(0 0 4px rgba(230,196,122,0.5))">⚔</span>
+    </div>
+    <div style="font-size:9px;letter-spacing:2px;color:var(--fl-gold-glow)">ACTIVO</div>
+  </div>
+  <!-- Mejorado -->
+  <div style="text-align:center">
+    <div style="width:80px;height:80px;position:relative;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 10px rgba(230,196,122,0.4))">
+      <svg width="80" height="80" viewBox="0 0 80 80" style="position:absolute;inset:0"><circle cx="40" cy="40" r="36" fill="rgba(198,161,91,0.09)" stroke="#E6C47A" stroke-width="2.5"/><circle cx="40" cy="40" r="30" fill="none" stroke="#C6A15B" stroke-width="1.5" opacity="0.6"/><circle cx="40" cy="40" r="22" fill="none" stroke="#C6A15B" stroke-width="0.7" opacity="0.2"/></svg>
+      <span style="font-size:28px;position:relative;z-index:2">⚔</span>
+    </div>
+    <div style="font-size:9px;letter-spacing:2px;color:var(--fl-gold-glow)">MEJORADO</div>
+  </div>
+  <!-- Épico -->
+  <div style="text-align:center">
+    <div style="width:80px;height:80px;position:relative;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 12px rgba(180,85,232,0.5))">
+      <svg width="80" height="80" viewBox="0 0 80 80" style="position:absolute;inset:0"><circle cx="40" cy="40" r="36" fill="rgba(180,85,232,0.1)" stroke="#B455E8" stroke-width="2.5"/><circle cx="40" cy="40" r="30" fill="none" stroke="#8A5BE8" stroke-width="1.5" opacity="0.5"/><circle cx="40" cy="40" r="36" fill="none" stroke="#D080FF" stroke-width="1" stroke-dasharray="3 4" opacity="0.4"/></svg>
+      <span style="font-size:28px;position:relative;z-index:2">⚔</span>
+    </div>
+    <div style="font-size:9px;letter-spacing:2px;color:var(--fl-rarity-epic)">ÉPICO</div>
+  </div>
+  <!-- Legendario -->
+  <div style="text-align:center">
+    <div style="width:80px;height:80px;position:relative;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 16px rgba(242,154,46,0.55))">
+      <svg width="80" height="80" viewBox="0 0 80 80" style="position:absolute;inset:0"><circle cx="40" cy="40" r="36" fill="rgba(242,154,46,0.1)" stroke="#F29A2E" stroke-width="3"/><circle cx="40" cy="40" r="30" fill="none" stroke="#F29A2E" stroke-width="1.5" opacity="0.5"/><circle cx="40" cy="40" r="22" fill="none" stroke="#FFB84B" stroke-width="0.8" opacity="0.3"/><circle cx="40" cy="40" r="36" fill="none" stroke="#FFB84B" stroke-width="1" stroke-dasharray="2 5" opacity="0.5"/></svg>
+      <span style="font-size:28px;position:relative;z-index:2">⚔</span>
+    </div>
+    <div style="font-size:9px;letter-spacing:2px;color:var(--fl-rarity-legendary)">LEGENDARIO</div>
+  </div>
+</div>
+
+<div class="sub-label">Borde de Item (frame cuadrado)</div>
+<div style="display:flex;gap:14px;margin-bottom:28px">
+  <div style="text-align:center"><div style="width:64px;height:64px;font-size:26px;display:flex;align-items:center;justify-content:center;background:var(--fl-bg-inset);border:2px solid var(--fl-rarity-common);clip-path:polygon(6px 0%,100% 0%,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);margin-bottom:6px">⚔</div><div style="font-size:9px;color:var(--fl-rarity-common);letter-spacing:1px">COMÚN</div></div>
+  <div style="text-align:center"><div style="width:64px;height:64px;font-size:26px;display:flex;align-items:center;justify-content:center;background:var(--fl-bg-inset);border:2px solid var(--fl-rarity-magic);box-shadow:0 0 10px rgba(79,209,139,0.2);clip-path:polygon(6px 0%,100% 0%,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);margin-bottom:6px">⚔</div><div style="font-size:9px;color:var(--fl-rarity-magic);letter-spacing:1px">MÁGICO</div></div>
+  <div style="text-align:center"><div style="width:64px;height:64px;font-size:26px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%,rgba(74,143,231,0.1),var(--fl-bg-inset));border:2px solid var(--fl-rarity-rare);box-shadow:0 0 12px rgba(74,143,231,0.25);clip-path:polygon(6px 0%,100% 0%,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);margin-bottom:6px">⚔</div><div style="font-size:9px;color:var(--fl-rarity-rare);letter-spacing:1px">RARO</div></div>
+  <div style="text-align:center"><div style="width:64px;height:64px;font-size:26px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%,rgba(180,85,232,0.14),var(--fl-bg-inset));border:2px solid var(--fl-rarity-epic);box-shadow:0 0 16px rgba(180,85,232,0.3);clip-path:polygon(6px 0%,100% 0%,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);margin-bottom:6px">⚔</div><div style="font-size:9px;color:var(--fl-rarity-epic);letter-spacing:1px">ÉPICO</div></div>
+  <div style="text-align:center"><div style="width:64px;height:64px;font-size:26px;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%,rgba(242,154,46,0.14),var(--fl-bg-inset));border:2px solid var(--fl-rarity-legendary);box-shadow:0 0 18px rgba(242,154,46,0.35);clip-path:polygon(6px 0%,100% 0%,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);margin-bottom:6px">⚔</div><div style="font-size:9px;color:var(--fl-rarity-legendary);letter-spacing:1px">LEGENDARIO</div></div>
+</div>
+
+<div class="sub-label">Indicador de Rareza (badge texto)</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap">
+  <span class="rar-badge common">Común</span>
+  <span class="rar-badge magic">Mágico</span>
+  <span class="rar-badge rare">Raro</span>
+  <span class="rar-badge epic">Épico</span>
+  <span class="rar-badge legendary">Legendario</span>
+</div>
+</section>
+
+<!-- 07 BADGES -->
+<section class="kit-section s-gap" id="badges">
+<div class="sec-header"><span class="sec-num">07</span><div class="sec-line-l"></div><div class="sec-diamond"></div><span class="sec-title">Badges / Tags</span><div class="sec-line-r"></div></div>
+<div class="sub-label">Status Tags</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+  <span class="fl-tag nuevo">Nuevo</span>
+  <span class="fl-tag equipado">⛊ Equipado</span>
+  <span class="fl-tag bloqueado">🔒 Bloqueado</span>
+  <span class="fl-tag listo">✓ Listo</span>
+  <span class="fl-tag mejorable">↑ Mejorable</span>
+  <span class="fl-tag oculto">? Oculto</span>
+</div>
+<div class="sub-label">State Tags</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+  <span class="fl-tag activo">Activo</span>
+  <span class="fl-tag en-progreso">En Progreso</span>
+  <span class="fl-tag listo">Listo</span>
+  <span class="fl-tag no-disponible">No Disponible</span>
+</div>
+<div class="sub-label">Type Tags</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px">
+  <span class="fl-tag arma">⚔ Arma</span>
+  <span class="fl-tag armadura">🛡 Armadura</span>
+  <span class="fl-tag accesorio">💎 Accesorio</span>
+</div>
+<div class="sub-label">Contadores con Badge</div>
+<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px">
+  <div class="fl-counter">📬<span class="cnt gold-c">3</span></div>
+  <div class="fl-counter">🎁<span class="cnt ok-c">12</span></div>
+  <div class="fl-counter">🛡<span class="cnt gold-c">5</span></div>
+  <div class="fl-counter" style="box-shadow:0 0 0 1px var(--fl-danger),0 0 10px rgba(224,90,90,0.2)">⚠<span class="cnt alert-c">!</span></div>
+  <div class="fl-counter">⚔<span class="cnt ok-c">22</span></div>
+</div>
+<div class="sub-label">Afix Chips</div>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+  <span class="afix-chip">Daño +91.1</span>
+  <span class="afix-chip">Daño al matar +22.3</span>
+  <span class="afix-chip">Vida +98.9</span>
+  <span class="afix-chip">Espinas +23.3</span>
+  <span class="afix-chip bonus">Daño crítico +24%</span>
+  <span class="afix-chip bonus">Multi-hit +16%</span>
+</div>
+</section>
+
+<!-- 08 STATS -->
+<section class="kit-section s-gap" id="stats">
+<div class="sec-header"><span class="sec-num">08</span><div class="sec-line-l"></div><div class="sec-diamond"></div><span class="sec-title">Stats / Resources</span><div class="sec-line-r"></div></div>
+<div class="g2" style="gap:24px">
+  <div>
+    <div class="sub-label">Stat Rows</div>
+    <div class="fl-panel">
+      <div class="fl-panel-header"><span class="fl-panel-title">Lectura Rápida</span><span style="margin-left:auto;font-size:10px;color:var(--fl-text-muted)">WARRIOR</span></div>
+      <div class="fl-panel-body">
+        <div class="stat-row"><span class="stat-icon">⚔</span><span class="stat-name">Daño</span><span class="stat-val">224</span></div>
+        <div class="stat-row"><span class="stat-icon">🛡</span><span class="stat-name">Defensa</span><span class="stat-val">23</span></div>
+        <div class="stat-row"><span class="stat-icon">💥</span><span class="stat-name">Crítico</span><span class="stat-val pos">5.0%</span></div>
+        <div class="stat-row"><span class="stat-icon">❤</span><span class="stat-name">Vida Máx</span><span class="stat-val">790</span></div>
+        <div class="stat-row"><span class="stat-icon">🩸</span><span class="stat-name">Robo de Vida</span><span class="stat-val">1.0%</span></div>
+        <div class="stat-row"><span class="stat-icon">🛡</span><span class="stat-name">Bloqueo</span><span class="stat-val">3.0%</span></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="sub-label">Resource Pills</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+      <div class="res-pill-lg"><div class="r-ico">🪙</div><div class="r-meta"><div class="r-lbl">Oro</div><div class="r-amt" style="color:var(--fl-reward)">65.3k</div></div></div>
+      <div class="res-pill-lg"><div class="r-ico">💎</div><div class="r-meta"><div class="r-lbl">Esencia</div><div class="r-amt" style="color:var(--fl-arcane)">26.3k</div></div></div>
+      <div class="res-pill-lg"><div class="r-ico">🧪</div><div class="r-meta"><div class="r-lbl">Tinta</div><div class="r-amt">1,218</div></div></div>
+      <div class="res-pill-lg"><div class="r-ico">⚡</div><div class="r-meta"><div class="r-lbl">Pulso</div><div class="r-amt">864</div></div></div>
+      <div class="res-pill-lg"><div class="r-ico">🔥</div><div class="r-meta"><div class="r-lbl">Flux</div><div class="r-amt">44</div></div></div>
+      <div class="res-pill-lg"><div class="r-ico">✦</div><div class="r-meta"><div class="r-lbl">TP</div><div class="r-amt" style="color:var(--fl-gold-glow)">22</div></div></div>
+    </div>
+    <div class="sub-label" style="margin-top:20px">Comparación Actual → Nuevo</div>
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center">
+      <div style="background:var(--fl-bg-inset);box-shadow:0 0 0 1px var(--fl-gold-muted);padding:12px;clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)">
+        <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--fl-text-muted);margin-bottom:8px">Actual</div>
+        <div class="stat-row" style="padding:5px 0"><span class="stat-name" style="font-size:11px">Daño Crít.</span><span class="stat-val" style="font-size:14px">16%</span></div>
+        <div class="stat-row" style="padding:5px 0"><span class="stat-name" style="font-size:11px">Daño</span><span class="stat-val" style="font-size:14px">15</span></div>
+        <div class="stat-row" style="padding:5px 0"><span class="stat-name" style="font-size:11px">Marca</span><span class="stat-val" style="font-size:14px">4%</span></div>
+      </div>
+      <div style="font-size:22px;color:var(--fl-gold-border)">»</div>
+      <div style="background:var(--fl-bg-inset);box-shadow:0 0 0 1px var(--fl-success),0 0 10px rgba(79,209,139,0.12);padding:12px;clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)">
+        <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--fl-success);margin-bottom:8px">Nuevo</div>
+        <div class="stat-row" style="padding:5px 0"><span class="stat-name" style="font-size:11px">Daño Crít.</span><span class="stat-val pos" style="font-size:14px">+16%</span></div>
+        <div class="stat-row" style="padding:5px 0"><span class="stat-name" style="font-size:11px">Daño</span><span class="stat-val pos" style="font-size:14px">15</span></div>
+        <div class="stat-row" style="padding:5px 0"><span class="stat-name" style="font-size:11px">Marca</span><span class="stat-val pos" style="font-size:14px">4%</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- 09 FEEDBACK -->
+<section class="kit-section s-gap" id="feedback">
+<div class="sec-header"><span class="sec-num">09</span><div class="sec-line-l"></div><div class="sec-diamond"></div><span class="sec-title">Feedback Visual</span><div class="sec-line-r"></div></div>
+<div class="fb-grid" style="margin-bottom:32px">
+  <div class="fb-item"><div class="fb-meta">Daño Normal</div><div class="fb-normal">-1,250</div></div>
+  <div class="fb-item"><div class="fb-meta">Daño Crítico</div><div class="fb-crit">-3,750!</div></div>
+  <div class="fb-item"><div class="fb-meta">Curación</div><div class="fb-heal">+2,450</div></div>
+  <div class="fb-item"><div class="fb-meta">Éxito</div><div class="fb-success">¡ÉXITO!</div></div>
+  <div class="fb-item"><div class="fb-meta">Error</div><div class="fb-fail">FALLO</div></div>
+  <div class="fb-item"><div class="fb-meta">Recompensa</div><div class="fb-new">¡NUEVO!</div></div>
+  <div class="fb-item"><div class="fb-meta">Recurso</div><div class="fb-res">🪙 +9,500</div></div>
+  <div class="fb-item"><div class="fb-meta">Item</div><div style="width:72px;height:72px;position:relative;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:28px;filter:drop-shadow(0 0 12px rgba(180,85,232,0.5))"><svg width="72" height="72" viewBox="0 0 72 72" style="position:absolute;inset:0"><circle cx="36" cy="36" r="33" fill="rgba(180,85,232,0.1)" stroke="#B455E8" stroke-width="2"/><circle cx="36" cy="36" r="27" fill="none" stroke="#8A5BE8" stroke-width="1" opacity="0.5"/></svg><span style="position:relative;z-index:2">⚔</span></div></div>
+  <div class="fb-item"><div class="fb-meta">Level Up</div><div class="fb-lvlup"><div class="lv-wing">🜲</div><div class="lv-lbl">NIVEL UP</div><div class="lv-num">27</div><div class="lv-wing">🜲</div></div></div>
+</div>
+<div class="sub-label">Toasts & Drop Callout</div>
+<div style="display:flex;flex-direction:column;gap:10px;max-width:400px">
+  <div style="background:var(--fl-bg-card);box-shadow:0 0 0 1px var(--fl-success),0 0 14px rgba(79,209,139,0.15);padding:12px 16px;display:flex;align-items:center;gap:12px;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)">
+    <span style="font-size:22px">🎁</span><div style="flex:1"><div style="font-size:11px;color:var(--fl-success);font-weight:700;letter-spacing:2px">RECOMPENSA RECLAMADA</div><div style="font-size:13px;color:var(--fl-text-secondary);margin-top:2px">+200 Oro · +44 Flux</div></div>
+  </div>
+  <div style="display:inline-flex;align-items:center;gap:8px;background:var(--fl-bg-inset);box-shadow:0 0 0 1px var(--fl-rarity-rare),0 0 10px rgba(74,143,231,0.2);padding:5px 12px;clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)">
+    <span class="rar-badge rare" style="padding:2px 7px;font-size:10px">RARE</span>
+    <span style="font-size:13px;color:var(--fl-text-primary);font-weight:600">Drop encontrado</span>
+  </div>
+</div>
+</section>
+
+<!-- 10 NAVEGACIÓN -->
+<section class="kit-section s-gap" id="nav">
+<div class="sec-header"><span class="sec-num">10</span><div class="sec-line-l"></div><div class="sec-diamond"></div><span class="sec-title">Navegación</span><div class="sec-line-r"></div></div>
+
+<div class="sub-label">Top Status Bar</div>
+<div class="top-bar-demo" style="max-width:440px;border-radius:2px;margin-bottom:32px">
+  <div class="hero-ava">⛊<span class="hero-lvl-badge">26</span></div>
+  <div style="flex:1"><div class="hero-name-txt">warrior</div><span class="hero-class-badge">Libre</span></div>
+  <div class="res-pill-top"><span class="icon">🪙</span><span class="amt">65.3k</span><span class="plus">+</span></div>
+  <div class="res-pill-top"><span class="icon" style="color:var(--fl-arcane)">💎</span><span class="amt">26.3k</span><span class="plus">+</span></div>
+  <div style="width:34px;height:34px;background:var(--fl-bg-inset);box-shadow:0 0 0 1px var(--fl-gold-border);clip-path:polygon(5px 0%,100% 0%,calc(100% - 5px) 100%,0% 100%);display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:6px;cursor:pointer">
+    <div style="background:var(--fl-gold-border);border-radius:1px"></div><div style="background:var(--fl-gold-border);border-radius:1px"></div>
+    <div style="background:var(--fl-gold-border);border-radius:1px"></div><div style="background:var(--fl-gold-border);border-radius:1px"></div>
+  </div>
+</div>
+
+<div class="sub-label">Bottom Navigation — Activo: HÉROE</div>
+<div class="bottom-nav" style="max-width:440px;margin-bottom:32px;border-radius:2px">
+  <div class="bnav-item" style="position:relative">
+    <span class="bi">🏛</span><span class="bl">Santuario</span>
+    <span class="bb" style="background:var(--fl-danger);color:white">!</span>
+  </div>
+  <div class="bnav-item" style="position:relative">
+    <span class="bi">⚔</span><span class="bl">Expedición</span>
+    <span class="bb" style="background:var(--fl-success);color:#041a0a">1</span>
+  </div>
+  <div class="bnav-item active" style="position:relative">
+    <span class="bi">⛊</span><span class="bl">Héroe</span>
+    <span class="bb" style="background:var(--fl-danger);color:white">22</span>
+  </div>
+  <div class="bnav-item"><span class="bi">🌀</span><span class="bl">Ecos</span></div>
+  <div class="bnav-item"><span class="bi">⊞</span><span class="bl">Más</span></div>
+</div>
+
+<div class="sub-label">Forge Tabs (con diamante activo)</div>
+<div class="forge-tabs" style="max-width:440px;margin-bottom:32px">
+  <div class="forge-tab active">Mejorar</div>
+  <div class="forge-tab">Afinar</div>
+  <div class="forge-tab">Reforjar</div>
+  <div class="forge-tab">Imbuir</div>
+  <div class="forge-tab">Extraer</div>
+</div>
+
+<div class="sub-label">Segmented Tabs (Héroe)</div>
+<div class="seg-tabs-row" style="max-width:440px">
+  <div class="seg-tab">Ficha</div>
+  <div class="seg-tab active">Atributos</div>
+  <div class="seg-tab">Talentos <span style="font-size:10px;background:var(--fl-danger);color:white;padding:1px 5px;border-radius:8px;margin-left:4px">9+</span></div>
+</div>
+</section>
+
+<!-- 11 MÓDULOS -->
+<section class="kit-section s-gap" id="modules">
+<div class="sec-header"><span class="sec-num">11</span><div class="sec-line-l"></div><div class="sec-diamond"></div><span class="sec-title">Módulos de Pantalla</span><div class="sec-line-r"></div></div>
+<div class="g2" style="margin-bottom:32px">
+  <div>
+    <div class="sub-label">Job — Listo para Reclamar</div>
+    <div class="job-card-fl ready">
+      <div class="job-inner">
+        <div class="job-ico">📨</div>
+        <div style="flex:1"><div class="job-name-txt">Encargo de Sangre</div><div class="job-status-ready">Listo para reclamar</div><div class="job-desc-txt">Recompensa: oro, esencia y fuego recuperados por el equipo.</div></div>
+        <button class="btn-icon" style="width:36px;height:36px;font-size:13px;flex-shrink:0">↺</button>
+      </div>
+      <div class="job-action-fl"><button class="btn btn-success" style="width:100%">🎁 RECLAMAR</button></div>
+    </div>
+  </div>
+  <div>
+    <div class="sub-label">Job — En Progreso</div>
+    <div class="job-card-fl">
+      <div class="job-inner">
+        <div class="job-ico">🧪</div>
+        <div style="flex:1"><div class="job-name-txt">Encargo de Provisión</div><div class="job-status-prog">En progresso...</div><div class="job-desc-txt">Tiempo restante:</div><div style="margin-top:8px"><div class="fl-bar-track fl-bar-xp" style="height:8px"><div class="fl-bar-fill" style="width:35%"></div></div></div></div>
+      </div>
+      <div style="padding:0 14px 10px;display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--fl-text-muted)">Destilería</span><span style="font-size:13px;font-weight:700;color:var(--fl-text-primary);font-variant-numeric:tabular-nums">34m 35s</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="sub-label">Station Cards (Santuario)</div>
+<div class="fl-panel" style="margin-bottom:32px">
+  <div class="fl-panel-header"><span class="fl-panel-title">Estaciones</span><span style="margin-left:auto;font-size:10px;color:var(--fl-text-muted)">Accesos operativos</span></div>
+  <div style="padding:0">
+    <div class="station-row-fl">
+      <div class="station-ico">🧪<span class="s-badge">0 activo(s)</span></div>
+      <div style="flex:1"><div class="station-name-txt">Laboratorio</div><div class="station-desc-txt">Experimentos y mejoras persistentes.</div></div>
+      <button class="btn btn-primary" style="padding:8px 16px;font-size:11px">Abrir</button>
+    </div>
+    <div class="station-row-fl">
+      <div class="station-ico" style="box-shadow:0 0 0 1px var(--fl-gold-border),0 0 0 4px rgba(198,161,91,0.08)">⚗<span class="s-badge" style="border-color:var(--fl-gold-border);color:var(--fl-gold-border)">1/1</span></div>
+      <div style="flex:1"><div class="station-name-txt" style="color:var(--fl-gold-glow)">Destilería</div><div class="station-desc-txt">Convierte cargo recuperado en recursos.</div></div>
+      <button class="btn btn-primary" style="padding:8px 16px;font-size:11px">Abrir</button>
+    </div>
+    <div class="station-row-fl">
+      <div class="station-ico" style="box-shadow:0 0 0 1px var(--fl-success),0 0 10px rgba(79,209,139,0.15)">⚔<span class="s-badge" style="border-color:var(--fl-success);color:var(--fl-success)">Operativa</span></div>
+      <div style="flex:1"><div class="station-name-txt" style="color:var(--fl-success)">Forja</div><div class="station-desc-txt">Mejora, repara y forja equipo.</div></div>
+      <button class="btn btn-primary" style="padding:8px 16px;font-size:11px">Abrir</button>
+    </div>
+  </div>
+</div>
+
+<div class="sub-label">Talent Nodes</div>
+<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:32px">
+  <div style="text-align:center"><div class="talent-node basic" style="margin:0 auto 8px">🔥<span class="tn-count">0/20</span></div><div style="font-size:9px;color:var(--fl-success);letter-spacing:1px">T1 BÁSICO</div></div>
+  <div style="text-align:center"><div class="talent-node mid" style="margin:0 auto 8px">⚡<span class="tn-count">0/6</span></div><div style="font-size:9px;color:var(--fl-gold-border);letter-spacing:1px">T2 GAMEPLAY</div></div>
+  <div style="text-align:center"><div class="talent-node keystone" style="margin:0 auto 8px">💀<span class="tn-count">0/3</span></div><div style="font-size:9px;color:var(--fl-danger);letter-spacing:1px">T3 KEYSTONE</div></div>
+</div>
+
+<div class="sub-label">Ecos / Prestige Cards</div>
+<div class="g2" style="max-width:600px;margin-bottom:32px">
+  <div class="eco-card conservas"><div class="eco-title">💎 Conservas</div><ul class="eco-list"><li>Ecos, nodos comprados y resonancia de cuenta.</li><li>Santuario, recursos persistentes, jobs.</li></ul></div>
+  <div class="eco-card reinicia"><div class="eco-title">⚔ Se Reinicia</div><ul class="eco-list"><li>Nivel, tier, kills y momentum a 0.</li><li>Gold, equipo, inventario y talentos de run.</li></ul></div>
+</div>
+
+<div class="sub-label">Crónica Offline</div>
+<div class="off-modal">
+  <div class="off-header">
+    <div class="off-title">✦ Crónica Offline</div>
+    <button class="btn-icon" style="width:34px;height:34px;font-size:13px">✕</button>
+  </div>
+  <div class="off-body">
+    <div style="font-size:14px;color:var(--fl-text-secondary);margin-bottom:3px">Tu héroe cerró la sesión con un drop realmente serio.</div>
+    <div style="font-size:12px;color:var(--fl-text-muted);margin-bottom:16px">⏳ 108s resueltos offline</div>
+    <div style="margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--fl-text-muted)">Resolviendo resumen</span><span style="font-size:12px;font-weight:700;color:var(--fl-text-primary)">100%</span></div>
+      <div class="fl-bar-track fl-bar-gold" style="height:10px"><div class="fl-bar-fill" style="width:100%"></div></div>
+    </div>
+    <div class="rew-grid">
+      <div class="rew-cell"><div class="ri">🪙</div><div><div class="rl">Oro</div><div class="rv gold">0</div></div></div>
+      <div class="rew-cell"><div class="ri" style="color:var(--fl-arcane)">✦</div><div><div class="rl">XP</div><div class="rv xp">0</div></div></div>
+      <div class="rew-cell"><div class="ri">💎</div><div><div class="rl">Esencia</div><div class="rv xp">0</div></div></div>
+      <div class="rew-cell"><div class="ri">💀</div><div><div class="rl">Kills</div><div class="rv def">0</div></div></div>
+      <div class="rew-cell"><div class="ri">🎁</div><div><div class="rl">Items</div><div class="rv def">0</div></div></div>
+      <div class="rew-cell"><div class="ri">⛊</div><div><div class="rl">Niveles</div><div class="rv gold">0</div></div></div>
+    </div>
+    <div class="best-drop">
+      <div class="best-drop-frame">⚔</div>
+      <div style="flex:1">
+        <div class="best-drop-lbl">Mejor Drop</div>
+        <div class="best-drop-name">Hoja Reliquia de Guerra</div>
+        <div class="best-drop-rar">épico · Épico</div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- 12 MICRO -->
+<section class="kit-section s-gap" id="micro">
+<div class="sec-header"><span class="sec-num">12</span><div class="sec-line-l"></div><div class="sec-diamond"></div><span class="sec-title">Micro Elementos</span><div class="sec-line-r"></div></div>
+<div style="display:flex;flex-direction:column;gap:28px">
+  <div><div class="sub-label">Separador Ornamental</div><div class="orn-sep"><div class="orn-sep-line"></div><div class="orn-sep-center"><div class="orn-diamond-sm"></div><div class="orn-diamond"></div><div class="orn-diamond-sm"></div></div><div class="orn-sep-line"></div></div></div>
+  <div><div class="sub-label">Bullet Ornamental</div><div style="display:flex;gap:16px;align-items:center"><div class="orn-bullet"></div><span style="font-size:14px;color:var(--fl-text-secondary)">Elemento con bullet diamante</span><div class="orn-bullet"></div><span style="font-size:14px;color:var(--fl-text-secondary)">Otro elemento</span></div></div>
+  <div><div class="sub-label">Paginación</div><div class="pagination"><div class="pag-dot"></div><div class="pag-dot active"></div><div class="pag-dot"></div><div class="pag-dot"></div></div></div>
+  <div><div class="sub-label">Steps</div><div class="step-row"><div class="step-circle done">1</div><div class="step-line done"></div><div class="step-circle current">2</div><div class="step-line pending"></div><div class="step-circle pending">3</div><div class="step-line pending"></div><div class="step-circle pending">4</div></div></div>
+  <div><div class="sub-label">Divisor Vertical</div><div style="display:flex;gap:20px;align-items:center;height:40px"><span style="font-size:14px;color:var(--fl-text-secondary)">Izquierda</span><div style="width:1px;height:100%;background:var(--fl-gold-muted);position:relative"><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(45deg);width:6px;height:6px;background:var(--fl-gold-border)"></div></div><span style="font-size:14px;color:var(--fl-text-secondary)">Derecha</span></div></div>
+</div>
+</section>
+
+<!-- 13 DO/DON'T -->
+<section class="kit-section s-gap" id="dodont">
+<div class="sec-header"><span class="sec-num">13</span><div class="sec-line-l"></div><div class="sec-diamond"></div><span class="sec-title">Do / Don't Guide</span><div class="sec-line-r"></div></div>
+<div class="do-dont-grid">
+  <div class="do-col"><h4>✓ DO</h4>
+    <div class="rule">Usar oro como estructura y jerarquía visual</div>
+    <div class="rule">Usar color semánticamente — verde vida/éxito, rojo daño/error</div>
+    <div class="rule">Separadores ornamentales con diamante dorado</div>
+    <div class="rule">Cinzel para display, Barlow Condensed para UI</div>
+    <div class="rule">Un solo CTA dorado por pantalla</div>
+    <div class="rule">Icon frames circulares con SVG rings para talentos y items</div>
+    <div class="rule">Rareza por borde y glow, no color de fondo completo</div>
+    <div class="rule">Números protagonistas, labels muted</div>
+    <div class="rule">Botones chamfered — identidad táctil real</div>
+    <div class="rule">Estados disabled/loading/success/error en todos los controles</div>
+    <div class="rule">Textura de ruido sutil sobre el fondo</div>
+  </div>
+  <div class="dont-col"><h4>✗ DON'T</h4>
+    <div class="rule">No usar botones planos sin borde ni profundidad</div>
+    <div class="rule">No usar verde como CTA principal</div>
+    <div class="rule">No usar degradados modernos saturados ni UI clara</div>
+    <div class="rule">No mezclar border-radius redondeados con chamfered</div>
+    <div class="rule">No saturar con glows constantes — solo en estados activos</div>
+    <div class="rule">No inventar colores locales sin rol global definido</div>
+    <div class="rule">No copiar capturas viejas por encima del UI Kit</div>
+    <div class="rule">No usar separadores grises planos</div>
+    <div class="rule">No usar emojis ni iconos cartoon en UI final</div>
+    <div class="rule">No pintar toda la card con el color de rareza</div>
+    <div class="rule">No usar icon frames cuadrados donde corresponde circular</div>
+  </div>
+</div>
+<div class="orn-sep" style="margin:48px 0"><div class="orn-sep-line"></div><div class="orn-sep-center"><div class="orn-diamond-sm"></div><div class="orn-diamond"></div><div class="orn-diamond-sm"></div></div><div class="orn-sep-line"></div></div>
+<div style="text-align:center">
+  <div style="font-family:var(--fl-font-display);font-size:22px;background:linear-gradient(180deg,var(--fl-gold-light),var(--fl-gold-glow),var(--fl-gold-border));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:4px;margin-bottom:8px">BUILD IN DARKNESS, RISE IN LIGHT</div>
+  <div style="font-size:10px;letter-spacing:6px;color:var(--fl-text-muted);text-transform:uppercase">Forge Light · Master UI Kit v2 · Design System</div>
+</div>
+</section>
+
+</div>
+
+<!-- 14 EFECTOS DE ESTADO -->
+<section class="kit-section s-gap" id="effects">
+<div class="sec-header"><span class="sec-num">14</span><div class="sec-line-l"></div><div class="sec-diamond"></div><span class="sec-title">Efectos de Estado</span><div class="sec-line-r"></div></div>
+
+<p style="font-size:13px;color:var(--fl-text-secondary);margin-bottom:28px;line-height:1.6">
+  Íconos SVG inline para efectos activos sobre héroe y enemigos. El punto <span style="color:var(--fl-gold-border)">●</span> indica buff, <span style="color:var(--fl-danger)">●</span> indica debuff. Todos los frames usan el sistema de anillos del kit.
+</p>
+
+<!-- BUFFS -->
+<div class="effects-group">
+  <div class="sub-label">Buffs del Héroe</div>
+  <div class="effects-grid">
+
+    <!-- RAGE / Furia -->
+    <div class="effect-card buff">
+      <div class="effect-type-dot buff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(139,16,16,0.12)" stroke="#E05A5A" stroke-width="1.5"/><circle cx="32" cy="32" r="23" fill="none" stroke="#C41E3A" stroke-width="0.8" opacity="0.4"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- outer flame - blood -->
+          <path d="M18 2 C13 8 9 13 11 20 C12 25 10 28 12 34 C14.5 29 14 25 16 22 C16.5 27 17 32 18 34 C19 32 19.5 27 20 22 C22 25 21.5 29 24 34 C26 28 24 25 25 20 C27 13 23 8 18 2Z" fill="#8B1010"/>
+          <!-- mid flame -->
+          <path d="M18 6 C14 11 12 16 14 21 C15 25 14 28 15.5 33 C17 28 16.5 24 18 21 C19.5 24 19 28 20.5 33 C22 28 21 25 22 21 C24 16 22 11 18 6Z" fill="#E05A5A"/>
+          <!-- core flame -->
+          <path d="M18 11 C16 15 15 19 16 22 C16.5 25 17 28 18 32 C19 28 19.5 25 20 22 C21 19 20 15 18 11Z" fill="#F2B84B" opacity="0.85"/>
+          <!-- ember drop -->
+          <ellipse cx="18" cy="34" rx="2" ry="1.2" fill="#C41E3A" opacity="0.6"/>
+        </svg>
+      </div>
+      <div class="effect-name">Furia</div>
+      <div class="effect-id">rage</div>
+      <div class="effect-tooltip">fuego · sangre</div>
+    </div>
+
+    <!-- FORTRESS / Fortaleza -->
+    <div class="effect-card buff">
+      <div class="effect-type-dot buff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(26,58,110,0.15)" stroke="#4A8FE7" stroke-width="1.5"/><circle cx="32" cy="32" r="23" fill="none" stroke="#C6A15B" stroke-width="0.8" opacity="0.5"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- shield shape -->
+          <path d="M18 3 L31 7 L31 20 Q31 30 18 34 Q5 30 5 20 L5 7 Z" fill="#0F2A52"/>
+          <path d="M18 3 L31 7 L31 20 Q31 30 18 34 Q5 30 5 20 L5 7 Z" fill="none" stroke="#4A8FE7" stroke-width="1.5"/>
+          <!-- armor plating lines -->
+          <line x1="5" y1="13" x2="31" y2="13" stroke="#4A8FE7" stroke-width="0.8" opacity="0.5"/>
+          <line x1="5" y1="20" x2="31" y2="20" stroke="#4A8FE7" stroke-width="0.8" opacity="0.5"/>
+          <line x1="18" y1="7" x2="18" y2="34" stroke="#C6A15B" stroke-width="0.8" opacity="0.6"/>
+          <!-- center emblem -->
+          <path d="M18 15 L21 18 L18 21 L15 18 Z" fill="#C6A15B"/>
+          <path d="M18 15 L21 18 L18 21 L15 18 Z" fill="none" stroke="#E6C47A" stroke-width="0.5"/>
+        </svg>
+      </div>
+      <div class="effect-name">Fortaleza</div>
+      <div class="effect-id">fortress</div>
+      <div class="effect-tooltip">escudo · armadura</div>
+    </div>
+
+    <!-- COMBAT-FLOW / Flujo de Combate -->
+    <div class="effect-card buff">
+      <div class="effect-type-dot buff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(198,161,91,0.08)" stroke="#C6A15B" stroke-width="1.5"/><circle cx="32" cy="32" r="23" fill="none" stroke="#C6A15B" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.4"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- top arc arrow (clockwise) -->
+          <path d="M10 18 Q10 8 18 8 Q24 8 27 13" fill="none" stroke="#C6A15B" stroke-width="2.2" stroke-linecap="round"/>
+          <polygon points="27,10 30,14 24,15" fill="#C6A15B"/>
+          <!-- bottom arc arrow (clockwise) -->
+          <path d="M26 18 Q26 28 18 28 Q12 28 9 23" fill="none" stroke="#E6C47A" stroke-width="2.2" stroke-linecap="round"/>
+          <polygon points="9,26 6,22 12,21" fill="#E6C47A"/>
+          <!-- center diamond -->
+          <path d="M18 15 L20 18 L18 21 L16 18 Z" fill="#F5DFA0"/>
+        </svg>
+      </div>
+      <div class="effect-name">Flujo Combat</div>
+      <div class="effect-id">combat-flow</div>
+      <div class="effect-tooltip">ciclo · repetición</div>
+    </div>
+
+    <!-- MOMENTUM -->
+    <div class="effect-card buff">
+      <div class="effect-type-dot buff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(242,184,75,0.08)" stroke="#F2B84B" stroke-width="1.5"/><circle cx="32" cy="32" r="23" fill="none" stroke="#C6A15B" stroke-width="0.8" opacity="0.4"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- main arrow shaft -->
+          <line x1="18" y1="30" x2="18" y2="10" stroke="#F2B84B" stroke-width="3" stroke-linecap="round"/>
+          <!-- arrowhead -->
+          <polygon points="18,4 24,13 12,13" fill="#F2B84B"/>
+          <polygon points="18,4 24,13 12,13" fill="none" stroke="#F5DFA0" stroke-width="0.5"/>
+          <!-- speed lines left -->
+          <line x1="12" y1="20" x2="7" y2="20" stroke="#F2B84B" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+          <line x1="13" y1="25" x2="9" y2="25" stroke="#F2B84B" stroke-width="1" stroke-linecap="round" opacity="0.45"/>
+          <!-- speed lines right -->
+          <line x1="24" y1="20" x2="29" y2="20" stroke="#F2B84B" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+          <line x1="23" y1="25" x2="27" y2="25" stroke="#F2B84B" stroke-width="1" stroke-linecap="round" opacity="0.45"/>
+        </svg>
+      </div>
+      <div class="effect-name">Momentum</div>
+      <div class="effect-id">momentum</div>
+      <div class="effect-tooltip">flecha · impulso</div>
+    </div>
+
+    <!-- FLOW -->
+    <div class="effect-card buff">
+      <div class="effect-type-dot buff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(138,91,232,0.1)" stroke="#8A5BE8" stroke-width="1.5"/><circle cx="32" cy="32" r="23" fill="none" stroke="#8A5BE8" stroke-width="0.8" stroke-dasharray="2 4" opacity="0.5"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- concentric echo arcs -->
+          <path d="M18 18 m-12 0 a12 12 0 0 1 24 0" fill="none" stroke="#8A5BE8" stroke-width="2" stroke-linecap="round" opacity="0.9"/>
+          <path d="M18 18 m-8 0 a8 8 0 0 1 16 0" fill="none" stroke="#A07AEA" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>
+          <path d="M18 18 m-4 0 a4 4 0 0 1 8 0" fill="none" stroke="#C0A0F0" stroke-width="1.5" stroke-linecap="round" opacity="0.55"/>
+          <!-- center origin dot -->
+          <circle cx="18" cy="18" r="2.5" fill="#8A5BE8"/>
+          <circle cx="18" cy="18" r="1.2" fill="#D4B8FF"/>
+          <!-- bottom ripple lines -->
+          <path d="M10 22 Q14 25 18 22 Q22 19 26 22" fill="none" stroke="#8A5BE8" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+          <path d="M12 26 Q15 28 18 26 Q21 24 24 26" fill="none" stroke="#8A5BE8" stroke-width="0.9" stroke-linecap="round" opacity="0.3"/>
+        </svg>
+      </div>
+      <div class="effect-name">Flow</div>
+      <div class="effect-id">flow</div>
+      <div class="effect-tooltip">eco · repetición</div>
+    </div>
+
+    <!-- VOLATILE / Volatilidad -->
+    <div class="effect-card buff">
+      <div class="effect-type-dot buff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(180,85,232,0.1)" stroke="#B455E8" stroke-width="1.5"/><circle cx="32" cy="32" r="23" fill="none" stroke="#4A8FE7" stroke-width="0.8" opacity="0.4"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- crystal/prism body -->
+          <polygon points="18,3 28,14 24,31 12,31 8,14" fill="#1A0A2E"/>
+          <polygon points="18,3 28,14 24,31 12,31 8,14" fill="none" stroke="#B455E8" stroke-width="1.5"/>
+          <!-- internal fracture lines -->
+          <line x1="18" y1="3" x2="12" y2="31" stroke="#D080FF" stroke-width="0.8" opacity="0.5"/>
+          <line x1="18" y1="3" x2="24" y2="31" stroke="#4A8FE7" stroke-width="0.8" opacity="0.5"/>
+          <line x1="8" y1="14" x2="28" y2="14" stroke="#B455E8" stroke-width="0.8" opacity="0.4"/>
+          <!-- energy sparks -->
+          <line x1="18" y1="3" x2="14" y2="0" stroke="#D080FF" stroke-width="1" opacity="0.8"/>
+          <line x1="18" y1="3" x2="22" y2="0" stroke="#4A8FE7" stroke-width="1" opacity="0.8"/>
+          <line x1="28" y1="14" x2="33" y2="11" stroke="#D080FF" stroke-width="1" opacity="0.7"/>
+          <line x1="8" y1="14" x2="3" y2="11" stroke="#4A8FE7" stroke-width="1" opacity="0.7"/>
+          <!-- center glow -->
+          <circle cx="18" cy="17" r="2" fill="#B455E8" opacity="0.8"/>
+          <circle cx="18" cy="17" r="1" fill="#F0D0FF"/>
+        </svg>
+      </div>
+      <div class="effect-name">Volatilidad</div>
+      <div class="effect-id">volatile</div>
+      <div class="effect-tooltip">prisma · inestable</div>
+    </div>
+
+    <!-- PERFECT-CAST -->
+    <div class="effect-card buff">
+      <div class="effect-type-dot buff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(230,196,122,0.08)" stroke="#E6C47A" stroke-width="2"/><circle cx="32" cy="32" r="23" fill="none" stroke="#C6A15B" stroke-width="1" opacity="0.5"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- outer seal ring -->
+          <circle cx="18" cy="18" r="14" fill="none" stroke="#C6A15B" stroke-width="1" opacity="0.5"/>
+          <!-- 8-point star rune -->
+          <polygon points="18,4 19.8,14.5 29,9 21.5,17 32,18 21.5,19 29,27 19.8,21.5 18,32 16.2,21.5 7,27 14.5,19 4,18 14.5,17 7,9 16.2,14.5" fill="#C6A15B" opacity="0.15"/>
+          <polygon points="18,4 19.8,14.5 29,9 21.5,17 32,18 21.5,19 29,27 19.8,21.5 18,32 16.2,21.5 7,27 14.5,19 4,18 14.5,17 7,9 16.2,14.5" fill="none" stroke="#E6C47A" stroke-width="0.8"/>
+          <!-- inner precision diamond -->
+          <polygon points="18,11 22,18 18,25 14,18" fill="#1A1205"/>
+          <polygon points="18,11 22,18 18,25 14,18" fill="none" stroke="#F5DFA0" stroke-width="1.2"/>
+          <!-- center dot -->
+          <circle cx="18" cy="18" r="2" fill="#F5DFA0"/>
+          <!-- tick marks at cardinal -->
+          <line x1="18" y1="4" x2="18" y2="7" stroke="#E6C47A" stroke-width="1.2"/>
+          <line x1="32" y1="18" x2="29" y2="18" stroke="#E6C47A" stroke-width="1.2"/>
+          <line x1="18" y1="32" x2="18" y2="29" stroke="#E6C47A" stroke-width="1.2"/>
+          <line x1="4" y1="18" x2="7" y2="18" stroke="#E6C47A" stroke-width="1.2"/>
+        </svg>
+      </div>
+      <div class="effect-name">Perfect Cast</div>
+      <div class="effect-id">perfect-cast</div>
+      <div class="effect-tooltip">sello · runa precisa</div>
+    </div>
+
+    <!-- TIME-LOOP -->
+    <div class="effect-card buff">
+      <div class="effect-type-dot buff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(74,143,231,0.1)" stroke="#4A8FE7" stroke-width="1.5"/><circle cx="32" cy="32" r="23" fill="none" stroke="#4A8FE7" stroke-width="0.8" stroke-dasharray="4 2" opacity="0.4"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- clock face -->
+          <circle cx="18" cy="19" r="10" fill="#060F1A"/>
+          <circle cx="18" cy="19" r="10" fill="none" stroke="#4A8FE7" stroke-width="1.5"/>
+          <!-- clock tick marks -->
+          <line x1="18" y1="10" x2="18" y2="12" stroke="#4A8FE7" stroke-width="1.2"/>
+          <line x1="27" y1="19" x2="25" y2="19" stroke="#4A8FE7" stroke-width="1.2"/>
+          <line x1="18" y1="28" x2="18" y2="26" stroke="#4A8FE7" stroke-width="1.2"/>
+          <line x1="9" y1="19" x2="11" y2="19" stroke="#4A8FE7" stroke-width="1.2"/>
+          <!-- clock hands -->
+          <line x1="18" y1="19" x2="18" y2="13" stroke="#7AB8F0" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="18" y1="19" x2="22" y2="21" stroke="#4A8FE7" stroke-width="1.2" stroke-linecap="round"/>
+          <!-- loop arrow around clock -->
+          <path d="M18 7 Q30 7 30 19 Q30 28 22 30" fill="none" stroke="#7AB8F0" stroke-width="1.8" stroke-linecap="round"/>
+          <polygon points="22,33 19,29 25,28" fill="#7AB8F0"/>
+          <!-- center dot -->
+          <circle cx="18" cy="19" r="1.5" fill="#4A8FE7"/>
+        </svg>
+      </div>
+      <div class="effect-name">Time Loop</div>
+      <div class="effect-id">time-loop</div>
+      <div class="effect-tooltip">reloj · bucle</div>
+    </div>
+
+    <!-- ABSOLUTE-CONTROL -->
+    <div class="effect-card buff">
+      <div class="effect-type-dot buff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(124,83,31,0.15)" stroke="#C6A15B" stroke-width="2"/><circle cx="32" cy="32" r="23" fill="none" stroke="#E6C47A" stroke-width="1" opacity="0.5"/><circle cx="32" cy="32" r="29" fill="none" stroke="#C6A15B" stroke-width="0.5" stroke-dasharray="2 6" opacity="0.4"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- outer sigil ring -->
+          <circle cx="18" cy="18" r="14" fill="none" stroke="#7C531F" stroke-width="1" opacity="0.6"/>
+          <!-- dominant eye shape -->
+          <path d="M5 18 Q18 8 31 18 Q18 28 5 18Z" fill="#1A1205"/>
+          <path d="M5 18 Q18 8 31 18 Q18 28 5 18Z" fill="none" stroke="#C6A15B" stroke-width="1.2"/>
+          <!-- iris -->
+          <circle cx="18" cy="18" r="5" fill="#0D0A04"/>
+          <circle cx="18" cy="18" r="5" fill="none" stroke="#E6C47A" stroke-width="1"/>
+          <!-- pupil -->
+          <circle cx="18" cy="18" r="2.5" fill="#C6A15B"/>
+          <circle cx="18" cy="18" r="1" fill="#F5DFA0"/>
+          <!-- cardinal marks (dominance) -->
+          <line x1="18" y1="4" x2="18" y2="7" stroke="#C6A15B" stroke-width="1.5"/>
+          <line x1="18" y1="29" x2="18" y2="32" stroke="#C6A15B" stroke-width="1.5"/>
+          <line x1="4" y1="18" x2="7" y2="18" stroke="#C6A15B" stroke-width="1.5"/>
+          <line x1="29" y1="18" x2="32" y2="18" stroke="#C6A15B" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div class="effect-name">Control Absoluto</div>
+      <div class="effect-id">absolute-control</div>
+      <div class="effect-tooltip">sigil · dominación</div>
+    </div>
+
+    <!-- MEMORY / Memoria -->
+    <div class="effect-card buff">
+      <div class="effect-type-dot buff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(138,91,232,0.08)" stroke="#8A5BE8" stroke-width="1.5"/><circle cx="32" cy="32" r="23" fill="none" stroke="#8A5BE8" stroke-width="0.8" opacity="0.3"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- stacked rune layers (back) -->
+          <polygon points="18,28 26,24 26,18 18,22 10,18 10,24" fill="#1A0A2E" stroke="#4A2E6E" stroke-width="0.8" opacity="0.6"/>
+          <!-- mid layer -->
+          <polygon points="18,23 26,19 26,13 18,17 10,13 10,19" fill="#220D3A" stroke="#6A3EA8" stroke-width="0.8" opacity="0.8"/>
+          <!-- front rune layer -->
+          <polygon points="18,18 26,14 26,8 18,12 10,8 10,14" fill="#2A1046"/>
+          <polygon points="18,18 26,14 26,8 18,12 10,8 10,14" fill="none" stroke="#8A5BE8" stroke-width="1.2"/>
+          <!-- rune mark on front -->
+          <line x1="18" y1="9" x2="18" y2="17" stroke="#B080F0" stroke-width="0.9"/>
+          <line x1="13" y1="11" x2="23" y2="11" stroke="#B080F0" stroke-width="0.9"/>
+          <line x1="13" y1="14" x2="23" y2="14" stroke="#8A5BE8" stroke-width="0.6" opacity="0.6"/>
+          <!-- glow edge on front -->
+          <line x1="18" y1="12" x2="26" y2="8" stroke="#C0A0F0" stroke-width="0.8" opacity="0.7"/>
+          <!-- echo dot -->
+          <circle cx="28" cy="22" r="1.5" fill="#8A5BE8" opacity="0.5"/>
+          <circle cx="30" cy="26" r="1" fill="#8A5BE8" opacity="0.3"/>
+        </svg>
+      </div>
+      <div class="effect-name">Memoria</div>
+      <div class="effect-id">memory</div>
+      <div class="effect-tooltip">runas · acumulación</div>
+    </div>
+
+    <!-- RAMP / Rampa Arcana -->
+    <div class="effect-card buff">
+      <div class="effect-type-dot buff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(138,91,232,0.07)" stroke="#8A5BE8" stroke-width="1"/><circle cx="32" cy="32" r="23" fill="none" stroke="#C6A15B" stroke-width="1" opacity="0.35"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="ramp-grad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#8A5BE8"/>
+              <stop offset="50%" stop-color="#B455E8"/>
+              <stop offset="100%" stop-color="#E6C47A"/>
+            </linearGradient>
+          </defs>
+          <!-- ascending bars -->
+          <rect x="4"  y="26" width="5" height="6"  fill="#8A5BE8" opacity="0.7" rx="0.5"/>
+          <rect x="11" y="21" width="5" height="11" fill="#9E68E8" opacity="0.8" rx="0.5"/>
+          <rect x="18" y="15" width="5" height="17" fill="#B455E8" opacity="0.9" rx="0.5"/>
+          <rect x="25" y="8"  width="5" height="24" fill="url(#ramp-grad)" rx="0.5"/>
+          <!-- top glow on tallest bar -->
+          <rect x="25" y="8" width="5" height="3" fill="#E6C47A" opacity="0.5" rx="0.5"/>
+          <!-- ascending arrow line -->
+          <polyline points="6,25 13,20 20,14 27,7" fill="none" stroke="#F5DFA0" stroke-width="1" stroke-dasharray="2 2" opacity="0.5"/>
+          <polygon points="27,4 31,9 23,9" fill="#E6C47A" opacity="0.7"/>
+        </svg>
+      </div>
+      <div class="effect-name">Rampa Arcana</div>
+      <div class="effect-id">ramp</div>
+      <div class="effect-tooltip">subida · energía creciente</div>
+    </div>
+
+  </div><!-- /buffs grid -->
+</div><!-- /buffs group -->
+
+<div class="orn-sep"><div class="orn-sep-line"></div><div class="orn-sep-center"><div class="orn-diamond-sm"></div><div class="orn-diamond"></div><div class="orn-diamond-sm"></div></div><div class="orn-sep-line"></div></div>
+
+<!-- DEBUFFS -->
+<div class="effects-group">
+  <div class="sub-label">Debuffs — aplicados sobre héroe o enemigo</div>
+  <div class="effects-grid">
+
+    <!-- POISON / Veneno -->
+    <div class="effect-card debuff">
+      <div class="effect-type-dot debuff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(90,180,50,0.08)" stroke="#7BC742" stroke-width="1.5"/><circle cx="32" cy="32" r="23" fill="none" stroke="#5A9E30" stroke-width="0.8" opacity="0.4"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- skull shape -->
+          <ellipse cx="18" cy="15" rx="9" ry="8" fill="#0D1E08"/>
+          <ellipse cx="18" cy="15" rx="9" ry="8" fill="none" stroke="#7BC742" stroke-width="1.3"/>
+          <!-- eye sockets -->
+          <circle cx="14" cy="14" r="2.5" fill="#7BC742" opacity="0.8"/>
+          <circle cx="22" cy="14" r="2.5" fill="#7BC742" opacity="0.8"/>
+          <circle cx="14" cy="14" r="1.2" fill="#0D1E08"/>
+          <circle cx="22" cy="14" r="1.2" fill="#0D1E08"/>
+          <!-- nose -->
+          <path d="M17 17 L19 17 L18.5 19 L17.5 19 Z" fill="#5A9E30" opacity="0.7"/>
+          <!-- jaw with teeth -->
+          <rect x="11" y="20" width="14" height="5" rx="2" fill="#0D1E08" stroke="#7BC742" stroke-width="1"/>
+          <line x1="14" y1="20" x2="14" y2="25" stroke="#7BC742" stroke-width="0.8"/>
+          <line x1="18" y1="20" x2="18" y2="25" stroke="#7BC742" stroke-width="0.8"/>
+          <line x1="22" y1="20" x2="22" y2="25" stroke="#7BC742" stroke-width="0.8"/>
+          <!-- poison drops -->
+          <circle cx="8" cy="10" r="2" fill="#7BC742" opacity="0.6"/>
+          <circle cx="28" cy="10" r="1.5" fill="#7BC742" opacity="0.4"/>
+          <circle cx="6" cy="17" r="1" fill="#5A9E30" opacity="0.5"/>
+        </svg>
+      </div>
+      <div class="effect-name">Veneno</div>
+      <div class="effect-id">poison</div>
+      <div class="effect-tooltip">toxina · por tick</div>
+    </div>
+
+    <!-- BLEED / Sangrado -->
+    <div class="effect-card debuff">
+      <div class="effect-type-dot debuff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(196,30,58,0.1)" stroke="#C41E3A" stroke-width="1.5"/><circle cx="32" cy="32" r="23" fill="none" stroke="#E05A5A" stroke-width="0.8" opacity="0.4"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- slash wound line -->
+          <line x1="8" y1="6" x2="28" y2="22" stroke="#C41E3A" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="8" y1="6" x2="28" y2="22" stroke="#FF4060" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+          <!-- blood drops falling -->
+          <path d="M16 20 Q16 28 18 32 Q20 28 20 20 Q18 17 16 20Z" fill="#C41E3A"/>
+          <path d="M16 20 Q16 28 18 32 Q20 28 20 20 Q18 17 16 20Z" fill="none" stroke="#E05A5A" stroke-width="0.5"/>
+          <!-- smaller drops -->
+          <path d="M22 24 Q22 29 23.5 32 Q25 29 25 24 Q23.5 22 22 24Z" fill="#8B1010" opacity="0.7"/>
+          <ellipse cx="18" cy="32.5" rx="2.5" ry="1" fill="#8B1010" opacity="0.5"/>
+          <!-- wound edge glow -->
+          <line x1="9" y1="7" x2="13" y2="10" stroke="#FF6080" stroke-width="0.8" opacity="0.6"/>
+        </svg>
+      </div>
+      <div class="effect-name">Sangrado</div>
+      <div class="effect-id">bleed</div>
+      <div class="effect-tooltip">corte · gota</div>
+    </div>
+
+    <!-- FRACTURE / Fractura -->
+    <div class="effect-card debuff">
+      <div class="effect-type-dot debuff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(127,117,100,0.08)" stroke="#7F7564" stroke-width="1.5"/><circle cx="32" cy="32" r="23" fill="none" stroke="#E05A5A" stroke-width="0.8" opacity="0.3"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- broken shield - left half -->
+          <path d="M18 3 L5 7 L5 20 Q5 29 18 33" fill="#1A1A1A"/>
+          <path d="M18 3 L5 7 L5 20 Q5 29 18 33" fill="none" stroke="#7F7564" stroke-width="1.2"/>
+          <!-- broken shield - right half (shifted) -->
+          <path d="M18 4 L31 8 L31 21 Q31 30 18 34" fill="#141414" transform="translate(1,-0.5)"/>
+          <path d="M18 4 L31 8 L31 21 Q31 30 18 34" fill="none" stroke="#7F7564" stroke-width="1.2" transform="translate(1,-0.5)"/>
+          <!-- crack line (lightning bolt) -->
+          <polyline points="18,3 15,13 20,16 14,33" fill="none" stroke="#E05A5A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="18,3 15,13 20,16 14,33" fill="none" stroke="#FF8080" stroke-width="0.8" stroke-linecap="round" opacity="0.5"/>
+          <!-- crack splinter lines -->
+          <line x1="15" y1="13" x2="8" y2="10" stroke="#E05A5A" stroke-width="0.8" opacity="0.5"/>
+          <line x1="20" y1="16" x2="27" y2="14" stroke="#E05A5A" stroke-width="0.8" opacity="0.5"/>
+          <line x1="14" y1="33" x2="10" y2="30" stroke="#E05A5A" stroke-width="0.8" opacity="0.4"/>
+        </svg>
+      </div>
+      <div class="effect-name">Fractura</div>
+      <div class="effect-id">fracture</div>
+      <div class="effect-tooltip">grieta · armadura rota</div>
+    </div>
+
+    <!-- VOID-FRACTURE / Fisura del Vacío -->
+    <div class="effect-card debuff">
+      <div class="effect-type-dot debuff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(60,5,100,0.15)" stroke="#6B21A8" stroke-width="1.5"/><circle cx="32" cy="32" r="23" fill="none" stroke="#B455E8" stroke-width="0.8" opacity="0.4"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- void tear - jagged opening -->
+          <polygon points="18,4 22,10 27,8 24,15 32,16 26,20 30,26 22,24 20,32 18,26 16,32 14,24 6,26 10,20 4,16 12,15 9,8 14,10" fill="#0A0010"/>
+          <polygon points="18,4 22,10 27,8 24,15 32,16 26,20 30,26 22,24 20,32 18,26 16,32 14,24 6,26 10,20 4,16 12,15 9,8 14,10" fill="none" stroke="#6B21A8" stroke-width="1.2"/>
+          <!-- inner void glow rim -->
+          <polygon points="18,9 20,13 24,12 22,16 27,17 23,20 26,24 21,22 20,27 18,22 16,27 15,22 10,24 13,20 9,17 14,16 12,12 16,13" fill="#1A0030" stroke="#B455E8" stroke-width="0.8"/>
+          <!-- void abyss center -->
+          <ellipse cx="18" cy="18" rx="5" ry="5" fill="#030008"/>
+          <!-- void stars/particles -->
+          <circle cx="12" cy="12" r="0.8" fill="#B455E8" opacity="0.8"/>
+          <circle cx="24" cy="11" r="0.6" fill="#D080FF" opacity="0.6"/>
+          <circle cx="25" cy="24" r="0.9" fill="#8A5BE8" opacity="0.7"/>
+          <circle cx="11" cy="23" r="0.7" fill="#B455E8" opacity="0.5"/>
+          <circle cx="18" cy="6" r="0.5" fill="#D080FF" opacity="0.9"/>
+          <!-- center void pulse -->
+          <circle cx="18" cy="18" r="2" fill="none" stroke="#6B21A8" stroke-width="0.5" opacity="0.7"/>
+        </svg>
+      </div>
+      <div class="effect-name">Fisura del Vacío</div>
+      <div class="effect-id">void-fracture</div>
+      <div class="effect-tooltip">grieta oscura · abismo</div>
+    </div>
+
+    <!-- MARK / Marca -->
+    <div class="effect-card debuff">
+      <div class="effect-type-dot debuff"></div>
+      <div class="effect-ring">
+        <svg class="ring-svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="rgba(242,184,75,0.08)" stroke="#F2B84B" stroke-width="1.5"/><circle cx="32" cy="32" r="23" fill="none" stroke="#F2B84B" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.4"/></svg>
+        <svg class="effect-icon-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+          <!-- outer target ring -->
+          <circle cx="18" cy="18" r="13" fill="none" stroke="#F2B84B" stroke-width="1.2" opacity="0.5"/>
+          <!-- mid target ring -->
+          <circle cx="18" cy="18" r="8.5" fill="none" stroke="#F2B84B" stroke-width="1.5" opacity="0.75"/>
+          <!-- inner ring -->
+          <circle cx="18" cy="18" r="4" fill="none" stroke="#F2B84B" stroke-width="1.5"/>
+          <!-- center dot -->
+          <circle cx="18" cy="18" r="2" fill="#F2B84B"/>
+          <circle cx="18" cy="18" r="0.8" fill="#F5DFA0"/>
+          <!-- crosshair lines (4 directional ticks) -->
+          <line x1="18" y1="5" x2="18" y2="9" stroke="#F2B84B" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="18" y1="27" x2="18" y2="31" stroke="#F2B84B" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="5" y1="18" x2="9" y2="18" stroke="#F2B84B" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="27" y1="18" x2="31" y2="18" stroke="#F2B84B" stroke-width="1.5" stroke-linecap="round"/>
+          <!-- diagonal secondary ticks (smaller) -->
+          <line x1="10" y1="10" x2="12" y2="12" stroke="#F2B84B" stroke-width="0.8" opacity="0.5"/>
+          <line x1="26" y1="10" x2="24" y2="12" stroke="#F2B84B" stroke-width="0.8" opacity="0.5"/>
+          <line x1="10" y1="26" x2="12" y2="24" stroke="#F2B84B" stroke-width="0.8" opacity="0.5"/>
+          <line x1="26" y1="26" x2="24" y2="24" stroke="#F2B84B" stroke-width="0.8" opacity="0.5"/>
+        </svg>
+      </div>
+      <div class="effect-name">Marca</div>
+      <div class="effect-id">mark</div>
+      <div class="effect-tooltip">diana · sello</div>
+    </div>
+
+  </div><!-- /debuffs grid -->
+</div><!-- /debuffs group -->
+
+<!-- LEGEND -->
+<div class="orn-sep"><div class="orn-sep-line"></div><div class="orn-sep-center"><div class="orn-diamond-sm"></div><div class="orn-diamond"></div><div class="orn-diamond-sm"></div></div><div class="orn-sep-line"></div></div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:600px;margin-top:4px">
+  <div style="background:var(--fl-bg-inset);box-shadow:0 0 0 1px var(--fl-gold-muted);padding:16px;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)">
+    <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--fl-gold-border);margin-bottom:10px">Convenciones</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fl-text-secondary)"><div style="width:8px;height:8px;border-radius:50%;background:var(--fl-gold-border);flex-shrink:0"></div>Punto dorado = buff del héroe</div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fl-text-secondary)"><div style="width:8px;height:8px;border-radius:50%;background:var(--fl-danger);flex-shrink:0"></div>Punto rojo = debuff / efecto negativo</div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fl-text-secondary)"><div style="width:32px;height:2px;background:var(--fl-gold-muted);flex-shrink:0"></div>Ring = rareza / tipo del efecto</div>
+    </div>
+  </div>
+  <div style="background:var(--fl-bg-inset);box-shadow:0 0 0 1px var(--fl-gold-muted);padding:16px;clip-path:polygon(8px 0%,100% 0%,calc(100% - 8px) 100%,0% 100%)">
+    <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--fl-gold-border);margin-bottom:10px">Colores semánticos</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <div style="font-size:12px;color:var(--fl-danger)">● Rojo — daño, ruptura, peligro</div>
+      <div style="font-size:12px;color:var(--fl-reward)">● Naranja — marca, recompensa, objetivo</div>
+      <div style="font-size:12px;color:var(--fl-arcane)">● Violeta — arcano, tiempo, memoria</div>
+      <div style="font-size:12px;color:var(--fl-defense)">● Azul — defensa, escudo, ciclo</div>
+      <div style="font-size:12px;color:#7BC742">● Verde tóxico — veneno (≠ success)</div>
+      <div style="font-size:12px;color:var(--fl-gold-glow)">● Dorado — fortaleza, dominio, precisión</div>
+    </div>
+  </div>
+</div>
+
+</section><!-- /effects -->
+
+
+const navBtns = document.querySelectorAll('.nav-btn');
+const sections = document.querySelectorAll('.kit-section');
+navBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    navBtns.forEach(b => b.classList.remove('active'));
+    sections.forEach(s => s.classList.remove('visible'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.s).classList.add('visible');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+});
+
+// Toggles
+document.querySelectorAll('.fl-toggle').forEach(t => {
+  t.addEventListener('click', () => {
+    const tr = t.querySelector('.fl-toggle-track');
+    tr.classList.toggle('off');
+    tr.classList.toggle('on');
+    const lbl = t.querySelector('.fl-toggle-label');
+    lbl.style.color = tr.classList.contains('on') ? 'var(--fl-gold-border)' : 'var(--fl-text-secondary)';
+  });
+});
+
+// Bottom nav
+document.querySelectorAll('.bottom-nav .bnav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    item.parentElement.querySelectorAll('.bnav-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+  });
+});
+
+// Forge tabs
+document.querySelectorAll('.forge-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    tab.parentElement.querySelectorAll('.forge-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+  });
+});
+
+// Seg tabs
+document.querySelectorAll('.seg-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    tab.parentElement.querySelectorAll('.seg-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

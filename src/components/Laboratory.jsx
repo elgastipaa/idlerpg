@@ -328,7 +328,7 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
   }, [spotlightGroupVisible, spotlightResearchId]);
 
   return (
-    <div style={{
+    <div {...{ style: {
       padding: "1rem",
       display: "grid",
       gap: "1rem",
@@ -336,64 +336,57 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
       alignContent: "start",
       background: "var(--color-background-primary, #f8fafc)",
       color: "var(--color-text-primary, #1e293b)",
-    }}>
-      <style>{`
-        @keyframes laboratorySpotlightPulse {
-          0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
-          70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
-          100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
-        }
-      `}</style>
-      <section style={panelStyle("var(--tone-accent, #4338ca)")}>
-        <div style={{ display: "grid", gap: "12px", alignItems: "start" }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+    } }}>
+      <section {...{ style: panelStyle("var(--tone-accent, #4338ca)") }}>
+        <div {...{ style: { display: "grid", gap: "12px", alignItems: "start" } }}>
+          <div {...{ style: { minWidth: 0 } }}>
+            <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" } }}>
               Laboratorio
             </div>
-            <div style={{ fontSize: "1.02rem", fontWeight: "900", marginTop: "4px" }}>
+            <div {...{ style: { fontSize: "1.02rem", fontWeight: "900", marginTop: "4px" } }}>
               Infraestructura del Santuario
             </div>
-            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" }}>
+            <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" } }}>
               Desbloquea funciones y mejora capacidad con tinta, polvo y esencia.
             </div>
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <span style={chipStyle("var(--tone-accent, #4338ca)")}>{completedCount}/{catalog.length} estudios</span>
-          <span style={chipStyle("var(--tone-success, #10b981)")}>{unlockedStations}/5 estaciones</span>
+        <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap" } }}>
+          <span {...{ style: chipStyle("var(--tone-accent, #4338ca)") }}>{completedCount}/{catalog.length} estudios</span>
+          <span {...{ style: chipStyle("var(--tone-success, #10b981)") }}>{unlockedStations}/5 estaciones</span>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" }}>
-          <div style={{ ...metricCardStyle(), padding: "8px 10px", gap: "2px" }}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Tinta</div>
-            <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{Math.floor(Number(sanctuary?.resources?.codexInk || 0)).toLocaleString()}</div>
+        <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" } }}>
+          <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
+            <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Tinta</div>
+            <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{Math.floor(Number(sanctuary?.resources?.codexInk || 0)).toLocaleString()}</div>
           </div>
-          <div style={{ ...metricCardStyle(), padding: "8px 10px", gap: "2px" }}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Polvo</div>
-            <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{Math.floor(Number(sanctuary?.resources?.relicDust || 0)).toLocaleString()}</div>
+          <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
+            <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Polvo</div>
+            <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{Math.floor(Number(sanctuary?.resources?.relicDust || 0)).toLocaleString()}</div>
           </div>
-          <div style={{ ...metricCardStyle(), padding: "8px 10px", gap: "2px" }}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Esencia</div>
-            <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{Math.floor(Number(state?.player?.essence || 0)).toLocaleString()}</div>
+          <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
+            <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Esencia</div>
+            <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{Math.floor(Number(state?.player?.essence || 0)).toLocaleString()}</div>
           </div>
-          <div style={{ ...metricCardStyle(), padding: "8px 10px", gap: "2px" }}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>En curso</div>
-            <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{runningJobs.length}</div>
+          <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
+            <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>En curso</div>
+            <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{runningJobs.length}</div>
           </div>
-          <div style={{ ...metricCardStyle(), padding: "8px 10px", gap: "2px" }}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Listas</div>
-            <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{claimableJobs.length}</div>
+          <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
+            <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Listas</div>
+            <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{claimableJobs.length}</div>
           </div>
         </div>
 
         {onBack && (
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <div {...{ style: { display: "flex", justifyContent: "flex-end" } }}>
             <button
               onClick={onBack}
               disabled={backDisabled}
               data-onboarding-target={backTarget}
-              style={{ ...buttonStyle({ compact: true, disabled: backDisabled }), opacity: backDisabled ? 0.6 : 1, flex: "0 0 auto" }}
+              {...{ style: { ...buttonStyle({ compact: true, disabled: backDisabled }), opacity: backDisabled ? 0.6 : 1, flex: "0 0 auto" } }}
             >
               Volver
             </button>
@@ -402,17 +395,17 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
       </section>
 
       {(claimableJobs.length > 0 || runningJobs.length > 0) && (
-        <section style={panelStyle("var(--tone-warning, #f59e0b)")}>
+        <section {...{ style: panelStyle("var(--tone-warning, #f59e0b)") }}>
           <div>
-            <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
+            <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" } }}>
               Cola de investigacion
             </div>
-            <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+            <div {...{ style: { fontSize: "1rem", fontWeight: "900", marginTop: "4px" } }}>
               Trabajos del Laboratorio
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "10px" }}>
+          <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "10px" } }}>
             {claimableJobs.map(job => (
               <div
                 key={job.id}
@@ -422,7 +415,7 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
                     ? "claim-distillery-research-card"
                     : undefined
                 }
-                style={{
+                {...{ style: {
                   ...metricCardStyle(),
                   position:
                     forceDistilleryReadyVisuals && job?.input?.researchId === "unlock_distillery"
@@ -440,10 +433,10 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
                     forceDistilleryReadyVisuals && job?.input?.researchId === "unlock_distillery"
                       ? "laboratorySpotlightPulse 1600ms ease-in-out infinite"
                       : "none",
-                }}
+                } }}
               >
-                <div style={{ fontSize: "0.8rem", fontWeight: "900" }}>{job.input?.label || "Investigacion"}</div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                <div {...{ style: { fontSize: "0.8rem", fontWeight: "900" } }}>{job.input?.label || "Investigacion"}</div>
+                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
                   {job.output?.summary || "El Laboratorio termino una mejora de infraestructura."}
                 </div>
                 <button
@@ -454,7 +447,7 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
                       ? "claim-distillery-research"
                       : undefined
                   }
-                  style={{
+                  {...{ style: {
                     ...buttonStyle({ primary: true, compact: true }),
                     position:
                       forceDistilleryReadyVisuals && job?.input?.researchId === "unlock_distillery"
@@ -464,7 +457,7 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
                       forceDistilleryReadyVisuals && job?.input?.researchId === "unlock_distillery"
                         ? 3
                         : 1,
-                  }}
+                  } }}
                 >
                   Reclamar
                 </button>
@@ -479,7 +472,7 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
                     ? "running-distillery-research"
                     : undefined
                 }
-                style={{
+                {...{ style: {
                   ...metricCardStyle(),
                   position:
                     forceDistilleryReadyVisuals && job?.input?.researchId === "unlock_distillery"
@@ -497,10 +490,10 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
                     forceDistilleryReadyVisuals && job?.input?.researchId === "unlock_distillery"
                       ? "laboratorySpotlightPulse 1600ms ease-in-out infinite"
                       : "none",
-                }}
+                } }}
               >
-                <div style={{ fontSize: "0.8rem", fontWeight: "900" }}>{job.input?.label || "Investigacion"}</div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+                <div {...{ style: { fontSize: "0.8rem", fontWeight: "900" } }}>{job.input?.label || "Investigacion"}</div>
+                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
                   {job.output?.summary || "Mejora estructural en curso."}
                 </div>
                 <JobProgressBar
@@ -517,14 +510,14 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
         </section>
       )}
 
-      <section style={panelStyle(groupTone(selectedGroup))}>
+      <section {...{ style: panelStyle(groupTone(selectedGroup)) }}>
         <HorizontalOptionSelector
           header={(
             <div>
-              <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: groupTone(selectedGroup) }}>
+              <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: groupTone(selectedGroup) } }}>
                 {groupLabel(selectedGroup)}
               </div>
-              <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+              <div {...{ style: { fontSize: "1rem", fontWeight: "900", marginTop: "4px" } }}>
                 {groupSummary(selectedGroup)}
               </div>
             </div>
@@ -559,8 +552,8 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
                   : `${entries.length} completa${entries.length === 1 ? "" : "s"}`;
             return (
               <>
-                <span style={{ fontSize: "0.65rem", fontWeight: "900" }}>{groupLabel(group)}</span>
-                <span style={{ fontSize: "0.58rem", fontWeight: "800", color: selected ? groupTone(group) : "var(--color-text-secondary, #64748b)" }}>
+                <span {...{ style: { fontSize: "0.65rem", fontWeight: "900" } }}>{groupLabel(group)}</span>
+                <span {...{ style: { fontSize: "0.58rem", fontWeight: "800", color: selected ? groupTone(group) : "var(--color-text-secondary, #64748b)" } }}>
                   {compactStatus}
                 </span>
               </>
@@ -568,7 +561,7 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
           }}
         />
 
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fit, minmax(${selectedGroup === "unlock" ? "240px" : "280px"}, 1fr))`, gap: "10px" }}>
+        <div {...{ style: { display: "grid", gridTemplateColumns: `repeat(auto-fit, minmax(${selectedGroup === "unlock" ? "240px" : "280px"}, 1fr))`, gap: "10px" } }}>
           {[...(groups?.[selectedGroup] || [])]
             .sort((left, right) => {
               const getPriority = entry => {
@@ -605,15 +598,15 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
                       dispatch({ type: "ACK_ONBOARDING_STEP" });
                     }
                   }}
-                  style={{
+                  {...{ style: {
                     ...metricCardStyle(),
                     padding: selectedGroup === "unlock" ? "9px 10px" : "10px 12px",
                     gap: selectedGroup === "unlock" ? "6px" : "4px",
                     position: "relative",
-                  }}
+                  } }}
                 >
                   <div
-                    style={{
+                    {...{ style: {
                       display: "block",
                       borderRadius: "12px",
                       padding: spotlightResearch ? "8px 10px" : 0,
@@ -623,13 +616,13 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
                         : "none",
                       animation: spotlightResearch ? "laboratorySpotlightPulse 1600ms ease-in-out infinite" : "none",
                       cursor: spotlightResearch && !spotlightDistilleryResearch ? "pointer" : "default",
-                    }}
+                    } }}
                   >
-                    <div style={{ minWidth: 0, paddingRight: "78px" }}>
-                      <div style={{ fontSize: "0.82rem", fontWeight: "900" }}>{entry.label}</div>
+                    <div {...{ style: { minWidth: 0, paddingRight: "78px" } }}>
+                      <div {...{ style: { fontSize: "0.82rem", fontWeight: "900" } }}>{entry.label}</div>
                       {entry.running ? (
-                        <div style={{ display: "grid", gap: "4px", marginTop: "4px" }}>
-                          <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.3 }}>
+                        <div {...{ style: { display: "grid", gap: "4px", marginTop: "4px" } }}>
+                          <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.3 } }}>
                             Termina en {formatRemaining(Number(runningResearchEndsAt?.[entry.id] || 0) - now)}
                           </div>
                           <JobProgressBar
@@ -642,35 +635,35 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
                           />
                         </div>
                       ) : (
-                        <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.35 }}>
+                        <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.35 } }}>
                           {entry.description}
                         </div>
                       )}
                     </div>
-                    <div style={{ position: "absolute", top: spotlightResearch ? "17px" : "9px", right: spotlightResearch ? "20px" : "10px", display: "flex", gap: "6px", alignItems: "flex-start", flexWrap: "nowrap", justifyContent: "flex-end" }}>
-                      <span style={chipStyle(entry.completed ? "var(--tone-success, #10b981)" : entry.running ? "var(--tone-info, #0369a1)" : "var(--color-text-secondary, #475569)")}>
+                    <div {...{ style: { position: "absolute", top: spotlightResearch ? "17px" : "9px", right: spotlightResearch ? "20px" : "10px", display: "flex", gap: "6px", alignItems: "flex-start", flexWrap: "nowrap", justifyContent: "flex-end" } }}>
+                      <span {...{ style: chipStyle(entry.completed ? "var(--tone-success, #10b981)" : entry.running ? "var(--tone-info, #0369a1)" : "var(--color-text-secondary, #475569)") }}>
                         {entry.completed ? "Completa" : entry.running ? "En curso" : "Pendiente"}
                       </span>
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                    <span style={compactMetaStyle}>{costLabel(entry.costs)}</span>
-                    <span style={compactMetaStyle}>{formatDuration(entry.durationMs)}</span>
+                  <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
+                    <span {...{ style: compactMetaStyle }}>{costLabel(entry.costs)}</span>
+                    <span {...{ style: compactMetaStyle }}>{formatDuration(entry.durationMs)}</span>
                   </div>
                   {!entry.available && (
-                    <div style={{ fontSize: "0.66rem", color: "var(--tone-danger, #D85A30)", lineHeight: 1.35 }}>
+                    <div {...{ style: { fontSize: "0.66rem", color: "var(--tone-danger, #D85A30)", lineHeight: 1.35 } }}>
                       {entry.prerequisiteLabel} · Todavia no listo.
                     </div>
                   )}
                   {entry.missingCosts.length > 0 && !entry.completed && !entry.running && (
-                    <div style={{ fontSize: "0.66rem", color: "var(--tone-warning, #f59e0b)", lineHeight: 1.35 }}>
+                    <div {...{ style: { fontSize: "0.66rem", color: "var(--tone-warning, #f59e0b)", lineHeight: 1.35 } }}>
                       Falta: {entry.missingCosts.join(" · ")}
                     </div>
                   )}
 
                   {!entry.completed && !entry.running && (
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap" } }}>
                       <button
                         onClick={event => {
                           event.stopPropagation();
@@ -678,12 +671,12 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
                         }}
                         disabled={!buttonEnabled}
                         data-onboarding-target={spotlightResearch ? `research-${entry.id}` : undefined}
-                        style={{
+                        {...{ style: {
                           ...buttonStyle({ primary: buttonEnabled, disabled: !buttonEnabled, compact: selectedGroup === "unlock" }),
                           position: spotlightResearch ? "relative" : "static",
                           zIndex: spotlightResearch ? 2 : 1,
                           justifySelf: "start",
-                        }}
+                        } }}
                       >
                         {entry.running ? "En curso" : "Iniciar"}
                       </button>

@@ -1,0 +1,13 @@
+.app-shell-root--forge-light-v2[data-fl2-screen="skills"] .forge-skills-shell,
+.app-shell-root--forge-light-v2[data-fl2-screen="skills"] .forge-attribute-section,
+.app-shell-root--forge-light-v2[data-fl2-screen="skills"] .forge-skills-reading-card {
+  background:
+    radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.045), transparent 24%),
+    linear-gradient(180deg, rgba(8, 10, 11, 0.56), rgba(5, 8, 10, 0.52)) !important;
+  border-color: rgba(198, 161, 91, 0.18) !important;
+  color: var(--fl2-text) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="skills"] .forge-attribute-name {
+  color: var(--fl2-text) !important;
+}

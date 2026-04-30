@@ -587,11 +587,11 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: OVERLAY_Z_INDEX.hard, pointerEvents: "none" }}>
+    <div {...{ style: { position: "fixed", inset: 0, zIndex: OVERLAY_Z_INDEX.hard, pointerEvents: "none" } }}>
       {spotlightRect && spotlightReady ? (
         <>
           <div
-            style={{
+            {...{ style: {
               position: "fixed",
               left: 0,
               top: 0,
@@ -599,10 +599,10 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               height: `${Math.max(0, spotlightRect.y)}px`,
               background: backdrop,
               pointerEvents: overlayPointerEvents,
-            }}
+            } }}
           />
           <div
-            style={{
+            {...{ style: {
               position: "fixed",
               left: 0,
               top: `${Math.max(0, spotlightRect.y)}px`,
@@ -610,10 +610,10 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               height: `${Math.max(0, spotlightRect.height)}px`,
               background: backdrop,
               pointerEvents: overlayPointerEvents,
-            }}
+            } }}
           />
           <div
-            style={{
+            {...{ style: {
               position: "fixed",
               left: `${Math.min(viewportWidth, spotlightRect.x + spotlightRect.width)}px`,
               top: `${Math.max(0, spotlightRect.y)}px`,
@@ -621,10 +621,10 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               height: `${Math.max(0, spotlightRect.height)}px`,
               background: backdrop,
               pointerEvents: overlayPointerEvents,
-            }}
+            } }}
           />
           <div
-            style={{
+            {...{ style: {
               position: "fixed",
               left: 0,
               top: `${Math.min(viewportHeight, spotlightRect.y + spotlightRect.height)}px`,
@@ -632,22 +632,22 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
               bottom: 0,
               background: backdrop,
               pointerEvents: overlayPointerEvents,
-            }}
+            } }}
           />
         </>
       ) : (
         <div
-          style={{
+          {...{ style: {
             position: "fixed",
             inset: 0,
             background: backdrop,
             pointerEvents: overlayPointerEvents,
-          }}
+          } }}
         />
       )}
       <div
         ref={cardRef}
-        style={{
+        {...{ style: {
           position: "fixed",
           zIndex: 2,
           left: `${defaultLeft}px`,
@@ -665,24 +665,24 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
           gap: "10px",
           pointerEvents: infoOnly || Boolean(spotlightFailure) ? "auto" : "none",
           opacity: 1,
-        }}
+        } }}
       >
-        <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+        <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" } }}>
           Tutorial
         </div>
-        <div style={{ fontSize: "0.96rem", fontWeight: "900" }}>{meta.title}</div>
-        <div style={{ fontSize: "0.78rem", lineHeight: 1.45, color: "var(--color-text-secondary, #475569)" }}>
+        <div {...{ style: { fontSize: "0.96rem", fontWeight: "900" } }}>{meta.title}</div>
+        <div {...{ style: { fontSize: "0.78rem", lineHeight: 1.45, color: "var(--color-text-secondary, #475569)" } }}>
           {meta.body}
         </div>
         {spotlightFailure && !infoOnly && (
-          <div style={{ display: "grid", gap: "8px", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.12)", color: "var(--tone-warning, #f59e0b)", borderRadius: "12px", padding: "8px 10px" }}>
-            <div style={{ fontSize: "0.68rem", lineHeight: 1.35, fontWeight: "800" }}>
+          <div {...{ style: { display: "grid", gap: "8px", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.12)", color: "var(--tone-warning, #f59e0b)", borderRadius: "12px", padding: "8px 10px" } }}>
+            <div {...{ style: { fontSize: "0.68rem", lineHeight: 1.35, fontWeight: "800" } }}>
               No pudimos enfocar el objetivo. Puedes continuar manualmente y reintentar cuando quieras.
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <div {...{ style: { display: "flex", justifyContent: "flex-end" } }}>
               <button
                 onClick={handleRetrySpotlight}
-                style={{
+                {...{ style: {
                   border: "1px solid rgba(245,158,11,0.45)",
                   background: "#ffffff",
                   color: "var(--tone-warning, #b45309)",
@@ -691,7 +691,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
                   fontSize: "0.64rem",
                   fontWeight: "900",
                   cursor: "pointer",
-                }}
+                } }}
               >
                 Reintentar foco
               </button>
@@ -699,15 +699,15 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
           </div>
         )}
         {infoOnly && showGlossaryHint && (
-          <div style={{ fontSize: "0.7rem", lineHeight: 1.45, color: "var(--color-text-tertiary, #64748b)", paddingTop: "2px", borderTop: "1px solid var(--color-border-primary, #e2e8f0)" }}>
+          <div {...{ style: { fontSize: "0.7rem", lineHeight: 1.45, color: "var(--color-text-tertiary, #64748b)", paddingTop: "2px", borderTop: "1px solid var(--color-border-primary, #e2e8f0)" } }}>
             En Mas &gt; Glosario podes ver mas.
           </div>
         )}
         {infoOnly && (
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <div {...{ style: { display: "flex", justifyContent: "flex-end" } }}>
             <button
               onClick={() => dispatch({ type: "ACK_ONBOARDING_STEP" })}
-              style={{
+              {...{ style: {
                 border: "1px solid var(--tone-accent, #4338ca)",
                 background: "var(--tone-accent-soft, #eef2ff)",
                 color: "var(--tone-accent, #4338ca)",
@@ -716,7 +716,7 @@ export default function OnboardingOverlay({ state, dispatch, isMobile = false })
                 fontSize: "0.72rem",
                 fontWeight: "900",
                 cursor: "pointer",
-              }}
+              } }}
             >
               {meta.actionLabel || "Seguir"}
             </button>

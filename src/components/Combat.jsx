@@ -3,6 +3,7 @@ import useViewport from "../hooks/useViewport";
 
 import { TALENTS } from "../data/talents";
 import { ITEM_FAMILIES } from "../data/itemFamilies";
+import { getCombatBackgroundVisual, getCombatEnemyVisual } from "../data/combatVisuals";
 import { xpRequired } from "../engine/leveling";
 import {
   getActiveExpeditionContractWithProgress,
@@ -21,6 +22,7 @@ import { getOnboardingStepInteractionMode, isAutoAdvanceUnlocked, isExtractionUn
 import { getMaxRunSigilSlots } from "../engine/progression/abyssProgression";
 import RunSigilCallout from "./RunSigilCallout";
 import { CardHeader, InlineAction, ProgressBar, StatusChip } from "./ui/ProgressPrimitives";
+import ForgeIcon from "./icons/ForgeIcon";
 
 const COLORS = {
   success: "var(--tone-success, #1D9E75)",
@@ -37,95 +39,11 @@ const BOSS_PHASE_THRESHOLDS = [75, 50, 25];
 const LEVEL_UP_TOAST_VISIBLE_MS = 3200;
 const ACCOUNT_SCROLL_TARGET_STORAGE_KEY = "idlerpg.accountScrollTarget";
 const ACCOUNT_SCROLL_TARGET_WEEKLY = "weekly";
+const FORGE_TIER_NODE_COUNT = 5;
 // Visual-only experiment from stitch/ references. Flip to false to restore the previous Combat skin.
 const COMBAT_STITCH_VISUAL_TRIAL = false;
 // Keeps the Stitch visual direction but disables expensive paint/compositing effects.
 const COMBAT_STITCH_PERF_SAFE = true;
-const COMBAT_ANIMATION_STYLES = `
-@keyframes lootOverlayEnter {
-  0% { opacity: 0; transform: translateY(26px) scale(0.98); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes lootOverlayPulse {
-  0% { box-shadow: 0 0 0 0 rgba(245,158,11,0.2), 0 16px 30px rgba(15,23,42,0.12); }
-  100% { box-shadow: 0 0 0 10px rgba(245,158,11,0), 0 22px 42px rgba(245,158,11,0.3); }
-}
-@keyframes lootOverlayExit {
-  0% { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(26px) scale(0.98); }
-}
-@keyframes levelUpFloat {
-  0% { opacity: 0; transform: translate(-50%, 12px) scale(0.86); }
-  15% { opacity: 1; transform: translate(-50%, 0) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -30px) scale(1.04); }
-}
-@keyframes levelUpDingBadge {
-  0% { opacity: 0; transform: translateY(4px) scale(0.92); }
-  22% { opacity: 1; transform: translateY(0) scale(1.06); }
-  100% { opacity: 0.9; transform: translateY(0) scale(1); }
-}
-@keyframes levelUpDingRing {
-  0% { opacity: 0.82; transform: translate(-50%, -50%) scale(0.58); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.9); }
-}
-@keyframes levelUpToastEnter {
-  0% { opacity: 0; transform: translateY(26px) scale(0.96); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes levelUpToastPulse {
-  0%, 100% { box-shadow: 0 12px 26px rgba(79,70,229,0.16); filter: brightness(1); }
-  50% { box-shadow: 0 16px 34px rgba(79,70,229,0.23); filter: brightness(1.03); }
-}
-@keyframes levelUpToastExit {
-  0% { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(20px) scale(0.97); }
-}
-@keyframes combatFloatDamage {
-  0% { opacity: 0; transform: translate(-50%, 8px) scale(0.92); }
-  18% { opacity: 1; transform: translate(-50%, 0) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -34px) scale(1.04); }
-}
-@keyframes combatFloatCrit {
-  0% { opacity: 0; transform: translate(-50%, 10px) scale(0.84); }
-  12% { opacity: 1; transform: translate(-50%, -2px) scale(1.14); }
-  100% { opacity: 0; transform: translate(-50%, -42px) scale(1.05); }
-}
-@keyframes combatFloatHeal {
-  0% { opacity: 0; transform: translate(-50%, 8px) scale(0.92); }
-  18% { opacity: 1; transform: translate(-50%, 0) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -30px) scale(1); }
-}
-@keyframes combatFloatXp {
-  0% { opacity: 0; transform: translate(-50%, 6px) scale(0.94); }
-  18% { opacity: 1; transform: translate(-50%, 0) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -26px) scale(1.02); }
-}
-@keyframes combatSpotlightPulse {
-  0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.26); }
-  70% { box-shadow: 0 0 0 10px rgba(99,102,241,0); }
-  100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
-}
-@keyframes combatCritStreakPop {
-  0% { transform: translateY(3px) scale(0.92); opacity: 0; }
-  30% { transform: translateY(0) scale(1.06); opacity: 1; }
-  100% { transform: translateY(0) scale(1); opacity: 1; }
-}
-@keyframes combatFinishZonePulse {
-  0%, 100% { box-shadow: inset 0 0 0 0 rgba(245,158,11,0); filter: brightness(1); }
-  50% { box-shadow: inset 0 0 8px 1px rgba(245,158,11,0.24); filter: brightness(1.03); }
-}
-@keyframes combatBossThresholdPop {
-  0% { transform: translateY(-4px) scale(0.9); opacity: 0; }
-  20% { transform: translateY(0) scale(1.08); opacity: 1; }
-  75% { transform: translateY(0) scale(1); opacity: 1; }
-  100% { transform: translateY(0) scale(0.98); opacity: 0; }
-}
-@keyframes combatStatusPillPulse {
-  0%, 100% { box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 1px 2px rgba(15,23,42,0.03); filter: brightness(1); }
-  50% { box-shadow: 0 0 0 1px rgba(255,255,255,0.22), 0 0 7px rgba(15,23,42,0.09); filter: brightness(1.04); }
-}
-`;
-
 const CLASS_ICONS = {
   warrior: "WR",
   rogue: "RG",
@@ -344,7 +262,7 @@ function getStackedMultiplier(perStackMultiplier = 1, stacks = 0) {
   return Math.pow(Math.max(1, Number(perStackMultiplier || 1)), Math.max(0, Number(stacks || 0)));
 }
 
-export default function Combat({ state, dispatch }) {
+export default function Combat({ state, dispatch, sideActions = [], forgeLightTrial = false }) {
   const { player, combat } = state;
   const expedition = state.expedition || {};
   const runSigilSlotCount = getMaxRunSigilSlots(state?.abyss || {});
@@ -376,14 +294,28 @@ export default function Combat({ state, dispatch }) {
     pulseAt: 0,
   });
   const [bossPhasePingQueue, setBossPhasePingQueue] = useState([]);
+  const [enemyHpTrailPct, setEnemyHpTrailPct] = useState(100);
+  const [playerHpTrailPct, setPlayerHpTrailPct] = useState(100);
+  const [enemyHitPulseKey, setEnemyHitPulseKey] = useState(0);
+  const [playerHitPulseKey, setPlayerHitPulseKey] = useState(0);
   const logRef = useRef(null);
   const prevLevelRef = useRef(player.level || 1);
   const lastProcessedFloatIdRef = useRef(null);
   const bossPhaseSeenRef = useRef({ enemyKey: null, seen: {} });
+  const enemyHpTrailEncounterRef = useRef(null);
+  const previousEnemyHpRef = useRef({ encounterKey: null, pct: null });
+  const previousPlayerHpPctRef = useRef(null);
 
   const enemyEncounterKey = useMemo(
     () => `${enemy?.id || enemy?.name || "enemy"}:${Math.max(1, Number(enemy?.maxHp || 1))}:${currentTier}:${enemy?.isBoss ? "boss" : "mob"}`,
     [currentTier, enemy?.id, enemy?.isBoss, enemy?.maxHp, enemy?.name]
+  );
+  const enemyHpPctForTrail = enemy
+    ? Math.max(0, Math.min(100, (Number(enemy.hp || 0) / Math.max(1, Number(enemy.maxHp || 1))) * 100))
+    : 0;
+  const playerHpPctForTrail = Math.max(
+    0,
+    Math.min(100, (Number(player.hp || 0) / Math.max(1, Number(player.maxHp || 1))) * 100)
   );
 
   const replacedTalentIds = new Set(
@@ -747,6 +679,60 @@ export default function Combat({ state, dispatch }) {
     }, 1250);
     return () => clearTimeout(timer);
   }, [bossPhasePingQueue[0]?.id, bossPhasePingQueue.length]);
+
+  useEffect(() => {
+    if (!enemy) return undefined;
+    const isNewEncounter = enemyHpTrailEncounterRef.current !== enemyEncounterKey;
+    enemyHpTrailEncounterRef.current = enemyEncounterKey;
+
+    if (isNewEncounter || enemyHpPctForTrail >= enemyHpTrailPct) {
+      setEnemyHpTrailPct(enemyHpPctForTrail);
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      setEnemyHpTrailPct(enemyHpPctForTrail);
+    }, 360);
+    return () => clearTimeout(timer);
+  }, [enemy, enemyEncounterKey, enemyHpPctForTrail, enemyHpTrailPct]);
+
+  useEffect(() => {
+    if (!enemy) {
+      previousEnemyHpRef.current = { encounterKey: null, pct: null };
+      return;
+    }
+
+    const previous = previousEnemyHpRef.current;
+    if (previous.encounterKey !== enemyEncounterKey) {
+      previousEnemyHpRef.current = { encounterKey: enemyEncounterKey, pct: enemyHpPctForTrail };
+      return;
+    }
+
+    if (previous.pct != null && enemyHpPctForTrail < previous.pct - 0.35) {
+      setEnemyHitPulseKey(Date.now());
+    }
+    previousEnemyHpRef.current = { encounterKey: enemyEncounterKey, pct: enemyHpPctForTrail };
+  }, [enemy, enemyEncounterKey, enemyHpPctForTrail]);
+
+  useEffect(() => {
+    if (playerHpPctForTrail >= playerHpTrailPct) {
+      setPlayerHpTrailPct(playerHpPctForTrail);
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      setPlayerHpTrailPct(playerHpPctForTrail);
+    }, 360);
+    return () => clearTimeout(timer);
+  }, [playerHpPctForTrail, playerHpTrailPct]);
+
+  useEffect(() => {
+    const previous = previousPlayerHpPctRef.current;
+    if (previous != null && playerHpPctForTrail < previous - 0.35) {
+      setPlayerHitPulseKey(Date.now());
+    }
+    previousPlayerHpPctRef.current = playerHpPctForTrail;
+  }, [playerHpPctForTrail]);
 
   useEffect(() => {
     if (!latestLootEvent) return undefined;
@@ -1158,7 +1144,7 @@ export default function Combat({ state, dispatch }) {
 
   if (!enemy) return null;
 
-  const enemyHpPct = Math.max(0, (enemy.hp / enemy.maxHp) * 100);
+  const enemyHpPct = enemyHpPctForTrail;
   const weeklySegmentCount = Math.max(1, Number(activeWeeklyBossEncounter?.segmentCount || enemy?.weeklyBoss?.segmentCount || 1));
   const weeklySegmentMaxHp = Math.max(1, Number(activeWeeklyBossEncounter?.segmentMaxHp || enemy?.weeklyBoss?.segmentMaxHp || enemy.maxHp || 1));
   const showWeeklySegmentBars = weeklySegmentCount > 1 && Boolean(activeWeeklyBossEncounter);
@@ -1180,7 +1166,7 @@ export default function Combat({ state, dispatch }) {
   const weeklyBarsRemaining = showWeeklySegmentBars
     ? Math.max(0, Math.min(weeklySegmentCount, Math.ceil(Math.max(0, Number(enemy.hp || 0)) / weeklySegmentMaxHp)))
     : 0;
-  const playerHpPct = Math.max(0, (player.hp / player.maxHp) * 100);
+  const playerHpPct = playerHpPctForTrail;
   const inEnemyFinishZone = enemyHpPct <= ENEMY_FINISH_ZONE_PCT;
   const critStreakAgeMs = Date.now() - Number(critStreak.lastCritAt || 0);
   const critStreakFade = Math.max(0, Math.min(1, 1 - (critStreakAgeMs / CRIT_STREAK_TIMEOUT_MS)));
@@ -1197,6 +1183,28 @@ export default function Combat({ state, dispatch }) {
 
   const xpNeeded = xpRequired(player.level);
   const xpPct = Math.min(100, (player.xp / xpNeeded) * 100);
+  const combatBackgroundVisual = getCombatBackgroundVisual();
+  const combatEnemyVisual = getCombatEnemyVisual(enemy);
+  const forgeLightTrialEnabled = Boolean(forgeLightTrial);
+  const forgeCombatEnabled = forgeLightTrialEnabled || Boolean(combatBackgroundVisual?.src);
+  const tierInForgeSegment =
+    ((Math.max(1, Number(currentTier || 1)) - 1) % FORGE_TIER_NODE_COUNT) + 1;
+  const tierProgressPct = FORGE_TIER_NODE_COUNT > 1
+    ? ((tierInForgeSegment - 1) / (FORGE_TIER_NODE_COUNT - 1)) * 100
+    : 100;
+  const tierTrackNodes = Array.from({ length: FORGE_TIER_NODE_COUNT }, (_, index) => {
+    const thresholdPct = FORGE_TIER_NODE_COUNT <= 1
+      ? 100
+      : (index / (FORGE_TIER_NODE_COUNT - 1)) * 100;
+    const isBossNode = index === FORGE_TIER_NODE_COUNT - 1;
+    const nodePosition = index + 1;
+    return {
+      id: `tier-node-${index}`,
+      boss: isBossNode,
+      active: tierProgressPct >= thresholdPct || (isBossNode && enemy.isBoss),
+      current: nodePosition === tierInForgeSegment,
+    };
+  });
 
   const getHpColor = pct => {
     if (pct > 60) return COLORS.success;
@@ -1241,42 +1249,48 @@ export default function Combat({ state, dispatch }) {
 
   const combatRootClassName = [
     "combat-root",
+    forgeCombatEnabled ? "combat-root--forge-assets" : "",
+    forgeLightTrialEnabled ? "combat-root--forge-light-prueba" : "",
     COMBAT_STITCH_VISUAL_TRIAL ? "combat-root--stitch-trial" : "",
     COMBAT_STITCH_VISUAL_TRIAL && COMBAT_STITCH_PERF_SAFE ? "combat-root--stitch-perf-safe" : "",
   ].filter(Boolean).join(" ");
 
   return (
-    <div className={combatRootClassName}>
-      <style>{COMBAT_ANIMATION_STYLES}</style>
+    <div
+      className={combatRootClassName}
+      {...{ style: {
+        "--combat-bg-image": combatBackgroundVisual?.src ? `url("${combatBackgroundVisual.src}")` : "none",
+      } }}
+    >
       {visibleOverflowEvent && (
         <section
-          style={{
+          {...{ style: {
             border: "1px solid rgba(245,158,11,0.3)",
             background: isDarkMode ? "rgba(245,158,11,0.14)" : "#fff7ed",
             borderRadius: "12px",
             padding: isMobile ? "8px 10px" : "10px 12px",
             display: "grid",
             gap: "7px",
-          }}
+          } }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" }}>
+          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" } }}>
             <div>
-              <div style={{ fontSize: "0.54rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
+              <div {...{ style: { fontSize: "0.54rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" } }}>
                 Mochila llena
               </div>
-              <div style={{ fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", marginTop: "3px", lineHeight: 1.3 }}>
+              <div {...{ style: { fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", marginTop: "3px", lineHeight: 1.3 } }}>
                 {visibleOverflowEvent.incomingItemKept
                   ? `${visibleOverflowEvent.incomingItemName} entró y desplazó ${visibleOverflowEvent.droppedItemName}.`
                   : `${visibleOverflowEvent.incomingItemName} no entró y se perdió.`}
               </div>
             </div>
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" } }}>
               <button
                 onClick={() => {
                   dispatch({ type: "REQUEST_LOOT_FILTER_OPEN" });
                   dispatch({ type: "SET_TAB", tab: "inventory" });
                 }}
-                style={{
+                {...{ style: {
                   border: "1px solid rgba(245,158,11,0.38)",
                   background: "rgba(245,158,11,0.1)",
                   color: "var(--tone-warning, #f59e0b)",
@@ -1285,13 +1299,13 @@ export default function Combat({ state, dispatch }) {
                   fontSize: "0.58rem",
                   fontWeight: "900",
                   cursor: "pointer",
-                }}
+                } }}
               >
                 Abrir filtro
               </button>
               <button
                 onClick={() => setDismissedOverflowEventId(visibleOverflowEvent.id)}
-                style={{
+                {...{ style: {
                   border: "1px solid var(--color-border-primary, #e2e8f0)",
                   background: "var(--color-background-secondary, #ffffff)",
                   color: "var(--color-text-secondary, #64748b)",
@@ -1300,30 +1314,30 @@ export default function Combat({ state, dispatch }) {
                   fontSize: "0.58rem",
                   fontWeight: "900",
                   cursor: "pointer",
-                }}
+                } }}
               >
                 Ocultar
               </button>
             </div>
           </div>
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-            <span style={{ fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.12)", color: "var(--tone-warning, #f59e0b)" }}>
+          <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
+            <span {...{ style: { fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.12)", color: "var(--tone-warning, #f59e0b)" } }}>
               {Math.max(0, Number(overflowStats.total || 0))} overflow
             </span>
-            <span style={{ fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #64748b)" }}>
+            <span {...{ style: { fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #64748b)" } }}>
               {Math.max(0, Number(overflowStats.lost || 0))} perdidos
             </span>
-            <span style={{ fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.12)", color: "var(--tone-warning, #f59e0b)" }}>
+            <span {...{ style: { fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.12)", color: "var(--tone-warning, #f59e0b)" } }}>
               Entra {String(visibleOverflowEvent.incomingItemRarity || "common").toUpperCase()} · P {Math.floor(Number(visibleOverflowEvent.incomingItemRating || 0))}
             </span>
-            <span style={{ fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #64748b)" }}>
+            <span {...{ style: { fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #64748b)" } }}>
               Sale {String(visibleOverflowEvent.droppedItemRarity || "common").toUpperCase()} · P {Math.floor(Number(visibleOverflowEvent.droppedItemRating || 0))}
             </span>
           </div>
-          <div style={{ fontSize: "0.6rem", fontWeight: "800", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.35 }}>
+          <div {...{ style: { fontSize: "0.6rem", fontWeight: "800", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.35 } }}>
             Ajustalo en Mochila con filtro de loot si se repite seguido.
           </div>
-          <div style={{ fontSize: "0.58rem", fontWeight: "800", color: "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.35 }}>
+          <div {...{ style: { fontSize: "0.58rem", fontWeight: "800", color: "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.35 } }}>
             Regla activa: {lootRuleSummary}.
           </div>
         </section>
@@ -1339,152 +1353,328 @@ export default function Combat({ state, dispatch }) {
       )}
       <section
         className="combat-main-panel"
-        style={{
+        {...{ style: {
           border: `2px solid ${enemy.isBoss ? COLORS.warning : "var(--color-border-primary, #e2e8f0)"}`,
-        }}
+        } }}
       >
-        <div
-          className="combat-tier-grid"
-        >
-          <button
-            onClick={() => dispatch({ type: "SET_TIER", tier: currentTier - 1 })}
-            disabled={currentTier <= 1}
-            style={navBtnStyle(currentTier > 1)}
+        {forgeCombatEnabled ? (
+          <CombatForgeTierTrack
+            currentTier={currentTier}
+            maxTier={maxTier}
+            zoneLabel={combatBackgroundVisual?.label || "Ruinas Olvidadas"}
+            progressPct={tierProgressPct}
+            nodes={tierTrackNodes}
+            canGoPrevious={currentTier > 1}
+            canGoNext={currentTier < maxTier}
+            onPrevious={() => dispatch({ type: "SET_TIER", tier: currentTier - 1 })}
+            onNext={() => dispatch({ type: "SET_TIER", tier: currentTier + 1 })}
+            showAuto={!isMobile && autoAdvanceUnlocked}
+            autoAdvance={autoAdvance}
+            spotlightAutoAdvance={spotlightAutoAdvance}
+            onToggleAuto={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
+            title={[
+              `Tier ${currentTier} / ${maxTier}`,
+              abyssMutator ? `Anomalia: ${abyssMutator.name}` : "",
+              bossDepthSummary ? `Eco Abisal: ${bossDepthSummary}` : "",
+              enemy.familyTraitName ? `Rasgo: ${enemy.familyTraitName}` : "",
+              (enemy.monsterAffixes || []).length ? `Afijos: ${(enemy.monsterAffixes || []).map(affix => affix.name).join(", ")}` : "",
+              (enemy.mechanics || []).length ? `Boss: ${(enemy.mechanics || []).map(mechanic => mechanic.name).join(", ")}` : "",
+            ].filter(Boolean).join("\n")}
+          />
+        ) : (
+          <div
+            className="combat-tier-grid"
           >
-            {"<"}
-          </button>
-          <div style={{ display: "flex", justifyContent: "center", minWidth: 0 }}>
-            <div
-              className="combat-tier-chip"
+            <button
+              onClick={() => dispatch({ type: "SET_TIER", tier: currentTier - 1 })}
+              disabled={currentTier <= 1}
+              {...{ style: navBtnStyle(currentTier > 1) }}
             >
-              <div style={{ fontSize: 9, color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "2px" }}>
-                Tier Actual
-              </div>
-              <button
-                title={[
-                  `Tier ${currentTier} / ${maxTier}`,
-                  abyssMutator ? `Anomalia: ${abyssMutator.name}` : "",
-                  bossDepthSummary ? `Eco Abisal: ${bossDepthSummary}` : "",
-                  enemy.familyTraitName ? `Rasgo: ${enemy.familyTraitName}` : "",
-                  (enemy.monsterAffixes || []).length ? `Afijos: ${(enemy.monsterAffixes || []).map(affix => affix.name).join(", ")}` : "",
-                  (enemy.mechanics || []).length ? `Boss: ${(enemy.mechanics || []).map(mechanic => mechanic.name).join(", ")}` : "",
-                ].filter(Boolean).join("\n")}
-                style={{
-                  margin: 0,
-                  fontSize: "clamp(12px, 1.3vw, 13px)",
-                  color: COLORS.common,
-                  fontWeight: "900",
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  cursor: "help",
-                  display: "block",
-                  lineHeight: 1,
-                  width: "100%",
-                  fontVariantNumeric: "tabular-nums",
-                  fontFeatureSettings: "\"tnum\"",
-                }}
+              {"<"}
+            </button>
+            <div {...{ style: { display: "flex", justifyContent: "center", minWidth: 0 } }}>
+              <div
+                className="combat-tier-chip"
               >
-                {currentTier} / {maxTier}
+                <div {...{ style: { fontSize: 9, color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "2px" } }}>
+                  Tier Actual
+                </div>
+                <button
+                  title={[
+                    `Tier ${currentTier} / ${maxTier}`,
+                    abyssMutator ? `Anomalia: ${abyssMutator.name}` : "",
+                    bossDepthSummary ? `Eco Abisal: ${bossDepthSummary}` : "",
+                    enemy.familyTraitName ? `Rasgo: ${enemy.familyTraitName}` : "",
+                    (enemy.monsterAffixes || []).length ? `Afijos: ${(enemy.monsterAffixes || []).map(affix => affix.name).join(", ")}` : "",
+                    (enemy.mechanics || []).length ? `Boss: ${(enemy.mechanics || []).map(mechanic => mechanic.name).join(", ")}` : "",
+                  ].filter(Boolean).join("\n")}
+                  {...{ style: {
+                    margin: 0,
+                    fontSize: "clamp(12px, 1.3vw, 13px)",
+                    color: COLORS.common,
+                    fontWeight: "900",
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    cursor: "help",
+                    display: "block",
+                    lineHeight: 1,
+                    width: "100%",
+                    fontVariantNumeric: "tabular-nums",
+                    fontFeatureSettings: "\"tnum\"",
+                  } }}
+                >
+                  {currentTier} / {maxTier}
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={() => dispatch({ type: "SET_TIER", tier: currentTier + 1 })}
+              disabled={currentTier >= maxTier}
+              {...{ style: navBtnStyle(currentTier < maxTier) }}
+            >
+              {">"}
+            </button>
+            {!isMobile && autoAdvanceUnlocked && (
+              <button
+                onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
+                title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+                aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+                data-onboarding-target={spotlightAutoAdvance ? "auto-advance" : undefined}
+                {...{ style: {
+                  ...autoAdvanceBtnStyle(autoAdvance),
+                  boxShadow: spotlightAutoAdvance
+                    ? "0 0 0 3px rgba(99,102,241,0.22), 0 0 24px rgba(99,102,241,0.24), 0 14px 30px rgba(99,102,241,0.22)"
+                    : autoAdvanceBtnStyle(autoAdvance).boxShadow,
+                  animation: spotlightAutoAdvance ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                  transform: spotlightAutoAdvance ? "scale(1.05)" : "none",
+                } }}
+              >
+                🥾
               </button>
-            </div>
-          </div>
-          <button
-            onClick={() => dispatch({ type: "SET_TIER", tier: currentTier + 1 })}
-            disabled={currentTier >= maxTier}
-            style={navBtnStyle(currentTier < maxTier)}
-          >
-            {">"}
-          </button>
-          {!isMobile && autoAdvanceUnlocked && (
-            <button
-              onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
-              title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
-              aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
-              data-onboarding-target={spotlightAutoAdvance ? "auto-advance" : undefined}
-              style={{
-                ...autoAdvanceBtnStyle(autoAdvance),
-                boxShadow: spotlightAutoAdvance
-                  ? "0 0 0 3px rgba(99,102,241,0.22), 0 0 24px rgba(99,102,241,0.24), 0 14px 30px rgba(99,102,241,0.22)"
-                  : autoAdvanceBtnStyle(autoAdvance).boxShadow,
-                animation: spotlightAutoAdvance ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
-                transform: spotlightAutoAdvance ? "scale(1.05)" : "none",
-              }}
-            >
-              🥾
-            </button>
-          )}
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "center", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-          {isMobile && autoAdvanceUnlocked && (
-            <button
-              onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
-              title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
-              aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
-              data-onboarding-target={spotlightAutoAdvance ? "auto-advance" : undefined}
-              style={{
-                ...autoAdvanceBtnStyle(autoAdvance),
-                boxShadow: spotlightAutoAdvance
-                  ? "0 0 0 3px rgba(99,102,241,0.22), 0 0 24px rgba(99,102,241,0.24), 0 14px 30px rgba(99,102,241,0.22)"
-                  : autoAdvanceBtnStyle(autoAdvance).boxShadow,
-                animation: spotlightAutoAdvance ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
-                transform: spotlightAutoAdvance ? "scale(1.05)" : "none",
-              }}
-            >
-              🥾
-            </button>
-          )}
-          {extractionUnlocked && (
-            <button
-              onClick={() => dispatch({ type: "OPEN_EXTRACTION", exitReason: "retire" })}
-              data-onboarding-target={spotlightExtraction ? "open-extraction" : undefined}
-              style={{
-                border: "1px solid var(--tone-accent, #534AB7)",
-                background: "var(--tone-accent-soft, #eef2ff)",
-                color: "var(--tone-accent, #534AB7)",
-                borderRadius: "999px",
-                padding: "6px 11px",
-                fontSize: "0.62rem",
-                fontWeight: "900",
-                cursor: "pointer",
-                boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.02)",
-                position: spotlightExtraction ? "relative" : "static",
-                zIndex: spotlightExtraction ? 2 : 1,
-                animation: spotlightExtraction ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
-              }}
-            >
-              Extraer al Santuario
-            </button>
-          )}
-        </div>
-        {extractionUnlocked && extractionDecision && (
-          <div style={{ display: "flex", justifyContent: "center", marginTop: "6px" }}>
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                flexWrap: "wrap",
-                padding: "5px 8px",
-                borderRadius: "999px",
-                border: "1px solid var(--color-border-primary, #e2e8f0)",
-                background: "var(--color-background-tertiary, #f8fafc)",
-                fontSize: "0.58rem",
-                lineHeight: 1.3,
-                fontWeight: "900",
-              }}
-            >
-              <span style={{ color: extractionDecision.tone }}>{extractionDecision.label}</span>
-              <span style={{ color: "var(--color-text-secondary, #64748b)" }}>{extractionDecision.detail}</span>
-            </div>
+            )}
           </div>
         )}
 
+        {!forgeCombatEnabled && (
+          <>
+            <div className="combat-forge-action-strip" {...{ style: { display: "flex", justifyContent: "center", gap: "8px", flexWrap: "wrap", alignItems: "center" } }}>
+              {isMobile && autoAdvanceUnlocked && (
+                <button
+                  onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
+                  title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+                  aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+                  data-onboarding-target={spotlightAutoAdvance ? "auto-advance" : undefined}
+                  {...{ style: {
+                    ...autoAdvanceBtnStyle(autoAdvance),
+                    boxShadow: spotlightAutoAdvance
+                      ? "0 0 0 3px rgba(99,102,241,0.22), 0 0 24px rgba(99,102,241,0.24), 0 14px 30px rgba(99,102,241,0.22)"
+                      : autoAdvanceBtnStyle(autoAdvance).boxShadow,
+                    animation: spotlightAutoAdvance ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                    transform: spotlightAutoAdvance ? "scale(1.05)" : "none",
+                  } }}
+                >
+                  🥾
+                </button>
+              )}
+              {extractionUnlocked && (
+                <button
+                  onClick={() => dispatch({ type: "OPEN_EXTRACTION", exitReason: "retire" })}
+                  data-onboarding-target={spotlightExtraction ? "open-extraction" : undefined}
+                  {...{ style: {
+                    border: "1px solid var(--tone-accent, #534AB7)",
+                    background: "var(--tone-accent-soft, #eef2ff)",
+                    color: "var(--tone-accent, #534AB7)",
+                    borderRadius: "999px",
+                    padding: "6px 11px",
+                    fontSize: "0.62rem",
+                    fontWeight: "900",
+                    cursor: "pointer",
+                    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.02)",
+                    position: spotlightExtraction ? "relative" : "static",
+                    zIndex: spotlightExtraction ? 2 : 1,
+                    animation: spotlightExtraction ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
+                  } }}
+                >
+                  Extraer al Santuario
+                </button>
+              )}
+            </div>
+            {extractionUnlocked && extractionDecision && (
+              <div className="combat-forge-extraction-decision" {...{ style: { display: "flex", justifyContent: "center", marginTop: "6px" } }}>
+                <div
+                  {...{ style: {
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    flexWrap: "wrap",
+                    padding: "5px 8px",
+                    borderRadius: "999px",
+                    border: "1px solid var(--color-border-primary, #e2e8f0)",
+                    background: "var(--color-background-tertiary, #f8fafc)",
+                    fontSize: "0.58rem",
+                    lineHeight: 1.3,
+                    fontWeight: "900",
+                  } }}
+                >
+                  <span {...{ style: { color: extractionDecision.tone } }}>{extractionDecision.label}</span>
+                  <span {...{ style: { color: "var(--color-text-secondary, #64748b)" } }}>{extractionDecision.detail}</span>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        <div
+          className={[
+            "combat-enemy-stage",
+            combatEnemyVisual ? "combat-enemy-stage--has-asset" : "combat-enemy-stage--fallback",
+            enemyHitPulseKey ? "combat-enemy-stage--recent-hit" : "",
+          ].join(" ")}
+          data-onboarding-target={forgeCombatEnabled && spotlightCombatEncounter ? "combat-encounter" : undefined}
+          onClick={() => forgeCombatEnabled && spotlightCombatEncounter && dispatch({ type: "ACK_ONBOARDING_STEP" })}
+        >
+          {sideActions.length > 0 && (
+            <CombatForgeSideActions actions={sideActions} />
+          )}
+
+          {forgeCombatEnabled && (extractionUnlocked || (isMobile && autoAdvanceUnlocked)) && (
+            <div className="combat-forge-stage-controls">
+              {extractionUnlocked && (
+                <button
+                  className={[
+                    "combat-forge-stage-control",
+                    "combat-forge-stage-control--extract",
+                    spotlightExtraction ? "is-spotlighted" : "",
+                  ].filter(Boolean).join(" ")}
+                  onClick={() => dispatch({ type: "OPEN_EXTRACTION", exitReason: "retire" })}
+                  data-onboarding-target={spotlightExtraction ? "open-extraction" : undefined}
+                >
+                  Extraer
+                </button>
+              )}
+              {isMobile && autoAdvanceUnlocked && (
+                <button
+                  className={[
+                    "combat-forge-stage-control",
+                    "combat-forge-stage-control--auto",
+                    autoAdvance ? "is-active" : "",
+                    spotlightAutoAdvance ? "is-spotlighted" : "",
+                  ].filter(Boolean).join(" ")}
+                  onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
+                  title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+                  aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+                  data-onboarding-target={spotlightAutoAdvance ? "auto-advance" : undefined}
+                >
+                  AUTO
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="combat-forge-enemy-hud">
+            <button
+              className="combat-forge-enemy-name"
+              title={[
+                abyssMutator ? `Anomalia: ${abyssMutator.name}${abyssMutator.bossClause && enemy.isBoss ? ` · ${abyssMutator.bossClause}` : ""}` : "",
+                bossDepthSummary ? `Eco Abisal: ${bossDepthSummary}` : "",
+                enemy.familyName ? `${enemy.familyName}: ${enemy.familyTraitName || "Sin rasgo visible"}` : enemy.familyTraitName || "Sin rasgo visible",
+                ...(enemy.monsterAffixes || []).map(affix => `${affix.name}: ${affix.description}`),
+                ...(enemy.mechanics || []).map(mechanic => `${mechanic.name}: ${mechanic.description}`),
+              ].filter(Boolean).join("\n")}
+            >
+              {enemy.isBoss ? "BOSS " : ""}
+              {enemy.name}
+            </button>
+            <CombatForgeHpBar
+              variant="enemy"
+              iconName="skull"
+              pct={enemyHpPct}
+              trailPct={enemyHpTrailPct}
+              currentLabel={`${Math.ceil(enemy.hp).toLocaleString()} / ${Math.ceil(enemy.maxHp).toLocaleString()}`}
+              percentLabel={`${Math.floor(enemyHpPct)}%`}
+              flashKey={enemyHitPulseKey}
+              finishZonePct={ENEMY_FINISH_ZONE_PCT}
+              inFinishZone={inEnemyFinishZone}
+              extraLabel={showWeeklySegmentBars ? `${weeklyBarsRemaining}/${weeklySegmentCount} barras` : ""}
+            />
+            <CombatStatusIconTray statuses={enemyStatusPills} emptyLabel="Sin estados enemigos" />
+          </div>
+
+          {combatDamageFloatEvents.length > 0 && (
+            <div className="combat-forge-float-layer" aria-hidden="true">
+              {combatDamageFloatEvents.map((event, index) => (
+                <CombatFloatingText key={event.id || `${event.kind}-${index}`} event={event} index={index} />
+              ))}
+            </div>
+          )}
+
+          <div className="combat-enemy-stage__visual">
+            {combatEnemyVisual ? (
+              <img
+                className="combat-enemy-stage__image"
+                src={combatEnemyVisual.src}
+                alt=""
+                aria-hidden="true"
+                {...{ style: {
+                  "--combat-enemy-scale": combatEnemyVisual.scale || 1,
+                  "--combat-enemy-stage-scale": combatEnemyVisual.stageScale || 1.16,
+                  "--combat-enemy-y": `${combatEnemyVisual.y || 0}%`,
+                } }}
+                draggable="false"
+              />
+            ) : (
+              <div className="combat-enemy-stage__fallback" aria-hidden="true">
+                {(enemy.name || "?").slice(0, 2).toUpperCase()}
+              </div>
+            )}
+          </div>
+
+          <div
+            key={`player-hud-${playerHitPulseKey}`}
+            className={[
+              "combat-forge-player-hud",
+              playerHpPct <= 30 ? "combat-forge-player-hud--danger" : "",
+              playerHitPulseKey ? "combat-forge-player-hud--hit" : "",
+            ].filter(Boolean).join(" ")}
+          >
+            <div className="combat-forge-player-portrait" aria-hidden="true">
+              <ForgeIcon name="hero" size={31} />
+              <span>{player.level}</span>
+            </div>
+            <div className="combat-forge-player-bars">
+              <CombatForgeHpBar
+                variant="hero"
+                iconName={null}
+                pct={playerHpPct}
+                trailPct={playerHpTrailPct}
+                currentLabel={`${Math.ceil(player.hp).toLocaleString()} / ${Math.ceil(player.maxHp).toLocaleString()}`}
+                percentLabel={`${Math.floor(playerHpPct)}%`}
+                flashKey={playerHitPulseKey}
+                compact
+              />
+              <CombatForgeResourceBar
+                label="XP"
+                valueLabel={`${Math.floor(player.xp).toLocaleString()} / ${xpNeeded.toLocaleString()}`}
+                percentLabel={`${Math.floor(xpPct)}%`}
+                pct={xpPct}
+              />
+              <CombatStatusIconTray statuses={playerStatusPills} emptyLabel="Sin estados del heroe" compact reserveSpace />
+            </div>
+          </div>
+
+          {!forgeCombatEnabled && (
+            <div className="combat-enemy-stage__label">
+              {combatEnemyVisual?.source === "family" ? `Asset temporal - ${combatEnemyVisual.sourceFamily}` : combatEnemyVisual?.label || "Sin asset"}
+            </div>
+          )}
+        </div>
+
+        {!forgeCombatEnabled && (
         <div
           data-onboarding-target={spotlightCombatEncounter ? "combat-encounter" : undefined}
           onClick={() => spotlightCombatEncounter && dispatch({ type: "ACK_ONBOARDING_STEP" })}
-          style={{
+          {...{ style: {
             textAlign: "center",
             display: "flex",
             flexDirection: "column",
@@ -1499,7 +1689,7 @@ export default function Combat({ state, dispatch }) {
               : "none",
             animation: spotlightCombatEncounter ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
             cursor: spotlightCombatEncounter ? "pointer" : "default",
-          }}
+          } }}
         >
           <button
             title={[
@@ -1509,44 +1699,44 @@ export default function Combat({ state, dispatch }) {
               ...(enemy.monsterAffixes || []).map(affix => `${affix.name}: ${affix.description}`),
               ...(enemy.mechanics || []).map(mechanic => `${mechanic.name}: ${mechanic.description}`),
             ].filter(Boolean).join("\n")}
-            style={{ margin: 0, fontWeight: "900", color: COLORS.dark, background: "none", border: "none", padding: 0, cursor: "help", display: "block", maxWidth: "100%" }}
+            {...{ style: { margin: 0, fontWeight: "900", color: COLORS.dark, background: "none", border: "none", padding: 0, cursor: "help", display: "block", maxWidth: "100%" } }}
           >
             {enemy.isBoss ? "BOSS " : ""}
             {enemy.name.toUpperCase()}
           </button>
           {enemyLegendaryDrops.length > 0 && (
-            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", justifyContent: "center", marginTop: "6px" }}>
+            <div {...{ style: { display: "flex", gap: "4px", flexWrap: "wrap", justifyContent: "center", marginTop: "6px" } }}>
               {missingEnemyPowers.length > 0 ? (
-                <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-violet-soft, #f3e8ff)", color: "var(--tone-violet, #6d28d9)", border: "1px solid rgba(124,58,237,0.18)" }}>
+                <span {...{ style: { fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-violet-soft, #f3e8ff)", color: "var(--tone-violet, #6d28d9)", border: "1px solid rgba(124,58,237,0.18)" } }}>
                   Power faltante: {missingEnemyPowers.map(drop => drop.power?.name || drop.name).slice(0, 2).join(" / ")}
                 </span>
               ) : knownEnemyPowers.length > 0 ? (
-                <span style={{ fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-success-soft, #ecfdf5)", color: "var(--tone-success-strong, #047857)", border: "1px solid rgba(34,197,94,0.18)" }}>
+                <span {...{ style: { fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-success-soft, #ecfdf5)", color: "var(--tone-success-strong, #047857)", border: "1px solid rgba(34,197,94,0.18)" } }}>
                   Power conocido: {knownEnemyPowers.map(drop => drop.power?.name || drop.name).slice(0, 2).join(" / ")}
                 </span>
               ) : null}
             </div>
           )}
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "center", alignItems: "center", marginTop: "6px" }}>
+          <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "center", alignItems: "center", marginTop: "6px" } }}>
             {enemyIdentityLabel && (
-              <span style={{ fontSize: "0.52rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--color-background-tertiary, #f1f5f9)", color: "var(--color-text-secondary, #475569)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
+              <span {...{ style: { fontSize: "0.52rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--color-background-tertiary, #f1f5f9)", color: "var(--color-text-secondary, #475569)", border: "1px solid var(--color-border-primary, #e2e8f0)" } }}>
                 {enemyIdentityLabel}
               </span>
             )}
             {abyssMutator && (
-              <span style={{ fontSize: "0.52rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-accent-soft, #eef2ff)", color: "var(--tone-accent, #4338ca)", border: "1px solid rgba(99,102,241,0.18)" }}>
+              <span {...{ style: { fontSize: "0.52rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-accent-soft, #eef2ff)", color: "var(--tone-accent, #4338ca)", border: "1px solid rgba(99,102,241,0.18)" } }}>
                 {`Abismo ${enemy.abyssDepth} · ${abyssMutator.name}`}
               </span>
             )}
             {bossDepthSummary && (
-              <span style={{ fontSize: "0.52rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-warning-soft, #fff7ed)", color: "var(--tone-warning-strong, #c2410c)", border: "1px solid rgba(245,158,11,0.22)" }}>
+              <span {...{ style: { fontSize: "0.52rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-warning-soft, #fff7ed)", color: "var(--tone-warning-strong, #c2410c)", border: "1px solid rgba(245,158,11,0.22)" } }}>
                 {bossDepthSummary}
               </span>
             )}
             {(enemyIntelChips.length > 0 || abyssMutator || bossDepthSummary) && (
               <button
                 onClick={() => togglePanel("enemyIntel")}
-                style={{
+                {...{ style: {
                   border: "1px solid var(--color-border-primary, #e2e8f0)",
                   background: "var(--color-background-secondary, #fff)",
                   color: "var(--color-text-secondary, #475569)",
@@ -1555,22 +1745,22 @@ export default function Combat({ state, dispatch }) {
                   fontSize: "0.52rem",
                   fontWeight: "900",
                   cursor: "pointer",
-                }}
+                } }}
               >
                 {isPanelCollapsed("enemyIntel") ? "VER INTEL" : "OCULTAR INTEL"}
               </button>
             )}
           </div>
           {!isPanelCollapsed("enemyIntel") && (
-            <div style={{ display: "grid", gap: "8px", marginTop: "8px", width: "100%" }}>
+            <div {...{ style: { display: "grid", gap: "8px", marginTop: "8px", width: "100%" } }}>
               {abyssMutator && (
-                <div style={combatIntelPanelStyle}>
-                  <div style={combatIntelTitleStyle}>Anomalia del Ciclo</div>
-                  <div style={combatIntelEntryStyle}>
-                    <div style={combatIntelLabelStyle}>{abyssMutator.name}</div>
-                    <div style={combatIntelDescriptionStyle}>{abyssMutator.description}</div>
+                <div {...{ style: combatIntelPanelStyle }}>
+                  <div {...{ style: combatIntelTitleStyle }}>Anomalia del Ciclo</div>
+                  <div {...{ style: combatIntelEntryStyle }}>
+                    <div {...{ style: combatIntelLabelStyle }}>{abyssMutator.name}</div>
+                    <div {...{ style: combatIntelDescriptionStyle }}>{abyssMutator.description}</div>
                     {enemy.isBoss && abyssMutator.bossClause && (
-                      <div style={{ ...combatIntelDescriptionStyle, color: "var(--tone-accent, #4338ca)", fontWeight: "800" }}>
+                      <div {...{ style: { ...combatIntelDescriptionStyle, color: "var(--tone-accent, #4338ca)", fontWeight: "800" } }}>
                         {abyssMutator.bossClause}
                       </div>
                     )}
@@ -1578,32 +1768,32 @@ export default function Combat({ state, dispatch }) {
                 </div>
               )}
               {bossDepthSummary && (
-                <div style={combatIntelPanelStyle}>
-                  <div style={combatIntelTitleStyle}>Eco Abisal</div>
-                  <div style={combatIntelEntryStyle}>
-                    <div style={combatIntelLabelStyle}>{bossDepthSummary}</div>
-                    <div style={combatIntelDescriptionStyle}>
+                <div {...{ style: combatIntelPanelStyle }}>
+                  <div {...{ style: combatIntelTitleStyle }}>Eco Abisal</div>
+                  <div {...{ style: combatIntelEntryStyle }}>
+                    <div {...{ style: combatIntelLabelStyle }}>{bossDepthSummary}</div>
+                    <div {...{ style: combatIntelDescriptionStyle }}>
                       Mejoras seeded del boss para esta run. Se mantienen fijas hasta el proximo prestige.
                     </div>
                   </div>
                 </div>
               )}
               {(enemy.monsterAffixes || []).length > 0 && (
-                <div style={combatIntelPanelStyle}>
-                  <div style={combatIntelTitleStyle}>Afijos</div>
-                  <div style={{ display: "grid", gap: "6px" }}>
+                <div {...{ style: combatIntelPanelStyle }}>
+                  <div {...{ style: combatIntelTitleStyle }}>Afijos</div>
+                  <div {...{ style: { display: "grid", gap: "6px" } }}>
                     {(enemy.monsterAffixes || []).map(affix => {
                       const sourceMeta = getIntelSourceMeta(affix.id, depthAffixIds, mutatorAffixIds);
                       return (
-                      <div key={`affix-${affix.id || affix.name}`} style={combatIntelEntryStyle}>
-                        <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                          <div style={combatIntelLabelStyle}>{affix.name}</div>
-                          <span style={{ fontSize: "0.5rem", fontWeight: "900", borderRadius: "999px", padding: "2px 6px", background: sourceMeta.colors.bg, color: sourceMeta.colors.fg, border: `1px solid ${sourceMeta.colors.border}` }}>
+                      <div key={`affix-${affix.id || affix.name}`} {...{ style: combatIntelEntryStyle }}>
+                        <div {...{ style: { display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" } }}>
+                          <div {...{ style: combatIntelLabelStyle }}>{affix.name}</div>
+                          <span {...{ style: { fontSize: "0.5rem", fontWeight: "900", borderRadius: "999px", padding: "2px 6px", background: sourceMeta.colors.bg, color: sourceMeta.colors.fg, border: `1px solid ${sourceMeta.colors.border}` } }}>
                             {sourceMeta.label}
                           </span>
                         </div>
                         {affix.description && (
-                          <div style={combatIntelDescriptionStyle}>{affix.description}</div>
+                          <div {...{ style: combatIntelDescriptionStyle }}>{affix.description}</div>
                         )}
                       </div>
                     )})}
@@ -1611,21 +1801,21 @@ export default function Combat({ state, dispatch }) {
                 </div>
               )}
               {(enemy.mechanics || []).length > 0 && (
-                <div style={combatIntelPanelStyle}>
-                  <div style={combatIntelTitleStyle}>Mecanicas</div>
-                  <div style={{ display: "grid", gap: "6px" }}>
+                <div {...{ style: combatIntelPanelStyle }}>
+                  <div {...{ style: combatIntelTitleStyle }}>Mecanicas</div>
+                  <div {...{ style: { display: "grid", gap: "6px" } }}>
                     {(enemy.mechanics || []).map(mechanic => {
                       const sourceMeta = getIntelSourceMeta(mechanic.id, depthMechanicIds, mutatorMechanicIds);
                       return (
-                      <div key={`mech-${mechanic.id || mechanic.name}`} style={combatIntelEntryStyle}>
-                        <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                          <div style={combatIntelLabelStyle}>{mechanic.name}</div>
-                          <span style={{ fontSize: "0.5rem", fontWeight: "900", borderRadius: "999px", padding: "2px 6px", background: sourceMeta.colors.bg, color: sourceMeta.colors.fg, border: `1px solid ${sourceMeta.colors.border}` }}>
+                      <div key={`mech-${mechanic.id || mechanic.name}`} {...{ style: combatIntelEntryStyle }}>
+                        <div {...{ style: { display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" } }}>
+                          <div {...{ style: combatIntelLabelStyle }}>{mechanic.name}</div>
+                          <span {...{ style: { fontSize: "0.5rem", fontWeight: "900", borderRadius: "999px", padding: "2px 6px", background: sourceMeta.colors.bg, color: sourceMeta.colors.fg, border: `1px solid ${sourceMeta.colors.border}` } }}>
                             {sourceMeta.label}
                           </span>
                         </div>
                         {mechanic.description && (
-                          <div style={combatIntelDescriptionStyle}>{mechanic.description}</div>
+                          <div {...{ style: combatIntelDescriptionStyle }}>{mechanic.description}</div>
                         )}
                       </div>
                     )})}
@@ -1635,11 +1825,12 @@ export default function Combat({ state, dispatch }) {
             </div>
           )}
         </div>
+        )}
       </section>
 
       {visibleLootEvent && (
         <div
-          style={{
+          {...{ style: {
             position: "fixed",
             bottom: isMobile ? 78 : 22,
             left: "50%",
@@ -1647,12 +1838,12 @@ export default function Combat({ state, dispatch }) {
             width: isMobile ? "calc(100% - 22px)" : "min(560px, calc(100% - 52px))",
             zIndex: 6200,
             pointerEvents: "auto",
-          }}
+          } }}
         >
           <section
             onClick={() => setLootClosing(true)}
             title="Tap para cerrar"
-            style={{
+            {...{ style: {
               background:
                 visibleLootEvent.rarity === "legendary"
                   ? (isDarkMode
@@ -1678,45 +1869,45 @@ export default function Combat({ state, dispatch }) {
                 ? "lootOverlayExit 220ms ease-in forwards"
                 : `${(RARITY_RANK[visibleLootEvent.rarity] || 1) >= 4 ? "lootOverlayPulse 900ms ease-in-out infinite alternate, " : ""}lootOverlayEnter 180ms ease-out`,
               cursor: "pointer",
-            }}
+            } }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+            <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" } }}>
               <div>
-                <div style={{ fontSize: "0.52rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-secondary, #64748b)", marginBottom: "2px" }}>
+                <div {...{ style: { fontSize: "0.52rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-text-secondary, #64748b)", marginBottom: "2px" } }}>
                   Drop Destacado
                 </div>
-                <div style={{ fontSize: isMobile ? "0.82rem" : "0.88rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 }}>
+                <div {...{ style: { fontSize: isMobile ? "0.82rem" : "0.88rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 } }}>
                   {visibleLootEvent.name}
                 </div>
               </div>
-              <div style={{ fontSize: "0.56rem", color: getRarityColor(visibleLootEvent.rarity), fontWeight: "900", textTransform: "uppercase" }}>
+              <div {...{ style: { fontSize: "0.56rem", color: getRarityColor(visibleLootEvent.rarity), fontWeight: "900", textTransform: "uppercase" } }}>
                 {visibleLootEvent.rarity}
               </div>
             </div>
-            <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginTop: "6px" }}>
+            <div {...{ style: { display: "flex", gap: "5px", flexWrap: "wrap", marginTop: "6px" } }}>
               {(visibleLootEvent.announcedHighlights || []).slice(0, 4).map(highlight => (
-                <span key={highlight.id} style={eventBadgeStyle(highlight.tone, isDarkMode)}>
+                <span key={highlight.id} {...{ style: eventBadgeStyle(highlight.tone, isDarkMode) }}>
                   {highlight.label}
                 </span>
               ))}
               {visibleLootEvent.decisionLabel && (
-                <span style={eventBadgeStyle(getLootDecisionBadgeTone(visibleLootEvent.decisionReason), isDarkMode)}>
+                <span {...{ style: eventBadgeStyle(getLootDecisionBadgeTone(visibleLootEvent.decisionReason), isDarkMode) }}>
                   {visibleLootEvent.decisionLabel}
                 </span>
               )}
               {visibleLootEvent.ratingMargin >= 8 && (
-                <span style={eventBadgeStyle("upgrade", isDarkMode)}>
+                <span {...{ style: eventBadgeStyle("upgrade", isDarkMode) }}>
                   +{Math.round(visibleLootEvent.ratingMargin)} poder
                 </span>
               )}
             </div>
             {!!visibleLootEvent.affixSummaries?.length && (
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "6px" }}>
+              <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "6px" } }}>
                 {visibleLootEvent.affixSummaries.map((affix, index) => {
                   const glyph = getAffixTierGlyph(affix);
                   return (
-                    <span key={`${affix.stat}-${index}`} style={{ fontSize: "0.56rem", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "999px", padding: "2px 6px", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #475569)", fontWeight: "900" }}>
-                      <span style={{ color: glyph.color, marginRight: "4px" }}>{glyph.symbol}</span>
+                    <span key={`${affix.stat}-${index}`} {...{ style: { fontSize: "0.56rem", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "999px", padding: "2px 6px", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #475569)", fontWeight: "900" } }}>
+                      <span {...{ style: { color: glyph.color, marginRight: "4px" } }}>{glyph.symbol}</span>
                       {STAT_LABELS[affix.stat] || affix.stat}
                     </span>
                   );
@@ -1724,12 +1915,12 @@ export default function Combat({ state, dispatch }) {
               </div>
             )}
             {visibleLootEvent.hasActiveHuntObjectives && visibleLootEvent.wishlistMatches?.length > 0 && (
-              <div style={{ marginTop: "6px", fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)" }}>
+              <div {...{ style: { marginTop: "6px", fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)" } }}>
                 Coincide con tu caza · {visibleLootEvent.wishlistMatches.slice(0, 3).map(stat => STAT_LABELS[stat] || stat).join(", ")}
               </div>
             )}
             {visibleLootEvent.decisionDetail && (
-              <div style={{ marginTop: "5px", fontSize: "0.56rem", fontWeight: "800", color: "var(--color-text-secondary, #64748b)" }}>
+              <div {...{ style: { marginTop: "5px", fontSize: "0.56rem", fontWeight: "800", color: "var(--color-text-secondary, #64748b)" } }}>
                 {visibleLootEvent.decisionDetail}
               </div>
             )}
@@ -1739,7 +1930,7 @@ export default function Combat({ state, dispatch }) {
 
       {visibleLevelUpToast && (
         <div
-          style={{
+          {...{ style: {
             position: "fixed",
             bottom: levelUpToastBottom,
             left: "50%",
@@ -1747,10 +1938,10 @@ export default function Combat({ state, dispatch }) {
             width: isMobile ? "calc(100% - 34px)" : "min(420px, calc(100% - 56px))",
             zIndex: 4990,
             pointerEvents: "none",
-          }}
+          } }}
         >
           <section
-            style={{
+            {...{ style: {
               background: isDarkMode
                 ? "linear-gradient(145deg, #1f2c46 0%, #25365b 100%)"
                 : "linear-gradient(145deg, #eef2ff 0%, #dbe4ff 100%)",
@@ -1761,19 +1952,19 @@ export default function Combat({ state, dispatch }) {
               animation: levelUpToastClosing
                 ? "levelUpToastExit 240ms ease-in forwards"
                 : "levelUpToastEnter 320ms cubic-bezier(0.2,0.9,0.3,1) forwards, levelUpToastPulse 1900ms ease-in-out 360ms infinite",
-            }}
+            } }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+            <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" } }}>
               <div>
-                <div style={{ fontSize: "0.52rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)", marginBottom: "2px" }}>
+                <div {...{ style: { fontSize: "0.52rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)", marginBottom: "2px" } }}>
                   Progreso
                 </div>
-                <div style={{ fontSize: isMobile ? "0.84rem" : "0.9rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.1 }}>
+                <div {...{ style: { fontSize: isMobile ? "0.84rem" : "0.9rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.1 } }}>
                   ¡Subiste de nivel!
                 </div>
               </div>
               <div
-                style={{
+                {...{ style: {
                   display: "inline-flex",
                   alignItems: "center",
                   borderRadius: "999px",
@@ -1783,20 +1974,21 @@ export default function Combat({ state, dispatch }) {
                   color: isDarkMode ? "var(--tone-accent-soft, #c7d2fe)" : "var(--tone-accent, #4338ca)",
                   fontSize: "0.62rem",
                   fontWeight: "900",
-                }}
+                } }}
               >
                 Nivel {visibleLevelUpToast.to}
               </div>
             </div>
-            <div style={{ marginTop: "6px", fontSize: "0.62rem", fontWeight: "800", color: "var(--color-text-secondary, #475569)" }}>
+            <div {...{ style: { marginTop: "6px", fontSize: "0.62rem", fontWeight: "800", color: "var(--color-text-secondary, #475569)" } }}>
               {visibleLevelUpToast.from} → {visibleLevelUpToast.to}
             </div>
           </section>
         </div>
       )}
 
+      {!forgeCombatEnabled && (
       <section
-        style={{
+        {...{ style: {
           display: "flex",
           flexDirection: "column",
           gap: "0.8rem",
@@ -1806,16 +1998,16 @@ export default function Combat({ state, dispatch }) {
           border: "1px solid var(--color-border-primary, #e2e8f0)",
           position: "relative",
           overflow: "visible",
-        }}
+        } }}
         className="combat-vital-panel"
       >
         <div>
-          <div style={hpLabelStyle}>
-            <span style={{ display: "inline-flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+          <div {...{ style: hpLabelStyle }}>
+            <span {...{ style: { display: "inline-flex", gap: "6px", alignItems: "center", flexWrap: "wrap" } }}>
               <span>ENEMIGO</span>
               {inEnemyFinishZone && (
                 <span
-                  style={{
+                  {...{ style: {
                     fontSize: "0.56rem",
                     fontWeight: "900",
                     borderRadius: "999px",
@@ -1824,7 +2016,7 @@ export default function Combat({ state, dispatch }) {
                     color: "var(--tone-warning-strong, #c2410c)",
                     border: "1px solid rgba(245,158,11,0.26)",
                     animation: "combatFinishZonePulse 1900ms ease-in-out infinite",
-                  }}
+                  } }}
                 >
                   Zona de cierre
                 </span>
@@ -1832,7 +2024,7 @@ export default function Combat({ state, dispatch }) {
               {showCritStreak && (
                 <span
                   key={`crit-streak-${critStreak.pulseAt}`}
-                  style={{
+                  {...{ style: {
                     fontSize: "0.56rem",
                     fontWeight: "900",
                     borderRadius: "999px",
@@ -1843,17 +2035,17 @@ export default function Combat({ state, dispatch }) {
                     boxShadow: "0 0 10px rgba(245,158,11,0.2)",
                     opacity: 0.45 + (0.55 * critStreakFade),
                     animation: "combatCritStreakPop 420ms ease-out",
-                  }}
+                  } }}
                 >
                   Racha critica x{critStreak.count}
                 </span>
               )}
             </span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            <span {...{ style: { display: "inline-flex", alignItems: "center", gap: "6px" } }}>
               {activeBossPhasePing && (
                 <span
                   key={`boss-phase-${activeBossPhasePing.threshold}-${activeBossPhasePing.at}`}
-                  style={{
+                  {...{ style: {
                     fontSize: "0.56rem",
                     fontWeight: "900",
                     borderRadius: "999px",
@@ -1862,7 +2054,7 @@ export default function Combat({ state, dispatch }) {
                     color: "var(--tone-violet, #6d28d9)",
                     border: "1px solid rgba(124,58,237,0.22)",
                     animation: "combatBossThresholdPop 1250ms ease-out forwards",
-                  }}
+                  } }}
                 >
                   {activeBossPhasePing.threshold}%
                 </span>
@@ -1873,9 +2065,9 @@ export default function Combat({ state, dispatch }) {
               </span>
             </span>
           </div>
-          <div className="combat-hp-bar combat-hp-bar--enemy" style={{ ...barContainerStyle, position: "relative" }}>
+          <div className="combat-hp-bar combat-hp-bar--enemy" {...{ style: { ...barContainerStyle, position: "relative" } }}>
             <div
-              style={{
+              {...{ style: {
                 position: "absolute",
                 left: `${ENEMY_FINISH_ZONE_PCT}%`,
                 top: 0,
@@ -1884,10 +2076,10 @@ export default function Combat({ state, dispatch }) {
                 background: "rgba(245,158,11,0.4)",
                 zIndex: 1,
                 pointerEvents: "none",
-              }}
+              } }}
             />
             <div
-              style={{
+              {...{ style: {
                 position: "absolute",
                 left: 0,
                 top: 0,
@@ -1897,11 +2089,11 @@ export default function Combat({ state, dispatch }) {
                 opacity: inEnemyFinishZone ? 0.74 : 0.22,
                 transition: "opacity 220ms ease-out",
                 pointerEvents: "none",
-              }}
+              } }}
             />
             <div
               className="combat-hp-fill combat-hp-fill--enemy"
-              style={{
+              {...{ style: {
                 width: `${enemyHpPct}%`,
                 height: "100%",
                 background: "var(--tone-danger, #ef4444)",
@@ -1910,25 +2102,25 @@ export default function Combat({ state, dispatch }) {
                 animation: inEnemyFinishZone ? "combatFinishZonePulse 1900ms ease-in-out infinite" : "none",
                 position: "relative",
                 zIndex: 2,
-              }}
+              } }}
             />
           </div>
           {showWeeklySegmentBars && (
-            <div style={{ display: "grid", gap: "4px", marginTop: "6px" }}>
+            <div {...{ style: { display: "grid", gap: "4px", marginTop: "6px" } }}>
               {weeklySegments.map(segment => (
-                <div key={segment.id} style={{ display: "grid", gap: "2px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", fontSize: "0.52rem", fontWeight: "900", color: segment.cleared ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #ef4444)" }}>
+                <div key={segment.id} {...{ style: { display: "grid", gap: "2px" } }}>
+                  <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", fontSize: "0.52rem", fontWeight: "900", color: segment.cleared ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #ef4444)" } }}>
                     <span>{segment.label}</span>
                     <span>{Math.round(segment.pct)}%</span>
                   </div>
-                  <div style={{ width: "100%", height: "4px", borderRadius: "999px", overflow: "hidden", background: "var(--color-background-tertiary, #f1f5f9)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
+                  <div {...{ style: { width: "100%", height: "4px", borderRadius: "999px", overflow: "hidden", background: "var(--color-background-tertiary, #f1f5f9)", border: "1px solid var(--color-border-primary, #e2e8f0)" } }}>
                     <div
-                      style={{
+                      {...{ style: {
                         width: `${segment.pct}%`,
                         height: "100%",
                         background: segment.cleared ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #ef4444)",
                         transition: "width 0.2s ease-out",
-                      }}
+                      } }}
                     />
                   </div>
                 </div>
@@ -1938,29 +2130,29 @@ export default function Combat({ state, dispatch }) {
           <InlineStatusTray statuses={enemyStatusPills} emptyLabel="Sin estados" isMobile={isMobile} />
         </div>
         <div>
-          <div style={hpLabelStyle}>
+          <div {...{ style: hpLabelStyle }}>
             <span>HEROE</span>
             <span>
               {Math.ceil(player.hp).toLocaleString()} / {player.maxHp}
             </span>
           </div>
-          <div className="combat-hp-bar combat-hp-bar--hero" style={barContainerStyle}>
+          <div className="combat-hp-bar combat-hp-bar--hero" {...{ style: barContainerStyle }}>
             <div
               className="combat-hp-fill combat-hp-fill--hero"
-              style={{
+              {...{ style: {
                 width: `${playerHpPct}%`,
                 height: "100%",
                 background: getHpColor(playerHpPct),
                 transition: "all 0.3s ease",
-              }}
+              } }}
             />
           </div>
           <InlineStatusTray statuses={playerStatusPills} emptyLabel="Sin estados" isMobile={isMobile} />
         </div>
         {combatDamageFloatEvents.length > 0 && (
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible", zIndex: 8 }}>
+          <div {...{ style: { position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible", zIndex: 8 } }}>
             {combatDamageFloatEvents.map((event, index) => (
-              <div key={event.id || `${event.kind}-${index}`} style={getCombatFloatStyle(event, index)}>
+              <div key={event.id || `${event.kind}-${index}`} {...{ style: getCombatFloatStyle(event, index) }}>
                 {event.kind === "heal"
                   ? `+${Math.floor(event.value || 0).toLocaleString()} HP`
                   : `-${Math.floor(event.value || 0).toLocaleString()}`}
@@ -1969,9 +2161,11 @@ export default function Combat({ state, dispatch }) {
           </div>
         )}
       </section>
+      )}
 
+      {!forgeCombatEnabled && (
       <section
-        style={{
+        {...{ style: {
           background: "var(--color-background-secondary, #fff)",
           padding: "8px 10px",
           borderRadius: "14px",
@@ -1979,37 +2173,37 @@ export default function Combat({ state, dispatch }) {
           display: "flex",
           alignItems: "center",
           gap: "12px",
-        }}
+        } }}
         className="combat-player-panel"
       >
-        <div style={{ textAlign: "center", borderRight: "1px solid var(--color-border-secondary, #f1f5f9)", paddingRight: "12px" }}>
-          <div style={{ fontSize: "1.4rem" }}>{CLASS_ICONS[player.class] || "CL"}</div>
-          <div style={{ fontSize: 9, fontWeight: "900", color: COLORS.common, textTransform: "uppercase" }}>
+        <div {...{ style: { textAlign: "center", borderRight: "1px solid var(--color-border-secondary, #f1f5f9)", paddingRight: "12px" } }}>
+          <div {...{ style: { fontSize: "1.4rem" } }}>{CLASS_ICONS[player.class] || "CL"}</div>
+          <div {...{ style: { fontSize: 9, fontWeight: "900", color: COLORS.common, textTransform: "uppercase" } }}>
             {player.class || "Sin Clase"}
           </div>
         </div>
 
-        <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 4 }}>
-            <span style={{ fontSize: 14, fontWeight: "900", color: COLORS.dark }}>Nivel {player.level}</span>
-            <span style={{ fontSize: 10, fontWeight: "bold", color: COLORS.boss }}>{Math.floor(xpPct)}%</span>
+        <div {...{ style: { flex: 1 } }}>
+          <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 4 } }}>
+            <span {...{ style: { fontSize: 14, fontWeight: "900", color: COLORS.dark } }}>Nivel {player.level}</span>
+            <span {...{ style: { fontSize: 10, fontWeight: "bold", color: COLORS.boss } }}>{Math.floor(xpPct)}%</span>
           </div>
-          <div style={{ position: "relative" }}>
+          <div {...{ style: { position: "relative" } }}>
             <div
               className="combat-hp-bar combat-hp-bar--xp"
-              style={{
+              {...{ style: {
                 ...barContainerStyle,
                 height: 8,
                 boxShadow: levelUpFlash ? "0 0 0 2px rgba(99,102,241,0.28), 0 0 18px rgba(99,102,241,0.34)" : "none",
-              }}
+              } }}
             >
-              <div className="combat-hp-fill combat-hp-fill--xp" style={{ width: `${xpPct}%`, height: "100%", background: "var(--tone-accent, #534AB7)", transition: "width 0.5s ease-out" }} />
+              <div className="combat-hp-fill combat-hp-fill--xp" {...{ style: { width: `${xpPct}%`, height: "100%", background: "var(--tone-accent, #534AB7)", transition: "width 0.5s ease-out" } }} />
             </div>
             {levelUpFlash && (
               <span
                 key={`ding-ring-${levelUpFlash.at}`}
                 aria-hidden="true"
-                style={{
+                {...{ style: {
                   position: "absolute",
                   left: "50%",
                   top: "50%",
@@ -2020,13 +2214,13 @@ export default function Combat({ state, dispatch }) {
                   pointerEvents: "none",
                   transform: "translate(-50%, -50%)",
                   animation: "levelUpDingRing 860ms ease-out 1",
-                }}
+                } }}
               />
             )}
             {combatXpFloatEvents.length > 0 && (
-              <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible", zIndex: 9 }}>
+              <div {...{ style: { position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible", zIndex: 9 } }}>
                 {combatXpFloatEvents.map((event, index) => (
-                  <div key={event.id || `xp-${index}`} style={getCombatFloatStyle(event, index)}>
+                  <div key={event.id || `xp-${index}`} {...{ style: getCombatFloatStyle(event, index) }}>
                     +{Math.floor(event.value || 0).toLocaleString()} XP
                   </div>
                 ))}
@@ -2034,7 +2228,7 @@ export default function Combat({ state, dispatch }) {
             )}
             {levelUpFlash && (
               <div
-                style={{
+                {...{ style: {
                   position: "absolute",
                   left: "50%",
                   top: -6,
@@ -2048,19 +2242,20 @@ export default function Combat({ state, dispatch }) {
                   pointerEvents: "none",
                   animation: "levelUpFloat 2000ms ease-out forwards",
                   textShadow: isDarkMode ? "0 1px 10px rgba(129,140,248,0.34)" : "0 1px 8px rgba(99,102,241,0.24)",
-                }}
+                } }}
               >
                 +1 NIVEL
               </div>
             )}
           </div>
-          <div style={{ fontSize: 9, color: COLORS.common, marginTop: 4, fontWeight: "bold", textAlign: "right" }}>
+          <div {...{ style: { fontSize: 9, color: COLORS.common, marginTop: 4, fontWeight: "bold", textAlign: "right" } }}>
             XP: {Math.floor(player.xp).toLocaleString()} / {xpNeeded.toLocaleString()}
           </div>
         </div>
       </section>
+      )}
 
-      <section className="overlay-cols-2-4 combat-stat-grid" style={{ gap: 8, minWidth: 0 }}>
+      <section className="overlay-cols-2-4 combat-stat-grid" {...{ style: { gap: 8, minWidth: 0 } }}>
         <StatCard
           label="Dano"
           value={effectiveDamageInCombat}
@@ -2084,7 +2279,7 @@ export default function Combat({ state, dispatch }) {
       </section>
 
       {showSessionFraming && (
-        <section className="combat-session-panel" style={sessionCardCompactStyle}>
+        <section className="combat-session-panel" {...{ style: sessionCardCompactStyle }}>
           <CardHeader
             tag="Contrato activo"
             title={featuredExpeditionContract?.title || featuredExpeditionContract?.goal?.name || "Selecciona un contrato"}
@@ -2095,7 +2290,7 @@ export default function Combat({ state, dispatch }) {
           />
 
           <div
-            style={{
+            {...{ style: {
               fontSize: sessionCopySize,
               color: "var(--color-text-secondary, #475569)",
               lineHeight: 1.35,
@@ -2103,7 +2298,7 @@ export default function Combat({ state, dispatch }) {
               WebkitLineClamp: isSessionDenseMobile ? 2 : 3,
               WebkitBoxOrient: "vertical",
               overflow: "hidden",
-            }}
+            } }}
           >
             {featuredExpeditionContract
               ? (featuredExpeditionContract.objectiveDescription || featuredExpeditionContract.goal?.hint || featuredExpeditionContract.goal?.description || "Cumple el objetivo antes de extraer para cobrar recursos de Santuario.")
@@ -2118,13 +2313,13 @@ export default function Combat({ state, dispatch }) {
             />
           )}
 
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ fontSize: sessionMetaSize, color: "var(--color-text-secondary, #64748b)", fontWeight: "900" }}>
+          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" } }}>
+            <span {...{ style: { fontSize: sessionMetaSize, color: "var(--color-text-secondary, #64748b)", fontWeight: "900" } }}>
               {featuredExpeditionContract
                 ? `${Number(featuredExpeditionContract.progress?.current || 0)}/${Number(featuredExpeditionContract.progress?.target || 1)} · ${formatExpeditionContractReward(featuredExpeditionContract.reward || {}) || "Sin recompensa definida."}`
                 : "Sin contrato seleccionado."}
             </span>
-            <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+            <div {...{ style: { display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" } }}>
               {canClaimExpeditionContract ? (
                 <InlineAction
                   onClick={() => dispatch({ type: "CLAIM_EXPEDITION_CONTRACT", contractId: featuredExpeditionContract.id })}
@@ -2146,16 +2341,16 @@ export default function Combat({ state, dispatch }) {
       {showWeeklyLedgerCard && (
         <section
           className="combat-session-panel"
-          style={{
+          {...{ style: {
             position: "relative",
             ...(sessionCardCompactStyle || {}),
-          }}
+          } }}
         >
           {showWeeklyCardEdgeArrows && (
             <>
               <button
                 onClick={() => cycleWeeklyContract(-1)}
-                style={{
+                {...{ style: {
                   position: "absolute",
                   top: isSessionDenseMobile ? "4px" : "6px",
                   left: isSessionDenseMobile ? "6px" : "8px",
@@ -2168,7 +2363,7 @@ export default function Combat({ state, dispatch }) {
                   fontWeight: "900",
                   cursor: "pointer",
                   zIndex: 2,
-                }}
+                } }}
                 aria-label="Weekly anterior"
                 title="Weekly anterior"
               >
@@ -2176,7 +2371,7 @@ export default function Combat({ state, dispatch }) {
               </button>
               <button
                 onClick={() => cycleWeeklyContract(1)}
-                style={{
+                {...{ style: {
                   position: "absolute",
                   top: isSessionDenseMobile ? "4px" : "6px",
                   right: isSessionDenseMobile ? "6px" : "8px",
@@ -2189,7 +2384,7 @@ export default function Combat({ state, dispatch }) {
                   fontWeight: "900",
                   cursor: "pointer",
                   zIndex: 2,
-                }}
+                } }}
                 aria-label="Weekly siguiente"
                 title="Weekly siguiente"
               >
@@ -2199,7 +2394,7 @@ export default function Combat({ state, dispatch }) {
           )}
           {showWeeklyCardEdgeArrows && (
             <div
-              style={{
+              {...{ style: {
                 minHeight: isSessionDenseMobile ? "26px" : "30px",
                 display: "flex",
                 alignItems: "center",
@@ -2207,27 +2402,27 @@ export default function Combat({ state, dispatch }) {
                 paddingLeft: isSessionDenseMobile ? "34px" : "38px",
                 paddingRight: isSessionDenseMobile ? "34px" : "38px",
                 marginBottom: "2px",
-              }}
+              } }}
             >
               <div
-                style={{
+                {...{ style: {
                   fontSize: sessionSectionTagSize,
                   fontWeight: "900",
                   textTransform: "uppercase",
                   letterSpacing: "0.08em",
                   color: "var(--tone-warning, #f59e0b)",
-                }}
+                } }}
               >
                 Weekly ledger
               </div>
             </div>
           )}
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" }}>
-            <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: "6px" }}>
+          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" } }}>
+            <div {...{ style: { minWidth: 0, display: "flex", alignItems: "center", gap: "6px" } }}>
               {showWeeklySelectorArrows && !showWeeklyCardEdgeArrows && (
                 <button
                   onClick={() => cycleWeeklyContract(-1)}
-                  style={{
+                  {...{ style: {
                     width: isSessionDenseMobile ? "22px" : "24px",
                     height: isSessionDenseMobile ? "22px" : "24px",
                     borderRadius: "999px",
@@ -2237,28 +2432,28 @@ export default function Combat({ state, dispatch }) {
                     fontWeight: "900",
                     cursor: "pointer",
                     flexShrink: 0,
-                  }}
+                  } }}
                 >
                   {"<"}
                 </button>
               )}
-              <div style={{ minWidth: 0 }}>
+              <div {...{ style: { minWidth: 0 } }}>
               {!showWeeklyCardEdgeArrows && (
-                <div style={{ fontSize: sessionSectionTagSize, fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
+                <div {...{ style: { fontSize: sessionSectionTagSize, fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" } }}>
                   Weekly ledger
                 </div>
               )}
               <div
-                style={{
+                {...{ style: {
                   display: "flex",
                   alignItems: "center",
                   gap: "6px",
                   flexWrap: "wrap",
                   marginTop: showWeeklyCardEdgeArrows ? "0" : "4px",
-                }}
+                } }}
               >
                 <span
-                  style={{
+                  {...{ style: {
                     fontSize: "0.5rem",
                     fontWeight: "900",
                     textTransform: "uppercase",
@@ -2268,11 +2463,11 @@ export default function Combat({ state, dispatch }) {
                     border: "1px solid rgba(245,158,11,0.25)",
                     borderRadius: "999px",
                     padding: "3px 7px",
-                  }}
+                  } }}
                 >
                   {featuredWeeklyContract?.laneLabel || (weeklyAllClaimed ? "Ledger semanal" : "Contrato semanal")}
                 </span>
-                <span style={{ fontSize: sessionTitleSize, fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                <span {...{ style: { fontSize: sessionTitleSize, fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
                   {featuredWeeklyContract?.goal?.name || (weeklyAllClaimed ? "Todos los contratos reclamados" : "Sin contrato activo")}
                 </span>
               </div>
@@ -2280,7 +2475,7 @@ export default function Combat({ state, dispatch }) {
               {showWeeklySelectorArrows && !showWeeklyCardEdgeArrows && (
                 <button
                   onClick={() => cycleWeeklyContract(1)}
-                  style={{
+                  {...{ style: {
                     width: isSessionDenseMobile ? "22px" : "24px",
                     height: isSessionDenseMobile ? "22px" : "24px",
                     borderRadius: "999px",
@@ -2290,19 +2485,19 @@ export default function Combat({ state, dispatch }) {
                     fontWeight: "900",
                     cursor: "pointer",
                     flexShrink: 0,
-                  }}
+                  } }}
                 >
                   {">"}
                 </button>
               )}
             </div>
             <span
-              style={{
+              {...{ style: {
                 fontSize: sessionMetaSize,
                 fontWeight: "900",
                 color: weeklyStatusMeta.tone,
                 whiteSpace: "nowrap",
-              }}
+              } }}
             >
               {claimableWeeklyContracts.length > 0
                 ? `${claimableWeeklyContracts.length} para reclamar`
@@ -2312,7 +2507,7 @@ export default function Combat({ state, dispatch }) {
             </span>
           </div>
 
-          <div style={{ fontSize: isSessionDenseMobile ? "0.56rem" : "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900" }}>
+          <div {...{ style: { fontSize: isSessionDenseMobile ? "0.56rem" : "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900" } }}>
             {orderedWeeklyContracts.length > 0
               ? `${featuredWeeklyIndex + 1} / ${orderedWeeklyContracts.length}`
               : weeklyAllClaimed
@@ -2321,7 +2516,7 @@ export default function Combat({ state, dispatch }) {
           </div>
 
           <div
-            style={{
+            {...{ style: {
               fontSize: sessionCopySize,
               color: "var(--color-text-secondary, #475569)",
               lineHeight: 1.35,
@@ -2329,7 +2524,7 @@ export default function Combat({ state, dispatch }) {
               WebkitLineClamp: isSessionDenseMobile ? 2 : 3,
               WebkitBoxOrient: "vertical",
               overflow: "hidden",
-            }}
+            } }}
           >
             {featuredWeeklyContract
               ? (featuredWeeklyContract.objectiveDescription || featuredWeeklyContract.goal?.hint || featuredWeeklyContract.goal?.description || "Avanza jugando normal; el contrato acumula progreso semanal.")
@@ -2339,32 +2534,32 @@ export default function Combat({ state, dispatch }) {
           </div>
 
           {(featuredWeeklyContract || weeklyAllClaimed) && (
-            <div style={{ height: sessionProgressBarHeight, borderRadius: "999px", overflow: "hidden", background: "var(--color-background-tertiary, #f1f5f9)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
+            <div {...{ style: { height: sessionProgressBarHeight, borderRadius: "999px", overflow: "hidden", background: "var(--color-background-tertiary, #f1f5f9)", border: "1px solid var(--color-border-primary, #e2e8f0)" } }}>
               <div
-                style={{
+                {...{ style: {
                   width: weeklyAllClaimed
                     ? "100%"
                     : `${Math.max(0, Math.min(100, Number(featuredWeeklyContract?.progress?.percent || 0)))}%`,
                   height: "100%",
                   background: weeklyStatusMeta.progressTone,
-                }}
+                } }}
               />
             </div>
           )}
 
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ fontSize: sessionMetaSize, color: "var(--color-text-secondary, #64748b)", fontWeight: "900" }}>
+          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" } }}>
+            <span {...{ style: { fontSize: sessionMetaSize, color: "var(--color-text-secondary, #64748b)", fontWeight: "900" } }}>
               {featuredWeeklyContract
                 ? `${Number(featuredWeeklyContract.progress?.current || 0)}/${Number(featuredWeeklyContract.progress?.target || 1)} · ${formatGoalReward(featuredWeeklyContract.reward || {})}`
                 : weeklyAllClaimed
                   ? `${claimedWeeklyContracts}/${weeklyTotalContracts} reclamados · Weekly cerrada`
                 : "Sin progreso semanal para mostrar."}
             </span>
-            <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+            <div {...{ style: { display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" } }}>
               {featuredWeeklyContract?.progress?.completed && !featuredWeeklyContract?.claimed ? (
                 <button
                   onClick={() => dispatch({ type: "CLAIM_WEEKLY_LEDGER_CONTRACT", contractId: featuredWeeklyContract.id })}
-                  style={{
+                  {...{ style: {
                     border: "none",
                     background: "var(--tone-success, #10b981)",
                     color: "#fff",
@@ -2373,12 +2568,12 @@ export default function Combat({ state, dispatch }) {
                     fontSize: sessionMetaSize,
                     fontWeight: "900",
                     cursor: "pointer",
-                  }}
+                  } }}
                 >
                   Reclamar weekly
                 </button>
               ) : (
-                <span style={{ fontSize: sessionHintSize, fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                <span {...{ style: { fontSize: sessionHintSize, fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" } }}>
                   {featuredWeeklyContract
                     ? weeklyStatusMeta.label
                     : (weeklyAllClaimed ? "Todo reclamado" : "Sin datos")}
@@ -2398,7 +2593,7 @@ export default function Combat({ state, dispatch }) {
                   }
                   dispatch({ type: "SET_TAB", tab: "account" });
                 }}
-                style={{
+                {...{ style: {
                   border: "1px solid var(--color-border-primary, #e2e8f0)",
                   background: "var(--color-background-secondary, #ffffff)",
                   color: "var(--color-text-secondary, #475569)",
@@ -2407,7 +2602,7 @@ export default function Combat({ state, dispatch }) {
                   fontSize: sessionMetaSize,
                   fontWeight: "900",
                   cursor: "pointer",
-                }}
+                } }}
               >
                 Ver weekly
               </button>
@@ -2418,14 +2613,14 @@ export default function Combat({ state, dispatch }) {
 
       {showWeeklyBossCard && (
         <section className="combat-session-panel">
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #ef4444)" }}>
+          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" } }}>
+            <div {...{ style: { minWidth: 0 } }}>
+              <div {...{ style: { fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #ef4444)" } }}>
                 Boss semanal
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
+              <div {...{ style: { display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginTop: "4px" } }}>
                 <span
-                  style={{
+                  {...{ style: {
                     fontSize: "0.5rem",
                     fontWeight: "900",
                     textTransform: "uppercase",
@@ -2435,27 +2630,27 @@ export default function Combat({ state, dispatch }) {
                     border: "1px solid rgba(239,68,68,0.26)",
                     borderRadius: "999px",
                     padding: "3px 7px",
-                  }}
+                  } }}
                 >
                   Ciclo 22h · {weeklyBossOverview?.cycleKey || weeklyBossOverview?.weekKey || "-"}
                 </span>
-                <span style={{ fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                <span {...{ style: { fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
                   {weeklyBossOverview?.boss?.name || "Sin jefe"}
                 </span>
               </div>
             </div>
-            <span style={{ fontSize: "0.62rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", whiteSpace: "nowrap" }}>
+            <span {...{ style: { fontSize: "0.62rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", whiteSpace: "nowrap" } }}>
               {Math.max(0, Number(weeklyBossOverview?.attemptsRemaining || 0))} intento(s) · reset {weeklyBossCycleRemainingLabel}
             </span>
           </div>
 
-          <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4 }}>
+          <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4 } }}>
             {activeWeeklyBossEncounter
               ? `${activeWeeklyBossEncounter.bossName || weeklyBossOverview?.boss?.name || "Boss"} en combate (${activeWeeklyBossEncounter.difficultyLabel || "dificultad"}).`
               : (weeklyBossOverview?.boss?.intro || "Evento cíclico (22h) con mutaciones por dificultad.")}
           </div>
 
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
             {weeklyBossDifficulties.map(difficulty => (
               <button
                 key={difficulty.id}
@@ -2472,7 +2667,7 @@ export default function Combat({ state, dispatch }) {
                   }
                 }}
                 disabled={!difficulty.canAttempt || difficulty.completed || Boolean(activeWeeklyBossEncounter)}
-                style={{
+                {...{ style: {
                   display: "grid",
                   gap: "2px",
                   textAlign: "left",
@@ -2496,10 +2691,10 @@ export default function Combat({ state, dispatch }) {
                   cursor: (!difficulty.canAttempt || difficulty.completed || activeWeeklyBossEncounter) ? "not-allowed" : "pointer",
                   opacity: (!difficulty.canAttempt || difficulty.completed || activeWeeklyBossEncounter) ? 0.7 : 1,
                   minWidth: "128px",
-                }}
+                } }}
               >
-                <span style={{ fontSize: "0.62rem", fontWeight: "900" }}>{difficulty.label}</span>
-                <span style={{ fontSize: "0.56rem", fontWeight: "800", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                <span {...{ style: { fontSize: "0.62rem", fontWeight: "900" } }}>{difficulty.label}</span>
+                <span {...{ style: { fontSize: "0.56rem", fontWeight: "800", color: "var(--color-text-tertiary, #94a3b8)" } }}>
                   {activeWeeklyBossEncounter?.difficultyId === difficulty.id
                     ? `En curso · ${Math.max(1, Number(activeWeeklyBossEncounter?.segmentCount || 1))} barras`
                     : difficulty.completed
@@ -2511,12 +2706,12 @@ export default function Combat({ state, dispatch }) {
           </div>
 
           {activeWeeklyBossEncounter && (
-            <div style={{ fontSize: "0.6rem", color: "var(--tone-danger, #ef4444)", fontWeight: "900", lineHeight: 1.35 }}>
+            <div {...{ style: { fontSize: "0.6rem", color: "var(--tone-danger, #ef4444)", fontWeight: "900", lineHeight: 1.35 } }}>
               Encuentro activo: {activeWeeklyBossEncounter.bossName || "Boss semanal"} · {activeWeeklyBossEncounter.difficultyLabel || "dificultad"} · {Math.max(1, Number(activeWeeklyBossEncounter.segmentCount || 1))} barras de HP.
             </div>
           )}
 
-          <div style={{ fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.35 }}>
+          <div {...{ style: { fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.35 } }}>
             {weeklyBossDifficulties
               .map(difficulty => `${difficulty.label}: ${difficulty.mutation}`)
               .join(" · ")}
@@ -2525,13 +2720,13 @@ export default function Combat({ state, dispatch }) {
       )}
 
       {player.class && myTalents.length > 0 && (
-        <section style={{ background: "var(--color-background-secondary, #fff)", borderRadius: "16px", padding: "10px", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
-          <button onClick={() => togglePanel("talents")} style={sectionHeaderButtonStyle}>
-            <span style={{ fontSize: 9, color: COLORS.common, fontWeight: "900", letterSpacing: "1px" }}>TALENTOS</span>
-            <span style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "900" }}>{isPanelCollapsed("talents") ? `${activeTalentCount} ACTIVOS · ${myTalents.length}` : "OCULTAR"}</span>
+        <section {...{ style: { background: "var(--color-background-secondary, #fff)", borderRadius: "16px", padding: "10px", border: "1px solid var(--color-border-primary, #e2e8f0)" } }}>
+          <button onClick={() => togglePanel("talents")} {...{ style: sectionHeaderButtonStyle }}>
+            <span {...{ style: { fontSize: 9, color: COLORS.common, fontWeight: "900", letterSpacing: "1px" } }}>TALENTOS</span>
+            <span {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "900" } }}>{isPanelCollapsed("talents") ? `${activeTalentCount} ACTIVOS · ${myTalents.length}` : "OCULTAR"}</span>
           </button>
           {!isPanelCollapsed("talents") && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: "8px" }}>
+            <div {...{ style: { display: "flex", flexDirection: "column", gap: 10, marginTop: "8px" } }}>
               {myTalents.map(talent => {
                 const activeState = activeTalentEffects.get(talent.id);
                 const progress = getTriggerProgress(talent, triggerCounters);
@@ -2539,15 +2734,15 @@ export default function Combat({ state, dispatch }) {
                 const icon = TALENT_ICONS[talent.classId] || "TL";
 
                 return (
-                  <div key={talent.id} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: "900", color: COLORS.dark, lineHeight: 1.35 }}>
+                  <div key={talent.id} {...{ style: { display: "flex", flexDirection: "column", gap: 6 } }}>
+                    <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "start", gap: 8 } }}>
+                      <span {...{ style: { fontSize: 11, fontWeight: "900", color: COLORS.dark, lineHeight: 1.35 } }}>
                         {icon} {talent.name}{" "}
-                        <span style={{ fontWeight: "normal", color: COLORS.common, fontSize: 10 }}>{talent.description}</span>
+                        <span {...{ style: { fontWeight: "normal", color: COLORS.common, fontSize: 10 } }}>{talent.description}</span>
                       </span>
                       {activeState ? (
                         <div
-                          style={{
+                          {...{ style: {
                             display: "flex",
                             alignItems: "center",
                             gap: 6,
@@ -2558,7 +2753,7 @@ export default function Combat({ state, dispatch }) {
                             color: COLORS.boss,
                             fontSize: 9,
                             fontWeight: "900",
-                          }}
+                          } }}
                         >
                           <span>ACTIVO</span>
                           {activeState.stacks > 1 && <span>x{activeState.stacks}</span>}
@@ -2568,25 +2763,25 @@ export default function Combat({ state, dispatch }) {
                     </div>
 
                     {progress && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <div style={{ ...barContainerStyle, flex: 1, height: 6 }}>
+                      <div {...{ style: { display: "flex", alignItems: "center", gap: 8 } }}>
+                        <div {...{ style: { ...barContainerStyle, flex: 1, height: 6 } }}>
                           <div
-                            style={{
+                            {...{ style: {
                               width: `${isJustTriggered ? 100 : progress.percent}%`,
                               height: "100%",
                               background: isJustTriggered ? COLORS.success : "var(--tone-accent, #534AB7)",
                               transition: "all 0.3s ease",
-                            }}
+                            } }}
                           />
                         </div>
                         <span
-                          style={{
+                          {...{ style: {
                             fontSize: 9,
                             fontWeight: "900",
                             minWidth: 88,
                             textAlign: "right",
                             color: isJustTriggered ? COLORS.success : COLORS.common,
-                          }}
+                          } }}
                         >
                           {isJustTriggered ? "ACTIVADO" : `${progress.current} / ${progress.target} ${progress.label}`}
                         </span>
@@ -2601,32 +2796,32 @@ export default function Combat({ state, dispatch }) {
       )}
 
       <section
-        style={{
+        {...{ style: {
           position: "relative",
           background: "var(--color-background-secondary, #fff)",
           borderRadius: "16px",
           padding: "10px",
           border: "1px solid var(--color-border-primary, #e2e8f0)",
-        }}
+        } }}
         className="combat-log-panel"
       >
-        <button onClick={() => togglePanel("log")} style={sectionHeaderButtonStyle}>
-          <span style={logTitleStyle}>REGISTRO DE COMBATE</span>
-          <span style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "900" }}>{isPanelCollapsed("log") ? "VER" : "OCULTAR"}</span>
+        <button onClick={() => togglePanel("log")} {...{ style: sectionHeaderButtonStyle }}>
+          <span {...{ style: logTitleStyle }}>REGISTRO DE COMBATE</span>
+          <span {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "900" } }}>{isPanelCollapsed("log") ? "VER" : "OCULTAR"}</span>
         </button>
         {!isPanelCollapsed("log") && (
           <>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, marginTop: "6px", gap: "8px", flexWrap: "wrap" }}>
-              <span style={{ fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" }}>
+            <div {...{ style: { display: "flex", justifyContent: "space-between", marginBottom: 4, marginTop: "6px", gap: "8px", flexWrap: "wrap" } }}>
+              <span {...{ style: { fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" } }}>
                 Ultimos eventos
               </span>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button onClick={() => setLogExpanded(current => !current)} style={scrollTopBtnStyle}>
+              <div {...{ style: { display: "flex", gap: "8px" } }}>
+                <button onClick={() => setLogExpanded(current => !current)} {...{ style: scrollTopBtnStyle }}>
                   {logExpanded ? "VER MENOS" : "VER MAS"}
                 </button>
                 <button
                   onClick={() => logRef.current.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" })}
-                  style={scrollTopBtnStyle}
+                  {...{ style: scrollTopBtnStyle }}
                 >
                   RECIENTE
                 </button>
@@ -2634,7 +2829,7 @@ export default function Combat({ state, dispatch }) {
             </div>
             <div
               ref={logRef}
-              style={{
+              {...{ style: {
                 background: "var(--color-background-primary, #0f172a)",
                 borderRadius: "12px",
                 padding: "10px",
@@ -2644,21 +2839,21 @@ export default function Combat({ state, dispatch }) {
                 flexDirection: "column",
                 gap: "4px",
                 border: "1px solid var(--color-border-primary, #22314d)",
-              }}
+              } }}
             >
               {(logExpanded ? combat.log.slice(-30) : combat.log.slice(-3)).map((line, index) => (
                 <p
                   key={index}
-                  style={{
+                  {...{ style: {
                     fontSize: 11,
                     margin: 0,
                     ...getLogEntryStyle(line),
                     fontFamily: "monospace",
                     padding: "2px 0",
                     borderBottom: "1px solid var(--color-border-secondary, #1e293b33)",
-                  }}
+                  } }}
                 >
-                  <span style={{ opacity: 0.2, marginRight: 6 }}>{">"}</span>
+                  <span {...{ style: { opacity: 0.2, marginRight: 6 } }}>{">"}</span>
                   {line}
                 </p>
               ))}
@@ -2673,7 +2868,7 @@ export default function Combat({ state, dispatch }) {
             dispatch({ type: "RESET_ALL_PROGRESS" });
           }
         }}
-        style={{
+        {...{ style: {
           background: "none",
           border: "none",
           color: COLORS.danger,
@@ -2681,7 +2876,7 @@ export default function Combat({ state, dispatch }) {
           cursor: "pointer",
           opacity: 0.4,
           alignSelf: "center",
-        }}
+        } }}
       >
         REINICIAR PROGRESO
       </button>
@@ -2821,6 +3016,331 @@ function getCombatFloatStyle(event = {}, index = 0) {
   };
 }
 
+function CombatForgeTierTrack({
+  currentTier,
+  maxTier,
+  zoneLabel,
+  progressPct,
+  nodes = [],
+  canGoPrevious,
+  canGoNext,
+  onPrevious,
+  onNext,
+  showAuto,
+  autoAdvance,
+  spotlightAutoAdvance,
+  onToggleAuto,
+  title,
+}) {
+  const clampedProgressPct = Math.max(0, Math.min(100, Number(progressPct || 0)));
+  return (
+    <section className="combat-forge-tier" title={title}>
+      <button
+        className="combat-forge-tier__nav"
+        onClick={onPrevious}
+        disabled={!canGoPrevious}
+        aria-label="Tier anterior"
+      >
+        {"<"}
+      </button>
+      <div className="combat-forge-tier__center">
+        <div className="combat-forge-tier__title">TIER {currentTier}</div>
+        <div className="combat-forge-tier__zone">{zoneLabel}</div>
+        <div
+          className="combat-forge-tier__track"
+          {...{ style: {
+            "--combat-tier-progress": `${clampedProgressPct}%`,
+            "--combat-tier-progress-ratio": clampedProgressPct / 100,
+          } }}
+          aria-label={`Tier ${currentTier} de ${maxTier}`}
+        >
+          <span className="combat-forge-tier__rail" aria-hidden="true" />
+          <span className="combat-forge-tier__fill" aria-hidden="true" />
+          {nodes.map(node => (
+            <span
+              key={node.id}
+              className={[
+                "combat-forge-tier__node",
+                node.active ? "is-active" : "",
+                node.current ? "is-current" : "",
+                node.boss ? "is-boss" : "",
+              ].filter(Boolean).join(" ")}
+              aria-hidden="true"
+            >
+              {node.boss ? <ForgeIcon name="skull" size={11} /> : <span />}
+            </span>
+          ))}
+        </div>
+      </div>
+      <button
+        className="combat-forge-tier__nav"
+        onClick={onNext}
+        disabled={!canGoNext}
+        aria-label="Tier siguiente"
+      >
+        {">"}
+      </button>
+      {showAuto && (
+        <button
+          className={[
+            "combat-forge-tier__auto",
+            autoAdvance ? "is-active" : "",
+            spotlightAutoAdvance ? "is-spotlighted" : "",
+          ].filter(Boolean).join(" ")}
+          onClick={onToggleAuto}
+          title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+          aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+          data-onboarding-target={spotlightAutoAdvance ? "auto-advance" : undefined}
+        >
+          AUTO
+        </button>
+      )}
+    </section>
+  );
+}
+
+function CombatForgeHpBar({
+  variant = "enemy",
+  iconName = null,
+  pct = 0,
+  trailPct = 0,
+  currentLabel,
+  percentLabel,
+  flashKey = 0,
+  finishZonePct = null,
+  inFinishZone = false,
+  extraLabel = "",
+  compact = false,
+}) {
+  const clampedPct = Math.max(0, Math.min(100, Number(pct || 0)));
+  const clampedTrail = Math.max(clampedPct, Math.min(100, Number(trailPct || clampedPct)));
+  return (
+    <div
+      className={[
+        "combat-forge-hpbar",
+        `combat-forge-hpbar--${variant}`,
+        compact ? "combat-forge-hpbar--compact" : "",
+        inFinishZone ? "is-finish-zone" : "",
+      ].filter(Boolean).join(" ")}
+      title={extraLabel ? `${currentLabel} - ${percentLabel} - ${extraLabel}` : `${currentLabel} - ${percentLabel}`}
+      {...{ style: {
+        "--combat-hp-pct": `${clampedPct}%`,
+        "--combat-hp-trail-pct": `${clampedTrail}%`,
+        "--combat-finish-zone-pct": `${Math.max(0, Math.min(100, Number(finishZonePct || 0)))}%`,
+      } }}
+    >
+      {iconName && (
+        <div className="combat-forge-hpbar__icon" aria-hidden="true">
+          <ForgeIcon name={iconName} size={compact ? 18 : 24} />
+        </div>
+      )}
+      <div className="combat-forge-hpbar__body">
+        <div className="combat-forge-hpbar__track">
+          {finishZonePct != null && <span className="combat-forge-hpbar__finish-zone" aria-hidden="true" />}
+          <span className="combat-forge-hpbar__trail" aria-hidden="true" />
+          <span key={flashKey} className="combat-forge-hpbar__fill" aria-hidden="true" />
+          <span className="combat-forge-hpbar__label combat-forge-hpbar__label--center">{currentLabel}</span>
+          <span className="combat-forge-hpbar__label combat-forge-hpbar__label--right">
+            {percentLabel}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CombatForgeResourceBar({ label, valueLabel, percentLabel, pct = 0 }) {
+  const clampedPct = Math.max(0, Math.min(100, Number(pct || 0)));
+  return (
+    <div
+      className="combat-forge-resourcebar"
+      title={`${label}: ${valueLabel} - ${percentLabel}`}
+      {...{ style: { "--combat-resource-pct": `${clampedPct}%` } }}
+    >
+      <div className="combat-forge-resourcebar__track">
+        <span className="combat-forge-resourcebar__fill" aria-hidden="true" />
+        <span className="combat-forge-resourcebar__label combat-forge-resourcebar__label--left">{label}</span>
+        <span className="combat-forge-resourcebar__label combat-forge-resourcebar__label--center">{valueLabel}</span>
+        <span className="combat-forge-resourcebar__label combat-forge-resourcebar__label--right">{percentLabel}</span>
+      </div>
+    </div>
+  );
+}
+
+function CombatForgeSideActions({ actions = [] }) {
+  const visibleActions = actions.filter(Boolean);
+  if (visibleActions.length <= 0) return null;
+
+  return (
+    <div className="combat-forge-side-actions" aria-label="Accesos de expedicion">
+      {visibleActions.map(action => {
+        const disabled = Boolean(action.disabled);
+        return (
+          <button
+            key={action.id}
+            type="button"
+            className={[
+              "combat-forge-side-action",
+              disabled ? "is-disabled" : "",
+              action.spotlight ? "is-spotlighted" : "",
+            ].filter(Boolean).join(" ")}
+            onClick={() => {
+              if (disabled) return;
+              action.onSelect?.(action.id, action);
+            }}
+            disabled={disabled}
+            title={action.label}
+            aria-label={action.label}
+            data-onboarding-target={action.onboardingTarget}
+          >
+            {action.badge != null && (
+              <span className="combat-forge-side-action__badge">
+                {action.badge}
+              </span>
+            )}
+            <span className="combat-forge-side-action__icon" aria-hidden="true">
+              <ForgeIcon name={action.icon || "more"} size={23} />
+            </span>
+            <span className="combat-forge-side-action__label">
+              {action.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CombatFloatingText({ event = {}, index = 0 }) {
+  const isHeal = event.kind === "heal";
+  const isCrit = Boolean(event.crit);
+  const sourceLabel = getCombatFloatSourceLabel(event);
+  const valueLabel = isHeal
+    ? `+${Math.floor(event.value || 0).toLocaleString()} HP`
+    : `-${Math.floor(event.value || 0).toLocaleString()}`;
+
+  return (
+    <div
+      className={[
+        "combat-floating-text",
+        isHeal ? "combat-floating-text--heal" : "",
+        isCrit ? "combat-floating-text--crit" : "",
+        event.source ? `combat-floating-text--${event.source}` : "",
+      ].filter(Boolean).join(" ")}
+      {...{ style: getCombatFloatStyle(event, index) }}
+    >
+      {isCrit && <span className="combat-floating-text__label">CRITICO!</span>}
+      <span className="combat-floating-text__value">{valueLabel}</span>
+      {sourceLabel && <span className="combat-floating-text__source">{sourceLabel}</span>}
+    </div>
+  );
+}
+
+const COMBAT_STATUS_ICON_MAP = {
+  "absolute-control": "mark",
+  bleed: "bleed",
+  "combat-flow": "repeat",
+  flow: "repeat",
+  fortress: "armor",
+  fracture: "fracture",
+  mark: "mark",
+  memory: "essence",
+  momentum: "upgrade",
+  "perfect-cast": "essence",
+  poison: "poison",
+  rage: "fire",
+  ramp: "upgrade",
+  "time-loop": "repeat",
+  volatile: "essence",
+  "void-fracture": "fracture",
+};
+
+function CombatStatusIconTray({ statuses = [], compact = false, reserveSpace = false }) {
+  if (!Array.isArray(statuses) || statuses.length <= 0) {
+    if (!reserveSpace) return null;
+    return (
+      <div
+        className={[
+          "combat-forge-status-icons",
+          compact ? "combat-forge-status-icons--compact" : "",
+          "is-empty",
+        ].filter(Boolean).join(" ")}
+        aria-hidden="true"
+      >
+        <span className="combat-forge-status-icon" />
+      </div>
+    );
+  }
+  return (
+    <div
+      className={[
+        "combat-forge-status-icons",
+        compact ? "combat-forge-status-icons--compact" : "",
+      ].filter(Boolean).join(" ")}
+    >
+      {statuses.slice(0, compact ? 4 : 6).map(status => {
+        const iconName = COMBAT_STATUS_ICON_MAP[status.id] || getIconNameForStatusTone(status.tone);
+        return (
+          <span
+            key={status.id}
+            className={[
+              "combat-forge-status-icon",
+              `combat-forge-status-icon--${status.tone || "common"}`,
+            ].join(" ")}
+            title={status.description ? `${status.label}: ${status.description}${status.detail ? `\n${status.detail}` : ""}` : status.label}
+          >
+            <ForgeIcon name={iconName} size={compact ? 16 : 19} />
+            {status.value && <span>{formatStatusIconValue(status.value)}</span>}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function getIconNameForStatusTone(tone = "common") {
+  switch (tone) {
+    case "danger":
+      return "fire";
+    case "success":
+      return "upgrade";
+    case "warning":
+      return "fracture";
+    case "boss":
+      return "essence";
+    case "info":
+      return "mark";
+    default:
+      return "hero";
+  }
+}
+
+function getCombatFloatSourceLabel(event = {}) {
+  if (event.kind === "thornsDamage") return "ESPINAS";
+  switch (event.source) {
+    case "bleed":
+      return "SANGRADO";
+    case "void":
+      return "VACIO";
+    case "regen":
+      return "REGEN";
+    case "lifesteal":
+      return "DRENAJE";
+    default:
+      return "";
+  }
+}
+
+function formatStatusIconValue(value = "") {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const stackMatch = text.match(/^x(\d+)/i);
+  if (stackMatch) return stackMatch[1];
+  const numberMatch = text.match(/^(\d+)/);
+  if (numberMatch) return numberMatch[1];
+  return text.length > 4 ? text.slice(0, 4) : text;
+}
+
 function eventBadgeStyle(tone, isDarkMode = false) {
   const palette = isDarkMode
     ? {
@@ -2877,12 +3397,12 @@ function getLootDecisionBadgeTone(decisionReason = "") {
 function StatCard({ label, value, hint = null }) {
   const displayValue = typeof value === "number" ? value.toLocaleString() : value;
   return (
-    <div className="combat-stat-card" style={{ background: "var(--color-background-secondary, #fff)", borderRadius: "12px", padding: "7px 4px", border: "1px solid var(--color-border-primary, #e2e8f0)", textAlign: "center" }}>
-      <p style={{ fontSize: 8, color: COLORS.common, margin: "0 0 2px", fontWeight: "900" }}>{label}</p>
-      <p style={{ fontSize: "0.9rem", fontWeight: "900", margin: 0, color: COLORS.dark }}>
+    <div className="combat-stat-card" {...{ style: { background: "var(--color-background-secondary, #fff)", borderRadius: "12px", padding: "7px 4px", border: "1px solid var(--color-border-primary, #e2e8f0)", textAlign: "center" } }}>
+      <p {...{ style: { fontSize: 8, color: COLORS.common, margin: "0 0 2px", fontWeight: "900" } }}>{label}</p>
+      <p {...{ style: { fontSize: "0.9rem", fontWeight: "900", margin: 0, color: COLORS.dark } }}>
         {displayValue}
       </p>
-      {hint && <p style={{ fontSize: 8, color: "var(--color-text-secondary, #64748b)", margin: "2px 0 0", fontWeight: "800" }}>{hint}</p>}
+      {hint && <p {...{ style: { fontSize: 8, color: "var(--color-text-secondary, #64748b)", margin: "2px 0 0", fontWeight: "800" } }}>{hint}</p>}
     </div>
   );
 }
@@ -2891,7 +3411,7 @@ function InlineStatusTray({ statuses = [], emptyLabel = "Sin estados", isMobile 
   return (
     <div
       className="combat-status-tray"
-      style={{
+      {...{ style: {
         marginTop: "6px",
         background: "var(--color-background-tertiary, #f8fafc)",
         border: "1px solid var(--color-border-primary, #e2e8f0)",
@@ -2901,10 +3421,10 @@ function InlineStatusTray({ statuses = [], emptyLabel = "Sin estados", isMobile 
         overflowX: "auto",
         overflowY: "hidden",
         boxSizing: "border-box",
-      }}
+      } }}
     >
       {statuses.length > 0 ? (
-        <div style={{ display: "flex", gap: "5px", alignItems: "stretch", minWidth: "max-content" }}>
+        <div {...{ style: { display: "flex", gap: "5px", alignItems: "stretch", minWidth: "max-content" } }}>
           {statuses.map(status => (
             <StatusPill
               key={status.id}
@@ -2917,7 +3437,7 @@ function InlineStatusTray({ statuses = [], emptyLabel = "Sin estados", isMobile 
           ))}
         </div>
       ) : (
-        <div style={{ fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" }}>{emptyLabel}</div>
+        <div {...{ style: { fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" } }}>{emptyLabel}</div>
       )}
     </div>
   );
@@ -2964,7 +3484,7 @@ function StatusPill({ label, value, tone = "common", detail = "", description = 
     <span
       className="combat-status-pill"
       title={description ? `${label}: ${description}${detail ? `\n${detail}` : ""}` : label}
-      style={{
+      {...{ style: {
         display: "inline-flex",
         alignItems: "center",
         flex: "0 0 auto",
@@ -2985,11 +3505,11 @@ function StatusPill({ label, value, tone = "common", detail = "", description = 
           : "none",
         animation: pulseEnabled ? "combatStatusPillPulse 3600ms ease-in-out infinite" : "none",
         animationDelay: pulseEnabled ? `${animationOffsetMs}ms` : undefined,
-      }}
+      } }}
     >
       <span>{label}</span>
-      <span style={{ opacity: 0.9 }}>{value}</span>
-      {detail && <span style={{ fontSize: "0.54rem", fontWeight: "800", opacity: 0.86 }}>{detail}</span>}
+      <span {...{ style: { opacity: 0.9 } }}>{value}</span>
+      {detail && <span {...{ style: { fontSize: "0.54rem", fontWeight: "800", opacity: 0.86 } }}>{detail}</span>}
     </span>
   );
 }

@@ -11,22 +11,18 @@ import {
 
 function panelStyle(accent = "var(--tone-violet, #7c3aed)") {
   return {
-    background: "var(--color-background-secondary, #ffffff)",
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
     borderTop: `3px solid ${accent}`,
-    borderRadius: "16px",
     padding: "16px",
     display: "grid",
     gap: "12px",
     alignSelf: "start",
-    boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
   };
 }
 
 function metricCardStyle() {
   return {
-    background: "var(--color-background-tertiary, #f8fafc)",
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
+    background: "var(--fl2-surface-bg-soft, var(--color-background-tertiary, #f8fafc))",
+    border: "1px solid var(--fl2-surface-border, var(--color-border-primary, #e2e8f0))",
     borderRadius: "12px",
     padding: "10px 12px",
     display: "grid",
@@ -67,8 +63,8 @@ function chipLabelStyle(color = "var(--tone-violet, #7c3aed)") {
     minHeight: "24px",
     boxSizing: "border-box",
     whiteSpace: "nowrap",
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    background: "var(--color-background-tertiary, #f8fafc)",
+    border: "1px solid var(--fl2-surface-border, var(--color-border-primary, #e2e8f0))",
+    background: "var(--fl2-surface-bg-soft, var(--color-background-tertiary, #f8fafc))",
     color,
     borderRadius: "999px",
     padding: "4px 8px",
@@ -312,84 +308,76 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
   }, [cargoInventory.length, expandedSections?.cargo, isMobile, onboardingStep]);
 
   return (
-    <OverlayShell isMobile={isMobile} contentLabel="Destileria">
-      <OverlaySurface isMobile={isMobile}>
-        <style>{`
-          @keyframes distillerySpotlightPulse {
-            0% { box-shadow: 0 0 0 0 rgba(124,58,237,0.22); }
-            70% { box-shadow: 0 0 0 10px rgba(124,58,237,0); }
-            100% { box-shadow: 0 0 0 0 rgba(124,58,237,0); }
-          }
-        `}</style>
-        <div style={{
+    <OverlayShell isMobile={isMobile} variant="forge" contentLabel="Destileria">
+      <OverlaySurface isMobile={isMobile} variant="forge" className="fl-station-overlay fl-station-overlay--distillery">
+        <div {...{ style: {
           padding: "1rem",
           display: "grid",
           gap: "1rem",
           alignItems: "start",
           alignContent: "start",
-          background: "var(--color-background-primary, #f8fafc)",
           color: "var(--color-text-primary, #1e293b)",
-        }}>
-          <section style={panelStyle("var(--tone-violet, #7c3aed)")}>
-            <div style={{ display: "grid", gap: "12px", alignItems: "start" }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" }}>
+        } }}>
+          <section className="fl2-inline-panel" {...{ style: panelStyle("var(--tone-violet, #7c3aed)") }}>
+            <div {...{ style: { display: "grid", gap: "12px", alignItems: "start" } }}>
+              <div {...{ style: { minWidth: 0 } }}>
+                <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" } }}>
                   Destileria
                 </div>
-                <div style={{ fontSize: "1.02rem", fontWeight: "900", marginTop: "4px" }}>
+                <div {...{ style: { fontSize: "1.02rem", fontWeight: "900", marginTop: "4px" } }}>
                   Refinado del Santuario
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" }}>
+                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" } }}>
                   Convierte bundles en tinta, flux y polvo.
                 </div>
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <span style={chipLabelStyle("var(--tone-violet, #7c3aed)")}>
+            <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap" } }}>
+              <span {...{ style: chipLabelStyle("var(--tone-violet, #7c3aed)") }}>
                 {runningJobs.length} / {distillerySlots} jobs
               </span>
-              <span style={chipLabelStyle("var(--tone-warning, #f59e0b)")}>
+              <span {...{ style: chipLabelStyle("var(--tone-warning, #f59e0b)") }}>
                 {claimableJobs.length} claims
               </span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" }}>
-              <div style={{ ...metricCardStyle(), padding: "8px 10px", gap: "2px" }}>
-                <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Bundles</div>
-                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{totalBundleQuantity}</div>
+            <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" } }}>
+              <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
+                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Bundles</div>
+                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{totalBundleQuantity}</div>
               </div>
-              <div style={{ ...metricCardStyle(), padding: "8px 10px", gap: "2px" }}>
-                <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Tinta</div>
-                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{Math.floor(Number(resources?.codexInk || 0)).toLocaleString()}</div>
+              <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
+                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Tinta</div>
+                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{Math.floor(Number(resources?.codexInk || 0)).toLocaleString()}</div>
               </div>
-              <div style={{ ...metricCardStyle(), padding: "8px 10px", gap: "2px" }}>
-                <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Flux</div>
-                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{Math.floor(Number(resources?.sigilFlux || 0)).toLocaleString()}</div>
+              <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
+                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Flux</div>
+                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{Math.floor(Number(resources?.sigilFlux || 0)).toLocaleString()}</div>
               </div>
-              <div style={{ ...metricCardStyle(), padding: "8px 10px", gap: "2px" }}>
-                <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>Polvo</div>
-                <div style={{ fontSize: "0.88rem", fontWeight: "900" }}>{Math.floor(Number(resources?.relicDust || 0)).toLocaleString()}</div>
+              <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
+                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Polvo</div>
+                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{Math.floor(Number(resources?.relicDust || 0)).toLocaleString()}</div>
               </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button onClick={onClose} style={{ ...actionButtonStyle({ compact: true }), flex: "0 0 auto" }}>
+            <div {...{ style: { display: "flex", justifyContent: "flex-end" } }}>
+              <button onClick={onClose} {...{ style: { ...actionButtonStyle({ compact: true }), flex: "0 0 auto" } }}>
                 Volver
               </button>
             </div>
           </section>
 
-          <section style={panelStyle("var(--tone-violet, #7c3aed)")}>
+          <section className="fl2-inline-panel" {...{ style: panelStyle("var(--tone-violet, #7c3aed)") }}>
             <div
               onClick={() => toggleSection("cargo")}
-              style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" }}
+              {...{ style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" } }}
             >
               <div>
-                <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" }}>
+                <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" } }}>
                   Cargo en espera
                 </div>
-                <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+                <div {...{ style: { fontSize: "1rem", fontWeight: "900", marginTop: "4px" } }}>
                   Bundles listos para refinar
                 </div>
               </div>
@@ -398,18 +386,18 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                   event.stopPropagation();
                   toggleSection("cargo");
                 }}
-                style={{ ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
+                {...{ style: { ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" } }}
               >
                 {expandedSections?.cargo ? "-" : "+"}
               </button>
             </div>
 
             {expandedSections?.cargo && (cargoInventory.length === 0 ? (
-              <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+              <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
                 No hay cargo persistente en espera. Extrae bundles desde una expedición para alimentar esta estación.
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "10px" }}>
+              <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "10px" } }}>
                 {cargoInventory.map(bundle => {
                   const preview = getDistillPreview(bundle);
                   const tutorialBundleActive =
@@ -444,7 +432,7 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                           ? "tutorial-distillery-bundle"
                           : undefined
                       }
-                      style={{
+                      {...{ style: {
                         ...metricCardStyle(),
                         padding: "9px 10px",
                         gap: "6px",
@@ -457,25 +445,25 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                         cursor: tutorialBundleActive && !blocked ? "pointer" : "default",
                         touchAction: tutorialBundleActive ? "manipulation" : "auto",
                         pointerEvents: "auto",
-                      }}
+                      } }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
+                      <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" } }}>
                         <div>
-                          <div style={{ fontSize: "0.82rem", fontWeight: "900", lineHeight: 1.2 }}>{bundle.label}</div>
-                          <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.35 }}>
+                          <div {...{ style: { fontSize: "0.82rem", fontWeight: "900", lineHeight: 1.2 } }}>{bundle.label}</div>
+                          <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.35 } }}>
                             {bundle.description}
                           </div>
                         </div>
-                        <div style={{ display: "grid", gap: "4px", justifyItems: "end", textAlign: "right" }}>
-                          <span style={chipLabelStyle("var(--tone-violet, #7c3aed)")}>x{Math.max(1, Number(bundle?.quantity || 1))}</span>
-                          <span style={{ fontSize: "0.6rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                        <div {...{ style: { display: "grid", gap: "4px", justifyItems: "end", textAlign: "right" } }}>
+                          <span {...{ style: chipLabelStyle("var(--tone-violet, #7c3aed)") }}>x{Math.max(1, Number(bundle?.quantity || 1))}</span>
+                          <span {...{ style: { fontSize: "0.6rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" } }}>
                             {preview.amount} {preview.label} · {preview.duration}
                           </span>
                         </div>
                       </div>
 
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                        <div style={{ fontSize: "0.62rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
+                      <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" } }}>
+                        <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" } }}>
                           {blocked ? "No hay slot libre en la Destilería." : "Listo para procesarse en tiempo real."}
                         </div>
                         <button
@@ -509,13 +497,13 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                               ? "tutorial-distillery-start"
                               : undefined
                           }
-                          style={{
+                          {...{ style: {
                             ...actionButtonStyle({ primary: !blocked, disabled: blocked, compact: true }),
                             position: tutorialBundleActive ? "relative" : "static",
                             zIndex: tutorialBundleActive ? 3 : 1,
                             touchAction: tutorialBundleActive ? "manipulation" : "auto",
                             pointerEvents: "auto",
-                          }}
+                          } }}
                         >
                           {tutorialLocked ? "Bloqueado por tutorial" : "Destilar"}
                         </button>
@@ -528,27 +516,27 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
           </section>
 
           {(runningJobs.length > 0 || claimableJobs.length > 0) && (
-            <section style={panelStyle("var(--tone-warning, #f59e0b)")}>
+            <section className="fl2-inline-panel" {...{ style: panelStyle("var(--tone-warning, #f59e0b)") }}>
               <div
                 onClick={() => toggleSection("jobs")}
-                style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" }}
+                {...{ style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" } }}
               >
                 <div>
-                  <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
+                  <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" } }}>
                     Trabajos de la estación
                   </div>
-                  <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+                  <div {...{ style: { fontSize: "1rem", fontWeight: "900", marginTop: "4px" } }}>
                     Estado de refinado
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <div {...{ style: { display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" } }}>
                   {canRepeatClaimedDistillery && (
                     <button
                       onClick={event => {
                         event.stopPropagation();
                         claimAllDistilleryJobs({ restart: true });
                       }}
-                      style={actionButtonStyle({ compact: true })}
+                      {...{ style: actionButtonStyle({ compact: true }) }}
                     >
                       Todo + repetir
                     </button>
@@ -559,7 +547,7 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                         event.stopPropagation();
                         claimAllDistilleryJobs();
                       }}
-                      style={actionButtonStyle({ primary: true, compact: true })}
+                      {...{ style: actionButtonStyle({ primary: true, compact: true }) }}
                     >
                       Reclamar todo
                     </button>
@@ -569,7 +557,7 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                       event.stopPropagation();
                       toggleSection("jobs");
                     }}
-                    style={{ ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" }}
+                    {...{ style: { ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" } }}
                   >
                     {expandedSections?.jobs ? "-" : "+"}
                   </button>
@@ -577,18 +565,18 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
               </div>
 
               {expandedSections?.jobs && claimableJobs.length > 0 && (
-                <div style={{ display: "grid", gap: "8px" }}>
+                <div {...{ style: { display: "grid", gap: "8px" } }}>
                   {claimableJobs.map(job => (
-                    <div key={job.id} style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap", padding: "6px 0" }}>
+                    <div key={job.id} {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap", padding: "6px 0" } }}>
                       <div>
-                        <div style={{ fontSize: "0.72rem", fontWeight: "900" }}>{job.output?.label || "Refinado listo"}</div>
-                        <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>
+                        <div {...{ style: { fontSize: "0.72rem", fontWeight: "900" } }}>{job.output?.label || "Refinado listo"}</div>
+                        <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" } }}>
                           {job.output?.amount || 0} listo para reclamar
                         </div>
                       </div>
                       <button
                         onClick={() => claimDistilleryJob(job, { nowAt: now })}
-                        style={actionButtonStyle({ primary: true })}
+                        {...{ style: actionButtonStyle({ primary: true }) }}
                       >
                         Reclamar
                       </button>
@@ -598,12 +586,12 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
               )}
 
               {expandedSections?.jobs && runningJobs.length > 0 && (
-                <div style={{ display: "grid", gap: "8px" }}>
+                <div {...{ style: { display: "grid", gap: "8px" } }}>
                   {runningJobs.map(job => (
-                    <div key={job.id} style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap", padding: "6px 0" }}>
+                    <div key={job.id} {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap", padding: "6px 0" } }}>
                       <div>
-                        <div style={{ fontSize: "0.72rem", fontWeight: "900" }}>{job.output?.label || "Refinado"}</div>
-                        <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" }}>
+                        <div {...{ style: { fontSize: "0.72rem", fontWeight: "900" } }}>{job.output?.label || "Refinado"}</div>
+                        <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" } }}>
                           {job.output?.amount || 0} en proceso
                         </div>
                       </div>

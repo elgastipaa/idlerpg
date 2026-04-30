@@ -3,7 +3,10 @@ import packageJson from "../package.json";
 import { useGame } from "./hooks/useGame";
 import useViewport from "./hooks/useViewport";
 import OverlayShell, { OverlaySurface } from "./components/OverlayShell";
+import ForgeIcon from "./components/icons/ForgeIcon";
+import { FlAsset, FlButton, FlCard, FlProgressBar } from "./components/ui/forge";
 import { getRarityColor } from "./constants/rarity";
+import { getItemAsset } from "./utils/assetRegistry";
 import {
   ITEM_STAT_LABELS as STAT_LABELS,
   formatItemStatValue as formatStatValue,
@@ -41,6 +44,7 @@ const RegistryView = lazy(() => import("./components/RegistryView"));
 const Sanctuary = lazy(() => import("./components/Sanctuary"));
 const OnboardingOverlay = lazy(() => import("./components/OnboardingOverlay"));
 const ExtractionOverlay = lazy(() => import("./components/ExtractionOverlay"));
+const ForgeLightKitDemo = lazy(() => import("./components/ForgeLightKitDemo"));
 
 const CHUNK_RELOAD_SIGNATURE_KEY = "idlerpg:chunk-reload-signature";
 const CHUNK_LOAD_ERROR_PATTERNS = [
@@ -118,14 +122,14 @@ class TabErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: "18px", minHeight: "220px", display: "grid", gap: "8px", alignContent: "start" }}>
-          <div style={{ fontSize: "0.72rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" }}>
+        <div {...{ style: { padding: "18px", minHeight: "220px", display: "grid", gap: "8px", alignContent: "start" } }}>
+          <div {...{ style: { fontSize: "0.72rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" } }}>
             Error de Tab
           </div>
-          <div style={{ fontSize: "0.95rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+          <div {...{ style: { fontSize: "0.95rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
             {this.props.label || "Esta pantalla"} no se pudo renderizar.
           </div>
-          <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+          <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 } }}>
             Cambia de tab y volve a entrar. Si persiste, el error ya queda logueado en consola para rastrearlo sin dejar la app en blanco.
           </div>
           {typeof this.props.onRecover === "function" && (
@@ -134,7 +138,7 @@ class TabErrorBoundary extends React.Component {
                 this.setState({ hasError: false });
                 this.props.onRecover();
               }}
-              style={{
+              {...{ style: {
                 width: "fit-content",
                 border: "1px solid var(--color-border-primary, #e2e8f0)",
                 background: "var(--color-background-secondary, #ffffff)",
@@ -144,14 +148,14 @@ class TabErrorBoundary extends React.Component {
                 fontSize: "0.72rem",
                 fontWeight: "900",
                 cursor: "pointer",
-              }}
+              } }}
             >
               {this.props.recoverLabel || "Recuperar"}
             </button>
           )}
           <button
             onClick={() => window.location.reload()}
-            style={{
+            {...{ style: {
               width: "fit-content",
               border: "1px solid var(--color-border-primary, #e2e8f0)",
               background: "var(--color-background-secondary, #ffffff)",
@@ -161,7 +165,7 @@ class TabErrorBoundary extends React.Component {
               fontSize: "0.72rem",
               fontWeight: "900",
               cursor: "pointer",
-            }}
+            } }}
           >
             Recargar cliente
           </button>
@@ -412,6 +416,23 @@ function getDefaultTabForPrimaryTab(primaryTab = "sanctuary") {
   return "sanctuary";
 }
 
+function getForgeLightV2Screen(primaryTab = "sanctuary", tab = "sanctuary") {
+  if (primaryTab === "combat") {
+    if (tab === "inventory" || tab === "crafting" || tab === "codex") return tab;
+    return "combat";
+  }
+  if (primaryTab === "character") {
+    if (tab === "skills" || tab === "talents") return tab;
+    return "character";
+  }
+  if (primaryTab === "registry") {
+    if (tab === "stats" || tab === "account" || tab === "achievements" || tab === "system") return tab;
+    return "account";
+  }
+  if (primaryTab === "prestige") return "prestige";
+  return "sanctuary";
+}
+
 function isPrimaryTabAllowed(primaryTab = "sanctuary", onboardingStep = null, state = {}) {
   if (!state?.player?.class && state?.expedition?.phase === "setup") {
     return primaryTab === "sanctuary";
@@ -438,11 +459,11 @@ function isPrimaryTabAllowed(primaryTab = "sanctuary", onboardingStep = null, st
 }
 
 const PRIMARY_TAB_CONFIG = {
-  sanctuary:    { label: "Santuario", icon: "🕯️" },
-  character:    { label: "Heroe", icon: "⚔️" },
-  combat:       { label: "Expedicion", icon: "🗡️" },
-  prestige:     { label: "Ecos", icon: "🜂" },
-  registry:     { label: "Mas", icon: "🗂️" },
+  sanctuary:    { label: "Santuario", icon: "sanctuary" },
+  character:    { label: "Heroe", icon: "hero" },
+  combat:       { label: "Expedicion", icon: "combat" },
+  prestige:     { label: "Ecos", icon: "echoes" },
+  registry:     { label: "Mas", icon: "more" },
 };
 const PRIMARY_TAB_COMPONENTS = {
   sanctuary: Sanctuary,
@@ -451,22 +472,53 @@ const PRIMARY_TAB_COMPONENTS = {
   prestige: Prestige,
   registry: RegistryView,
 };
-const PRIMARY_TAB_SPOTLIGHT_KEYFRAMES = `
-  @keyframes appPrimaryTabSpotlightPulse {
-    0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
-    70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
-    100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
-  }
-`;
-
 // Visual-only Stitch shell trial. Flip to false to restore the previous App shell.
 const APP_STITCH_VISUAL_TRIAL = false;
 // Keeps the global shell skin lightweight: no blur, masks, or continuous animations.
 const APP_STITCH_PERF_SAFE = true;
+const FORGE_LIGHT_V2_ACTIVE = true;
 
 const APP_VERSION = packageJson?.version || "0.0.0";
 const DEBUG_TRIPLE_CLICK_WINDOW_MS = 750;
 const MAX_RECENT_ERROR_ENTRIES = 20;
+
+function PrimaryTabIcon({ id, active = false, size = 20 }) {
+  const config = PRIMARY_TAB_CONFIG[id] || PRIMARY_TAB_CONFIG.registry;
+  return (
+    <span
+      className={[
+        "fl-icon-frame",
+        "fl-primary-tab-icon",
+        size >= 24 ? "fl-primary-tab-icon--lg" : "",
+        active ? "fl-icon-frame--active" : "",
+      ].filter(Boolean).join(" ")}
+      aria-hidden="true"
+    >
+      {config.icon === "more" ? (
+        <ForgeIcon name="more" size={size} />
+      ) : (
+        <FlAsset
+          className="fl-primary-tab-asset"
+          kind="system"
+          assetId={config.icon}
+          size="sm"
+          fallbackIcon={config.icon}
+          alt=""
+        />
+      )}
+    </span>
+  );
+}
+
+function getHeaderHeroName(player = {}) {
+  return player?.name || player?.class || "Heroe";
+}
+
+function getHeaderHeroPower(player = {}) {
+  const explicit = Number(player?.power || player?.combatPower || player?.rating || 0);
+  const equipmentRating = Number(player?.equipment?.weapon?.rating || 0) + Number(player?.equipment?.armor?.rating || 0);
+  return Math.max(0, Math.round(explicit || equipmentRating || 0));
+}
 
 function buildReforgeOptionKey(option = {}, index = 0) {
   return `${option?.id || "opt"}::${option?.stat || "stat"}::${option?.quality || "normal"}::${option?.rolledValue ?? option?.value ?? 0}::${index}`;
@@ -490,33 +542,48 @@ const AppHeader = React.memo(function AppHeader({
   resourceSummary,
   onToggleTheme,
   theme,
+  player,
 }) {
+  const heroName = getHeaderHeroName(player);
+  const heroLevel = Math.max(1, Number(player?.level || 1));
+  const heroPower = getHeaderHeroPower(player);
+  const heroClass = player?.class || "warrior";
+
   return (
     <header className="app-header-shell">
       <div className="app-header-inner">
-        <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: "8px" }} onClick={onHeaderDebugTap}>
-          <div style={{ minWidth: 0 }}>
+        <div className="app-header-left app-header-identity" onClick={onHeaderDebugTap}>
+          <span className="app-header-avatar" aria-hidden="true">
+            <FlAsset kind="portrait" assetId={heroClass} size="sm" fallbackIcon="hero" alt="" />
+            <span className="app-header-level">{heroLevel}</span>
+          </span>
+          <div className="app-header-copy">
+            <span className="app-header-kicker">Forjador</span>
             <h1 className="app-header-title">
-              {currentPrimaryLabel}
+              {heroName}
             </h1>
+            <span className="app-header-power">
+              <ForgeIcon name="combat" size={14} />
+              {formatHeaderResource(heroPower)}
+            </span>
           </div>
           {reforgeLocked && (
-            <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--tone-violet, #6d28d9)", padding: "3px 7px", borderRadius: "999px", background: "var(--tone-violet-soft, #f3e8ff)", border: "1px solid rgba(124,58,237,0.18)", whiteSpace: "nowrap", flexShrink: 0 }}>
+            <span className="app-header-reforge-badge">
               Reforja
             </span>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: isMobile ? 1 : "0 1 auto", justifyContent: "flex-end" }}>
-          <div style={{ minWidth: 0, maxWidth: isMobile ? "calc(100vw - 120px)" : "100%" }}>
+        <div className="app-header-right">
+          <div className="app-header-resource-wrap">
             {resourceSummary}
           </div>
           <button
             onClick={onToggleTheme}
             title="Cambiar tema"
             aria-label="Cambiar tema"
-            style={themeToggleButtonStyle()}
+            className="app-header-menu-button"
           >
-            {theme === "dark" ? "☀" : "☾"}
+            <ForgeIcon name="more" size={19} />
           </button>
         </div>
       </div>
@@ -529,53 +596,35 @@ const DesktopPrimaryTabs = React.memo(function DesktopPrimaryTabs({
   onTabPress,
 }) {
   return (
-    <div className="app-desktop-primary-tabs" style={{ marginBottom: "12px", background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-tertiary, #cbd5e1)", borderRadius: "12px", boxShadow: "0 4px 20px var(--color-shadow, rgba(0,0,0,0.05))", padding: "10px 12px" }}>
-      <nav style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+    <div className="app-desktop-primary-tabs">
+      <nav className="app-desktop-primary-tabs__nav">
         {entries.map(entry => (
           <button
             className={[
               "app-primary-tab-button",
               entry.isActive ? "app-primary-tab-button--active" : "",
+              entry.hasSpotlight ? "app-primary-tab-button--spotlight" : "",
+              entry.blockedByOnboarding ? "app-primary-tab-button--blocked" : "",
             ].filter(Boolean).join(" ")}
             key={entry.id}
             disabled={entry.hardDisabled}
             data-onboarding-target={entry.onboardingTarget}
             onClick={() => onTabPress(entry.id)}
-            style={{
-              padding: "7px 13px",
-              cursor: (entry.hardDisabled || entry.blockedByOnboarding) ? "not-allowed" : "pointer",
-              backgroundColor: entry.isActive ? "var(--color-background-info, #e0e7ff)" : "var(--color-background-secondary, #ffffff)",
-              color: (entry.hardDisabled || entry.blockedByOnboarding) ? "var(--color-text-tertiary, #94a3b8)" : entry.isActive ? "var(--color-text-info, #4338ca)" : "var(--color-text-primary, #1e293b)",
-              border: "1px solid var(--color-border-tertiary, #cbd5e1)",
-              borderRadius: "8px",
-              fontWeight: "700",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              transition: "all 0.2s",
-              opacity: entry.hardDisabled ? 0.5 : entry.blockedByOnboarding ? 0.68 : 1,
-              position: entry.hasSpotlight ? "relative" : "static",
-              zIndex: entry.hasSpotlight ? 2 : 1,
-              boxShadow: entry.hasSpotlight
-                ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 28px rgba(83,74,183,0.18)"
-                : "none",
-              animation: entry.hasSpotlight ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
-            }}
           >
-            <span>{PRIMARY_TAB_CONFIG[entry.id].icon}</span>
-            {PRIMARY_TAB_CONFIG[entry.id].label}
+            <PrimaryTabIcon id={entry.id} active={entry.isActive} size={19} />
+            <span className="fl-tab-label">{PRIMARY_TAB_CONFIG[entry.id].label}</span>
             {entry.showTalentBadge && (
-              <span style={{ marginLeft: "4px", minWidth: "18px", height: "18px", padding: "0 6px", borderRadius: "999px", background: "var(--tone-danger, #ef4444)", color: "#fff", fontSize: "0.62rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              <span className="app-primary-tab-badge app-primary-tab-badge--danger">
                 {entry.talentBadgeValue}
               </span>
             )}
             {entry.showSanctuaryBadge && (
-              <span style={{ marginLeft: "4px", minWidth: "18px", height: "18px", padding: "0 6px", borderRadius: "999px", background: "var(--tone-warning, #f59e0b)", color: "#fff", fontSize: "0.62rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              <span className="app-primary-tab-badge app-primary-tab-badge--warning">
                 {entry.sanctuaryBadgeValue}
               </span>
             )}
             {entry.showInventoryBadge && (
-              <span style={{ marginLeft: "4px", minWidth: "18px", height: "18px", padding: "0 6px", borderRadius: "999px", background: "var(--tone-success, #10b981)", color: "#fff", fontSize: "0.62rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              <span className="app-primary-tab-badge app-primary-tab-badge--success">
                 {entry.inventoryBadgeValue}
               </span>
             )}
@@ -592,56 +641,36 @@ const MobilePrimaryTabs = React.memo(function MobilePrimaryTabs({
   onTabPress,
 }) {
   return (
-    <nav className="app-mobile-primary-tabs" style={{ position: "fixed", bottom: 0, left: 0, width: "100%", height: `${navHeight}px`, backgroundColor: "var(--color-background-secondary, #ffffff)", borderTop: "1px solid var(--color-border-secondary, #e2e8f0)", display: "flex", zIndex: 5000, paddingBottom: "env(safe-area-inset-bottom)", boxSizing: "content-box" }}>
+    <nav className="app-mobile-primary-tabs">
       {entries.map(entry => (
         <button
           className={[
             "app-primary-tab-button",
             entry.isActive ? "app-primary-tab-button--active" : "",
+            entry.hasSpotlight ? "app-primary-tab-button--spotlight" : "",
+            entry.blockedByOnboarding ? "app-primary-tab-button--blocked" : "",
           ].filter(Boolean).join(" ")}
           key={entry.id}
           disabled={entry.hardDisabled}
           data-onboarding-target={entry.onboardingTarget}
           onClick={() => onTabPress(entry.id)}
-          style={{
-            flex: 1,
-            minWidth: "56px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexDirection: "column",
-            gap: "2px",
-            background: entry.isActive ? "var(--color-background-info, #f1f5f9)" : "transparent",
-            border: "none",
-            outline: "none",
-            position: "relative",
-            paddingTop: "5px",
-            opacity: entry.hardDisabled ? 0.45 : entry.blockedByOnboarding ? 0.66 : 1,
-            boxShadow: entry.hasSpotlight
-              ? "0 0 0 2px rgba(83,74,183,0.18), 0 10px 24px rgba(83,74,183,0.16)"
-              : "none",
-            animation: entry.hasSpotlight ? "appPrimaryTabSpotlightPulse 1600ms ease-in-out infinite" : "none",
-            zIndex: entry.hasSpotlight ? 2 : 1,
-          }}
         >
-          <span style={{ filter: entry.isActive ? "none" : "grayscale(1) opacity(0.5)", position: "relative", fontSize: "21px", lineHeight: 1 }}>
-            {PRIMARY_TAB_CONFIG[entry.id].icon}
-          </span>
-          <span style={{ fontSize: "0.56rem", fontWeight: "900", color: entry.isActive ? "var(--color-text-info, #4338ca)" : "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+          <PrimaryTabIcon id={entry.id} active={entry.isActive} size={25} />
+          <span className="app-mobile-primary-tab-label">
             {PRIMARY_TAB_CONFIG[entry.id].label}
           </span>
           {entry.showSanctuaryBadge && (
-            <span style={{ position: "absolute", top: "6px", left: "12px", minWidth: "16px", height: "16px", padding: "0 5px", borderRadius: "999px", background: "var(--tone-warning, #f59e0b)", color: "#fff", fontSize: "0.56rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <span className="app-primary-tab-badge app-primary-tab-badge--floating app-primary-tab-badge--warning">
               {entry.sanctuaryBadgeValue}
             </span>
           )}
           {entry.showInventoryBadge && (
-            <span style={{ position: "absolute", top: "6px", right: "14px", minWidth: "16px", height: "16px", padding: "0 5px", borderRadius: "999px", background: "var(--tone-success, #10b981)", color: "#fff", fontSize: "0.56rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <span className="app-primary-tab-badge app-primary-tab-badge--floating app-primary-tab-badge--success">
               {entry.inventoryBadgeValue}
             </span>
           )}
           {entry.showTalentBadge && (
-            <span style={{ position: "absolute", top: "6px", right: "12px", minWidth: "16px", height: "16px", padding: "0 5px", borderRadius: "999px", background: "var(--tone-danger, #ef4444)", color: "#fff", fontSize: "0.56rem", fontWeight: "900", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <span className="app-primary-tab-badge app-primary-tab-badge--floating app-primary-tab-badge--danger">
               {entry.talentBadgeValue}
             </span>
           )}
@@ -691,7 +720,7 @@ const PrimaryTabViewport = React.memo(
     prevProps.dispatch === nextProps.dispatch
 );
 
-export default function App() {
+function GameApp({ forceForgeLightCombatTrial = false }) {
   const { state, dispatch, getRecentActions } = useGame();
   const { isMobile } = useViewport();
   const [showLegacySavePrompt, setShowLegacySavePrompt] = useState(false);
@@ -801,8 +830,8 @@ export default function App() {
     document.documentElement.style.setProperty("--app-bottom-nav-offset", `${isMobile ? NAV_HEIGHT_MOBILE : 0}px`);
   }, [isMobile]);
 
-  const HEADER_HEIGHT_MOBILE = 62;
-  const HEADER_HEIGHT_DESKTOP = 68;
+  const HEADER_HEIGHT_MOBILE = 48;
+  const HEADER_HEIGHT_DESKTOP = 54;
   const NAV_HEIGHT_MOBILE = 72;
   const DESKTOP_MAX_WIDTH = 1180;
   const onboardingStep = state?.onboarding?.step || null;
@@ -833,7 +862,7 @@ export default function App() {
     () => getEffectiveOnboardingStep(onboardingStep, onboardingEvaluationState || {}),
     [onboardingEvaluationState, onboardingStep]
   );
-  const currentTab = state.currentTab;
+  const currentTab = forceForgeLightCombatTrial ? "combat" : state.currentTab;
   const currentPrimaryTab = getVisiblePrimaryTab(currentTab, state);
   const prestigeTabUnlocked = isPrestigeTabUnlocked(state);
   const expeditionUnlocked = canOpenExpedition(state);
@@ -1089,6 +1118,11 @@ export default function App() {
   }, [scrollAppToTopSoon, state.currentTab]);
 
   useEffect(() => {
+    if (!forceForgeLightCombatTrial || state.currentTab === "combat") return;
+    dispatch({ type: "SET_TAB", tab: "combat" });
+  }, [dispatch, forceForgeLightCombatTrial, state.currentTab]);
+
+  useEffect(() => {
     if (!shouldOfferLegacyRepair) {
       setShowLegacySavePrompt(false);
       return;
@@ -1175,7 +1209,7 @@ export default function App() {
     scrollAppToTopSoon,
   ]);
   const resourceSummary = useMemo(() => (
-    <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, overflowX: "auto", scrollbarWidth: "none" }}>
+    <div className="app-header-resources" {...{ style: { display: "flex", alignItems: "center", gap: "6px", minWidth: 0, overflowX: "auto", scrollbarWidth: "none" } }}>
       {showActiveRunSigil && (
         <HeaderCompactChip
           text={activeRunSigilLabel}
@@ -1185,19 +1219,21 @@ export default function App() {
         />
       )}
       <HeaderResourcePill
+        icon="gold"
         label="Oro"
         value={formatHeaderResource(state.player?.gold || 0)}
-        color="var(--tone-warning, #f59e0b)"
-        borderColor="rgba(245,158,11,0.22)"
-        background="var(--tone-warning-soft, #fff7ed)"
+        color="var(--fl-gold-0, #fff1b8)"
+        borderColor="var(--fl-border-soft, rgba(198,138,39,0.34))"
+        background="linear-gradient(180deg, rgba(28,22,10,0.98), rgba(8,10,10,0.98))"
         compact
       />
       <HeaderResourcePill
+        icon="essence"
         label="Esencia"
         value={formatHeaderResource(state.player?.essence || 0)}
-        color="var(--tone-violet, #7c3aed)"
-        borderColor="rgba(124,58,237,0.22)"
-        background="var(--tone-violet-soft, #f3e8ff)"
+        color="var(--fl-purple, #b34cff)"
+        borderColor="rgba(179,76,255,0.36)"
+        background="linear-gradient(180deg, rgba(34,12,50,0.88), rgba(8,10,10,0.98))"
         compact
       />
     </div>
@@ -1271,9 +1307,11 @@ export default function App() {
       weeklyBoss: state.weeklyBoss,
       expedition: state.expedition,
       __liveNow: state.__liveNow,
+      forgeLightCombatTrial: forceForgeLightCombatTrial,
     }),
     [
       currentTab,
+      forceForgeLightCombatTrial,
       state.__liveNow,
       state.abyss,
       state.codex,
@@ -1398,11 +1436,35 @@ export default function App() {
     ? "combat"
     : "sanctuary";
   const ActivePrimaryTabComponent = PRIMARY_TAB_COMPONENTS[currentPrimaryTab] || Sanctuary;
+  const forgeExpeditionShellActive = currentPrimaryTab === "combat";
+  const forgeCombatShellActive = currentPrimaryTab === "combat" && currentTab === "combat";
+  const forgeTalentsShellActive = currentPrimaryTab === "character" && currentTab === "talents";
+  const forgeCharacterShellActive = currentPrimaryTab === "character";
+  const forgePrestigeShellActive = currentPrimaryTab === "prestige";
+  const forgeLightV2Screen = getForgeLightV2Screen(currentPrimaryTab, currentTab);
   const appShellRootClassName = [
     "app-shell-root",
+    forgeExpeditionShellActive ? "app-shell-root--forge-expedition" : "",
+    forgeCombatShellActive ? "app-shell-root--forge-combat" : "",
+    forgeCharacterShellActive ? "app-shell-root--forge-character" : "",
+    forgePrestigeShellActive ? "app-shell-root--forge-prestige" : "",
+    forgeTalentsShellActive ? "app-shell-root--forge-talents" : "",
+    forceForgeLightCombatTrial ? "app-shell-root--forge-light-prueba" : "",
+    FORGE_LIGHT_V2_ACTIVE ? "app-shell-root--forge-light-v2" : "",
     APP_STITCH_VISUAL_TRIAL ? "app-shell-root--stitch-trial" : "",
     APP_STITCH_VISUAL_TRIAL && APP_STITCH_PERF_SAFE ? "app-shell-root--stitch-perf-safe" : "",
   ].filter(Boolean).join(" ");
+
+  useEffect(() => {
+    const shouldLockTalentsScroll = isMobile && forgeTalentsShellActive;
+    document.documentElement.classList.toggle("app-forge-talents-scroll-lock", shouldLockTalentsScroll);
+    document.body.classList.toggle("app-forge-talents-scroll-lock", shouldLockTalentsScroll);
+
+    return () => {
+      document.documentElement.classList.remove("app-forge-talents-scroll-lock");
+      document.body.classList.remove("app-forge-talents-scroll-lock");
+    };
+  }, [forgeTalentsShellActive, isMobile]);
 
   function dismissLegacySavePrompt() {
     if (!showLegacySavePrompt) return;
@@ -1416,7 +1478,7 @@ export default function App() {
   }
 
   return (
-    <div className={appShellRootClassName}>
+    <div className={appShellRootClassName} data-fl2-screen={FORGE_LIGHT_V2_ACTIVE ? forgeLightV2Screen : undefined}>
       <AppHeader
         isMobile={isMobile}
         currentPrimaryLabel={currentPrimaryLabel}
@@ -1425,10 +1487,10 @@ export default function App() {
         resourceSummary={resourceSummary}
         onToggleTheme={handleThemeToggle}
         theme={theme}
+        player={state.player}
       />
 
-      <div ref={contentRef} className="app-shell-content" style={{ "--app-content-max-width": `${DESKTOP_MAX_WIDTH}px` }}>
-        <style>{PRIMARY_TAB_SPOTLIGHT_KEYFRAMES}</style>
+      <div ref={contentRef} className="app-shell-content" {...{ style: { "--app-content-max-width": `${DESKTOP_MAX_WIDTH}px` } }}>
         {!isMobile && <DesktopPrimaryTabs entries={primaryTabEntries} onTabPress={handlePrimaryTabPress} />}
         {offlineSummary && (
           <OfflineSummaryPanel
@@ -1478,13 +1540,15 @@ export default function App() {
         isMobile={isMobile}
       />
 
-      <Suspense fallback={null}>
-        <OnboardingOverlay state={state} dispatch={dispatch} isMobile={isMobile} />
-      </Suspense>
+      {!forceForgeLightCombatTrial && (
+        <Suspense fallback={null}>
+          <OnboardingOverlay state={state} dispatch={dispatch} isMobile={isMobile} />
+        </Suspense>
+      )}
 
       {showLegacySavePrompt && (
         <div
-          style={{
+          {...{ style: {
             position: "fixed",
             inset: 0,
             background: "rgba(2, 6, 23, 0.58)",
@@ -1493,10 +1557,10 @@ export default function App() {
             alignItems: "center",
             justifyContent: "center",
             padding: isMobile ? "18px" : "28px",
-          }}
+          } }}
         >
           <div
-            style={{
+            {...{ style: {
               width: "100%",
               maxWidth: "520px",
               background: "var(--color-background-secondary, #ffffff)",
@@ -1506,21 +1570,21 @@ export default function App() {
               display: "grid",
               gap: "12px",
               boxShadow: "0 24px 60px rgba(2, 6, 23, 0.35)",
-            }}
+            } }}
           >
-            <div style={{ fontSize: "0.68rem", fontWeight: "900", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--tone-warning, #f59e0b)" }}>
+            <div {...{ style: { fontSize: "0.68rem", fontWeight: "900", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--tone-warning, #f59e0b)" } }}>
               Save legado detectado
             </div>
-            <div style={{ fontSize: isMobile ? "1rem" : "1.08rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+            <div {...{ style: { fontSize: isMobile ? "1rem" : "1.08rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
               Save viejo para el sistema actual
             </div>
-            <div style={{ fontSize: "0.78rem", lineHeight: 1.55, color: "var(--color-text-secondary, #475569)" }}>
+            <div {...{ style: { fontSize: "0.78rem", lineHeight: 1.55, color: "var(--color-text-secondary, #475569)" } }}>
               Por favor reparalo en <strong>Mas &gt; Sistema &gt; Reparar save</strong>, o más recomendado, <strong>reiniciá tu progreso</strong>. Este aviso solo va a aparecer hasta <strong>3 veces</strong>.
             </div>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap" } }}>
               <button
                 onClick={handleLegacyRepairRoute}
-                style={{
+                {...{ style: {
                   border: "none",
                   background: "var(--tone-warning, #f59e0b)",
                   color: "#fff",
@@ -1529,13 +1593,13 @@ export default function App() {
                   fontSize: "0.76rem",
                   fontWeight: "900",
                   cursor: "pointer",
-                }}
+                } }}
               >
                 Ir a Mas &gt; Sistema
               </button>
               <button
                 onClick={dismissLegacySavePrompt}
-                style={{
+                {...{ style: {
                   border: "1px solid var(--color-border-primary, #e2e8f0)",
                   background: "var(--color-background-secondary, #ffffff)",
                   color: "var(--color-text-primary, #1e293b)",
@@ -1544,7 +1608,7 @@ export default function App() {
                   fontSize: "0.76rem",
                   fontWeight: "900",
                   cursor: "pointer",
-                }}
+                } }}
               >
                 Más tarde
               </button>
@@ -1555,7 +1619,7 @@ export default function App() {
 
       {testerToast && (
         <div
-          style={{
+          {...{ style: {
             position: "fixed",
             top: isMobile ? `${HEADER_HEIGHT_MOBILE + 10}px` : `${HEADER_HEIGHT_DESKTOP + 12}px`,
             left: "50%",
@@ -1570,15 +1634,15 @@ export default function App() {
             color: testerToast.tone === "danger" ? "var(--tone-danger, #D85A30)" : "var(--tone-success-strong, #047857)",
             boxShadow: "0 14px 30px rgba(15,23,42,0.14)",
             pointerEvents: "none",
-          }}
+          } }}
         >
           {testerToast.label}
         </div>
       )}
 
-      {actionToast && (
+      {actionToast && !forceForgeLightCombatTrial && (
         <div
-          style={{
+          {...{ style: {
             position: "fixed",
             top: isMobile
               ? `${HEADER_HEIGHT_MOBILE + (testerToast ? 52 : 10)}px`
@@ -1619,7 +1683,7 @@ export default function App() {
                 : actionToast.tone === "success"
                   ? "appActionToastPulseSuccess 900ms ease-out"
                   : undefined,
-          }}
+          } }}
         >
           {actionToast.label}
         </div>
@@ -1699,7 +1763,7 @@ function ReforgeDecisionOverlay({ state, dispatch, isMobile = false }) {
       backdrop="rgba(2,6,23,0.78)"
     >
       <div
-        style={{
+        {...{ style: {
           width: "100%",
           height: "100%",
           display: "flex",
@@ -1708,10 +1772,10 @@ function ReforgeDecisionOverlay({ state, dispatch, isMobile = false }) {
           padding: isMobile ? "10px" : "24px",
           boxSizing: "border-box",
           pointerEvents: "auto",
-        }}
+        } }}
       >
         <section
-          style={{
+          {...{ style: {
             width: "min(560px, 100%)",
             maxHeight: isMobile ? "78dvh" : "82vh",
             overflow: "hidden",
@@ -1722,26 +1786,26 @@ function ReforgeDecisionOverlay({ state, dispatch, isMobile = false }) {
             padding: isMobile ? "14px 12px 16px" : "16px 16px 18px",
             display: "grid",
             gap: "10px",
-          }}
+          } }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" }}>
+          <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" } }}>
+            <div {...{ style: { minWidth: 0 } }}>
+              <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" } }}>
                 Reforja activa
               </div>
-              <div style={{ fontSize: "0.92rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.2 }}>
+              <div {...{ style: { fontSize: "0.92rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.2 } }}>
                 {hasBrokenSession ? "Sesion de reforja trabada" : "Elige una opcion y confirma"}
               </div>
             </div>
           </div>
 
           {item && (
-            <div style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", borderLeft: `3px solid ${getRarityColor(item?.rarity)}`, borderRadius: "10px", padding: "9px", display: "grid", gap: "4px" }}>
-              <div style={{ fontSize: "0.76rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+            <div {...{ style: { border: "1px solid var(--color-border-primary, #e2e8f0)", borderLeft: `3px solid ${getRarityColor(item?.rarity)}`, borderRadius: "10px", padding: "9px", display: "grid", gap: "4px" } }}>
+              <div {...{ style: { fontSize: "0.76rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
                 {item.name}
               </div>
               {selectedAffix && (
-                <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #475569)", fontWeight: "800" }}>
+                <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #475569)", fontWeight: "800" } }}>
                   Linea objetivo: {STAT_LABELS[selectedAffix?.stat] || selectedAffix?.stat} · +{formatStatValue(selectedAffix?.stat, selectedAffix?.rolledValue ?? selectedAffix?.value ?? 0)}
                 </div>
               )}
@@ -1749,11 +1813,11 @@ function ReforgeDecisionOverlay({ state, dispatch, isMobile = false }) {
           )}
 
           {hasBrokenSession ? (
-            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 }}>
+            <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 } }}>
               No se pudo reconstruir la preview de reforja. Cancela para destrabar y vuelve a intentar.
             </div>
           ) : (
-            <div style={{ display: "grid", gap: "6px", maxHeight: isMobile ? "34dvh" : "40vh", overflowY: "auto", paddingRight: "2px" }}>
+            <div {...{ style: { display: "grid", gap: "6px", maxHeight: isMobile ? "34dvh" : "40vh", overflowY: "auto", paddingRight: "2px" } }}>
               {options.map((option, index) => {
                 const optionKey = buildReforgeOptionKey(option, index);
                 const selected = optionKey === selectedOptionKey;
@@ -1761,7 +1825,7 @@ function ReforgeDecisionOverlay({ state, dispatch, isMobile = false }) {
                   <button
                     key={optionKey}
                     onClick={() => setSelectedOptionKey(optionKey)}
-                    style={{
+                    {...{ style: {
                       border: `1px solid ${selected ? "var(--tone-violet, #7c3aed)" : "var(--color-border-primary, #e2e8f0)"}`,
                       background: selected ? "var(--tone-violet-soft, #f3e8ff)" : "var(--color-background-secondary, #fff)",
                       borderRadius: "10px",
@@ -1770,17 +1834,17 @@ function ReforgeDecisionOverlay({ state, dispatch, isMobile = false }) {
                       cursor: "pointer",
                       display: "grid",
                       gap: "3px",
-                    }}
+                    } }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                      <span style={{ fontSize: "0.69rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                    <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" } }}>
+                      <span {...{ style: { fontSize: "0.69rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
                         {STAT_LABELS[option?.stat] || option?.stat || "Affix"}
                       </span>
-                      <span style={{ fontSize: "0.56rem", fontWeight: "900", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "999px", padding: "2px 7px", color: "var(--color-text-secondary, #475569)", background: "var(--color-background-tertiary, #f8fafc)" }}>
+                      <span {...{ style: { fontSize: "0.56rem", fontWeight: "900", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "999px", padding: "2px 7px", color: "var(--color-text-secondary, #475569)", background: "var(--color-background-tertiary, #f8fafc)" } }}>
                         {index === 0 ? "Actual" : "Opcion"}
                       </span>
                     </div>
-                    <div style={{ fontSize: "0.64rem", fontWeight: "800", color: "var(--color-text-secondary, #475569)" }}>
+                    <div {...{ style: { fontSize: "0.64rem", fontWeight: "800", color: "var(--color-text-secondary, #475569)" } }}>
                       +{formatStatValue(option?.stat, option?.rolledValue ?? option?.value ?? 0)}
                     </div>
                   </button>
@@ -1789,11 +1853,11 @@ function ReforgeDecisionOverlay({ state, dispatch, isMobile = false }) {
             </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "8px", alignItems: "center" }}>
+          <div {...{ style: { display: "grid", gridTemplateColumns: "1fr", gap: "8px", alignItems: "center" } }}>
             {hasBrokenSession ? (
               <button
                 onClick={cancelReforge}
-                style={{
+                {...{ style: {
                   border: "1px solid var(--color-border-primary, #e2e8f0)",
                   background: "var(--color-background-secondary, #ffffff)",
                   color: "var(--color-text-primary, #1e293b)",
@@ -1802,7 +1866,7 @@ function ReforgeDecisionOverlay({ state, dispatch, isMobile = false }) {
                   fontSize: "0.68rem",
                   fontWeight: "900",
                   cursor: "pointer",
-                }}
+                } }}
               >
                 Cancelar reforja
               </button>
@@ -1810,7 +1874,7 @@ function ReforgeDecisionOverlay({ state, dispatch, isMobile = false }) {
               <button
                 disabled={!selectedOption}
                 onClick={confirmReforge}
-                style={{
+                {...{ style: {
                   border: "1px solid rgba(30,41,59,0.2)",
                   background: !selectedOption
                     ? "linear-gradient(180deg, #475569 0%, #334155 100%)"
@@ -1828,10 +1892,10 @@ function ReforgeDecisionOverlay({ state, dispatch, isMobile = false }) {
                   gap: "2px",
                   alignContent: "center",
                   justifyItems: "center",
-                }}
+                } }}
               >
-                <span style={{ fontSize: "0.64rem", fontWeight: "900", lineHeight: 1.1 }}>Aplicar opcion</span>
-                <span style={{ fontSize: "0.53rem", fontWeight: "900", lineHeight: 1.1 }}>Costo ya pagado</span>
+                <span {...{ style: { fontSize: "0.64rem", fontWeight: "900", lineHeight: 1.1 } }}>Aplicar opcion</span>
+                <span {...{ style: { fontSize: "0.53rem", fontWeight: "900", lineHeight: 1.1 } }}>Costo ya pagado</span>
               </button>
             )}
           </div>
@@ -1843,7 +1907,7 @@ function ReforgeDecisionOverlay({ state, dispatch, isMobile = false }) {
 
 function TabLoadingCard({ label }) {
   return (
-    <div style={{ padding: "18px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "220px", color: "var(--color-text-secondary, #475569)", fontWeight: "900", fontSize: "0.82rem" }}>
+    <div {...{ style: { padding: "18px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "220px", color: "var(--color-text-secondary, #475569)", fontWeight: "900", fontSize: "0.82rem" } }}>
       Cargando {label}...
     </div>
   );
@@ -1852,19 +1916,22 @@ function TabLoadingCard({ label }) {
 function OverlayLoadingCard({ label, isMobile = false }) {
   return (
     <OverlayShell isMobile={isMobile}>
-      <div style={{ width: "100%", maxWidth: "480px", borderRadius: isMobile ? "16px 16px 0 0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #ffffff)", color: "var(--color-text-secondary, #475569)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", padding: isMobile ? "18px 16px 20px" : "20px 22px", textAlign: "center", fontSize: "0.82rem", fontWeight: "900" }}>
+      <div {...{ style: { width: "100%", maxWidth: "480px", borderRadius: isMobile ? "16px 16px 0 0" : "18px", border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #ffffff)", color: "var(--color-text-secondary, #475569)", boxShadow: "0 24px 60px rgba(2,6,23,0.35)", padding: isMobile ? "18px 16px 20px" : "20px 22px", textAlign: "center", fontSize: "0.82rem", fontWeight: "900" } }}>
         Cargando {label}...
       </div>
     </OverlayShell>
   );
 }
 
-function OfflineMetric({ label, value, color }) {
+function OfflineMetric({ label, value, icon, tone = "gold" }) {
   return (
-    <div style={{ background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "10px", padding: "6px 8px", display: "flex", flexDirection: "column" }}>
-      <span style={{ fontSize: "0.5rem", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", fontWeight: "800", marginBottom: "3px" }}>{label}</span>
-      <span style={{ fontSize: "0.84rem", fontWeight: "900", color }}>{value}</span>
-    </div>
+    <FlCard variant="compact" className="fl-offline-metric" data-tone={tone}>
+      <span className="fl-offline-metric__icon" aria-hidden="true">
+        <ForgeIcon name={icon} size={22} />
+      </span>
+      <span className="fl-offline-metric__label">{label}</span>
+      <strong className="fl-offline-metric__value">{value}</strong>
+    </FlCard>
   );
 }
 
@@ -1894,70 +1961,102 @@ function OfflineSummaryPanel({ summary, isMobile, onDismiss }) {
   const animatedValue = value => formatOfflineValue((Number(value || 0) * animationProgress));
   const bestDropVisible = animationProgress >= 0.62;
   const progressPercent = Math.round(animationProgress * 100);
+  const bestDropAsset = getItemAsset("relic_warblade");
+  const bestDropHighlight = typeof summary.bestDropHighlight === "string"
+    ? summary.bestDropHighlight
+    : summary.bestDropHighlight?.label;
 
   return (
-    <div style={{ marginBottom: "10px", background: "var(--color-background-secondary, #fff)", border: "1px solid var(--color-border-primary, #22314d)", borderRadius: "14px", padding: "10px 12px", color: "var(--color-text-primary, #1e293b)", boxShadow: "0 8px 20px var(--color-shadow, rgba(0,0,0,0.12))" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", marginBottom: "8px" }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-success, #1D9E75)" }}>
-            Cronica Offline
-          </div>
-          <div style={{ fontSize: "0.84rem", fontWeight: "900", marginTop: "2px", lineHeight: 1.25 }}>
-            {getOfflineHeadline(summary)}
-          </div>
-          <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px" }}>
-            {animatedValue(summary.simulatedSeconds)}s resueltos offline
+    <FlCard variant="premium" className="fl-offline-summary">
+      <div className="fl-offline-summary__header">
+        <div className="fl-offline-summary__title-row">
+          <span className="fl-offline-summary__mark" aria-hidden="true">
+            <ForgeIcon name="mark" size={25} />
+          </span>
+          <div className="fl-offline-summary__copy">
+            <div className="fl-offline-summary__eyebrow">Cronica Offline</div>
+            <div className="fl-offline-summary__headline">
+              {getOfflineHeadline(summary)}
+            </div>
+            <div className="fl-offline-summary__time">
+              <ForgeIcon name="upgrade" size={15} />
+              {animatedValue(summary.simulatedSeconds)}s resueltos offline
+            </div>
           </div>
         </div>
-        <button onClick={onDismiss} style={{ border: "1px solid var(--color-border-primary, #22314d)", background: "var(--color-background-tertiary, #f1f5f9)", color: "var(--color-text-primary, #1e293b)", borderRadius: "999px", padding: "6px 10px", fontSize: "0.68rem", fontWeight: "900", cursor: "pointer" }}>
-          Cerrar
-        </button>
+        <FlButton
+          variant="secondary"
+          size="sm"
+          className="fl-offline-summary__close"
+          onClick={onDismiss}
+          aria-label="Cerrar cronica offline"
+          title="Cerrar"
+        >
+          <ForgeIcon name="add" size={18} />
+        </FlButton>
       </div>
 
-      <div style={{ marginBottom: "10px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "5px" }}>
-          <span style={{ fontSize: "0.56rem", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", fontWeight: "900", letterSpacing: "0.08em" }}>
-            Resolviendo resumen
-          </span>
-          <span style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "900" }}>
-            {progressPercent}%
-          </span>
+      <div className="fl-offline-summary__progress">
+        <div className="fl-offline-summary__progress-meta">
+          <span>Resolviendo resumen</span>
+          <strong>{progressPercent}%</strong>
         </div>
-        <div style={{ width: "100%", height: "8px", borderRadius: "999px", overflow: "hidden", background: "var(--color-background-tertiary, #f1f5f9)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
-          <div style={{ width: `${progressPercent}%`, height: "100%", background: "linear-gradient(90deg, var(--tone-success, #1D9E75) 0%, var(--tone-accent, #534AB7) 100%)", transition: "width 60ms linear" }} />
-        </div>
+        <FlProgressBar
+          type="progress"
+          percent={progressPercent}
+          size="lg"
+          showValue={false}
+          aria-label="Resolviendo resumen offline"
+        />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(6, 1fr)", gap: "6px" }}>
-        <OfflineMetric label="Oro" value={animatedValue(summary.goldGained)} color="var(--tone-warning, #f59e0b)" />
-        <OfflineMetric label="XP" value={animatedValue(summary.xpGained)} color="var(--tone-violet, #c4b5fd)" />
-        <OfflineMetric label="Esencia" value={animatedValue(summary.essenceGained)} color="var(--tone-accent, #a78bfa)" />
-        <OfflineMetric label="Kills" value={animatedValue(summary.killsGained)} color="var(--tone-success, #86efac)" />
-        <OfflineMetric label="Items" value={animatedValue(summary.itemsGained)} color="var(--tone-info, #67e8f9)" />
-        <OfflineMetric label="Niveles" value={animatedValue(summary.levelsGained)} color="var(--tone-danger, #fca5a5)" />
+      <div className="fl-offline-summary__metrics">
+        <OfflineMetric label="Oro" value={animatedValue(summary.goldGained)} icon="gold" tone="gold" />
+        <OfflineMetric label="XP" value={animatedValue(summary.xpGained)} icon="xp" tone="violet" />
+        <OfflineMetric label="Esencia" value={animatedValue(summary.essenceGained)} icon="essence" tone="essence" />
+        <OfflineMetric label="Kills" value={animatedValue(summary.killsGained)} icon="skull" tone="danger" />
+        <OfflineMetric label="Items" value={animatedValue(summary.itemsGained)} icon="inventory" tone="item" />
+        <OfflineMetric label="Niveles" value={animatedValue(summary.levelsGained)} icon="hero" tone="success" />
       </div>
 
       {summary.bestDropName && (
-        <div style={{ marginTop: "8px", background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "10px", padding: "8px 10px", opacity: bestDropVisible ? 1 : 0, transform: bestDropVisible ? "translateY(0)" : "translateY(6px)", transition: "opacity 220ms ease, transform 220ms ease" }}>
-          <div style={{ fontSize: "0.58rem", color: "var(--tone-success, #1D9E75)", textTransform: "uppercase", fontWeight: "900", letterSpacing: "0.08em" }}>
-            Mejor Drop
+        <FlCard
+          variant="panel"
+          className={[
+            "fl-offline-drop",
+            bestDropVisible ? "fl-offline-drop--visible" : "",
+          ].filter(Boolean).join(" ")}
+        >
+          <FlAsset
+            asset={bestDropAsset}
+            kind="item"
+            size={isMobile ? "lg" : "xl"}
+            fit="contain"
+            framed
+            rarity={summary.bestDropRarity || "epic"}
+            className="fl-offline-drop__asset"
+            alt=""
+          />
+          <div className="fl-offline-drop__body">
+            <div className="fl-offline-drop__eyebrow">Mejor Drop</div>
+            <div className="fl-offline-drop__name">
+              {summary.bestDropName}
+            </div>
+            <div className="fl-offline-drop__meta" {...{ style: { color: getRarityColor(summary.bestDropRarity) } }}>
+              {summary.bestDropRarity || "item"}{bestDropHighlight ? ` · ${bestDropHighlight}` : ""}{summary.bestDropPerfectRolls ? ` · ${summary.bestDropPerfectRolls} perfect` : ""}
+            </div>
           </div>
-          <div style={{ marginTop: "3px", fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.2 }}>
-            {summary.bestDropName}
-          </div>
-          <div style={{ marginTop: "4px", fontSize: "0.66rem", color: getRarityColor(summary.bestDropRarity), fontWeight: "900" }}>
-            {summary.bestDropRarity || "item"}{summary.bestDropHighlight?.label ? ` · ${summary.bestDropHighlight.label}` : ""}{summary.bestDropPerfectRolls ? ` · ${summary.bestDropPerfectRolls} perfect` : ""}
-          </div>
-        </div>
+        </FlCard>
       )}
-    </div>
+    </FlCard>
   );
 }
 
-function HeaderResourcePill({ label, value, color, borderColor, background, compact = false }) {
+function HeaderResourcePill({ icon, label, value, color, borderColor, background, compact = false }) {
   return (
     <div
-      style={{
+      className="fl-header-resource"
+      {...{ style: {
         display: "inline-flex",
         alignItems: "center",
         gap: "6px",
@@ -1966,12 +2065,25 @@ function HeaderResourcePill({ label, value, color, borderColor, background, comp
         border: `1px solid ${borderColor}`,
         background,
         minWidth: 0,
-      }}
+      } }}
     >
-      <span style={{ fontSize: compact ? "0.52rem" : "0.58rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+      {icon && (
+        <span
+          className={[
+            "fl-icon-frame",
+            icon === "gold" ? "fl-icon-frame--resource-gold" : "",
+            icon === "essence" ? "fl-icon-frame--resource-essence" : "",
+          ].filter(Boolean).join(" ")}
+          {...{ style: { "--fl-icon-frame-size": compact ? "23px" : "27px" } }}
+          aria-hidden="true"
+        >
+          <FlAsset kind="system" assetId={icon} size="sm" fallbackIcon={icon} alt="" />
+        </span>
+      )}
+      <span className="fl-header-resource-label" {...{ style: { fontSize: compact ? "0.52rem" : "0.58rem", fontWeight: "900", color: "var(--fl-text-2, #bda98b)", textTransform: "uppercase", letterSpacing: "0.04em" } }}>
         {label}
       </span>
-      <span style={{ fontSize: compact ? "0.72rem" : "0.78rem", fontWeight: "900", color, lineHeight: 1 }}>
+      <span className="fl-header-resource-value" {...{ style: { fontSize: compact ? "0.72rem" : "0.78rem", fontWeight: "900", color, lineHeight: 1 } }}>
         {value}
       </span>
     </div>
@@ -1981,7 +2093,7 @@ function HeaderResourcePill({ label, value, color, borderColor, background, comp
 function HeaderCompactChip({ text, color, borderColor, background }) {
   return (
     <div
-      style={{
+      {...{ style: {
         display: "inline-flex",
         alignItems: "center",
         padding: "4px 8px",
@@ -1989,9 +2101,9 @@ function HeaderCompactChip({ text, color, borderColor, background }) {
         border: `1px solid ${borderColor}`,
         background,
         minWidth: 0,
-      }}
+      } }}
     >
-      <span style={{ fontSize: "0.7rem", fontWeight: "900", color, lineHeight: 1, whiteSpace: "nowrap" }}>
+      <span {...{ style: { fontSize: "0.7rem", fontWeight: "900", color, lineHeight: 1, whiteSpace: "nowrap" } }}>
         {text}
       </span>
     </div>
@@ -2144,7 +2256,7 @@ function RunSigilOverlay({
         paddingMobile="0"
         paddingDesktop="0"
         gap="0"
-        style={{
+        {...{ style: {
           background: "var(--color-background-secondary, #fff)",
           color: "var(--color-text-primary, #1e293b)",
           borderRadius: isMobile ? "0" : "18px",
@@ -2154,47 +2266,47 @@ function RunSigilOverlay({
           flexDirection: "column",
           maxHeight: "100vh",
           overflow: "auto",
-        }}
+        } }}
       >
-        <div style={{ padding: isMobile ? "18px 16px 12px" : "20px 22px 14px", borderBottom: "1px solid var(--color-border-primary, #e2e8f0)" }}>
-          <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+        <div {...{ style: { padding: isMobile ? "18px 16px 12px" : "20px 22px 14px", borderBottom: "1px solid var(--color-border-primary, #e2e8f0)" } }}>
+          <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" } }}>
             {prestigeLevel <= 1 ? "Preparacion de salida" : "Pre-Run"}
           </div>
-          <div style={{ fontSize: isMobile ? "1.05rem" : "1.18rem", fontWeight: "900", marginTop: "4px" }}>
+          <div {...{ style: { fontSize: isMobile ? "1.05rem" : "1.18rem", fontWeight: "900", marginTop: "4px" } }}>
             Clase, contrato y sigilos para esta expedicion
           </div>
-          <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.45 }}>
+          <div {...{ style: { fontSize: "0.76rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.45 } }}>
             El contrato se fija al iniciar la run. Los sigilos definen el sesgo de drop y riesgo para esta salida.
           </div>
           {sigilSlotCount > 1 && (
-            <div style={{ fontSize: "0.72rem", color: "var(--tone-accent, #4338ca)", marginTop: "8px", fontWeight: "900" }}>
+            <div {...{ style: { fontSize: "0.72rem", color: "var(--tone-accent, #4338ca)", marginTop: "8px", fontWeight: "900" } }}>
               Abismo IV activo: podes equipar 2 sigilos. No se repiten.
             </div>
           )}
         </div>
 
-        <div style={{ padding: isMobile ? "12px 14px 0" : "16px 22px 0", display: "grid", gap: denseMobileLayout ? "8px" : "10px" }}>
-          <div style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-tertiary, #f8fafc)", borderRadius: "14px", padding: preRunCardPadding, display: "grid", gap: preRunCardGap }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "start" }}>
-              <div style={{ fontSize: denseMobileLayout ? "0.54rem" : "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-accent, #4338ca)" }}>
+        <div {...{ style: { padding: isMobile ? "12px 14px 0" : "16px 22px 0", display: "grid", gap: denseMobileLayout ? "8px" : "10px" } }}>
+          <div {...{ style: { border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-tertiary, #f8fafc)", borderRadius: "14px", padding: preRunCardPadding, display: "grid", gap: preRunCardGap } }}>
+            <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "start" } }}>
+              <div {...{ style: { fontSize: denseMobileLayout ? "0.54rem" : "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-accent, #4338ca)" } }}>
                 Clase
               </div>
             </div>
 
             {selectedClass && (
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
-                <span style={{ fontSize: "0.62rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", background: "var(--tone-accent-soft, #eef2ff)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: "999px", padding: "3px 7px" }}>
+              <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" } }}>
+                <span {...{ style: { fontSize: "0.62rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", background: "var(--tone-accent-soft, #eef2ff)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: "999px", padding: "3px 7px" } }}>
                   {selectedClass.icon} {selectedClass.name}
                 </span>
                 {selectedSpec && (
-                  <span style={{ fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "999px", padding: "3px 7px" }}>
+                  <span {...{ style: { fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "999px", padding: "3px 7px" } }}>
                     {selectedSpec.name}
                   </span>
                 )}
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: denseMobileLayout ? "6px" : "8px" }}>
+            <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: denseMobileLayout ? "6px" : "8px" } }}>
               {CLASSES.map(clase => {
                 const selected = selectedClass?.id === clase.id;
                 return (
@@ -2203,7 +2315,7 @@ function RunSigilOverlay({
                     onClick={() => {
                       if (typeof onSelectClass === "function") onSelectClass(clase.id);
                     }}
-                    style={{
+                    {...{ style: {
                       border: selected ? "1px solid rgba(99,102,241,0.4)" : "1px solid var(--color-border-primary, #e2e8f0)",
                       background: selected ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #ffffff)",
                       color: selected ? "var(--tone-accent, #4338ca)" : "var(--color-text-primary, #1e293b)",
@@ -2215,12 +2327,12 @@ function RunSigilOverlay({
                       display: "grid",
                       gap: "2px",
                       textAlign: "left",
-                    }}
+                    } }}
                   >
-                    <span style={{ fontSize: denseMobileLayout ? "0.68rem" : "0.72rem", fontWeight: "900" }}>
+                    <span {...{ style: { fontSize: denseMobileLayout ? "0.68rem" : "0.72rem", fontWeight: "900" } }}>
                       {clase.icon} {clase.name}
                     </span>
-                    <span style={{ fontSize: denseMobileLayout ? "0.54rem" : "0.56rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", lineHeight: 1.35 }}>
+                    <span {...{ style: { fontSize: denseMobileLayout ? "0.54rem" : "0.56rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", lineHeight: 1.35 } }}>
                       {clase.description}
                     </span>
                   </button>
@@ -2229,9 +2341,9 @@ function RunSigilOverlay({
             </div>
           </div>
 
-          <div style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-tertiary, #f8fafc)", borderRadius: "14px", padding: preRunCardPadding, display: "grid", gap: preRunCardGap }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "start" }}>
-              <div style={{ fontSize: denseMobileLayout ? "0.54rem" : "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-danger, #ef4444)" }}>
+          <div {...{ style: { border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-tertiary, #f8fafc)", borderRadius: "14px", padding: preRunCardPadding, display: "grid", gap: preRunCardGap } }}>
+            <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "start" } }}>
+              <div {...{ style: { fontSize: denseMobileLayout ? "0.54rem" : "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-danger, #ef4444)" } }}>
                 Contrato
               </div>
               <button
@@ -2239,7 +2351,7 @@ function RunSigilOverlay({
                   if (typeof onRerollContracts === "function") onRerollContracts();
                 }}
                 disabled={!canRerollExpeditionContracts}
-                style={{
+                {...{ style: {
                   border: "1px solid var(--color-border-primary, #e2e8f0)",
                   background: canRerollExpeditionContracts ? "var(--color-background-secondary, #ffffff)" : "var(--color-background-tertiary, #f8fafc)",
                   color: canRerollExpeditionContracts ? "var(--color-text-secondary, #475569)" : "var(--color-text-tertiary, #94a3b8)",
@@ -2248,32 +2360,32 @@ function RunSigilOverlay({
                   fontSize: denseMobileLayout ? "0.56rem" : "0.58rem",
                   fontWeight: "900",
                   cursor: canRerollExpeditionContracts ? "pointer" : "not-allowed",
-                }}
+                } }}
               >
                 {`Reroll (${Number(contractRerollCost?.relicDust || 0)} polvo · ${Number(contractRerollCost?.sigilFlux || 0)} flux)`}
               </button>
             </div>
 
-            <div style={{ fontSize: denseMobileLayout ? "0.6rem" : "0.62rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35 }}>
+            <div {...{ style: { fontSize: denseMobileLayout ? "0.6rem" : "0.62rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35 } }}>
               {featuredExpeditionContract
                 ? `${featuredExpeditionContract.title || featuredExpeditionContract.goal?.name || "Objetivo"}`
                 : "No hay contrato activo. Selecciona uno antes de iniciar."}
             </div>
 
             {featuredExpeditionContract && (
-              <div style={{ height: preRunProgressHeight, borderRadius: "999px", overflow: "hidden", background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-primary, #e2e8f0)" }}>
+              <div {...{ style: { height: preRunProgressHeight, borderRadius: "999px", overflow: "hidden", background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-primary, #e2e8f0)" } }}>
                 <div
-                  style={{
+                  {...{ style: {
                     width: `${Math.max(0, Math.min(100, Number(featuredExpeditionContract.progress?.percent || 0)))}%`,
                     height: "100%",
                     background: featuredExpeditionContract.progress?.completed ? "var(--tone-success, #10b981)" : "var(--tone-warning, #f59e0b)",
-                  }}
+                  } }}
                 />
               </div>
             )}
 
             {expeditionContractEntries.length > 0 && (
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: denseMobileLayout ? "6px" : "8px" }}>
+              <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: denseMobileLayout ? "6px" : "8px" } }}>
                 {expeditionContractEntries.map(contract => {
                   const selected = contract?.id === (expeditionContracts?.activeContractId || null);
                   const claimed = Boolean(contract?.claimed);
@@ -2303,7 +2415,7 @@ function RunSigilOverlay({
                         if (typeof onSelectContract === "function") onSelectContract(contract.id);
                       }}
                       disabled={optionDisabled}
-                      style={{
+                      {...{ style: {
                         textAlign: "left",
                         display: "grid",
                         gap: preRunOptionGap,
@@ -2324,18 +2436,18 @@ function RunSigilOverlay({
                         fontWeight: "800",
                         cursor: optionDisabled ? "not-allowed" : "pointer",
                         opacity: optionDisabled ? 0.72 : 1,
-                      }}
+                      } }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: denseMobileLayout ? "6px" : "8px", alignItems: "start" }}>
-                        <span style={{ fontSize: preRunOptionTitleSize, fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                      <div {...{ style: { display: "flex", justifyContent: "space-between", gap: denseMobileLayout ? "6px" : "8px", alignItems: "start" } }}>
+                        <span {...{ style: { fontSize: preRunOptionTitleSize, fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
                           {contract.title || contract.goal?.name || "Contrato"}
                         </span>
-                        <span style={{ fontSize: preRunOptionMetaSize, fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                        <span {...{ style: { fontSize: preRunOptionMetaSize, fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" } }}>
                           {statusLabel}
                         </span>
                       </div>
                       <div
-                        style={{
+                        {...{ style: {
                           fontSize: preRunOptionCopySize,
                           lineHeight: 1.35,
                           color: "var(--color-text-secondary, #475569)",
@@ -2343,18 +2455,18 @@ function RunSigilOverlay({
                           WebkitLineClamp: denseMobileLayout ? 2 : 3,
                           WebkitBoxOrient: "vertical",
                           overflow: "hidden",
-                        }}
+                        } }}
                       >
                         {missionDetail}
                       </div>
-                      <div style={{ fontSize: preRunOptionMetaSize, fontWeight: "900", color: "var(--tone-info, #0369a1)" }}>
+                      <div {...{ style: { fontSize: preRunOptionMetaSize, fontWeight: "900", color: "var(--tone-info, #0369a1)" } }}>
                         Objetivo: {progressCurrent}/{progressTarget}
                       </div>
-                      <div style={{ display: "flex", gap: denseMobileLayout ? "3px" : "4px", flexWrap: "wrap" }}>
+                      <div {...{ style: { display: "flex", gap: denseMobileLayout ? "3px" : "4px", flexWrap: "wrap" } }}>
                         {rewardParts.length > 0 ? rewardParts.map(reward => (
                           <span
                             key={`${contract.id}-${reward}`}
-                            style={{
+                            {...{ style: {
                               fontSize: preRunOptionChipSize,
                               fontWeight: "900",
                               color: "var(--tone-success-strong, #047857)",
@@ -2362,12 +2474,12 @@ function RunSigilOverlay({
                               border: "1px solid rgba(16,185,129,0.18)",
                               borderRadius: "999px",
                               padding: denseMobileLayout ? "2px 5px" : "2px 6px",
-                            }}
+                            } }}
                           >
                             {reward}
                           </span>
                         )) : (
-                          <span style={{ fontSize: preRunOptionChipSize, fontWeight: "800", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                          <span {...{ style: { fontSize: preRunOptionChipSize, fontWeight: "800", color: "var(--color-text-tertiary, #94a3b8)" } }}>
                             Sin recompensa definida
                           </span>
                         )}
@@ -2379,22 +2491,22 @@ function RunSigilOverlay({
             )}
           </div>
 
-          <div style={{ border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-tertiary, #f8fafc)", borderRadius: "14px", padding: preRunCardPadding, display: "grid", gap: denseMobileLayout ? "6px" : "7px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "start" }}>
-              <div style={{ display: "grid", gap: "4px" }}>
-                <div style={{ fontSize: denseMobileLayout ? "0.54rem" : "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-accent, #4338ca)" }}>
+          <div {...{ style: { border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-tertiary, #f8fafc)", borderRadius: "14px", padding: preRunCardPadding, display: "grid", gap: denseMobileLayout ? "6px" : "7px" } }}>
+            <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", alignItems: "start" } }}>
+              <div {...{ style: { display: "grid", gap: "4px" } }}>
+                <div {...{ style: { fontSize: denseMobileLayout ? "0.54rem" : "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--tone-accent, #4338ca)" } }}>
                   Sigilo
                 </div>
-                <div style={{ fontSize: denseMobileLayout ? "0.9rem" : "0.94rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                <div {...{ style: { fontSize: denseMobileLayout ? "0.9rem" : "0.94rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
                   Sesgo de expedicion
                 </div>
               </div>
-              <div style={{ fontSize: denseMobileLayout ? "0.62rem" : "0.64rem", fontWeight: "900", color: "var(--tone-info, #0369a1)" }}>
+              <div {...{ style: { fontSize: denseMobileLayout ? "0.62rem" : "0.64rem", fontWeight: "900", color: "var(--tone-info, #0369a1)" } }}>
                 Slot activo: {activeSlotIndex + 1} · {currentPendingRunSigil.shortName || currentPendingRunSigil.name}
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: denseMobileLayout ? "6px" : "8px" }}>
+            <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: denseMobileLayout ? "6px" : "8px" } }}>
               <CompactSigilSummaryLine
                 label="Premia"
                 tone="success"
@@ -2410,7 +2522,7 @@ function RunSigilOverlay({
             </div>
 
             {sigilSlotCount > 1 && (
-              <div style={{ display: "flex", gap: denseMobileLayout ? "6px" : "8px", flexWrap: "wrap" }}>
+              <div {...{ style: { display: "flex", gap: denseMobileLayout ? "6px" : "8px", flexWrap: "wrap" } }}>
                 {pendingRunSigilIds.map((sigilId, index) => {
                   const sigil = getRunSigil(sigilId);
                   const active = index === activeSlotIndex;
@@ -2418,7 +2530,7 @@ function RunSigilOverlay({
                     <button
                       key={`sigil-slot-${index + 1}`}
                       onClick={() => setActiveSlotIndex(index)}
-                      style={{
+                      {...{ style: {
                         border: "1px solid",
                         borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
                         background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #fff)",
@@ -2428,7 +2540,7 @@ function RunSigilOverlay({
                         fontSize: denseMobileLayout ? "0.64rem" : "0.68rem",
                         fontWeight: "900",
                         cursor: "pointer",
-                      }}
+                      } }}
                     >
                       {`Slot ${index + 1}: ${sigil.shortName || sigil.name}`}
                     </button>
@@ -2437,11 +2549,11 @@ function RunSigilOverlay({
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: `${preRunSelectorColWidth} minmax(0, 1fr) ${preRunSelectorColWidth}`, gap: denseMobileLayout ? "6px" : "8px", alignItems: "stretch" }}>
+            <div {...{ style: { display: "grid", gridTemplateColumns: `${preRunSelectorColWidth} minmax(0, 1fr) ${preRunSelectorColWidth}`, gap: denseMobileLayout ? "6px" : "8px", alignItems: "stretch" } }}>
               <button
                 onClick={() => handleCycleSigil(-1)}
                 disabled={availableRunSigils.length <= 1}
-                style={{
+                {...{ style: {
                   border: "1px solid var(--color-border-primary, #e2e8f0)",
                   background: availableRunSigils.length > 1 ? "var(--color-background-secondary, #ffffff)" : "var(--color-background-tertiary, #f8fafc)",
                   color: availableRunSigils.length > 1 ? "var(--color-text-secondary, #475569)" : "var(--color-text-tertiary, #94a3b8)",
@@ -2450,14 +2562,14 @@ function RunSigilOverlay({
                   fontSize: denseMobileLayout ? "0.74rem" : "0.8rem",
                   fontWeight: "900",
                   cursor: availableRunSigils.length > 1 ? "pointer" : "not-allowed",
-                }}
+                } }}
               >
                 {"<"}
               </button>
               {currentCarouselSigil && (
                 <button
                   onClick={() => onSelect(currentCarouselSigil.id, activeSlotIndex)}
-                  style={{
+                  {...{ style: {
                     textAlign: "left",
                     border: "1px solid",
                     borderColor: currentPendingRunSigil.id === currentCarouselSigil.id ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
@@ -2468,27 +2580,27 @@ function RunSigilOverlay({
                     cursor: "pointer",
                     display: "grid",
                     gap: preRunOptionGap,
-                  }}
+                  } }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
-                    <div style={{ display: "grid", gap: "2px" }}>
-                      <div style={{ fontSize: preRunOptionTitleSize, fontWeight: "900", color: "var(--color-text-primary, #1e293b)" }}>
+                  <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" } }}>
+                    <div {...{ style: { display: "grid", gap: "2px" } }}>
+                      <div {...{ style: { fontSize: preRunOptionTitleSize, fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
                         {currentCarouselSigil.name}
                       </div>
-                      <div style={{ fontSize: preRunOptionChipSize, fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: currentPendingRunSigil.id === currentCarouselSigil.id ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)" }}>
+                      <div {...{ style: { fontSize: preRunOptionChipSize, fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: currentPendingRunSigil.id === currentCarouselSigil.id ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)" } }}>
                         {currentCarouselSigil.focus}
                       </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span style={{ fontSize: preRunOptionChipSize, fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                    <div {...{ style: { display: "flex", alignItems: "center", gap: "6px" } }}>
+                      <span {...{ style: { fontSize: preRunOptionChipSize, fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" } }}>
                         {availableRunSigils.length > 0
                           ? `${sigilCarouselIndex + 1}/${availableRunSigils.length}`
                           : "0/0"}
                       </span>
-                      <span style={{ minWidth: "18px", height: "18px", borderRadius: "999px", border: "2px solid", borderColor: currentPendingRunSigil.id === currentCarouselSigil.id ? "var(--tone-accent, #4338ca)" : "var(--color-border-tertiary, #cbd5e1)", background: currentPendingRunSigil.id === currentCarouselSigil.id ? "var(--tone-accent, #4338ca)" : "transparent" }} />
+                      <span {...{ style: { minWidth: "18px", height: "18px", borderRadius: "999px", border: "2px solid", borderColor: currentPendingRunSigil.id === currentCarouselSigil.id ? "var(--tone-accent, #4338ca)" : "var(--color-border-tertiary, #cbd5e1)", background: currentPendingRunSigil.id === currentCarouselSigil.id ? "var(--tone-accent, #4338ca)" : "transparent" } }} />
                     </div>
                   </div>
-                  <div style={{
+                  <div {...{ style: {
                     fontSize: preRunOptionCopySize,
                     color: "var(--color-text-secondary, #475569)",
                     lineHeight: SIGIL_CARD_COPY_LINE_HEIGHT,
@@ -2498,7 +2610,7 @@ function RunSigilOverlay({
                     WebkitLineClamp: SIGIL_CARD_COPY_LINES,
                     WebkitBoxOrient: "vertical",
                     overflow: "hidden",
-                  }}>
+                  } }}>
                     {currentCarouselSigil.summary}
                   </div>
                 </button>
@@ -2506,7 +2618,7 @@ function RunSigilOverlay({
               <button
                 onClick={() => handleCycleSigil(1)}
                 disabled={availableRunSigils.length <= 1}
-                style={{
+                {...{ style: {
                   border: "1px solid var(--color-border-primary, #e2e8f0)",
                   background: availableRunSigils.length > 1 ? "var(--color-background-secondary, #ffffff)" : "var(--color-background-tertiary, #f8fafc)",
                   color: availableRunSigils.length > 1 ? "var(--color-text-secondary, #475569)" : "var(--color-text-tertiary, #94a3b8)",
@@ -2515,7 +2627,7 @@ function RunSigilOverlay({
                   fontSize: denseMobileLayout ? "0.74rem" : "0.8rem",
                   fontWeight: "900",
                   cursor: availableRunSigils.length > 1 ? "pointer" : "not-allowed",
-                }}
+                } }}
               >
                 {">"}
               </button>
@@ -2523,11 +2635,11 @@ function RunSigilOverlay({
           </div>
         </div>
 
-        <div style={{ padding: isMobile ? "0 14px 16px" : "0 22px 22px", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: denseMobileLayout ? "10px" : "12px", flexWrap: "wrap" }}>
+        <div {...{ style: { padding: isMobile ? "0 14px 16px" : "0 22px 22px", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: denseMobileLayout ? "10px" : "12px", flexWrap: "wrap" } }}>
           <button
             onClick={onStart}
             disabled={!canStartRun}
-            style={{
+            {...{ style: {
               border: canStartRun ? "1px solid var(--tone-accent, #4338ca)" : "1px solid var(--color-border-primary, #e2e8f0)",
               background: canStartRun ? "var(--tone-accent, #4338ca)" : "var(--color-background-tertiary, #f8fafc)",
               color: canStartRun ? "#fff" : "var(--color-text-tertiary, #94a3b8)",
@@ -2536,7 +2648,7 @@ function RunSigilOverlay({
               fontSize: denseMobileLayout ? "0.68rem" : "0.72rem",
               fontWeight: "900",
               cursor: canStartRun ? "pointer" : "not-allowed",
-            }}
+            } }}
           >
             Empezar corrida
           </button>
@@ -2564,21 +2676,36 @@ function CompactSigilSummaryLine({ label, tone = "success", items = [], emptyLab
   const compactText = Array.isArray(items) && items.length > 0 ? items.join(" · ") : emptyLabel;
   return (
     <div
-      style={{
+      {...{ style: {
         display: "grid",
         gap: "3px",
         border: `1px solid ${palette.border}`,
         background: palette.bg,
         borderRadius: "10px",
         padding: "6px 8px",
-      }}
+      } }}
     >
-      <div style={{ fontSize: "0.52rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: palette.label }}>
+      <div {...{ style: { fontSize: "0.52rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: palette.label } }}>
         {label}
       </div>
-      <div style={{ fontSize: "0.62rem", fontWeight: "800", color: compactText ? palette.text : "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.35 }}>
+      <div {...{ style: { fontSize: "0.62rem", fontWeight: "800", color: compactText ? palette.text : "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.35 } }}>
         {compactText || emptyLabel}
       </div>
     </div>
   );
+}
+
+export default function App() {
+  const showForgeLightKitDemo = typeof window !== "undefined" && window.location.hash === "#forge-light-kit-demo";
+  const showForgeLightCombatTrial = typeof window !== "undefined" && window.location.hash === "#forge-light-prueba";
+
+  if (showForgeLightKitDemo) {
+    return (
+      <Suspense fallback={<div className="fl-kit-demo__loading">Cargando Forge Light UI Kit...</div>}>
+        <ForgeLightKitDemo />
+      </Suspense>
+    );
+  }
+
+  return <GameApp forceForgeLightCombatTrial={showForgeLightCombatTrial} />;
 }

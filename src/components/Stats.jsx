@@ -813,25 +813,25 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
   };
 
   return (
-    <div style={{ padding: 0, display: "flex", flexDirection: "column", gap: "12px", background: isDarkMode ? "linear-gradient(180deg, var(--color-background-primary, #0b1220) 0%, var(--color-background-secondary, #111a2e) 100%)" : "linear-gradient(180deg, var(--color-background-primary, #f8fafc) 0%, var(--color-background-tertiary, #eef6f4) 100%)", color: "var(--color-text-primary, #1e293b)" }}>
+    <div className="stats-root" {...{ style: { padding: 0, display: "flex", flexDirection: "column", gap: "12px", color: "var(--color-text-primary, #1e293b)" } }}>
       {isLab && (
-        <section style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
-          <div style={lightPanelStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", flexWrap: "wrap" }}>
+        <section {...{ style: { display: "grid", gridTemplateColumns: "1fr", gap: "10px" } }}>
+          <div {...{ style: lightPanelStyle }}>
+            <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", flexWrap: "wrap" } }}>
               <div>
-                <div style={sectionTitleStyle}>Laboratorio</div>
-                <div style={{ fontSize: "0.84rem", color: "#102a43", fontWeight: "900", marginTop: "3px" }}>
+                <div {...{ style: sectionTitleStyle }}>Laboratorio</div>
+                <div {...{ style: { fontSize: "0.84rem", color: "#102a43", fontWeight: "900", marginTop: "3px" } }}>
                   Save, replay y tester
                 </div>
-                <div style={{ fontSize: "0.7rem", color: "#64748b", marginTop: "4px", lineHeight: 1.4 }}>
+                <div {...{ style: { fontSize: "0.7rem", color: "#64748b", marginTop: "4px", lineHeight: 1.4 } }}>
                   Herramientas de backup, dataset y simulacion separadas de las metricas de juego.
                 </div>
               </div>
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                <div style={pillStyle("rgba(15,118,110,0.12)", "#0f766e", "rgba(15,118,110,0.22)")}>
+              <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
+                <div {...{ style: pillStyle("rgba(15,118,110,0.12)", "#0f766e", "rgba(15,118,110,0.22)") }}>
                   Replays {formatNumber(activeReplayLibraryEntries.length + (hasCurrentReplayData ? 1 : 0))}
                 </div>
-                <div style={pillStyle("rgba(99,102,241,0.10)", "#4338ca", "rgba(99,102,241,0.22)")}>
+                <div {...{ style: pillStyle("rgba(99,102,241,0.10)", "#4338ca", "rgba(99,102,241,0.22)") }}>
                   Recovery {recoveryMode ? "ON" : "OFF"}
                 </div>
               </div>
@@ -856,7 +856,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                 flexShrink: 0,
               })}
               renderOption={({ option }) => (
-                <span style={{ fontSize: "0.66rem", fontWeight: "900" }}>{option.label}</span>
+                <span {...{ style: { fontSize: "0.66rem", fontWeight: "900" } }}>{option.label}</span>
               )}
             />
           </div>
@@ -864,53 +864,53 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
       )}
 
       {isStatsMode && (
-      <section style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
+      <section {...{ style: { display: "grid", gridTemplateColumns: "1fr", gap: "10px" } }}>
         {Number(prestige.level || 0) >= 1 && (
-          <div style={lightPanelStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", flexWrap: "wrap" }}>
+          <div {...{ style: lightPanelStyle }}>
+            <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", flexWrap: "wrap" } }}>
               <div>
-                <div style={sectionTitleStyle}>Ecos</div>
-                <div style={{ fontSize: "0.8rem", color: "#102a43", fontWeight: "900", marginTop: "3px" }}>
+                <div {...{ style: sectionTitleStyle }}>Ecos</div>
+                <div {...{ style: { fontSize: "0.8rem", color: "#102a43", fontWeight: "900", marginTop: "3px" } }}>
                   P{formatNumber(prestige.level || 0)} · Resonancia {formatNumber(prestigeResonance.totalEchoesEarned || 0)} ecos
                 </div>
-                <div style={{ fontSize: "0.7rem", color: "#64748b", marginTop: "4px", lineHeight: 1.4 }}>
+                <div {...{ style: { fontSize: "0.7rem", color: "#64748b", marginTop: "4px", lineHeight: 1.4 } }}>
                   {prestigeStatus.ok
                     ? `Listo para resetear: +${formatNumber(projectedPoints)} ecos.`
                     : "Segui empujando la corrida; el detalle completo vive en Ecos."}
                 </div>
               </div>
-              <div style={{ ...pillStyle(prestigeStatus.ok ? "rgba(245,158,11,0.12)" : "rgba(148,163,184,0.12)", prestigeStatus.ok ? "#f59e0b" : "#64748b", prestigeStatus.ok ? "rgba(245,158,11,0.28)" : "rgba(148,163,184,0.24)") }}>
+              <div {...{ style: { ...pillStyle(prestigeStatus.ok ? "rgba(245,158,11,0.12)" : "rgba(148,163,184,0.12)", prestigeStatus.ok ? "#f59e0b" : "#64748b", prestigeStatus.ok ? "rgba(245,158,11,0.28)" : "rgba(148,163,184,0.24)") } }}>
                 {prestigeStatus.ok ? `+${formatNumber(projectedPoints)} ecos` : `${formatNumber(projectedPoints)} ecos potenciales`}
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" }}>
-              <div style={pillStyle("rgba(15,118,110,0.12)", "#0f766e", "rgba(15,118,110,0.22)")}>
+            <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "10px" } }}>
+              <div {...{ style: pillStyle("rgba(15,118,110,0.12)", "#0f766e", "rgba(15,118,110,0.22)") }}>
                 Ecos {formatNumber(prestige.echoes || 0)}
               </div>
-              <div style={pillStyle("rgba(148,163,184,0.12)", "#475569", "rgba(148,163,184,0.24)")}>
+              <div {...{ style: pillStyle("rgba(148,163,184,0.12)", "#475569", "rgba(148,163,184,0.24)") }}>
                 Tier max {formatNumber(analytics.maxTierReached || combat.maxTier || 1)}
               </div>
-              <div style={pillStyle("rgba(148,163,184,0.12)", "#475569", "rgba(148,163,184,0.24)")}>
+              <div {...{ style: pillStyle("rgba(148,163,184,0.12)", "#475569", "rgba(148,163,184,0.24)") }}>
                 Nivel max {formatNumber(analytics.maxLevelReached || player.level)}
               </div>
-              <div style={pillStyle("rgba(99,102,241,0.10)", "#4338ca", "rgba(99,102,241,0.22)")}>
+              <div {...{ style: pillStyle("rgba(99,102,241,0.10)", "#4338ca", "rgba(99,102,241,0.22)") }}>
                 Total ganado {formatNumber(prestige.totalEchoesEarned || 0)} ecos
               </div>
             </div>
           </div>
         )}
 
-        <div style={lightPanelStyle}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", marginBottom: "10px", flexWrap: "wrap" }}>
+        <div {...{ style: lightPanelStyle }}>
+          <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "start", gap: "10px", marginBottom: "10px", flexWrap: "wrap" } }}>
             <div>
-              <div style={sectionTitleStyle}>Corrida Actual</div>
-              <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>Lectura rapida de la run activa para sentir ritmo y riesgo.</div>
+              <div {...{ style: sectionTitleStyle }}>Corrida Actual</div>
+              <div {...{ style: { fontSize: "0.74rem", color: "#64748b", marginTop: "3px" } }}>Lectura rapida de la run activa para sentir ritmo y riesgo.</div>
             </div>
-            <div style={{ ...pillStyle(`${buildStatus.color}15`, buildStatus.color, `${buildStatus.color}55`) }}>{buildStatus.label}</div>
+            <div {...{ style: { ...pillStyle(`${buildStatus.color}15`, buildStatus.color, `${buildStatus.color}55`) } }}>{buildStatus.label}</div>
           </div>
 
-          <div style={tableStyle}>
+          <div {...{ style: tableStyle }}>
             {runRows.map(row => (
               <DataRow key={row.label} label={row.label} value={row.value} accent={row.accent} />
             ))}
@@ -919,32 +919,32 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
       </section>
       )}
 
-      {isLab && labSectionVisible("diagnostics") && <section style={lightPanelStyle}>
-        <button onClick={() => toggleSection("diagnostics")} style={accordionHeaderButtonStyle}>
+      {isLab && labSectionVisible("diagnostics") && <section {...{ style: lightPanelStyle }}>
+        <button onClick={() => toggleSection("diagnostics")} {...{ style: accordionHeaderButtonStyle }}>
           <div>
-            <div style={sectionTitleStyle}>Diagnostico</div>
-            <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>
+            <div {...{ style: sectionTitleStyle }}>Diagnostico</div>
+            <div {...{ style: { fontSize: "0.74rem", color: "#64748b", marginTop: "3px" } }}>
               Estado actual del save, onboarding, fases y unlocks clave para detectar cuentas rotas o mal migradas.
             </div>
           </div>
-          <span style={accordionLabelStyle}>{openSections.diagnostics ? "Ocultar" : "Ver"}</span>
+          <span {...{ style: accordionLabelStyle }}>{openSections.diagnostics ? "Ocultar" : "Ver"}</span>
         </button>
 
         {openSections.diagnostics && (
           <>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" }}>
-              <button onClick={handleCopyDiagnostics} style={actionBtnStyle("#0f766e", "#ffffff")}>
+            <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" } }}>
+              <button onClick={handleCopyDiagnostics} {...{ style: actionBtnStyle("#0f766e", "#ffffff") }}>
                 {diagnosticsCopied ? "Diagnostico copiado" : "Copiar diagnostico"}
               </button>
-              <button onClick={handleRepairSave} style={actionBtnStyle("#ffffff", "#b45309", "1px solid #fcd34d")}>
+              <button onClick={handleRepairSave} {...{ style: actionBtnStyle("#ffffff", "#b45309", "1px solid #fcd34d") }}>
                 Reparar save
               </button>
-              <button onClick={handleResetSave} style={actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca")}>
+              <button onClick={handleResetSave} {...{ style: actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca") }}>
                 Reiniciar progreso
               </button>
             </div>
 
-            <div style={tableStyle}>
+            <div {...{ style: tableStyle }}>
               {diagnosticsRows.map(row => (
                 <DataRow key={`diag-${row.label}`} label={row.label} value={row.value} />
               ))}
@@ -953,40 +953,40 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
         )}
       </section>}
 
-      {isLab && labSectionVisible("qa") && <section style={lightPanelStyle}>
-        <button onClick={() => toggleSection("qa")} style={accordionHeaderButtonStyle}>
+      {isLab && labSectionVisible("qa") && <section {...{ style: lightPanelStyle }}>
+        <button onClick={() => toggleSection("qa")} {...{ style: accordionHeaderButtonStyle }}>
           <div>
-            <div style={sectionTitleStyle}>QA onboarding tardio</div>
-            <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>
+            <div {...{ style: sectionTitleStyle }}>QA onboarding tardio</div>
+            <div {...{ style: { fontSize: "0.74rem", color: "#64748b", marginTop: "3px" } }}>
               Fuerza popups informativos post-Ecos para revisar copy, tabs y cierre sin depender de una run larga.
             </div>
           </div>
-          <span style={accordionLabelStyle}>{openSections.qa ? "Ocultar" : "Ver"}</span>
+          <span {...{ style: accordionLabelStyle }}>{openSections.qa ? "Ocultar" : "Ver"}</span>
         </button>
 
         {openSections.qa && (
           <>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" }}>
-              <button onClick={() => dispatch({ type: "SET_QA_ONBOARDING_STEP", step: null })} style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}>
+            <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" } }}>
+              <button onClick={() => dispatch({ type: "SET_QA_ONBOARDING_STEP", step: null })} {...{ style: actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe") }}>
                 Limpiar beat QA
               </button>
-              <div style={{ ...pillStyle("rgba(99,102,241,0.10)", "#4338ca", "rgba(99,102,241,0.22)") }}>
+              <div {...{ style: { ...pillStyle("rgba(99,102,241,0.10)", "#4338ca", "rgba(99,102,241,0.22)") } }}>
                 Paso actual: {state?.onboarding?.step || "sin beat"}
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
+            <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" } }}>
               {QA_ONBOARDING_BEATS.map(entry => (
-                <div key={entry.id} style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
-                  <div style={{ display: "grid", gap: "5px" }}>
-                    <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "#1e293b" }}>{entry.label}</div>
-                    <div style={{ fontSize: "0.66rem", color: "#64748b", lineHeight: 1.4 }}>{entry.description}</div>
-                    <div style={{ fontSize: "0.58rem", color: "#94a3b8", fontWeight: "900" }}>{entry.id}</div>
+                <div key={entry.id} {...{ style: { ...tableStyle, paddingTop: "10px", paddingBottom: "10px" } }}>
+                  <div {...{ style: { display: "grid", gap: "5px" } }}>
+                    <div {...{ style: { fontSize: "0.74rem", fontWeight: "900", color: "#1e293b" } }}>{entry.label}</div>
+                    <div {...{ style: { fontSize: "0.66rem", color: "#64748b", lineHeight: 1.4 } }}>{entry.description}</div>
+                    <div {...{ style: { fontSize: "0.58rem", color: "#94a3b8", fontWeight: "900" } }}>{entry.id}</div>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "10px" }}>
+                  <div {...{ style: { display: "flex", justifyContent: "flex-end", marginTop: "10px" } }}>
                     <button
                       onClick={() => dispatch({ type: "SET_QA_ONBOARDING_STEP", step: entry.id })}
-                      style={actionBtnStyle("#1d4ed8", "#ffffff")}
+                      {...{ style: actionBtnStyle("#1d4ed8", "#ffffff") }}
                     >
                       Forzar beat
                     </button>
@@ -998,20 +998,20 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
         )}
       </section>}
 
-      {isLab && labSectionVisible("accountTelemetry") && <section style={lightPanelStyle}>
-        <button onClick={() => toggleSection("accountTelemetry")} style={accordionHeaderButtonStyle}>
+      {isLab && labSectionVisible("accountTelemetry") && <section {...{ style: lightPanelStyle }}>
+        <button onClick={() => toggleSection("accountTelemetry")} {...{ style: accordionHeaderButtonStyle }}>
           <div>
-            <div style={sectionTitleStyle}>Telemetria de Cuenta</div>
-            <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>
+            <div {...{ style: sectionTitleStyle }}>Telemetria de Cuenta</div>
+            <div {...{ style: { fontSize: "0.74rem", color: "#64748b", marginTop: "3px" } }}>
               Online/offline, uso por fase, tiempos a hitos y adopcion real de sistemas del Santuario para balance futuro.
             </div>
           </div>
-          <span style={accordionLabelStyle}>{openSections.accountTelemetry ? "Ocultar" : "Ver"}</span>
+          <span {...{ style: accordionLabelStyle }}>{openSections.accountTelemetry ? "Ocultar" : "Ver"}</span>
         </button>
 
         {openSections.accountTelemetry && (
           <>
-            <div style={{ display: "grid", gap: "8px", marginTop: "10px", marginBottom: "10px" }}>
+            <div {...{ style: { display: "grid", gap: "8px", marginTop: "10px", marginBottom: "10px" } }}>
               <HorizontalOptionSelector
                 rootStyle={{}}
                 options={TELEMETRY_VIEW_OPTIONS}
@@ -1032,7 +1032,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                   flexShrink: 0,
                 })}
                 renderOption={({ option }) => (
-                  <span style={{ fontSize: "0.62rem", fontWeight: "900" }}>{option.label}</span>
+                  <span {...{ style: { fontSize: "0.62rem", fontWeight: "900" } }}>{option.label}</span>
                 )}
               />
               <HorizontalOptionSelector
@@ -1055,38 +1055,38 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                   flexShrink: 0,
                 })}
                 renderOption={({ option }) => (
-                  <span style={{ fontSize: "0.62rem", fontWeight: "900" }}>{option.label}</span>
+                  <span {...{ style: { fontSize: "0.62rem", fontWeight: "900" } }}>{option.label}</span>
                 )}
               />
 
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                <button onClick={handleCopyAccountTelemetry} style={actionBtnStyle("#0f766e", "#ffffff")}>
+              <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap" } }}>
+                <button onClick={handleCopyAccountTelemetry} {...{ style: actionBtnStyle("#0f766e", "#ffffff") }}>
                   {accountTelemetryCopied ? "Telemetria copiada" : (analyticsReportMode === "compact" ? "Copiar telemetria compacta" : "Copiar reporte de cuenta")}
                 </button>
-                <button onClick={handleCopyAccountTelemetryPayload} style={actionBtnStyle("#ffffff", "#7c3aed", "1px solid #ddd6fe")}>
+                <button onClick={handleCopyAccountTelemetryPayload} {...{ style: actionBtnStyle("#ffffff", "#7c3aed", "1px solid #ddd6fe") }}>
                   {accountTelemetryPayloadCopied
                     ? `${analyticsPayloadMode === "full" ? "Payload completo" : "Payload compacto"} copiado`
                     : `Copiar payload IA ${analyticsPayloadMode === "full" ? "completo" : "compacto"} (JSON)`}
                 </button>
               </div>
-              <div style={{ fontSize: "0.66rem", color: "#64748b", lineHeight: 1.4 }}>
+              <div {...{ style: { fontSize: "0.66rem", color: "#64748b", lineHeight: 1.4 } }}>
                 {analyticsReportMode === "compact"
                   ? "Compacta: combina sesion + cuenta + alertas KPI para balance rapido."
                   : "Completa: mantiene el desglose completo para debugging fino."}
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
+            <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" } }}>
               {accountTelemetryView.sections.map(section => (
-                <div key={section.id} style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
-                  <div style={sectionTitleStyle}>{section.title}</div>
+                <div key={section.id} {...{ style: { ...tableStyle, paddingTop: "10px", paddingBottom: "10px" } }}>
+                  <div {...{ style: sectionTitleStyle }}>{section.title}</div>
                   {(accountTelemetryExpandedSections[section.id] ? (section.rows || []) : (section.rows || []).slice(0, PREVIEW_ROW_LIMIT)).map(entry => (
                     <DataRow key={`${section.id}-${entry.label}`} label={entry.label} value={entry.value} />
                   ))}
                   {(section.rows || []).length > PREVIEW_ROW_LIMIT && (
                     <button
                       onClick={() => toggleAccountTelemetryRows(section.id)}
-                      style={{ ...actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe"), marginTop: "8px" }}
+                      {...{ style: { ...actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe"), marginTop: "8px" } }}
                     >
                       {accountTelemetryExpandedSections[section.id] ? "Ver menos" : `Ver ${(section.rows || []).length - PREVIEW_ROW_LIMIT} mas`}
                     </button>
@@ -1098,129 +1098,129 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
         )}
       </section>}
 
-      {isLab && labSectionVisible("save") && <section style={lightPanelStyle}>
-        <button onClick={() => toggleSection("save")} style={accordionHeaderButtonStyle}>
+      {isLab && labSectionVisible("save") && <section {...{ style: lightPanelStyle }}>
+        <button onClick={() => toggleSection("save")} {...{ style: accordionHeaderButtonStyle }}>
           <div>
-            <div style={sectionTitleStyle}>Save</div>
-            <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>
+            <div {...{ style: sectionTitleStyle }}>Save</div>
+            <div {...{ style: { fontSize: "0.74rem", color: "#64748b", marginTop: "3px" } }}>
               Exporta, importa, resetea o fuerza un guardado sin salir del juego.
             </div>
           </div>
-          <span style={accordionLabelStyle}>{openSections.save ? "Ocultar" : "Ver"}</span>
+          <span {...{ style: accordionLabelStyle }}>{openSections.save ? "Ocultar" : "Ver"}</span>
         </button>
 
         {openSections.save && (
           <>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" }}>
-              <button onClick={handleSaveNow} style={actionBtnStyle("#0f766e", "#ffffff")}>Guardar ahora</button>
-              <button onClick={handleCopySave} style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}>{saveCopied ? "Save copiado" : "Copiar JSON save"}</button>
-              <button onClick={handleDownloadSave} style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}>Descargar save</button>
-              <button onClick={handleRepairSave} style={actionBtnStyle("#ffffff", "#b45309", "1px solid #fcd34d")}>Reparar save</button>
-              <button onClick={handleResetSave} style={actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca")}>Reiniciar progreso</button>
+            <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" } }}>
+              <button onClick={handleSaveNow} {...{ style: actionBtnStyle("#0f766e", "#ffffff") }}>Guardar ahora</button>
+              <button onClick={handleCopySave} {...{ style: actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe") }}>{saveCopied ? "Save copiado" : "Copiar JSON save"}</button>
+              <button onClick={handleDownloadSave} {...{ style: actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe") }}>Descargar save</button>
+              <button onClick={handleRepairSave} {...{ style: actionBtnStyle("#ffffff", "#b45309", "1px solid #fcd34d") }}>Reparar save</button>
+              <button onClick={handleResetSave} {...{ style: actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca") }}>Reiniciar progreso</button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "0.95fr 1.05fr", gap: "10px" }}>
-              <div style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
-                <div style={sectionTitleStyle}>Estado</div>
+            <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "0.95fr 1.05fr", gap: "10px" } }}>
+              <div {...{ style: { ...tableStyle, paddingTop: "10px", paddingBottom: "10px" } }}>
+                <div {...{ style: sectionTitleStyle }}>Estado</div>
                 <DataRow label="Modo recovery" value={recoveryMode ? "Si" : "No"} />
                 <DataRow label="Clase / Spec" value={`${player.class || "-"} / ${player.specialization || "-"}`} />
                 <DataRow label="Nivel" value={formatNumber(player.level || 1)} />
                 <DataRow label="Tier" value={formatNumber(combat.currentTier || 1)} />
                 <DataRow label="Prestigio" value={formatNumber(prestige.level || 0)} />
                 <DataRow label="Poderes descubiertos" value={formatNumber((state.codex?.powerDiscoveries ? Object.values(state.codex.powerDiscoveries).filter(value => Number(value || 0) > 0).length : 0))} />
-                <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "10px", lineHeight: 1.45 }}>
+                <div {...{ style: { fontSize: "0.68rem", color: "#64748b", marginTop: "10px", lineHeight: 1.45 } }}>
                   La importacion reescribe el save local y recarga la pagina. Si estas en `?fresh=1` o `?wipe=1`, primero sali de ese modo.
                 </div>
               </div>
 
-              <div style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
-                <div style={sectionTitleStyle}>Importar JSON</div>
-                <input ref={saveFileInputRef} type="file" accept=".json,application/json" onChange={handleImportSaveFile} style={{ display: "none" }} />
+              <div {...{ style: { ...tableStyle, paddingTop: "10px", paddingBottom: "10px" } }}>
+                <div {...{ style: sectionTitleStyle }}>Importar JSON</div>
+                <input ref={saveFileInputRef} type="file" accept=".json,application/json" onChange={handleImportSaveFile} {...{ style: { display: "none" } }} />
                 <textarea
                   value={saveImportText}
                   onChange={event => setSaveImportText(event.target.value)}
                   placeholder="Pega aca un save exportado"
-                  style={{ width: "100%", minHeight: isMobile ? "160px" : "220px", marginTop: "8px", borderRadius: "14px", border: "1px solid var(--color-border-secondary, #dbe7e3)", padding: "12px", fontFamily: "Consolas, monospace", fontSize: "0.72rem", color: "var(--color-text-primary, #1e293b)", background: "var(--color-background-secondary, #fff)", resize: "vertical" }}
+                  {...{ style: { width: "100%", minHeight: isMobile ? "160px" : "220px", marginTop: "8px", borderRadius: "14px", border: "1px solid var(--color-border-secondary, #dbe7e3)", padding: "12px", fontFamily: "Consolas, monospace", fontSize: "0.72rem", color: "var(--color-text-primary, #1e293b)", background: "var(--color-background-secondary, #fff)", resize: "vertical" } }}
                 />
-                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" }}>
-                  <button onClick={handleImportSave} style={actionBtnStyle("#1d4ed8", "#ffffff")}>Importar save</button>
-                  <button onClick={() => saveFileInputRef.current?.click()} style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}>Subir archivo .json</button>
+                <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" } }}>
+                  <button onClick={handleImportSave} {...{ style: actionBtnStyle("#1d4ed8", "#ffffff") }}>Importar save</button>
+                  <button onClick={() => saveFileInputRef.current?.click()} {...{ style: actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe") }}>Subir archivo .json</button>
                 </div>
-                {saveImportStatus && <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "8px" }}>{saveImportStatus}</div>}
+                {saveImportStatus && <div {...{ style: { fontSize: "0.68rem", color: "#64748b", marginTop: "8px" } }}>{saveImportStatus}</div>}
               </div>
             </div>
           </>
         )}
       </section>}
 
-      {isLab && labSectionVisible("replay") && <section style={lightPanelStyle}>
-        <button onClick={() => toggleSection("replay")} style={accordionHeaderButtonStyle}>
+      {isLab && labSectionVisible("replay") && <section {...{ style: lightPanelStyle }}>
+        <button onClick={() => toggleSection("replay")} {...{ style: accordionHeaderButtonStyle }}>
           <div>
-            <div style={sectionTitleStyle}>Replay de Sesion</div>
-            <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>
+            <div {...{ style: sectionTitleStyle }}>Replay de Sesion</div>
+            <div {...{ style: { fontSize: "0.74rem", color: "#64748b", marginTop: "3px" } }}>
               Log estructurado de decisiones humanas y milestones del runtime para entrenar testers mas parecidos al jugador real.
             </div>
           </div>
-          <span style={accordionLabelStyle}>{openSections.replay ? "Ocultar" : "Ver"}</span>
+          <span {...{ style: accordionLabelStyle }}>{openSections.replay ? "Ocultar" : "Ver"}</span>
         </button>
 
         {openSections.replay && (
           <>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" }}>
-              <button onClick={handleCopyReplay} style={actionBtnStyle("#0f766e", "#ffffff")}>{replayCopied ? "Copiado" : "Copiar texto replay"}</button>
-              <button onClick={handleCopyReplayJson} style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}>{replayJsonCopied ? "JSON copiado" : "Copiar JSON replay"}</button>
-              <button onClick={handleDownloadReplayJson} style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}>Descargar replay</button>
-              <button onClick={handleCopyReplayBundle} style={actionBtnStyle("#ffffff", "#7c3aed", "1px solid #ddd6fe")}>{replayBundleCopied ? "Bundle copiado" : "Copiar bundle activo"}</button>
-              <button onClick={handleDownloadReplayBundle} style={actionBtnStyle("#ffffff", "#7c3aed", "1px solid #ddd6fe")}>Descargar bundle</button>
-              <button onClick={handleSaveReplayToLibrary} style={actionBtnStyle("#ffffff", "#0f766e", "1px solid #a7f3d0")}>Guardar en biblioteca</button>
-              <button onClick={() => dispatch({ type: "RESET_REPLAY_LOG" })} style={actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca")}>Resetear replay</button>
+            <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" } }}>
+              <button onClick={handleCopyReplay} {...{ style: actionBtnStyle("#0f766e", "#ffffff") }}>{replayCopied ? "Copiado" : "Copiar texto replay"}</button>
+              <button onClick={handleCopyReplayJson} {...{ style: actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe") }}>{replayJsonCopied ? "JSON copiado" : "Copiar JSON replay"}</button>
+              <button onClick={handleDownloadReplayJson} {...{ style: actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe") }}>Descargar replay</button>
+              <button onClick={handleCopyReplayBundle} {...{ style: actionBtnStyle("#ffffff", "#7c3aed", "1px solid #ddd6fe") }}>{replayBundleCopied ? "Bundle copiado" : "Copiar bundle activo"}</button>
+              <button onClick={handleDownloadReplayBundle} {...{ style: actionBtnStyle("#ffffff", "#7c3aed", "1px solid #ddd6fe") }}>Descargar bundle</button>
+              <button onClick={handleSaveReplayToLibrary} {...{ style: actionBtnStyle("#ffffff", "#0f766e", "1px solid #a7f3d0") }}>Guardar en biblioteca</button>
+              <button onClick={() => dispatch({ type: "RESET_REPLAY_LOG" })} {...{ style: actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca") }}>Resetear replay</button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
-              <div style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
-                <div style={sectionTitleStyle}>Biblioteca</div>
+            <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px", marginBottom: "10px" } }}>
+              <div {...{ style: { ...tableStyle, paddingTop: "10px", paddingBottom: "10px" } }}>
+                <div {...{ style: sectionTitleStyle }}>Biblioteca</div>
                 <input
                   value={replayLibraryLabel}
                   onChange={event => setReplayLibraryLabel(event.target.value)}
                   placeholder="Ej: berserker-push-agresivo-t8"
-                  style={{ width: "100%", marginTop: "8px", borderRadius: "10px", border: "1px solid var(--color-border-secondary, #dbe7e3)", padding: "10px 12px", fontSize: "0.72rem", color: "var(--color-text-primary, #1e293b)", background: "var(--color-background-secondary, #fff)" }}
+                  {...{ style: { width: "100%", marginTop: "8px", borderRadius: "10px", border: "1px solid var(--color-border-secondary, #dbe7e3)", padding: "10px 12px", fontSize: "0.72rem", color: "var(--color-text-primary, #1e293b)", background: "var(--color-background-secondary, #fff)" } }}
                 />
-                <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "6px", maxHeight: isMobile ? "240px" : "300px", overflowY: "auto" }}>
+                <div {...{ style: { marginTop: "10px", display: "flex", flexDirection: "column", gap: "6px", maxHeight: isMobile ? "240px" : "300px", overflowY: "auto" } }}>
                   {replayLibraryVisibleEntries.length > 0 ? replayLibraryVisibleEntries.map(entry => {
                     const entryProfile = replayLibraryProfiles[entry.id] || EMPTY_REPLAY_PROFILE;
                     return (
-                      <div key={entry.id} style={{ background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "10px", padding: "9px 10px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" }}>
+                      <div key={entry.id} {...{ style: { background: "var(--color-background-secondary, #ffffff)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: "10px", padding: "9px 10px" } }}>
+                        <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" } }}>
                           <div>
-                            <div style={{ fontSize: "0.74rem", fontWeight: "900", color: "#1e293b" }}>{entry.label}</div>
-                            <div style={{ fontSize: "0.6rem", color: "#64748b", marginTop: "4px" }}>
+                            <div {...{ style: { fontSize: "0.74rem", fontWeight: "900", color: "#1e293b" } }}>{entry.label}</div>
+                            <div {...{ style: { fontSize: "0.6rem", color: "#64748b", marginTop: "4px" } }}>
                               {(entry.replay?.actions || []).length} acciones · {(entry.replay?.milestones || []).length} hitos · {entryProfile.preferredSpec || "sin spec"}
                             </div>
-                            <div style={{ fontSize: "0.58rem", color: "#94a3b8", marginTop: "3px", lineHeight: 1.35 }}>
+                            <div {...{ style: { fontSize: "0.58rem", color: "#94a3b8", marginTop: "3px", lineHeight: 1.35 } }}>
                               Guardado: {formatShortDateTime(entry.importedAt)} · Push {formatPct(entryProfile.avgPushHpRatio || 0)} · Drop {formatPct(entryProfile.avgDropHpRatio || 0)} · Craft {entryProfile.preferredCraftMode || "-"}
                             </div>
                           </div>
-                          <div style={{ ...pillStyle(entry.isActive !== false ? "rgba(15,118,110,0.12)" : "rgba(148,163,184,0.12)", entry.isActive !== false ? "#0f766e" : "#64748b", "transparent") }}>
+                          <div {...{ style: { ...pillStyle(entry.isActive !== false ? "rgba(15,118,110,0.12)" : "rgba(148,163,184,0.12)", entry.isActive !== false ? "#0f766e" : "#64748b", "transparent") } }}>
                             {entry.isActive !== false ? "Activo" : "Off"}
                           </div>
                         </div>
-                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" }}>
-                          <button onClick={() => dispatch({ type: "TOGGLE_REPLAY_LIBRARY_ENTRY", replayId: entry.id, meta: { replay: false } })} style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}>
+                        <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" } }}>
+                          <button onClick={() => dispatch({ type: "TOGGLE_REPLAY_LIBRARY_ENTRY", replayId: entry.id, meta: { replay: false } })} {...{ style: actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe") }}>
                             {entry.isActive !== false ? "Desactivar" : "Activar"}
                           </button>
-                          <button onClick={() => dispatch({ type: "DELETE_REPLAY_LIBRARY_ENTRY", replayId: entry.id, meta: { replay: false } })} style={actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca")}>
+                          <button onClick={() => dispatch({ type: "DELETE_REPLAY_LIBRARY_ENTRY", replayId: entry.id, meta: { replay: false } })} {...{ style: actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca") }}>
                             Borrar
                           </button>
                         </div>
                       </div>
                     );
-                  }) : <div style={{ fontSize: "0.74rem", color: "#64748b" }}>Todavia no guardaste ni importaste replays en la biblioteca.</div>}
+                  }) : <div {...{ style: { fontSize: "0.74rem", color: "#64748b" } }}>Todavia no guardaste ni importaste replays en la biblioteca.</div>}
                   {(canShowMoreReplayLibrary || canShowLessReplayLibrary) && (
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "4px" }}>
+                    <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "4px" } }}>
                       {canShowMoreReplayLibrary && (
                         <button
                           onClick={() => setReplayLibraryVisibleCount(current => current + PREVIEW_ROW_LIMIT)}
-                          style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}
+                          {...{ style: actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe") }}
                         >
                           Ver mas ({replayLibraryEntries.length - replayLibraryVisibleCount})
                         </button>
@@ -1228,7 +1228,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                       {canShowLessReplayLibrary && (
                         <button
                           onClick={() => setReplayLibraryVisibleCount(PREVIEW_ROW_LIMIT)}
-                          style={actionBtnStyle("#ffffff", "#64748b", "1px solid #cbd5e1")}
+                          {...{ style: actionBtnStyle("#ffffff", "#64748b", "1px solid #cbd5e1") }}
                         >
                           Ver menos
                         </button>
@@ -1237,30 +1237,30 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                   )}
                 </div>
                 {replayLibraryEntries.length > 0 && (
-                  <button onClick={() => dispatch({ type: "CLEAR_REPLAY_LIBRARY", meta: { replay: false } })} style={{ ...actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca"), marginTop: "10px" }}>
+                  <button onClick={() => dispatch({ type: "CLEAR_REPLAY_LIBRARY", meta: { replay: false } })} {...{ style: { ...actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca"), marginTop: "10px" } }}>
                     Vaciar biblioteca
                   </button>
                 )}
               </div>
 
-              <div style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
-                <div style={sectionTitleStyle}>Importar JSON</div>
-                <input ref={replayFileInputRef} type="file" accept=".json,application/json" onChange={handleImportReplayFile} style={{ display: "none" }} />
+              <div {...{ style: { ...tableStyle, paddingTop: "10px", paddingBottom: "10px" } }}>
+                <div {...{ style: sectionTitleStyle }}>Importar JSON</div>
+                <input ref={replayFileInputRef} type="file" accept=".json,application/json" onChange={handleImportReplayFile} {...{ style: { display: "none" } }} />
                 <textarea
                   value={replayImportText}
                   onChange={event => setReplayImportText(event.target.value)}
                   placeholder="Pega aca un replay JSON o un bundle exportado"
-                  style={{ width: "100%", minHeight: isMobile ? "160px" : "210px", marginTop: "8px", borderRadius: "14px", border: "1px solid var(--color-border-secondary, #dbe7e3)", padding: "12px", fontFamily: "Consolas, monospace", fontSize: "0.72rem", color: "var(--color-text-primary, #1e293b)", background: "var(--color-background-secondary, #fff)", resize: "vertical" }}
+                  {...{ style: { width: "100%", minHeight: isMobile ? "160px" : "210px", marginTop: "8px", borderRadius: "14px", border: "1px solid var(--color-border-secondary, #dbe7e3)", padding: "12px", fontFamily: "Consolas, monospace", fontSize: "0.72rem", color: "var(--color-text-primary, #1e293b)", background: "var(--color-background-secondary, #fff)", resize: "vertical" } }}
                 />
-                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" }}>
-                  <button onClick={handleImportReplay} style={actionBtnStyle("#1d4ed8", "#ffffff")}>Importar a biblioteca</button>
-                  <button onClick={() => replayFileInputRef.current?.click()} style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}>Subir archivo .json</button>
+                <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px" } }}>
+                  <button onClick={handleImportReplay} {...{ style: actionBtnStyle("#1d4ed8", "#ffffff") }}>Importar a biblioteca</button>
+                  <button onClick={() => replayFileInputRef.current?.click()} {...{ style: actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe") }}>Subir archivo .json</button>
                 </div>
-                {replayImportStatus && <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "8px" }}>{replayImportStatus}</div>}
+                {replayImportStatus && <div {...{ style: { fontSize: "0.68rem", color: "#64748b", marginTop: "8px" } }}>{replayImportStatus}</div>}
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))", gap: "8px", marginBottom: "10px" }}>
+            <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))", gap: "8px", marginBottom: "10px" } }}>
               <MetricPill label="Acciones" value={replaySummary.actionCount} />
               <MetricPill label="UI" value={replaySummary.uiActionCount} />
               <MetricPill label="Hitos" value={replaySummary.milestoneCount} />
@@ -1269,9 +1269,9 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
               <MetricPill label="Craft" value={replaySummary.preferredCraftMode} />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.05fr 0.95fr", gap: "10px" }}>
-              <div style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
-                <div style={sectionTitleStyle}>Perfil Humano Derivado</div>
+            <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.05fr 0.95fr", gap: "10px" } }}>
+              <div {...{ style: { ...tableStyle, paddingTop: "10px", paddingBottom: "10px" } }}>
+                <div {...{ style: sectionTitleStyle }}>Perfil Humano Derivado</div>
                 <DataRow label="Spec preferida" value={replaySummary.preferredSpec} />
                 <DataRow label="Bias auto-avance" value={formatNumber(replaySummary.autoAdvanceBias)} />
                 <DataRow label="Wishlist" value={(replaySummary.wishlistStats || []).join(", ") || "-"} />
@@ -1282,8 +1282,8 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                 <DataRow label="Extraer" value={formatNumber(replayProfile.craftCounts?.extract || 0)} />
               </div>
 
-              <div style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
-                <div style={sectionTitleStyle}>Dataset Activo del Tester</div>
+              <div {...{ style: { ...tableStyle, paddingTop: "10px", paddingBottom: "10px" } }}>
+                <div {...{ style: sectionTitleStyle }}>Dataset Activo del Tester</div>
                 <DataRow label="Replays activos" value={formatNumber(combinedReplaySummary.replayCount)} />
                 <DataRow label="Acciones UI" value={formatNumber(combinedReplaySummary.uiActionCount)} />
                 <DataRow label="Spec dominante" value={combinedReplaySummary.preferredSpec} />
@@ -1293,42 +1293,42 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.05fr 0.95fr", gap: "10px", marginTop: "10px" }}>
-              <div style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
-                <div style={sectionTitleStyle}>Ultimas Acciones</div>
-                <div style={{ marginTop: "8px", maxHeight: isMobile ? "220px" : "320px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.05fr 0.95fr", gap: "10px", marginTop: "10px" } }}>
+              <div {...{ style: { ...tableStyle, paddingTop: "10px", paddingBottom: "10px" } }}>
+                <div {...{ style: sectionTitleStyle }}>Ultimas Acciones</div>
+                <div {...{ style: { marginTop: "8px", maxHeight: isMobile ? "220px" : "320px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" } }}>
                   {(state.replay?.actions || []).length > 0 ? (state.replay?.actions || []).slice(-20).reverse().map(entry => (
-                    <div key={`replay-action-${entry.id}`} style={{ fontSize: "0.7rem", color: "#334155", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px 10px" }}>
-                      <strong style={{ color: "#0f172a" }}>[{entry.tick}] {entry.summary?.type}</strong> · {entry.summary?.source}
-                      <div style={{ marginTop: "4px", color: "#64748b" }}>
+                    <div key={`replay-action-${entry.id}`} {...{ style: { fontSize: "0.7rem", color: "#334155", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px 10px" } }}>
+                      <strong {...{ style: { color: "#0f172a" } }}>[{entry.tick}] {entry.summary?.type}</strong> · {entry.summary?.source}
+                      <div {...{ style: { marginTop: "4px", color: "#64748b" } }}>
                         lvl {entry.before?.level}→{entry.after?.level} · tier {entry.before?.tier}→{entry.after?.tier} · oro {formatNumber(entry.outcome?.goldDelta || 0)} · esencia {formatNumber(entry.outcome?.essenceDelta || 0)}
                       </div>
                     </div>
-                  )) : <div style={{ fontSize: "0.74rem", color: "#64748b" }}>Todavia no hay decisiones registradas en esta sesion.</div>}
+                  )) : <div {...{ style: { fontSize: "0.74rem", color: "#64748b" } }}>Todavia no hay decisiones registradas en esta sesion.</div>}
                 </div>
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px", marginTop: "10px" }}>
-              <div style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
-                <div style={sectionTitleStyle}>Ultimos Hitos</div>
-                <div style={{ marginTop: "8px", maxHeight: isMobile ? "220px" : "280px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "10px", marginTop: "10px" } }}>
+              <div {...{ style: { ...tableStyle, paddingTop: "10px", paddingBottom: "10px" } }}>
+                <div {...{ style: sectionTitleStyle }}>Ultimos Hitos</div>
+                <div {...{ style: { marginTop: "8px", maxHeight: isMobile ? "220px" : "280px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" } }}>
                   {(state.replay?.milestones || []).length > 0 ? (state.replay?.milestones || []).slice(-20).reverse().map(entry => (
-                    <div key={`replay-milestone-${entry.id}`} style={{ fontSize: "0.72rem", color: "#334155", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px 10px" }}>
-                      <strong style={{ color: "#0f172a" }}>[{entry.tick}] {entry.kind}</strong>
-                      <div style={{ marginTop: "4px", color: "#64748b" }}>{entry.label}</div>
+                    <div key={`replay-milestone-${entry.id}`} {...{ style: { fontSize: "0.72rem", color: "#334155", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px 10px" } }}>
+                      <strong {...{ style: { color: "#0f172a" } }}>[{entry.tick}] {entry.kind}</strong>
+                      <div {...{ style: { marginTop: "4px", color: "#64748b" } }}>{entry.label}</div>
                     </div>
-                  )) : <div style={{ fontSize: "0.74rem", color: "#64748b" }}>Todavia no hay hitos automaticos registrados.</div>}
+                  )) : <div {...{ style: { fontSize: "0.74rem", color: "#64748b" } }}>Todavia no hay hitos automaticos registrados.</div>}
                 </div>
               </div>
 
-              <div style={{ display: "grid", gap: "10px" }}>
+              <div {...{ style: { display: "grid", gap: "10px" } }}>
                 <div>
-                  <div style={sectionTitleStyle}>Export Texto Replay</div>
+                  <div {...{ style: sectionTitleStyle }}>Export Texto Replay</div>
                   <textarea
                     readOnly
                     value={replayText}
-                    style={{ width: "100%", minHeight: isMobile ? "220px" : "240px", marginTop: "8px", borderRadius: "14px", border: "1px solid var(--color-border-secondary, #dbe7e3)", padding: "12px", fontFamily: "Consolas, monospace", fontSize: "0.73rem", color: "var(--color-text-primary, #1e293b)", background: "var(--color-background-tertiary, #f8fafc)", resize: "vertical" }}
+                    {...{ style: { width: "100%", minHeight: isMobile ? "220px" : "240px", marginTop: "8px", borderRadius: "14px", border: "1px solid var(--color-border-secondary, #dbe7e3)", padding: "12px", fontFamily: "Consolas, monospace", fontSize: "0.73rem", color: "var(--color-text-primary, #1e293b)", background: "var(--color-background-tertiary, #f8fafc)", resize: "vertical" } }}
                   />
                 </div>
               </div>
@@ -1337,27 +1337,27 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
         )}
       </section>}
 
-      {isLab && labSectionVisible("bot") && <section style={lightPanelStyle}>
-        <button onClick={() => toggleSection("bot")} style={accordionHeaderButtonStyle}>
+      {isLab && labSectionVisible("bot") && <section {...{ style: lightPanelStyle }}>
+        <button onClick={() => toggleSection("bot")} {...{ style: accordionHeaderButtonStyle }}>
           <div>
-            <div style={sectionTitleStyle}>IA de Balance</div>
-            <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "3px" }}>
+            <div {...{ style: sectionTitleStyle }}>IA de Balance</div>
+            <div {...{ style: { fontSize: "0.74rem", color: "#64748b", marginTop: "3px" } }}>
               Juega sola durante 30 minutos simulados, sin tocar tu save real, y devuelve un reporte de balance con decisiones tomadas.
             </div>
           </div>
-          <span style={accordionLabelStyle}>{openSections.bot ? "Ocultar" : "Ver"}</span>
+          <span {...{ style: accordionLabelStyle }}>{openSections.bot ? "Ocultar" : "Ver"}</span>
         </button>
 
         {openSections.bot && (
           <>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" }}>
-              <button onClick={handleRunBot} disabled={botRunning} style={actionBtnStyle(botRunning ? "#94a3b8" : "#1d4ed8", "#ffffff")}>{botRunning ? "Corriendo IA..." : "IA · Simular 30m"}</button>
-              {botResult && <button onClick={handleCopyBot} style={actionBtnStyle("#ffffff", "#0f766e", "1px solid #a7f3d0")}>{botCopied ? "Copiado" : "Copiar reporte IA"}</button>}
+            <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "10px", marginBottom: "10px" } }}>
+              <button onClick={handleRunBot} disabled={botRunning} {...{ style: actionBtnStyle(botRunning ? "#94a3b8" : "#1d4ed8", "#ffffff") }}>{botRunning ? "Corriendo IA..." : "IA · Simular 30m"}</button>
+              {botResult && <button onClick={handleCopyBot} {...{ style: actionBtnStyle("#ffffff", "#0f766e", "1px solid #a7f3d0") }}>{botCopied ? "Copiado" : "Copiar reporte IA"}</button>}
             </div>
 
             {botResult ? (
               <>
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))", gap: "8px", marginBottom: "10px" }}>
+                <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))", gap: "8px", marginBottom: "10px" } }}>
                   <MetricPill label="Nivel" value={botResult.summary.level} />
                   <MetricPill label="Tier" value={botResult.summary.tier} />
                   <MetricPill label="Spec" value={botResult.summary.specialization} />
@@ -1366,27 +1366,27 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                   <MetricPill label="Prestige" value={botResult.summary.prestigeLevel} />
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.05fr 0.95fr", gap: "10px" }}>
-                  <div style={tableStyle}>
-                    <div style={{ ...sectionTitleStyle, marginTop: "10px" }}>Resumen IA</div>
+                <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.05fr 0.95fr", gap: "10px" } }}>
+                  <div {...{ style: tableStyle }}>
+                    <div {...{ style: { ...sectionTitleStyle, marginTop: "10px" } }}>Resumen IA</div>
                     {botResult.telemetryEntries.slice(0, 36).map((entry, index) => (
                       <DataRow key={`bot-${entry.section || "sec"}-${entry.label}-${index}`} label={entry.label} value={entry.value} />
                     ))}
                   </div>
 
-                  <div style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
-                    <div style={sectionTitleStyle}>Decisiones IA</div>
-                    <div style={{ marginTop: "8px", maxHeight: isMobile ? "220px" : "320px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <div {...{ style: { ...tableStyle, paddingTop: "10px", paddingBottom: "10px" } }}>
+                    <div {...{ style: sectionTitleStyle }}>Decisiones IA</div>
+                    <div {...{ style: { marginTop: "8px", maxHeight: isMobile ? "220px" : "320px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" } }}>
                       {visibleBotDecisionRows.length > 0 ? visibleBotDecisionRows.map((entry, index) => (
-                        <div key={`${entry}-${index}`} style={{ fontSize: "0.72rem", color: "#334155", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px 10px" }}>{entry}</div>
-                      )) : <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #64748b)" }}>La IA no tuvo que tomar decisiones visibles.</div>}
+                        <div key={`${entry}-${index}`} {...{ style: { fontSize: "0.72rem", color: "#334155", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "8px 10px" } }}>{entry}</div>
+                      )) : <div {...{ style: { fontSize: "0.74rem", color: "var(--color-text-secondary, #64748b)" } }}>La IA no tuvo que tomar decisiones visibles.</div>}
                     </div>
                     {(canShowMoreBotDecisions || canShowLessBotDecisions) && (
-                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
+                      <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" } }}>
                         {canShowMoreBotDecisions && (
                           <button
                             onClick={() => setBotDecisionsVisibleCount(current => current + PREVIEW_ROW_LIMIT)}
-                            style={actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe")}
+                            {...{ style: actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe") }}
                           >
                             Ver mas ({botDecisionRows.length - botDecisionsVisibleCount})
                           </button>
@@ -1394,7 +1394,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                         {canShowLessBotDecisions && (
                           <button
                             onClick={() => setBotDecisionsVisibleCount(PREVIEW_ROW_LIMIT)}
-                            style={actionBtnStyle("#ffffff", "#64748b", "1px solid #cbd5e1")}
+                            {...{ style: actionBtnStyle("#ffffff", "#64748b", "1px solid #cbd5e1") }}
                           >
                             Ver menos
                           </button>
@@ -1404,17 +1404,17 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                   </div>
                 </div>
 
-                <div style={{ marginTop: "12px" }}>
-                  <div style={sectionTitleStyle}>Export Texto IA</div>
+                <div {...{ style: { marginTop: "12px" } }}>
+                  <div {...{ style: sectionTitleStyle }}>Export Texto IA</div>
                   <textarea
                     readOnly
                     value={botReportText}
-                    style={{ width: "100%", minHeight: isMobile ? "220px" : "260px", marginTop: "8px", borderRadius: "14px", border: "1px solid var(--color-border-secondary, #dbe7e3)", padding: "12px", fontFamily: "Consolas, monospace", fontSize: "0.73rem", color: "var(--color-text-primary, #1e293b)", background: "var(--color-background-tertiary, #f8fafc)", resize: "vertical" }}
+                    {...{ style: { width: "100%", minHeight: isMobile ? "220px" : "260px", marginTop: "8px", borderRadius: "14px", border: "1px solid var(--color-border-secondary, #dbe7e3)", padding: "12px", fontFamily: "Consolas, monospace", fontSize: "0.73rem", color: "var(--color-text-primary, #1e293b)", background: "var(--color-background-tertiary, #f8fafc)", resize: "vertical" } }}
                   />
                 </div>
               </>
             ) : (
-              <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary, #64748b)", background: "var(--color-background-tertiary, #f8fafc)", border: "1px dashed var(--color-border-tertiary, #cbd5e1)", borderRadius: "14px", padding: "14px" }}>
+              <div {...{ style: { fontSize: "0.76rem", color: "var(--color-text-secondary, #64748b)", background: "var(--color-background-tertiary, #f8fafc)", border: "1px dashed var(--color-border-tertiary, #cbd5e1)", borderRadius: "14px", padding: "14px" } }}>
                 Todavia no corriste una simulacion IA en esta sesion. Cuando la lances, vas a ver un resumen, las decisiones tomadas y un reporte para copiar.
               </div>
             )}
@@ -1422,20 +1422,20 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
         )}
       </section>}
 
-      {isStatsMode && <section style={lightPanelStyle}>
-        <button onClick={() => toggleSection("telemetry")} style={accordionHeaderButtonStyle}>
+      {isStatsMode && <section {...{ style: lightPanelStyle }}>
+        <button onClick={() => toggleSection("telemetry")} {...{ style: accordionHeaderButtonStyle }}>
           <div>
-            <div style={sectionTitleStyle}>Telemetria de Sesion</div>
-            <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px" }}>
+            <div {...{ style: sectionTitleStyle }}>Telemetria de Sesion</div>
+            <div {...{ style: { fontSize: "0.74rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px" } }}>
               Corre entre muertes, cambios de tier y prestige. Reiniciala manualmente cuando quieras medir una pasada nueva.
             </div>
           </div>
-          <span style={accordionLabelStyle}>{openSections.telemetry ? "Ocultar" : "Ver"}</span>
+          <span {...{ style: accordionLabelStyle }}>{openSections.telemetry ? "Ocultar" : "Ver"}</span>
         </button>
 
         {openSections.telemetry && (
           <>
-            <div style={{ display: "grid", gap: "8px", marginTop: "10px", marginBottom: "10px" }}>
+            <div {...{ style: { display: "grid", gap: "8px", marginTop: "10px", marginBottom: "10px" } }}>
               <HorizontalOptionSelector
                 rootStyle={{}}
                 options={TELEMETRY_VIEW_OPTIONS}
@@ -1456,7 +1456,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                   flexShrink: 0,
                 })}
                 renderOption={({ option }) => (
-                  <span style={{ fontSize: "0.62rem", fontWeight: "900" }}>{option.label}</span>
+                  <span {...{ style: { fontSize: "0.62rem", fontWeight: "900" } }}>{option.label}</span>
                 )}
               />
               <HorizontalOptionSelector
@@ -1479,36 +1479,36 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
                   flexShrink: 0,
                 })}
                 renderOption={({ option }) => (
-                  <span style={{ fontSize: "0.62rem", fontWeight: "900" }}>{option.label}</span>
+                  <span {...{ style: { fontSize: "0.62rem", fontWeight: "900" } }}>{option.label}</span>
                 )}
               />
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                <button onClick={handleCopy} style={actionBtnStyle("#0f766e", "#ffffff")}>{copied ? "Copiado" : (analyticsReportMode === "compact" ? "Copiar telemetria compacta" : "Copiar reporte completo")}</button>
-                <button onClick={handleCopyTelemetryPayload} style={actionBtnStyle("#ffffff", "#7c3aed", "1px solid #ddd6fe")}>
+              <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap" } }}>
+                <button onClick={handleCopy} {...{ style: actionBtnStyle("#0f766e", "#ffffff") }}>{copied ? "Copiado" : (analyticsReportMode === "compact" ? "Copiar telemetria compacta" : "Copiar reporte completo")}</button>
+                <button onClick={handleCopyTelemetryPayload} {...{ style: actionBtnStyle("#ffffff", "#7c3aed", "1px solid #ddd6fe") }}>
                   {telemetryPayloadCopied
                     ? `${analyticsPayloadMode === "full" ? "Payload completo" : "Payload compacto"} copiado`
                     : `Copiar payload IA ${analyticsPayloadMode === "full" ? "completo" : "compacto"} (JSON)`}
                 </button>
-                <button onClick={() => dispatch({ type: "RESET_SESSION_ANALYTICS" })} style={actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca")}>Resetear sesion</button>
+                <button onClick={() => dispatch({ type: "RESET_SESSION_ANALYTICS" })} {...{ style: actionBtnStyle("#ffffff", "#b91c1c", "1px solid #fecaca") }}>Resetear sesion</button>
               </div>
-              <div style={{ fontSize: "0.66rem", color: "#64748b", lineHeight: 1.4 }}>
+              <div {...{ style: { fontSize: "0.66rem", color: "#64748b", lineHeight: 1.4 } }}>
                 {analyticsReportMode === "compact"
                   ? "Compacta: foco en ritmo, friccion y alertas para balance."
                   : "Completa: desglose entero de metricas de corrida."}
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" }}>
+            <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "10px" } }}>
               {telemetryView.sections.map(section => (
-                <div key={section.id} style={{ ...tableStyle, paddingTop: "10px", paddingBottom: "10px" }}>
-                  <div style={sectionTitleStyle}>{section.title}</div>
+                <div key={section.id} {...{ style: { ...tableStyle, paddingTop: "10px", paddingBottom: "10px" } }}>
+                  <div {...{ style: sectionTitleStyle }}>{section.title}</div>
                   {(telemetryExpandedSections[section.id] ? (section.rows || []) : (section.rows || []).slice(0, PREVIEW_ROW_LIMIT)).map(entry => (
                     <DataRow key={`${section.id}-${entry.label}`} label={entry.label} value={entry.value} />
                   ))}
                   {(section.rows || []).length > PREVIEW_ROW_LIMIT && (
                     <button
                       onClick={() => toggleTelemetryRows(section.id)}
-                      style={{ ...actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe"), marginTop: "8px" }}
+                      {...{ style: { ...actionBtnStyle("#ffffff", "#1d4ed8", "1px solid #bfdbfe"), marginTop: "8px" } }}
                     >
                       {telemetryExpandedSections[section.id] ? "Ver menos" : `Ver ${(section.rows || []).length - PREVIEW_ROW_LIMIT} mas`}
                     </button>
@@ -1526,9 +1526,9 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
 
 function DataRow({ label, value, accent }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", padding: "6px 0", borderBottom: "1px solid #eef2f7" }}>
-      <span style={{ fontSize: "0.67rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>{label}</span>
-      <span style={{ fontSize: "0.73rem", color: accent || "var(--color-text-primary, #1e293b)", fontWeight: "900", textAlign: "right" }}>{value}</span>
+    <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", padding: "6px 0", borderBottom: "1px solid #eef2f7" } }}>
+      <span {...{ style: { fontSize: "0.67rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" } }}>{label}</span>
+      <span {...{ style: { fontSize: "0.73rem", color: accent || "var(--color-text-primary, #1e293b)", fontWeight: "900", textAlign: "right" } }}>{value}</span>
     </div>
   );
 }
@@ -1536,7 +1536,7 @@ function DataRow({ label, value, accent }) {
 function MetricPill({ label, value }) {
   return (
     <div
-      style={{
+      {...{ style: {
         background: "var(--color-background-tertiary, #f8fafc)",
         border: "1px solid var(--color-border-primary, #e2e8f0)",
         borderRadius: "12px",
@@ -1544,28 +1544,28 @@ function MetricPill({ label, value }) {
         display: "grid",
         gap: "3px",
         minWidth: 0,
-      }}
+      } }}
     >
       <div
-        style={{
+        {...{ style: {
           fontSize: "0.56rem",
           fontWeight: "900",
           textTransform: "uppercase",
           letterSpacing: "0.06em",
           color: "var(--color-text-tertiary, #94a3b8)",
-        }}
+        } }}
       >
         {label}
       </div>
       <div
-        style={{
+        {...{ style: {
           fontSize: "0.84rem",
           fontWeight: "900",
           color: "var(--color-text-primary, #1e293b)",
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
-        }}
+        } }}
       >
         {value}
       </div>
@@ -1574,17 +1574,17 @@ function MetricPill({ label, value }) {
 }
 
 const lightPanelStyle = {
-  background: "var(--color-surface-overlay, rgba(255,255,255,0.92))",
+  background: "var(--fl2-surface-bg, var(--color-surface-overlay, rgba(255,255,255,0.92)))",
   padding: "0.9rem",
   borderRadius: "16px",
-  border: "1px solid var(--color-border-secondary, #dbe7e3)",
-  boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.05))",
+  border: "1px solid var(--fl2-surface-border, var(--color-border-secondary, #dbe7e3))",
+  boxShadow: "var(--fl2-surface-shadow, 0 8px 24px var(--color-shadow, rgba(15,23,42,0.05)))",
   backdropFilter: "blur(8px)",
 };
 
 const tableStyle = {
-  background: "var(--color-background-tertiary, #f8fafc)",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
+  background: "var(--fl2-surface-bg-soft, var(--color-background-tertiary, #f8fafc))",
+  border: "1px solid var(--fl2-surface-border, var(--color-border-primary, #e2e8f0))",
   borderRadius: "10px",
   padding: "0 10px",
 };

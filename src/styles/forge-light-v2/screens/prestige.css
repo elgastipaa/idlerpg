@@ -1,0 +1,12 @@
+.app-shell-root--forge-light-v2[data-fl2-screen="prestige"] .prestige-root--forge-light {
+  background: transparent !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="prestige"] :where(.prestige-hero-copy, .prestige-outcome-title, .prestige-metric-card) {
+  color: var(--fl2-text) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="prestige"] :where(.prestige-outcome-column, .prestige-metric-card, .prestige-run-sigil-panel) {
+  background: rgba(13, 17, 24, 0.7) !important;
+  border-color: rgba(198, 161, 91, 0.18) !important;
+}

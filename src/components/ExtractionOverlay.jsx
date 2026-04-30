@@ -237,34 +237,27 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
         paddingMobile="calc(12px * var(--density-scale, 1)) calc(10px * var(--density-scale, 1)) calc(14px * var(--density-scale, 1))"
         paddingDesktop="calc(14px * var(--density-scale, 1)) calc(14px * var(--density-scale, 1)) calc(16px * var(--density-scale, 1))"
       >
-        <style>{`
-          @keyframes extractionSpotlightPulse {
-            0% { box-shadow: 0 0 0 0 rgba(83,74,183,0.22); }
-            70% { box-shadow: 0 0 0 10px rgba(83,74,183,0); }
-            100% { box-shadow: 0 0 0 0 rgba(83,74,183,0); }
-          }
-        `}</style>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+        <div {...{ style: { minWidth: 0 } }}>
+          <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" } }}>
             {formatExitLabel()}
           </div>
-          <div style={{ fontSize: "clamp(1.08rem, 2.1vw, 1.18rem)", fontWeight: "900", marginTop: "4px" }}>
+          <div {...{ style: { fontSize: "clamp(1.08rem, 2.1vw, 1.18rem)", fontWeight: "900", marginTop: "4px" } }}>
             Cierra la expedicion y elige que vuelve al Santuario
           </div>
-          <div style={{ fontSize: "0.74rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.45, maxWidth: "60ch" }}>
+          <div {...{ style: { fontSize: "0.74rem", color: "var(--color-text-secondary, #64748b)", marginTop: "6px", lineHeight: 1.45, maxWidth: "60ch" } }}>
             El valor meta ya no vive solo en la corrida. Elige bundles persistentes y, si la salida lo permite, una reliquia para tu arsenal.
           </div>
         </div>
 
-        <div style={{ display: "grid", gap: "12px", marginTop: "12px" }}>
+        <div {...{ style: { display: "grid", gap: "12px", marginTop: "12px" } }}>
           <section
-            style={{
+            {...{ style: {
               ...panelStyle(),
               display: "grid",
               gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
               gap: isMobile ? "4px" : "6px",
               overflowX: "visible",
-            }}
+            } }}
           >
             <Metric label="Tier maximo" value={summary.maxTier || 1} />
             <Metric label="Bosses" value={summary.bossesKilled || 0} />
@@ -272,40 +265,40 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
             <Metric label="Duracion" value={`${summary.durationTicks || 0} ticks`} />
           </section>
 
-          <section style={panelStyle()}>
-            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
+          <section {...{ style: panelStyle() }}>
+            <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" } }}>
               Conversion
             </div>
-            <div style={{ fontSize: "0.9rem", fontWeight: "900" }}>
+            <div {...{ style: { fontSize: "0.9rem", fontWeight: "900" } }}>
               {conversionMode === "echoes"
                 ? `+${conversionFinalEchoes} ecos al confirmar`
                 : "Salida sin conversion de ecos"}
             </div>
-            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+            <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
               {conversionParts.length > 0
                 ? `${conversionParts.join(" · ")} = +${conversionFinalEchoes} ecos`
                 : "Aun no hay conversion activa para esta salida."}
             </div>
           </section>
 
-          <section style={panelStyle()}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+          <section {...{ style: panelStyle() }}>
+            <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" } }}>
               <div>
-                <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" }}>
+                <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" } }}>
                   Cargo
                 </div>
-                <div style={{ fontSize: "0.92rem", fontWeight: "900", marginTop: "2px" }}>
+                <div {...{ style: { fontSize: "0.92rem", fontWeight: "900", marginTop: "2px" } }}>
                   Elige que bundles persisten
                 </div>
               </div>
-              <div style={{ fontSize: "0.66rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
+              <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" } }}>
                 {selectedCargoIds.size} / {preview.availableSlots?.cargo || 0} slots
               </div>
             </div>
 
-            <div style={{ display: "grid", gap: "8px" }}>
+            <div {...{ style: { display: "grid", gap: "8px" } }}>
               {cargoOptions.length === 0 ? (
-                <div style={{ fontSize: "0.72rem", color: "var(--color-text-tertiary, #94a3b8)" }}>
+                <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-tertiary, #94a3b8)" } }}>
                   Esta salida no genero bundles persistentes.
                 </div>
               ) : cargoOptions.map(option => {
@@ -318,22 +311,22 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                     onClick={() => !disabled && dispatch({ type: "SELECT_EXTRACTION_CARGO", cargoId: option.id })}
                     disabled={disabled}
                     data-onboarding-target={spotlight ? "tutorial-extraction-cargo" : undefined}
-                    style={{
+                    {...{ style: {
                       ...chipStyle(active),
                       position: spotlight ? "relative" : "static",
                       zIndex: spotlight ? 2 : 1,
                       animation: spotlight ? "extractionSpotlightPulse 1600ms ease-in-out infinite" : "none",
                       opacity: disabled ? 0.45 : 1,
                       cursor: disabled ? "not-allowed" : "pointer",
-                    }}
+                    } }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
-                      <div style={{ fontSize: "0.8rem", fontWeight: "900" }}>{option.label}</div>
-                      <div style={{ fontSize: "0.68rem", fontWeight: "900", color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)" }}>
+                    <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" } }}>
+                      <div {...{ style: { fontSize: "0.8rem", fontWeight: "900" } }}>{option.label}</div>
+                      <div {...{ style: { fontSize: "0.68rem", fontWeight: "900", color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-tertiary, #94a3b8)" } }}>
                         {`x${option.recoveredQuantity}`}
                       </div>
                     </div>
-                    <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 }}>
+                    <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45 } }}>
                       {option.description}
                     </div>
                   </button>
@@ -342,46 +335,46 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
             </div>
           </section>
 
-          <section style={panelStyle()}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+          <section {...{ style: panelStyle() }}>
+            <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" } }}>
               <div>
-                <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-success, #10b981)" }}>
+                <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-success, #10b981)" } }}>
                   Reliquia
                 </div>
-                <div style={{ fontSize: "0.92rem", fontWeight: "900", marginTop: "2px" }}>
+                <div {...{ style: { fontSize: "0.92rem", fontWeight: "900", marginTop: "2px" } }}>
                   {canKeepRelic ? "Conservar o desguazar pieza del cierre" : "Arsenal lleno: solo desguazar pieza"}
                 </div>
                 {!extractionTutorialActive && hasRelicCandidates && (
-                  <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.4 }}>
+                  <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.4 } }}>
                     Lente de escrutinio: {projectIntelLensUses} uso(s). Toca otra vez una pieza seleccionada para revelar una linea velada.
                   </div>
                 )}
               </div>
-              <div style={{ fontSize: "0.66rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
+              <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" } }}>
                 {availableRelicSlots} slot
               </div>
             </div>
-            <div style={{ display: "grid", gap: "8px" }}>
+            <div {...{ style: { display: "grid", gap: "8px" } }}>
               {hasRelicCandidates && (
                 <div
-                  style={{
+                  {...{ style: {
                     display: "grid",
                     gap: "8px",
                     padding: "8px",
                     border: "1px solid var(--color-border-primary, #e2e8f0)",
                     borderRadius: "12px",
                     background: "var(--color-background-tertiary, #f8fafc)",
-                  }}
+                  } }}
                 >
-                  <div style={{ fontSize: "0.62rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", textTransform: "uppercase", letterSpacing: "0.06em" } }}>
                     Decision de pieza
                   </div>
                   <div
-                    style={{
+                    {...{ style: {
                       display: "grid",
                       gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
                       gap: "8px",
-                    }}
+                    } }}
                   >
                     <button
                       onClick={() => {
@@ -395,13 +388,13 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                         }
                       }}
                       disabled={!canKeepRelic || (tutorialForcesRelicSelection && !selectedProjectItemId)}
-                      style={{
+                      {...{ style: {
                         ...chipStyle(keepDecisionActive, !canKeepRelic || (tutorialForcesRelicSelection && !selectedProjectItemId)),
                         height: "100%",
-                      }}
+                      } }}
                     >
-                      <div style={{ fontSize: "0.72rem", fontWeight: "900" }}>Conservar pieza</div>
-                      <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 }}>
+                      <div {...{ style: { fontSize: "0.72rem", fontWeight: "900" } }}>Conservar pieza</div>
+                      <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 } }}>
                         Entra al Arsenal y crea proyecto para Deep Forge.
                       </div>
                     </button>
@@ -416,24 +409,24 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                         dispatch({ type: "SET_EXTRACTION_PROJECT_DECISION", decision: "discard" });
                       }}
                       disabled={!canToggleRelicDecision}
-                      style={{
+                      {...{ style: {
                         ...chipStyle(discardDecisionActive, !canToggleRelicDecision),
                         height: "100%",
-                      }}
+                      } }}
                     >
-                      <div style={{ fontSize: "0.72rem", fontWeight: "900" }}>Descartar pieza</div>
-                      <div style={{ fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 }}>
+                      <div {...{ style: { fontSize: "0.72rem", fontWeight: "900" } }}>Descartar pieza</div>
+                      <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35 } }}>
                         Cobras recursos inmediatos por desguace.
                       </div>
                     </button>
                   </div>
-                  <div style={{ fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 }}>
+                  <div {...{ style: { fontSize: "0.64rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 } }}>
                     {relicDecisionSummary}
                   </div>
                 </div>
               )}
               {projectOptions.length === 0 ? (
-                <div style={{ fontSize: "0.72rem", color: "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.45 }}>
+                <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.45 } }}>
                   No aparecieron candidatos elegibles para guardar en el arsenal.
                 </div>
               ) : projectOptions.map(option => {
@@ -471,21 +464,21 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                       }}
                       disabled={disabled}
                       data-onboarding-target={spotlight ? "tutorial-extraction-item" : undefined}
-                      style={{
+                      {...{ style: {
                         ...chipStyle(active, disabled),
                         position: spotlight ? "relative" : "static",
                         zIndex: spotlight ? 2 : 1,
                         animation: spotlight ? "extractionSpotlightPulse 1600ms ease-in-out infinite" : "none",
                         opacity: disabled ? 0.45 : 1,
                         cursor: disabled ? "not-allowed" : "pointer",
-                      }}
+                      } }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" }}>
-                        <div style={{ fontSize: "0.78rem", fontWeight: "900", color: getRarityColor(option.rarity) }}>{option.name}</div>
-                        <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                      <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center" } }}>
+                        <div {...{ style: { fontSize: "0.78rem", fontWeight: "900", color: getRarityColor(option.rarity) } }}>{option.name}</div>
+                        <div {...{ style: { display: "inline-flex", alignItems: "center", gap: "6px" } }}>
                           {suggested && (
                             <span
-                              style={{
+                              {...{ style: {
                                 fontSize: "0.56rem",
                                 fontWeight: "900",
                                 borderRadius: "999px",
@@ -493,27 +486,27 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                                 border: "1px solid rgba(99,102,241,0.2)",
                                 background: "var(--tone-accent-soft, #eef2ff)",
                                 color: "var(--tone-accent, #4338ca)",
-                              }}
+                              } }}
                             >
                               Sugerida
                             </span>
                           )}
-                          <div style={{ fontSize: "0.64rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" }}>
+                          <div {...{ style: { fontSize: "0.64rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" } }}>
                             {Math.round(option.rating || 0)}
                           </div>
                         </div>
                       </div>
-                      <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" }}>
+                      <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" } }}>
                         {option.rarity} · {option.type} · {option.affixCount} affix
                       </div>
                       {discardDecisionActive && (
-                        <div style={{ fontSize: "0.62rem", marginTop: "4px", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" }}>
+                        <div {...{ style: { fontSize: "0.62rem", marginTop: "4px", color: "var(--color-text-secondary, #64748b)", fontWeight: "800" } }}>
                           Desguazar: {discardSummary}
                         </div>
                       )}
                       {selectionStatusText && (
                         <div
-                          style={{
+                          {...{ style: {
                             fontSize: "0.62rem",
                             marginTop: "4px",
                             color: active
@@ -522,26 +515,26 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                                 : "var(--tone-danger, #D85A30)"
                               : "var(--color-text-tertiary, #94a3b8)",
                             fontWeight: "900",
-                          }}
+                          } }}
                         >
                           {selectionStatusText}
                         </div>
                       )}
                       {intelLines.length > 0 && (
-                        <div style={{ display: "grid", gap: "3px", marginTop: "6px" }}>
+                        <div {...{ style: { display: "grid", gap: "3px", marginTop: "6px" } }}>
                           {intelLines.map((line, index) => {
                             const revealed = index < revealedCount;
                             return (
                               <div
                                 key={`${option.itemId}-intel-${index}`}
-                                style={{
+                                {...{ style: {
                                   fontSize: "0.62rem",
                                   fontWeight: "800",
                                   color: revealed
                                     ? "var(--color-text-secondary, #475569)"
                                     : "var(--color-text-tertiary, #94a3b8)",
                                   lineHeight: 1.35,
-                                }}
+                                } }}
                               >
                                 {revealed ? `• ${line}` : "• Linea velada"}
                               </div>
@@ -550,7 +543,7 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
                         </div>
                       )}
                       {!extractionTutorialActive && active && hiddenCount > 0 && (
-                        <div style={{ fontSize: "0.6rem", fontWeight: "900", marginTop: "6px", color: projectIntelLensUses > 0 ? "var(--tone-accent, #4338ca)" : "var(--tone-danger, #D85A30)" }}>
+                        <div {...{ style: { fontSize: "0.6rem", fontWeight: "900", marginTop: "6px", color: projectIntelLensUses > 0 ? "var(--tone-accent, #4338ca)" : "var(--tone-danger, #D85A30)" } }}>
                           {projectIntelLensUses > 0
                             ? `Tocar de nuevo para revelar (${projectIntelLensUses} uso(s) restante(s))`
                             : "Sin usos de lente en esta salida"}
@@ -562,8 +555,8 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
             </div>
           </section>
 
-          <section style={panelStyle()}>
-            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+          <section {...{ style: panelStyle() }}>
+            <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" } }}>
               Contrato de Extraccion
             </div>
             <div className="overlay-cols-1-2">
@@ -582,22 +575,22 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
             </div>
           </section>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <div {...{ style: { display: "flex", justifyContent: "flex-end", gap: "10px", flexWrap: "wrap", alignItems: "center" } }}>
+            <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap" } }}>
               {canCancel && (
-                <button onClick={() => dispatch({ type: "CANCEL_EXTRACTION" })} style={actionButtonStyle()}>
+                <button onClick={() => dispatch({ type: "CANCEL_EXTRACTION" })} {...{ style: actionButtonStyle() }}>
                   Volver
                 </button>
               )}
               <button
                 onClick={() => dispatch({ type: "CONFIRM_EXTRACTION" })}
                 data-onboarding-target={onboardingStep === ONBOARDING_STEPS.EXTRACTION_CONFIRM ? "tutorial-extraction-confirm" : undefined}
-                style={{
+                {...{ style: {
                   ...actionButtonStyle({ primary: true }),
                   position: onboardingStep === ONBOARDING_STEPS.EXTRACTION_CONFIRM ? "relative" : "static",
                   zIndex: onboardingStep === ONBOARDING_STEPS.EXTRACTION_CONFIRM ? 2 : 1,
                   animation: onboardingStep === ONBOARDING_STEPS.EXTRACTION_CONFIRM ? "extractionSpotlightPulse 1600ms ease-in-out infinite" : "none",
-                }}
+                } }}
               >
                 {confirmActionLabel}
               </button>
@@ -612,7 +605,7 @@ export default function ExtractionOverlay({ state, dispatch, isMobile = false })
 function Metric({ label, value }) {
   return (
     <div
-      style={{
+      {...{ style: {
         background: "var(--color-background-tertiary, #f8fafc)",
         border: "1px solid var(--color-border-primary, #e2e8f0)",
         borderRadius: "12px",
@@ -623,12 +616,12 @@ function Metric({ label, value }) {
         gap: "2px",
         minWidth: 0,
         textAlign: "center",
-      }}
+      } }}
     >
-      <div style={{ fontSize: "0.52rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.05em", lineHeight: 1.15, color: "var(--color-text-tertiary, #94a3b8)" }}>
+      <div {...{ style: { fontSize: "0.52rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.05em", lineHeight: 1.15, color: "var(--color-text-tertiary, #94a3b8)" } }}>
         {label}
       </div>
-      <div style={{ fontSize: "0.76rem", fontWeight: "900", lineHeight: 1.15 }}>{value}</div>
+      <div {...{ style: { fontSize: "0.76rem", fontWeight: "900", lineHeight: 1.15 } }}>{value}</div>
     </div>
   );
 }
@@ -636,7 +629,7 @@ function Metric({ label, value }) {
 function QuickOutcomeColumn({ label, tone, items = [], fallback = "" }) {
   return (
     <div
-      style={{
+      {...{ style: {
         background: "var(--color-background-tertiary, #f8fafc)",
         border: "1px solid var(--color-border-primary, #e2e8f0)",
         borderTop: `3px solid ${tone}`,
@@ -644,21 +637,21 @@ function QuickOutcomeColumn({ label, tone, items = [], fallback = "" }) {
         padding: "10px",
         display: "grid",
         gap: "6px",
-      }}
+      } }}
     >
-      <div style={{ fontSize: "0.68rem", fontWeight: "900", color: tone, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+      <div {...{ style: { fontSize: "0.68rem", fontWeight: "900", color: tone, textTransform: "uppercase", letterSpacing: "0.06em" } }}>
         {label}
       </div>
       {items.length > 0 ? (
-        <div style={{ display: "grid", gap: "4px" }}>
+        <div {...{ style: { display: "grid", gap: "4px" } }}>
           {items.map(item => (
-            <div key={`${label}-${item}`} style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+            <div key={`${label}-${item}`} {...{ style: { fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
               • {item}
             </div>
           ))}
         </div>
       ) : (
-        <div style={{ fontSize: "0.66rem", color: "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.45 }}>
+        <div {...{ style: { fontSize: "0.66rem", color: "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.45 } }}>
           {fallback}
         </div>
       )}

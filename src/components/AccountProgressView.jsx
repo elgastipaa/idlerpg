@@ -4,43 +4,6 @@ import { getWeeklyLedgerContractsWithProgress } from "../engine/progression/week
 import useViewport from "../hooks/useViewport";
 import { CardHeader, InlineAction, Panel, ProgressBar, StatusChip } from "./ui/ProgressPrimitives";
 
-function panelStyle() {
-  return {
-    background: "var(--color-background-secondary, #ffffff)",
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    borderRadius: "14px",
-    padding: "12px",
-    display: "grid",
-    gap: "10px",
-  };
-}
-
-function metricCardStyle() {
-  return {
-    background: "var(--color-background-tertiary, #f8fafc)",
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    borderRadius: "12px",
-    padding: "10px 12px",
-    display: "grid",
-    gap: "4px",
-  };
-}
-
-function chipStyle({ tone = "var(--tone-accent, #4338ca)", surface = "var(--tone-accent-soft, #eef2ff)" } = {}) {
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "6px",
-    border: `1px solid ${tone}`,
-    background: surface,
-    color: tone,
-    borderRadius: "999px",
-    padding: "4px 8px",
-    fontSize: "0.62rem",
-    fontWeight: "900",
-  };
-}
-
 function formatCount(value = 0) {
   return Math.max(0, Number(value || 0)).toLocaleString();
 }
@@ -81,6 +44,19 @@ export default function AccountProgressView({ state, dispatch }) {
   const claimedWeeklyContracts = weeklyContracts.filter(contract => contract.claimed).length;
   const weeklyAllClaimed = weeklyTotalContracts > 0 && claimedWeeklyContracts >= weeklyTotalContracts;
   const weeklySectionRef = useRef(null);
+  const weeklyPanelProps = {
+    style: {
+      "--account-weekly-scroll-margin": "calc(var(--app-header-offset, 62px) + 14px)",
+    },
+  };
+  const weeklyGridProps = {
+    style: {
+      "--account-weekly-grid-columns": isDenseWeeklyMobile
+        ? "repeat(auto-fit, minmax(176px, 1fr))"
+        : "repeat(auto-fit, minmax(210px, 1fr))",
+      "--account-weekly-grid-gap": isDenseWeeklyMobile ? "6px" : "8px",
+    },
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -132,146 +108,106 @@ export default function AccountProgressView({ state, dispatch }) {
   }, []);
 
   return (
-    <div style={{ display: "grid", gap: "10px" }}>
-      <section style={panelStyle()}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" }}>
+    <div className="account-progress-view">
+      <Panel>
+        <div className="account-progress-header">
+          <div className="account-progress-header-copy">
+            <div className="account-progress-eyebrow account-progress-eyebrow--accent">
               Cuenta
             </div>
-            <div style={{ fontSize: "1rem", fontWeight: "900", marginTop: "4px" }}>
+            <div className="account-progress-title">
               Resumen de cuenta
             </div>
-            <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.45, maxWidth: "62ch" }}>
+            <div className="account-progress-description">
               Vista compacta de progreso largo sin duplicar detalles de Ecos, Biblioteca, Abismo y Deep Forge.
             </div>
           </div>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <span style={chipStyle({ tone: "var(--tone-accent, #4338ca)", surface: "var(--tone-accent-soft, #eef2ff)" })}>
-              P{formatCount(prestige.level || 0)}
-            </span>
-            <span style={chipStyle({ tone: "var(--tone-info, #0369a1)", surface: "var(--tone-info-soft, #f0f9ff)" })}>
-              Abismo {formatCount(highestDepth)}
-            </span>
-            <span style={chipStyle({ tone: "var(--tone-violet, #7c3aed)", surface: "var(--tone-violet-soft, #f3e8ff)" })}>
-              {formatCount(stashProjects.length)} proyecto{stashProjects.length === 1 ? "" : "s"}
-            </span>
-            <span style={chipStyle({ tone: "var(--tone-danger, #D85A30)", surface: "var(--tone-danger-soft, #fff1f2)" })}>
-              {formatCount(relicArmory.length)} reliquia{relicArmory.length === 1 ? "" : "s"}
-            </span>
+          <div className="account-progress-chip-row">
+            <StatusChip label={`P${formatCount(prestige.level || 0)}`} tone="var(--tone-accent, #4338ca)" surface="var(--tone-accent-soft, #eef2ff)" />
+            <StatusChip label={`Abismo ${formatCount(highestDepth)}`} tone="var(--tone-info, #0369a1)" surface="var(--tone-info-soft, #f0f9ff)" />
+            <StatusChip label={`${formatCount(stashProjects.length)} proyecto${stashProjects.length === 1 ? "" : "s"}`} tone="var(--tone-violet, #7c3aed)" surface="var(--tone-violet-soft, #f3e8ff)" />
+            <StatusChip label={`${formatCount(relicArmory.length)} reliquia${relicArmory.length === 1 ? "" : "s"}`} tone="var(--tone-danger, #D85A30)" surface="var(--tone-danger-soft, #fff1f2)" />
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Resonancia
-            </div>
-            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>{formatCount(prestige.totalEchoesEarned || 0)} ecos</div>
-          </div>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Ecos listos
-            </div>
-            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>{formatCount(prestige.echoes || 0)}</div>
-          </div>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Tier historico
-            </div>
-            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>T{formatCount(highestTier)}</div>
-          </div>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Tiempo sesion
-            </div>
-            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>{sessionMinutes > 0 ? `${sessionMinutes}m` : "<1m"}</div>
-          </div>
-          <div style={metricCardStyle()}>
-            <div style={{ fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" }}>
-              Weekly listos
-            </div>
-            <div style={{ fontSize: "0.92rem", fontWeight: "900" }}>{formatCount(claimableWeeklyContracts)}</div>
-          </div>
+        <div className="account-progress-metrics">
+          <AccountMetric label="Resonancia" value={`${formatCount(prestige.totalEchoesEarned || 0)} ecos`} />
+          <AccountMetric label="Ecos listos" value={formatCount(prestige.echoes || 0)} />
+          <AccountMetric label="Tier historico" value={`T${formatCount(highestTier)}`} />
+          <AccountMetric label="Tiempo sesion" value={sessionMinutes > 0 ? `${sessionMinutes}m` : "<1m"} />
+          <AccountMetric label="Weekly listos" value={formatCount(claimableWeeklyContracts)} />
         </div>
 
-        <div style={{ fontSize: "0.66rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 }}>
+        <div className="account-progress-profile">
           Perfil: {formatAppearanceLabel(appearanceProfile.title || "wayfarer")} · {formatAppearanceLabel(appearanceProfile.banner || "ember")} · {formatAppearanceLabel(appearanceProfile.palette || "sanctuary")}.
         </div>
-      </section>
+      </Panel>
 
-      <section
+      <Panel
         id="weekly-ledger-section"
         ref={weeklySectionRef}
-        style={{
-          ...panelStyle(),
-          ...(isDenseWeeklyMobile ? { padding: "10px", gap: "8px", borderRadius: "12px" } : {}),
-          scrollMarginTop: "calc(var(--app-header-offset, 62px) + 14px)",
-        }}
+        dense={isDenseWeeklyMobile}
+        {...weeklyPanelProps}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: isDenseWeeklyMobile ? "10px" : "12px", alignItems: "start", flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontSize: isDenseWeeklyMobile ? "0.6rem" : "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" }}>
+        <div className={["account-progress-header", isDenseWeeklyMobile ? "account-progress-header--dense" : ""].filter(Boolean).join(" ")}>
+          <div className="account-progress-header-copy">
+            <div className="account-progress-eyebrow account-progress-eyebrow--warning">
               Weekly Ledger
             </div>
-            <div style={{ fontSize: isDenseWeeklyMobile ? "0.84rem" : "0.9rem", fontWeight: "900", marginTop: "2px" }}>
+            <div className="account-progress-title account-progress-title--compact">
               Contratos de la semana
             </div>
-            <div style={{ fontSize: isDenseWeeklyMobile ? "0.6rem" : "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "3px", lineHeight: 1.35, maxWidth: "58ch" }}>
+            <div className="account-progress-description account-progress-description--compact">
               Vista compacta: las 3 misiones quedan visibles y se reclaman desde aqui.
             </div>
           </div>
-          <div style={{ display: "flex", gap: isDenseWeeklyMobile ? "6px" : "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <span style={chipStyle({ tone: "var(--tone-warning, #f59e0b)", surface: "var(--tone-warning-soft, #fff7ed)" })}>
-              Semana {state?.weeklyLedger?.weekKey || "-"}
-            </span>
+          <div className="account-progress-chip-row">
+            <StatusChip label={`Semana ${state?.weeklyLedger?.weekKey || "-"}`} tone="var(--tone-warning, #f59e0b)" surface="var(--tone-warning-soft, #fff7ed)" dense={isDenseWeeklyMobile} />
             {weeklyTotalContracts > 0 && (
-              <span style={chipStyle({ tone: "var(--tone-accent, #4338ca)", surface: "var(--tone-accent-soft, #eef2ff)" })}>
-                {formatCount(completedWeeklyContracts)}/{formatCount(weeklyTotalContracts)} completas
-              </span>
+              <StatusChip label={`${formatCount(completedWeeklyContracts)}/${formatCount(weeklyTotalContracts)} completas`} tone="var(--tone-accent, #4338ca)" surface="var(--tone-accent-soft, #eef2ff)" dense={isDenseWeeklyMobile} />
             )}
-            <span
-              style={chipStyle({
-                tone: claimableWeeklyContracts > 0 || weeklyAllClaimed ? "var(--tone-success, #10b981)" : "var(--tone-warning, #f59e0b)",
-                surface: claimableWeeklyContracts > 0 || weeklyAllClaimed ? "var(--tone-success-soft, #ecfdf5)" : "var(--tone-warning-soft, #fff7ed)",
-              })}
-            >
-              {weeklyAllClaimed
+            <StatusChip
+              tone={claimableWeeklyContracts > 0 || weeklyAllClaimed ? "var(--tone-success, #10b981)" : "var(--tone-warning, #f59e0b)"}
+              surface={claimableWeeklyContracts > 0 || weeklyAllClaimed ? "var(--tone-success-soft, #ecfdf5)" : "var(--tone-warning-soft, #fff7ed)"}
+              dense={isDenseWeeklyMobile}
+              label={weeklyAllClaimed
                 ? "Todo reclamado"
                 : claimableWeeklyContracts > 0
                   ? `${formatCount(claimableWeeklyContracts)} para reclamar`
                   : "En progreso"}
-            </span>
+            />
             {claimableWeeklyContracts > 1 && !weeklyAllClaimed && (
-              <button
+              <InlineAction
                 onClick={() => {
                   claimableWeeklyContractEntries.forEach(contract => {
                     dispatch({ type: "CLAIM_WEEKLY_LEDGER_CONTRACT", contractId: contract.id });
                   });
                 }}
-                style={{
-                  border: "1px solid var(--tone-success, #10b981)",
-                  background: "var(--tone-success-soft, #ecfdf5)",
-                  color: "var(--tone-success, #10b981)",
-                  borderRadius: "999px",
-                  padding: isDenseWeeklyMobile ? "5px 9px" : "6px 10px",
-                  fontSize: isDenseWeeklyMobile ? "0.6rem" : "0.62rem",
-                  fontWeight: "900",
-                  cursor: "pointer",
-                }}
+                tone="var(--tone-success, #10b981)"
+                surface="var(--tone-success-soft, #ecfdf5)"
+                dense={isDenseWeeklyMobile}
               >
                 Reclamar todo
-              </button>
+              </InlineAction>
             )}
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: isDenseWeeklyMobile ? "repeat(auto-fit, minmax(176px, 1fr))" : "repeat(auto-fit, minmax(210px, 1fr))", gap: isDenseWeeklyMobile ? "6px" : "8px" }}>
+        <div className="account-weekly-grid" {...weeklyGridProps}>
           {weeklyContracts.map(contract => (
             <WeeklyContractCard key={contract.id} contract={contract} dispatch={dispatch} dense={isDenseWeeklyMobile} />
           ))}
         </div>
-      </section>
+      </Panel>
+    </div>
+  );
+}
+
+function AccountMetric({ label, value }) {
+  return (
+    <div className="account-progress-metric">
+      <div className="account-progress-metric__label">{label}</div>
+      <div className="account-progress-metric__value">{value}</div>
     </div>
   );
 }
@@ -291,15 +227,8 @@ function WeeklyContractCard({ contract, dispatch, dense = false }) {
       claimedLabel: "Reclamado",
     }
   );
-  const compactRewardChip = (tone, surface) => ({
-    ...chipStyle({ tone, surface }),
-    fontSize: dense ? "0.56rem" : "0.58rem",
-    padding: dense ? "2px 5px" : "2px 6px",
-    gap: dense ? "3px" : "4px",
-  });
-
   return (
-    <Panel dense={dense} style={{ borderRadius: "12px", gap: dense ? "6px" : "8px" }}>
+    <Panel dense={dense}>
       <CardHeader
         tag={contract.laneLabel || "Contrato semanal"}
         title={goal?.name || "Contrato"}
@@ -308,40 +237,24 @@ function WeeklyContractCard({ contract, dispatch, dense = false }) {
         badgeSurface={statusMeta.surface}
         dense={dense}
       />
-      <div style={{ display: "grid", gap: "4px" }}>
-        <div
-          style={{
-            fontSize: dense ? "0.6rem" : "0.62rem",
-            color: "var(--color-text-secondary, #64748b)",
-            lineHeight: 1.35,
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-          }}
-        >
+      <div className="account-weekly-copy">
+        <div className={["account-weekly-description", dense ? "account-weekly-description--dense" : ""].filter(Boolean).join(" ")}>
           {contract?.objectiveDescription || goal?.hint || goal?.description || "Juega normal y deja que la cuenta avance."}
         </div>
       </div>
 
-      <div style={{ background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", borderRadius: dense ? "9px" : "10px", padding: dense ? "6px 7px" : "7px 8px", display: "grid", gap: dense ? "3px" : "4px" }}>
+      <div className={["account-weekly-progress", dense ? "account-weekly-progress--dense" : ""].filter(Boolean).join(" ")}>
         <ProgressBar percent={progress.percent} tone={statusMeta.progressTone} dense={dense} />
-        <div style={{ fontSize: dense ? "0.58rem" : "0.6rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.35 }}>
+        <div className={["account-weekly-progress-note", dense ? "account-weekly-progress-note--dense" : ""].filter(Boolean).join(" ")}>
           {completed ? "Contrato completo. Listo para reclamar." : `Restan ${formatCount(progress.remaining)} esta semana.`}
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: dense ? "4px" : "6px", flexWrap: "wrap" }}>
-        <span style={compactRewardChip("var(--tone-warning, #f59e0b)", "var(--tone-warning-soft, #fff7ed)")}>
-          +{formatCount(reward.gold || 0)} oro
-        </span>
-        <span style={compactRewardChip("var(--tone-info, #0369a1)", "var(--tone-info-soft, #f0f9ff)")}>
-          +{formatCount(reward.essence || 0)} esencia
-        </span>
+      <div className={["account-weekly-rewards", dense ? "account-weekly-rewards--dense" : ""].filter(Boolean).join(" ")}>
+        <StatusChip label={`+${formatCount(reward.gold || 0)} oro`} tone="var(--tone-warning, #f59e0b)" surface="var(--tone-warning-soft, #fff7ed)" dense={dense} />
+        <StatusChip label={`+${formatCount(reward.essence || 0)} esencia`} tone="var(--tone-info, #0369a1)" surface="var(--tone-info-soft, #f0f9ff)" dense={dense} />
         {!!reward.talentPoints && (
-          <span style={compactRewardChip("var(--tone-violet, #7c3aed)", "var(--tone-violet-soft, #f3e8ff)")}>
-            +{formatCount(reward.talentPoints)} TP
-          </span>
+          <StatusChip label={`+${formatCount(reward.talentPoints)} TP`} tone="var(--tone-violet, #7c3aed)" surface="var(--tone-violet-soft, #f3e8ff)" dense={dense} />
         )}
         <StatusChip label={statusMeta.label} tone={statusMeta.tone} surface={statusMeta.surface} dense={dense} />
       </div>

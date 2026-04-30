@@ -1,0 +1,542 @@
+.app-shell-root--forge-light-v2 :where(.job-card, .station-row, .fl-sanctuary-row, .fl-inventory-row-card, .fl-inventory-equipped-card, .forge-talent-detail-panel, .prestige-outcome-card) {
+  color: var(--fl2-text) !important;
+  background:
+    radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.045), transparent 24%),
+    linear-gradient(180deg, rgba(8, 10, 11, 0.54), rgba(5, 8, 10, 0.5)) !important;
+  border-color: rgba(198, 161, 91, 0.18) !important;
+  box-shadow: var(--fl2-surface-shadow) !important;
+}
+
+.app-shell-root--forge-light-v2 :where(.talent-node, .forge-talent-node, .forge-talent-node-card) {
+  border-color: var(--fl2-gold-muted) !important;
+  background: radial-gradient(circle, rgba(198, 161, 91, 0.1), transparent) !important;
+  box-shadow: 0 0 18px rgba(230, 196, 122, 0.12) !important;
+}
+
+.app-shell-root--forge-light-v2 :where(.talent-node.is-owned, .forge-talent-node-card--owned) {
+  border-color: var(--fl2-gold-strong) !important;
+  box-shadow: var(--fl2-glow-gold-soft) !important;
+}
+
+.app-shell-root--forge-light-v2 .progress-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  color: var(--fl2-text);
+  background: var(--fl2-surface-bg);
+  border: 1px solid var(--fl2-surface-border);
+  border-radius: var(--fl2-radius-lg);
+  box-shadow: var(--fl2-surface-shadow);
+}
+
+.app-shell-root--forge-light-v2 .progress-panel--dense {
+  gap: 8px;
+  padding: 10px;
+}
+
+.app-shell-root--forge-light-v2 .progress-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2 .progress-card-header--dense {
+  gap: 8px;
+}
+
+.app-shell-root--forge-light-v2 .progress-card-header-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.app-shell-root--forge-light-v2 .progress-card-header--dense .progress-card-header-copy {
+  gap: 2px;
+}
+
+.app-shell-root--forge-light-v2 .progress-card-header-tag {
+  color: var(--fl2-text-muted);
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-shell-root--forge-light-v2 .progress-card-header--dense .progress-card-header-tag {
+  font-size: 0.54rem;
+}
+
+.app-shell-root--forge-light-v2 .progress-card-header-title {
+  color: var(--fl2-text);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.app-shell-root--forge-light-v2 .progress-card-header--dense .progress-card-header-title {
+  font-size: 0.76rem;
+}
+
+.app-shell-root--forge-light-v2 .progress-primitive-bar {
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  background: rgba(10, 13, 18, 0.84);
+  border: 1px solid var(--fl2-gold-muted);
+  border-radius: 999px;
+}
+
+.app-shell-root--forge-light-v2 .progress-primitive-bar--dense {
+  height: 5px;
+}
+
+.app-shell-root--forge-light-v2 .progress-primitive-bar__fill {
+  width: var(--progress-bar-width, 0%);
+  height: 100%;
+  background: var(--progress-bar-tone, var(--fl2-warning));
+}
+
+.app-shell-root--forge-light-v2 .progress-inline-action {
+  padding: 7px 10px;
+  color: var(--progress-action-tone, var(--fl2-gold));
+  font-size: 0.62rem;
+  font-weight: 900;
+  background: var(--progress-action-surface, rgba(198, 161, 91, 0.1));
+  border: 1px solid var(--progress-action-tone, var(--fl2-gold));
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.app-shell-root--forge-light-v2 .progress-inline-action--dense {
+  padding: 6px 9px;
+  font-size: 0.58rem;
+}
+
+.app-shell-root--forge-light-v2 .progress-inline-action--filled {
+  color: #080b0f;
+  background: var(--progress-action-tone, var(--fl2-gold));
+}
+
+.app-shell-root--forge-light-v2 .progress-inline-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.horizontal-option-selector {
+  display: grid;
+  gap: 8px;
+}
+
+.horizontal-option-selector__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.horizontal-option-selector__header--end {
+  justify-content: flex-end;
+}
+
+.horizontal-option-selector__header-content {
+  min-width: 0;
+}
+
+.horizontal-option-selector__arrows {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.horizontal-option-selector__arrow {
+  min-width: 34px;
+  min-height: 30px;
+  padding: 4px 0;
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.horizontal-option-selector__scroll {
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+}
+
+.horizontal-option-selector__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.horizontal-option-selector__options {
+  display: inline-flex;
+  gap: 6px;
+  min-width: max-content;
+}
+
+.horizontal-option-selector__option {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  font-size: 0.66rem;
+  text-align: left;
+}
+
+.achievements-root {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  color: var(--fl2-text);
+}
+
+.achievements-root--mobile {
+  padding: 1rem;
+}
+
+.achievements-panel {
+  padding: 1rem;
+}
+
+.achievements-metrics,
+.achievements-list {
+  display: grid;
+  gap: 10px;
+}
+
+.achievements-metrics {
+  grid-template-columns: var(--achievements-metrics-columns, repeat(4, 1fr));
+  margin-bottom: 12px;
+}
+
+.achievements-list {
+  grid-template-columns: var(--achievements-list-columns, repeat(auto-fill, minmax(320px, 1fr)));
+  gap: 12px;
+}
+
+.achievements-metric {
+  padding: 10px 12px;
+  color: var(--fl2-text);
+  background: var(--fl2-surface-bg);
+  border: 1px solid var(--fl2-surface-border);
+  border-radius: var(--fl2-radius-md);
+  box-shadow: var(--fl2-surface-shadow);
+}
+
+.achievements-metric__label {
+  margin-bottom: 4px;
+  color: var(--fl2-text-muted);
+  font-size: 0.58rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.achievements-metric__value {
+  color: var(--achievements-metric-tone, var(--fl2-gold));
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.achievements-progress {
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  background: rgba(10, 13, 18, 0.84);
+  border: 1px solid var(--fl2-gold-muted);
+  border-radius: 999px;
+}
+
+.achievements-progress__fill,
+.achievement-card__progress-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #4a2e0a, #8b5a1a, var(--fl2-gold), var(--fl2-gold-strong));
+  transition: width 0.4s ease;
+}
+
+.achievements-progress__fill {
+  width: var(--achievements-progress, 0%);
+}
+
+.achievement-card__progress-fill {
+  width: var(--achievement-progress, 0%);
+  background: var(--achievement-progress-fill, linear-gradient(90deg, var(--fl2-gold), var(--fl2-gold-strong)));
+}
+
+.achievements-filters,
+.achievements-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.achievements-filter,
+.achievements-action {
+  padding: 7px 10px;
+  font-size: 0.68rem;
+}
+
+.achievement-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+}
+
+.achievement-card--unlocked {
+  border-color: color-mix(in srgb, var(--achievement-category-tone, var(--fl2-gold)) 42%, transparent) !important;
+}
+
+.achievement-card--locked {
+  opacity: 0.88;
+}
+
+.achievement-card__head,
+.achievement-card__title-row,
+.achievement-card__progress-meta,
+.achievement-card__reward {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.achievement-card__head,
+.achievement-card__progress-meta,
+.achievement-card__reward {
+  justify-content: space-between;
+}
+
+.achievement-card__progress-meta,
+.achievement-card__reward {
+  align-items: center;
+}
+
+.achievement-card__icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.achievement-card__name {
+  color: var(--fl2-text);
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.achievement-card__description {
+  margin-top: 3px;
+  color: var(--fl2-text-secondary);
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.achievement-card__category {
+  color: var(--achievement-category-tone, var(--fl2-gold)) !important;
+  border-color: color-mix(in srgb, var(--achievement-category-tone, var(--fl2-gold)) 34%, transparent) !important;
+  background: color-mix(in srgb, var(--achievement-category-tone, var(--fl2-gold)) 14%, transparent) !important;
+}
+
+.achievement-card__progress-meta {
+  margin-bottom: 5px;
+  color: var(--fl2-text-muted);
+  font-size: 0.62rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.achievement-card__progress-meta span:last-child {
+  color: var(--fl2-text-secondary);
+  font-size: 0.7rem;
+}
+
+.achievement-card__progress-value--done,
+.achievement-card__state--done {
+  color: var(--fl2-success) !important;
+}
+
+.achievement-card__reward {
+  padding-top: 8px;
+  border-top: 1px solid var(--fl2-gold-muted);
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+
+.achievement-card__reward span:first-child {
+  color: var(--fl2-warning);
+  font-size: 0.68rem;
+}
+
+.achievement-card__reward span:last-child {
+  color: var(--fl2-text-muted);
+}
+
+.account-progress-view {
+  display: grid;
+  gap: 10px;
+}
+
+.account-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.account-progress-header--dense {
+  gap: 10px;
+}
+
+.account-progress-header-copy {
+  min-width: 0;
+}
+
+.account-progress-eyebrow {
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-progress-eyebrow--accent {
+  color: var(--fl2-gold);
+}
+
+.account-progress-eyebrow--warning {
+  color: var(--fl2-warning);
+}
+
+.account-progress-title {
+  margin-top: 4px;
+  color: var(--fl2-text);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.account-progress-title--compact {
+  margin-top: 2px;
+  font-size: 0.9rem;
+}
+
+.account-progress-description {
+  max-width: 62ch;
+  margin-top: 4px;
+  color: var(--fl2-text-secondary);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.account-progress-description--compact {
+  max-width: 58ch;
+  margin-top: 3px;
+  font-size: 0.62rem;
+  line-height: 1.35;
+}
+
+.account-progress-chip-row,
+.account-weekly-rewards {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.account-progress-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.account-progress-metric {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  color: var(--fl2-text);
+  background: var(--fl2-surface-bg);
+  border: 1px solid var(--fl2-surface-border);
+  border-radius: var(--fl2-radius-md);
+  box-shadow: var(--fl2-surface-shadow);
+}
+
+.account-progress-metric__label {
+  color: var(--fl2-text-muted);
+  font-size: 0.56rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.account-progress-metric__value {
+  color: var(--fl2-text);
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.account-progress-profile {
+  color: var(--fl2-text-secondary);
+  font-size: 0.66rem;
+  line-height: 1.45;
+}
+
+.account-weekly-grid {
+  display: grid;
+  grid-template-columns: var(--account-weekly-grid-columns, repeat(auto-fit, minmax(210px, 1fr)));
+  gap: var(--account-weekly-grid-gap, 8px);
+}
+
+#weekly-ledger-section {
+  scroll-margin-top: var(--account-weekly-scroll-margin, calc(var(--app-header-offset, 62px) + 14px));
+}
+
+.account-weekly-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.account-weekly-description {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--fl2-text-secondary);
+  font-size: 0.62rem;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.account-weekly-description--dense {
+  font-size: 0.6rem;
+}
+
+.account-weekly-progress {
+  display: grid;
+  gap: 4px;
+  padding: 7px 8px;
+  background: rgba(10, 13, 18, 0.42);
+  border: 1px solid var(--fl2-surface-border);
+  border-radius: var(--fl2-radius-sm);
+}
+
+.account-weekly-progress--dense {
+  gap: 3px;
+  padding: 6px 7px;
+  border-radius: 9px;
+}
+
+.account-weekly-progress-note {
+  color: var(--fl2-text-secondary);
+  font-size: 0.6rem;
+  line-height: 1.35;
+}
+
+.account-weekly-progress-note--dense {
+  font-size: 0.58rem;
+}
+
+.account-weekly-rewards {
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.account-weekly-rewards--dense {
+  gap: 4px;
+}

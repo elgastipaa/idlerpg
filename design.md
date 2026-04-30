@@ -218,6 +218,52 @@ Reglas:
 - Mostrar `x/y` real del set visible.
 - Claimable no se oculta hasta ser claimed.
 
+### `ActionButton` (Taxonomia Canonica)
+
+Uso: toda accion clickable de UI primaria.
+
+Variantes canonicas:
+
+1. `ritual` (primario dorado):
+- Uso: accion de mayor valor inmediato del bloque actual.
+- Ejemplos: `Reclamar`, `Asignar`, `+N TP` cuando el nodo esta comprable.
+- Estilo: gradiente dorado, texto oscuro de alto contraste, borde definido, glow bajo.
+
+2. `arcane` (secundario violeta):
+- Uso: accion normal interactiva que no es hito/claim principal.
+- Estilo: base oscura o transparente con acento violeta.
+
+3. `neutral` (utilitario):
+- Uso: navegacion o control operativo sin peso ritual.
+- Ejemplos: `Volver`, `Retirar equipo`, toggles `+/-`.
+- Estilo: sobrio, sin fill dorado.
+
+4. `danger` (destructivo):
+- Uso: reset, borrar, extraer/destruir, acciones irreversibles o costosas.
+- Estilo: semantica de riesgo clara, nunca competir con `ritual`.
+
+5. `disabled`:
+- Uso: accion no disponible.
+- Estilo: neutro y legible; no simular estado activo.
+
+Reglas globales:
+- Maximo 1-2 botones `ritual` visibles por viewport sin scroll.
+- Si una pantalla tiene muchas acciones, solo la siguiente accion recomendada es `ritual`; el resto baja a `arcane` o `neutral`.
+- No convertir toda la botonera en dorado.
+- El dorado puede aparecer en bordes de jerarquia (header/stage/top border) en baja opacidad para guiar foco sin saturar.
+
+Mapeo rapido por pantalla:
+
+- `Encargos`:
+  - `ritual`: `Asignar`, `Reclamar`, `Reclamar + repetir`.
+  - `neutral`: `Volver`, `Retirar equipo`, expand/collapse.
+
+- `Talentos`:
+  - `ritual` compacto: CTA `+N TP` / `DESB. +N TP` solo cuando `canUpgrade`.
+  - `success-muted`: `MAX`.
+  - `disabled neutral`: CTA no comprable.
+  - `neutral/danger-soft`: `Resetear Arbol` (no ritual).
+
 ---
 
 ## 7. Copy
@@ -469,3 +515,34 @@ Validar una direccion dark-fantasy sobria donde:
 
 - Vigente como trial reversible.
 - Si se aprueba, migrar este perfil a tokens/componentes reutilizables.
+
+---
+
+## 15. Talentos - Trial Visual Complementario (2026-04-27)
+
+Scope: `Heroe > Talentos` con flag reversible.
+
+### Activacion Reversible
+
+- Query param: `?talents_stitch_trial=1`
+- Local storage key: `idlerpg:trial:talents-stitch` con valor `1`
+
+### Decision De Diseño Consolidada
+
+1. Base visual:
+- Superficies dark-fantasy sobrias.
+- Violeta como color dominante de interaccion.
+
+2. Dorado quirurgico:
+- Se agrega en bordes de jerarquia (header, toolbar, stages) con opacidad controlada.
+- Se usa en CTA de upgrade `+N` cuando hay compra posible.
+
+3. Botonera en Talentos:
+- `+N TP` comprable: `ritual` dorado, alto contraste, bajo glow.
+- `MAX`: estado de exito sobrio (no dorado).
+- No comprable: `disabled` neutro.
+- `Resetear Arbol`: neutro con semantica de riesgo suave, sin fill ritual.
+
+4. Restriccion:
+- No dorar todas las acciones de la pantalla.
+- El foco ritual debe quedar en progresion inmediata, no en navegacion.

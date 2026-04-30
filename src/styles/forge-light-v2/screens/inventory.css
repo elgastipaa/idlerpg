@@ -1,0 +1,76 @@
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] :where(
+  .expedition-root,
+  .expedition-root--inventory,
+  .expedition-root--inventory-mobile,
+  .expedition-subview-content
+) {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .fl-inventory-header {
+  border-bottom-color: var(--fl2-gold-muted) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] :where(.fl-inventory-title, .fl-inventory-filter-title, .fl-inventory-equipped-name, .fl-inventory-row-name-line) {
+  color: var(--fl2-text) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] :where(.fl-inventory-subtitle, .fl-inventory-filter-copy, .fl-inventory-row-family, .fl-inventory-detail-hint) {
+  color: var(--fl2-text-muted) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .fl-inventory-row-stats-wrap {
+  border-top-color: rgba(198, 161, 91, 0.12) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .fl-inventory-loot-rule-card,
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .fl-inventory-bulk-card {
+  background: rgba(13, 17, 24, 0.56) !important;
+  border-color: var(--inventory-rarity-color, var(--fl2-gold-muted)) !important;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--inventory-rarity-color, var(--fl2-gold)) 16%, transparent) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light {
+  --inventory-fl-panel: rgba(7, 10, 11, 0.58) !important;
+  --inventory-fl-panel-2: rgba(15, 18, 19, 0.52) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light > section[style*="background"] {
+  color: var(--fl2-text) !important;
+  background:
+    radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.05), transparent 24%),
+    linear-gradient(180deg, rgba(8, 10, 11, 0.42), rgba(5, 8, 10, 0.38)) !important;
+  border-color: rgba(198, 161, 91, 0.22) !important;
+  box-shadow: var(--fl2-surface-shadow) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-equipped-card,
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-loot-filter,
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-loot-rule-card,
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-row-card,
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-bulk-card {
+  background:
+    radial-gradient(circle at 8% 18%, rgba(243, 198, 95, 0.055), transparent 32%),
+    linear-gradient(180deg, rgba(13, 16, 17, 0.42), rgba(5, 8, 10, 0.38)) !important;
+  border-color: rgba(198, 161, 91, 0.24) !important;
+  box-shadow: var(--fl2-surface-shadow) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-equipped-art,
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-row-art-button {
+  background:
+    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--inventory-rarity-color, var(--fl2-gold)) 16%, transparent), transparent 54%),
+    linear-gradient(180deg, rgba(17, 19, 19, 0.48), rgba(3, 5, 6, 0.44)) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-filter-pills span,
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-filter-presets button,
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-loot-rule-card button,
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-row-action,
+.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-gear-button {
+  background: rgba(8, 10, 10, 0.48) !important;
+}

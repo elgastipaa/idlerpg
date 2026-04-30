@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useRef } from "react";
 import useViewport from "../hooks/useViewport";
+import SubtabDock from "./ui/SubtabDock";
 
 const SUBVIEW_META = {
   account: {
@@ -32,33 +33,6 @@ const AccountProgressView = lazy(() => import("./AccountProgressView"));
 const Achievements = lazy(() => import("./Achievements"));
 const Stats = lazy(() => import("./Stats"));
 
-function buttonStyle({ active = false, disabled = false } = {}) {
-  return {
-    border: "1px solid",
-    borderColor: disabled
-      ? "var(--color-border-primary, #e2e8f0)"
-      : active
-        ? "var(--tone-accent, #4338ca)"
-        : "var(--color-border-primary, #e2e8f0)",
-    background: disabled
-      ? "var(--color-background-tertiary, #f8fafc)"
-      : active
-        ? "var(--tone-accent-soft, #eef2ff)"
-        : "var(--color-background-secondary, #ffffff)",
-    color: disabled
-      ? "var(--color-text-tertiary, #94a3b8)"
-      : active
-        ? "var(--tone-accent, #4338ca)"
-        : "var(--color-text-primary, #1e293b)",
-    borderRadius: "12px",
-    padding: "10px 12px",
-    fontSize: "0.72rem",
-    fontWeight: "900",
-    cursor: disabled ? "not-allowed" : "pointer",
-    minWidth: "110px",
-  };
-}
-
 function getRegistrySubview(tab = "registry") {
   if (tab === "registry") return "account";
   if (tab === "account" || tab === "achievements" || tab === "stats") return tab;
@@ -68,17 +42,7 @@ function getRegistrySubview(tab = "registry") {
 
 function SubviewLoadingCard({ label = "Vista" }) {
   return (
-    <div
-      style={{
-        border: "1px solid var(--color-border-primary, #e2e8f0)",
-        background: "var(--color-background-secondary, #ffffff)",
-        borderRadius: "12px",
-        padding: "14px 12px",
-        fontSize: "0.72rem",
-        fontWeight: "900",
-        color: "var(--color-text-secondary, #64748b)",
-      }}
-    >
+    <div className="subview-loading-card">
       Cargando {label}...
     </div>
   );
@@ -92,27 +56,12 @@ export default function RegistryView({ state, dispatch }) {
   const DEV_GESTURE_WINDOW_MS = 900;
   const mobileSubviewCount = Object.keys(SUBVIEW_META).length;
   const mobileSubtabsScrollable = mobileSubviewCount >= 5;
-  const mobileSubviewDockStyle = {
-    position: "fixed",
-    left: 0,
-    right: 0,
-    bottom: "calc(var(--app-bottom-nav-offset, 72px) + env(safe-area-inset-bottom))",
-    zIndex: 4900,
-    background: "var(--color-background-secondary, #ffffff)",
-    borderTop: "1px solid var(--color-border-secondary, #e2e8f0)",
-    boxShadow: "0 -10px 24px rgba(15,23,42,0.08)",
-    padding: "8px 8px 8px",
-  };
-  const mobileSubviewRowStyle = {
-    display: "flex",
-    gap: "8px",
-    flexWrap: "nowrap",
-    width: "100%",
-    overflowX: mobileSubtabsScrollable ? "auto" : "hidden",
-    overflowY: "hidden",
-    scrollbarWidth: mobileSubtabsScrollable ? "none" : "auto",
-    WebkitOverflowScrolling: "touch",
-  };
+  const subtabEntries = Object.entries(SUBVIEW_META).map(([viewId, meta]) => ({
+    id: viewId,
+    label: meta.label,
+    disabled: reforgeLocked && activeSubview !== viewId,
+    title: meta.description,
+  }));
 
   function handleSubviewPress(viewId) {
     if (viewId === "account") {
@@ -135,57 +84,16 @@ export default function RegistryView({ state, dispatch }) {
   }
 
   return (
-    <div style={{ display: "grid", gap: "10px", padding: "10px" }}>
-      {!isMobile && (
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {Object.entries(SUBVIEW_META).map(([viewId, meta]) => {
-            const active = activeSubview === viewId;
-            const disabled = reforgeLocked && !active;
-            return (
-              <button
-                key={viewId}
-                onClick={() => handleSubviewPress(viewId)}
-                disabled={disabled}
-                style={buttonStyle({ active, disabled })}
-                title={meta.description}
-              >
-                {meta.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
+    <div className="registry-view">
+      <SubtabDock
+        entries={subtabEntries}
+        activeId={activeSubview}
+        onSelect={handleSubviewPress}
+        isMobile={isMobile}
+        mobileScrollable={mobileSubtabsScrollable}
+      />
 
-      {isMobile && (
-        <div style={mobileSubviewDockStyle}>
-          <div style={mobileSubviewRowStyle}>
-            {Object.entries(SUBVIEW_META).map(([viewId, meta]) => {
-              const active = activeSubview === viewId;
-              const disabled = reforgeLocked && !active;
-              return (
-                <button
-                  key={`mobile-${viewId}`}
-                  onClick={() => handleSubviewPress(viewId)}
-                  disabled={disabled}
-                  style={{
-                    ...buttonStyle({ active, disabled }),
-                    minWidth: mobileSubtabsScrollable ? "84px" : 0,
-                    flex: mobileSubtabsScrollable ? "0 0 auto" : "1 1 0",
-                    padding: "8px 10px",
-                    fontSize: "0.68rem",
-                    whiteSpace: mobileSubtabsScrollable ? "nowrap" : "normal",
-                  }}
-                  title={meta.description}
-                >
-                  {meta.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      <div>
+      <div className="registry-view-content">
         <Suspense fallback={<SubviewLoadingCard label={SUBVIEW_META[activeSubview]?.label || "Vista"} />}>
           {activeSubview === "account" && <AccountProgressView state={state} dispatch={dispatch} />}
           {activeSubview === "achievements" && <Achievements state={state} />}
