@@ -1,33 +1,33 @@
-.app-shell-root--forge-light-v2 .fl2-micro-sep {
+.app-shell-root--forge-light-v2 .fl-micro-sep {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
 }
 
-.app-shell-root--forge-light-v2 .fl2-micro-sep::before,
-.app-shell-root--forge-light-v2 .fl2-micro-sep::after {
+.app-shell-root--forge-light-v2 .fl-micro-sep::before,
+.app-shell-root--forge-light-v2 .fl-micro-sep::after {
   content: "";
   flex: 1;
   height: 1px;
-  background: var(--fl2-divider-line);
+  background: var(--fl-divider-line);
 }
 
-.app-shell-root--forge-light-v2 .fl2-micro-sep::after {
+.app-shell-root--forge-light-v2 .fl-micro-sep::after {
   transform: rotate(180deg);
 }
 
-.app-shell-root--forge-light-v2 .fl2-micro-sep > span,
-.app-shell-root--forge-light-v2 .fl2-micro-bullet {
+.app-shell-root--forge-light-v2 .fl-micro-sep > span,
+.app-shell-root--forge-light-v2 .fl-micro-bullet {
   width: 8px;
   height: 8px;
   flex-shrink: 0;
-  background: var(--fl2-gold);
+  background: var(--fl-gold-glow);
   transform: rotate(45deg);
 }
 
 .app-shell-root--forge-light-v2 :where(li)::marker {
-  color: var(--fl2-gold);
+  color: var(--fl-gold-glow);
 }
 
 /* Migrated component keyframes */

@@ -1,7 +1,8 @@
 import React from "react";
-import FlSectionHeader from "./FlSectionHeader.jsx";
+import FlPanelHeader from "./FlPanelHeader.jsx";
 
 const VALID_VARIANTS = new Set(["default", "hero", "section", "danger", "success", "arcane", "compact"]);
+const VALID_TONES = new Set(["default", "weekly", "danger", "success", "arcane"]);
 const VALID_STATES = new Set(["default", "selected", "disabled", "loading", "success", "error"]);
 const VALID_SIZES = new Set(["sm", "md", "lg", "full"]);
 
@@ -17,6 +18,7 @@ const FlPanel = React.forwardRef(function FlPanel(
   {
     as: Component = "section",
     variant = "default",
+    tone = "default",
     size = "md",
     state = "default",
     title = "",
@@ -35,6 +37,7 @@ const FlPanel = React.forwardRef(function FlPanel(
   ref
 ) {
   const normalizedVariant = normalizeOption(variant, VALID_VARIANTS, "default");
+  const normalizedTone = normalizeOption(tone, VALID_TONES, "default");
   const normalizedSize = normalizeOption(size, VALID_SIZES, "md");
   const normalizedState = loading
     ? "loading"
@@ -44,6 +47,7 @@ const FlPanel = React.forwardRef(function FlPanel(
         ? "selected"
         : normalizeOption(state, VALID_STATES, "default");
   const hasHeader = header || title || subtitle || eyebrow || icon || action;
+  const fallbackCopy = eyebrow || "";
 
   return (
     <Component
@@ -52,6 +56,7 @@ const FlPanel = React.forwardRef(function FlPanel(
       className={cx(
         "fl-panel",
         `fl-panel--${normalizedVariant}`,
+        normalizedTone !== "default" && `fl-panel--tone-${normalizedTone}`,
         `fl-panel--${normalizedSize}`,
         selected && "fl-panel--selected",
         disabled && "fl-panel--disabled",
@@ -65,11 +70,11 @@ const FlPanel = React.forwardRef(function FlPanel(
       {hasHeader && (
         <div className="fl-panel__header">
           {header || (
-            <FlSectionHeader
-              eyebrow={eyebrow}
+            <FlPanelHeader
               title={title}
               subtitle={subtitle}
-              icon={icon}
+              copy={fallbackCopy}
+              tone={normalizedTone}
               actions={action}
             />
           )}

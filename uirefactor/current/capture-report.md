@@ -1,6 +1,6 @@
 # Forge Light Capture Report
 
-- Fecha: 2026-04-29T21:55:38.008Z
+- Fecha: 2026-05-02T14:17:40.628Z
 - URL: `http://127.0.0.1:4174/?nosave=1`
 - Modo: save semilla post-onboarding + `?nosave=1`
 

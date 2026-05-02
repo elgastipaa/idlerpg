@@ -79,7 +79,7 @@ export default function Achievements({ state }) {
 
   return (
     <div className={rootClassName}>
-      <section className="achievements-panel fl2-surface">
+      <section className="achievements-panel fl-surface">
         <div className="achievements-metrics" {...metricsProps}>
           <TopMetric label="Completados" value={`${unlockedCount}/${ACHIEVEMENTS.length}`} color="#1D9E75" />
           <TopMetric label="Progreso" value={`${progressPercent}%`} color="#534AB7" />
@@ -95,14 +95,14 @@ export default function Achievements({ state }) {
       <section className="achievements-filters">
         <button
           onClick={() => setFilterMode("all")}
-          className={["achievements-filter fl2-button", filterMode === "all" ? "fl2-button--selected" : ""].filter(Boolean).join(" ")}
+          className={["achievements-filter fl-button", filterMode === "all" ? "fl-button--selected" : ""].filter(Boolean).join(" ")}
           data-selected={filterMode === "all" ? "true" : undefined}
         >
           TODOS
         </button>
         <button
           onClick={() => setFilterMode("pending")}
-          className={["achievements-filter fl2-button", filterMode === "pending" ? "fl2-button--selected" : ""].filter(Boolean).join(" ")}
+          className={["achievements-filter fl-button", filterMode === "pending" ? "fl-button--selected" : ""].filter(Boolean).join(" ")}
           data-selected={filterMode === "pending" ? "true" : undefined}
         >
           NO COMPLETADOS
@@ -119,7 +119,7 @@ export default function Achievements({ state }) {
           {canShowMore && (
             <button
               onClick={() => setVisibleCount(current => Math.min(filtered.length, current + previewStep))}
-              className="achievements-action fl2-button"
+              className="achievements-action fl-button"
             >
               Ver mas ({filtered.length - visibleCount})
             </button>
@@ -127,7 +127,7 @@ export default function Achievements({ state }) {
           {canShowLess && (
             <button
               onClick={() => setVisibleCount(previewStep)}
-              className="achievements-action fl2-button fl2-button--ghost"
+              className="achievements-action fl-button fl-button--ghost"
             >
               Ver menos
             </button>
@@ -177,7 +177,7 @@ function AchievementCard({ achievement }) {
             <div className="achievement-card__description">{achievement.description}</div>
           </div>
         </div>
-        <div className="achievement-card__category fl2-badge">
+        <div className="achievement-card__category fl-badge">
           {achievement.category}
         </div>
       </div>

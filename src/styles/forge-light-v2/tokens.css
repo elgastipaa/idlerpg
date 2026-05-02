@@ -1,56 +1,215 @@
 .app-shell-root--forge-light-v2 {
-  --fl2-bg: #0b0f14;
-  --fl2-bg-deep: #05080a;
-  --fl2-bg-surface: #121821;
-  --fl2-bg-card: #161d27;
-  --fl2-bg-card-deep: #0d1118;
-  --fl2-bg-input: #0a0d12;
-  --fl2-surface: rgba(8, 10, 11, 0.48);
-  --fl2-surface-soft: rgba(8, 10, 11, 0.34);
-  --fl2-surface-strong: rgba(8, 10, 11, 0.66);
-  --fl2-surface-glass: rgba(8, 10, 11, 0.28);
-  --fl2-surface-border: rgba(198, 161, 91, 0.28);
-  --fl2-surface-bg:
+  /* Canonical Forge Light v2 tokens */
+  --fl-bg-main: #0b0f14;
+  --fl-bg-deep: #05080a;
+  --fl-bg-surface: #121821;
+  --fl-bg-card: #161d27;
+  --fl-bg-card-deep: #0d1118;
+  --fl-bg-input: #0a0d12;
+
+  --fl-surface: rgba(8, 10, 11, 0.48);
+  --fl-surface-soft: rgba(8, 10, 11, 0.34);
+  --fl-surface-strong: rgba(8, 10, 11, 0.66);
+  --fl-surface-glass: rgba(8, 10, 11, 0.28);
+  --fl-surface-border: rgba(198, 161, 91, 0.28);
+  --fl-surface-bg:
     radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.045), transparent 24%),
-    linear-gradient(180deg, var(--fl2-surface), rgba(5, 8, 10, 0.42));
-  --fl2-surface-bg-soft:
+    linear-gradient(180deg, var(--fl-surface), rgba(5, 8, 10, 0.42));
+  --fl-surface-bg-soft:
     radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.035), transparent 24%),
-    linear-gradient(180deg, var(--fl2-surface-soft), rgba(5, 8, 10, 0.28));
-  --fl2-surface-bg-strong:
+    linear-gradient(180deg, var(--fl-surface-soft), rgba(5, 8, 10, 0.28));
+  --fl-surface-bg-strong:
     radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.055), transparent 24%),
-    linear-gradient(180deg, var(--fl2-surface-strong), rgba(5, 8, 10, 0.62));
-  --fl2-surface-shadow:
+    linear-gradient(180deg, var(--fl-surface-strong), rgba(5, 8, 10, 0.62));
+  --fl-surface-shadow:
     inset 0 0 0 1px rgba(255, 232, 166, 0.04),
     inset 0 0 18px rgba(243, 198, 95, 0.025),
     0 8px 16px rgba(0, 0, 0, 0.24);
-  --fl2-gold: #e6c47a;
-  --fl2-gold-strong: #f0d28a;
-  --fl2-gold-deep: #7c531f;
-  --fl2-gold-muted: rgba(198, 161, 91, 0.28);
-  --fl2-text: #f2e6c8;
-  --fl2-text-secondary: #b8aa8f;
-  --fl2-text-muted: #7f7564;
-  --fl2-success: #4fd18b;
-  --fl2-danger: #e05a5a;
-  --fl2-warning: #f2b84b;
-  --fl2-reward: #f2b84b;
-  --fl2-arcane: #8a5be8;
-  --fl2-defense: #4a8fe7;
-  --fl2-rarity-common: #8e8e8e;
-  --fl2-rarity-magic: #4fd18b;
-  --fl2-rarity-rare: #4a8fe7;
-  --fl2-rarity-epic: #b455e8;
-  --fl2-rarity-legendary: #f29a2e;
-  --fl2-radius-sm: 3px;
-  --fl2-radius-md: 5px;
-  --fl2-radius-lg: 8px;
-  --fl2-font-display: "Cinzel", Georgia, serif;
-  --fl2-font-ui: "Barlow Condensed", "Arial Narrow", sans-serif;
-  --fl2-shadow-card: 0 12px 30px rgba(0, 0, 0, 0.55);
-  --fl2-shadow-inset: inset 0 1px 0 rgba(255, 232, 180, 0.07);
-  --fl2-glow-gold-soft: 0 0 18px rgba(230, 196, 122, 0.22);
-  --fl2-glow-gold-strong: 0 0 30px rgba(230, 196, 122, 0.4);
-  --fl2-glow-success: 0 0 20px rgba(79, 209, 139, 0.28);
-  --fl2-glow-danger: 0 0 20px rgba(224, 90, 90, 0.28);
-  --fl2-glow-arcane: 0 0 22px rgba(138, 91, 232, 0.32);
+
+  --fl-gold-border: #c6a15b;
+  --fl-gold-glow: #e6c47a;
+  --fl-gold-hover: #f0d28a;
+  --fl-gold-deep: #7c531f;
+  --fl-gold-muted: rgba(198, 161, 91, 0.28);
+  --fl-gold-subtle: rgba(198, 161, 91, 0.1);
+
+  --fl-text-primary: #f2e6c8;
+  --fl-text-secondary: #b8aa8f;
+  --fl-text-muted: #7f7564;
+  --fl-text-disabled: #55504a;
+
+  --fl-success: #4fd18b;
+  --fl-danger: #e05a5a;
+  --fl-warning: #f2b84b;
+  --fl-reward: #f2b84b;
+  --fl-arcane: #8a5be8;
+  --fl-defense: #4a8fe7;
+
+  --fl-rarity-common: #8e8e8e;
+  --fl-rarity-magic: #4fd18b;
+  --fl-rarity-rare: #4a8fe7;
+  --fl-rarity-epic: #b455e8;
+  --fl-rarity-legendary: #f29a2e;
+
+  --fl-radius-sm: 3px;
+  --fl-radius-md: 5px;
+  --fl-radius-lg: 8px;
+  --fl-font-display: "Cinzel", Georgia, serif;
+  --fl-font-ui: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --fl-font-number: var(--fl-font-ui);
+
+  --fl-shadow-card: 0 12px 30px rgba(0, 0, 0, 0.55);
+  --fl-shadow-inset: inset 0 1px 0 rgba(255, 232, 180, 0.07);
+  --fl-glow-gold-soft: 0 0 18px rgba(230, 196, 122, 0.22);
+  --fl-glow-gold-strong: 0 0 30px rgba(230, 196, 122, 0.4);
+  --fl-glow-success: 0 0 20px rgba(79, 209, 139, 0.28);
+  --fl-glow-danger: 0 0 20px rgba(224, 90, 90, 0.28);
+  --fl-glow-arcane: 0 0 22px rgba(138, 91, 232, 0.32);
+
+  --fl-tone-gold: var(--fl-gold-glow);
+  --fl-tone-success: var(--fl-success);
+  --fl-tone-danger: var(--fl-danger);
+  --fl-tone-warning: var(--fl-warning);
+  --fl-tone-arcane: var(--fl-arcane);
+  --fl-tone-defense: var(--fl-defense);
+  --fl-tone-reward: var(--fl-reward);
+
+  /* Compat aliases (--fl2-*) */
+  --fl2-bg: var(--fl-bg-main);
+  --fl2-bg-deep: var(--fl-bg-deep);
+  --fl2-bg-surface: var(--fl-bg-surface);
+  --fl2-bg-card: var(--fl-bg-card);
+  --fl2-bg-card-deep: var(--fl-bg-card-deep);
+  --fl2-bg-input: var(--fl-bg-input);
+  --fl2-surface: var(--fl-surface);
+  --fl2-surface-soft: var(--fl-surface-soft);
+  --fl2-surface-strong: var(--fl-surface-strong);
+  --fl2-surface-glass: var(--fl-surface-glass);
+  --fl2-surface-border: var(--fl-surface-border);
+  --fl2-surface-bg: var(--fl-surface-bg);
+  --fl2-surface-bg-soft: var(--fl-surface-bg-soft);
+  --fl2-surface-bg-strong: var(--fl-surface-bg-strong);
+  --fl2-surface-shadow: var(--fl-surface-shadow);
+  --fl2-gold: var(--fl-gold-glow);
+  --fl2-gold-strong: var(--fl-gold-hover);
+  --fl2-gold-deep: var(--fl-gold-deep);
+  --fl2-gold-muted: var(--fl-gold-muted);
+  --fl2-text: var(--fl-text-primary);
+  --fl2-text-secondary: var(--fl-text-secondary);
+  --fl2-text-muted: var(--fl-text-muted);
+  --fl2-success: var(--fl-success);
+  --fl2-danger: var(--fl-danger);
+  --fl2-warning: var(--fl-warning);
+  --fl2-reward: var(--fl-reward);
+  --fl2-arcane: var(--fl-arcane);
+  --fl2-defense: var(--fl-defense);
+  --fl2-rarity-common: var(--fl-rarity-common);
+  --fl2-rarity-magic: var(--fl-rarity-magic);
+  --fl2-rarity-rare: var(--fl-rarity-rare);
+  --fl2-rarity-epic: var(--fl-rarity-epic);
+  --fl2-rarity-legendary: var(--fl-rarity-legendary);
+  --fl2-radius-sm: var(--fl-radius-sm);
+  --fl2-radius-md: var(--fl-radius-md);
+  --fl2-radius-lg: var(--fl-radius-lg);
+  --fl2-font-display: var(--fl-font-display);
+  --fl2-font-ui: var(--fl-font-ui);
+  --fl2-shadow-card: var(--fl-shadow-card);
+  --fl2-shadow-inset: var(--fl-shadow-inset);
+  --fl2-glow-gold-soft: var(--fl-glow-gold-soft);
+  --fl2-glow-gold-strong: var(--fl-glow-gold-strong);
+  --fl2-glow-success: var(--fl-glow-success);
+  --fl2-glow-danger: var(--fl-glow-danger);
+  --fl2-glow-arcane: var(--fl-glow-arcane);
+
+  --fl-texture-noise:
+    radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.026) 0 1px, transparent 1px),
+    radial-gradient(circle at 78% 12%, rgba(255, 232, 180, 0.024) 0 1px, transparent 1px),
+    radial-gradient(circle at 42% 88%, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px),
+    repeating-linear-gradient(105deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 9px);
+  --fl-texture-leather:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.018) 0 25%, transparent 25% 50%, rgba(0, 0, 0, 0.08) 50% 75%, transparent 75%),
+    radial-gradient(ellipse at 50% 0%, rgba(198, 161, 91, 0.06), transparent 58%);
+  --fl-texture-metal:
+    linear-gradient(180deg, rgba(255, 232, 180, 0.08), rgba(255, 255, 255, 0.012) 35%, rgba(0, 0, 0, 0.26));
+  --fl-texture-woven:
+    radial-gradient(ellipse at 28% 18%, rgba(255, 232, 180, 0.026), transparent 34%),
+    radial-gradient(ellipse at 82% 72%, rgba(0, 0, 0, 0.28), transparent 42%),
+    repeating-linear-gradient(23deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 11px),
+    repeating-linear-gradient(116deg, rgba(0, 0, 0, 0.12) 0 1px, transparent 1px 14px);
+  --fl-texture-panel-fine:
+    repeating-linear-gradient(24deg, rgba(255, 232, 180, 0.014) 0 1px, transparent 1px 10px),
+    repeating-linear-gradient(114deg, rgba(0, 0, 0, 0.11) 0 1px, transparent 1px 12px);
+  --fl-surface-premium:
+    var(--fl-texture-noise),
+    var(--fl-texture-leather),
+    linear-gradient(135deg, var(--fl-bg-card), var(--fl-bg-surface) 56%, var(--fl-bg-card-deep));
+  --fl-surface-premium-compact:
+    var(--fl-texture-noise),
+    linear-gradient(180deg, rgba(18, 24, 33, 0.96), rgba(10, 13, 18, 0.98));
+  --fl-border-premium:
+    rgba(198, 161, 91, 0.44);
+  --fl-corner-bracket: rgba(210, 173, 102, 0.58);
+  --fl-border-dark: #05070a;
+  --fl-border-dark-soft: rgba(5, 7, 10, 0.86);
+  --fl-border-bronze-muted: rgba(185, 135, 60, 0.34);
+  --fl-panel-border: color-mix(in srgb, var(--fl-gold-muted) 78%, transparent);
+  --fl-panel-border-soft: color-mix(in srgb, var(--fl-gold-muted) 62%, transparent);
+  --fl-panel-border-inset: rgba(185, 135, 60, 0.24);
+  --fl-panel-border-inset-dark: rgba(5, 7, 10, 0.72);
+  --fl-panel-border-danger: var(--fl-panel-border);
+  --fl-panel-border-success: var(--fl-panel-border);
+  --fl-panel-border-arcane: var(--fl-panel-border);
+  --fl-panel-border-weekly: var(--fl-panel-border);
+  --fl-panel-header-surface:
+    var(--fl-texture-noise),
+    radial-gradient(circle at 18% 14%, rgba(243, 198, 95, 0.13), transparent 36%),
+    linear-gradient(180deg, rgba(14, 18, 24, 0.98) 0%, rgba(8, 11, 16, 0.99) 100%),
+    linear-gradient(90deg, rgba(198, 161, 91, 0.08) 0%, rgba(198, 161, 91, 0.03) 46%, transparent 100%);
+  --fl-panel-header-surface-module:
+    var(--fl-texture-noise),
+    radial-gradient(circle at 18% 14%, rgba(243, 198, 95, 0.15), transparent 38%),
+    linear-gradient(180deg, rgba(13, 18, 24, 0.985) 0%, rgba(7, 10, 14, 0.995) 100%),
+    linear-gradient(90deg, rgba(198, 161, 91, 0.09) 0%, rgba(198, 161, 91, 0.035) 52%, transparent 100%);
+  --fl-button-bevel:
+    linear-gradient(180deg, rgba(255, 236, 184, 0.16) 0%, rgba(255, 236, 184, 0.035) 34%, rgba(0, 0, 0, 0.28) 76%, rgba(0, 0, 0, 0.52) 100%);
+  --fl-focus-ring: 0 0 0 2px rgba(230, 196, 122, 0.18), 0 0 0 4px rgba(5, 7, 10, 0.78);
+
+  --fl-space-1: 4px;
+  --fl-space-2: 6px;
+  --fl-space-3: 8px;
+  --fl-space-4: 10px;
+  --fl-space-5: 12px;
+  --fl-space-6: 16px;
+  --fl-space-7: 20px;
+  --fl-space-8: 24px;
+  --fl-space-9: 32px;
+
+  --color-background-primary: var(--fl-bg-main);
+  --color-background-secondary: var(--fl-bg-surface);
+  --color-background-tertiary: var(--fl-bg-card);
+  --color-background-info: rgba(74, 143, 231, 0.12);
+  --color-surface-overlay: rgba(11, 15, 20, 0.94);
+  --color-text-primary: var(--fl-text-primary);
+  --color-text-secondary: var(--fl-text-secondary);
+  --color-text-tertiary: var(--fl-text-muted);
+  --color-text-info: var(--fl-defense);
+  --color-border-primary: var(--fl-border-premium);
+  --color-border-secondary: var(--fl-gold-muted);
+  --color-border-tertiary: rgba(198, 161, 91, 0.18);
+  --color-shadow: rgba(0, 0, 0, 0.55);
+  --tone-accent: var(--fl-gold-glow);
+  --tone-accent-soft: var(--fl-gold-subtle);
+  --tone-warning: var(--fl-warning);
+  --tone-warning-soft: rgba(242, 184, 75, 0.14);
+  --tone-warning-strong: var(--fl-gold-hover);
+  --tone-success: var(--fl-success);
+  --tone-success-soft: rgba(79, 209, 139, 0.14);
+  --tone-success-strong: #8ef0b8;
+  --tone-danger: var(--fl-danger);
+  --tone-danger-soft: rgba(224, 90, 90, 0.14);
+  --tone-danger-strong: #ffaaa5;
+  --tone-info: var(--fl-defense);
+  --tone-info-soft: rgba(74, 143, 231, 0.14);
+  --tone-violet: var(--fl-arcane);
+  --tone-violet-soft: rgba(138, 91, 232, 0.16);
 }

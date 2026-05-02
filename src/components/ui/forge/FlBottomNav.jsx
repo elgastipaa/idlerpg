@@ -1,7 +1,6 @@
 import React from "react";
 import ForgeIcon from "../../icons/ForgeIcon";
-import FlBadge from "./FlBadge.jsx";
-import FlIconFrame from "./FlIconFrame.jsx";
+import FlNotifBadge from "./FlNotifBadge.jsx";
 
 const VALID_VARIANTS = new Set(["fixed", "static", "compact", "icon-label"]);
 
@@ -63,27 +62,23 @@ const FlBottomNav = React.forwardRef(function FlBottomNav(
             className={cx(
               "fl-bottom-nav__item",
               selected && "fl-bottom-nav__item--active",
-              disabled && "fl-bottom-nav__item--disabled"
+              disabled && "fl-bottom-nav__item--disabled",
+              item.hasSpotlight && "fl-bottom-nav__item--spotlight",
+              item.className
             )}
             aria-current={selected ? "page" : undefined}
             disabled={disabled}
+            data-onboarding-target={item.onboardingTarget}
             onClick={disabled ? undefined : () => onChange?.(itemId, item, index)}
           >
-            <FlIconFrame
-              className="fl-bottom-nav__icon"
-              size="md"
-              selected={selected}
-              locked={item.locked}
-              icon={React.isValidElement(item.icon) ? null : item.icon}
-              fallbackIcon={item.icon || "more"}
-            >
+            <span className="fl-bottom-nav__icon" aria-hidden="true">
               {iconNode}
-            </FlIconFrame>
+            </span>
             <span className="fl-bottom-nav__label">{item.label || itemId}</span>
             {item.badge != null && item.badge !== "" && (
-              <FlBadge className="fl-bottom-nav__badge" variant="count" tone={item.badgeTone || "danger"} size="sm">
+              <FlNotifBadge className="fl-bottom-nav__badge" tone={item.badgeTone || "danger"} size="sm">
                 {item.badge}
-              </FlBadge>
+              </FlNotifBadge>
             )}
           </button>
         );

@@ -40,6 +40,7 @@ import {
   normalizeExtractedItemRecord,
 } from "./sanctuary/blueprintEngine";
 import { normalizeProjectRecord } from "./sanctuary/projectForgeEngine";
+import { getLevelTalentPointEntitlement } from "./leveling";
 import {
   buildRelicFromExtractedItem,
   createEmptyRelicLoadout,
@@ -50,6 +51,8 @@ import {
 } from "./sanctuary/relicArmoryEngine";
 import { createEmptyItemStashState, syncItemStashState } from "./sanctuary/itemStashSchema";
 import { createEmptyOnboardingState, normalizeOnboardingState } from "./onboarding/onboardingEngine";
+import { getTalentCostForPlayer } from "./talents/treeEngine";
+import { TALENTS } from "../data/talents";
 
 const MAX_REWARD_GOLD = Math.max(
   1,
@@ -58,12 +61,14 @@ const MAX_REWARD_GOLD = Math.max(
 );
 const SAFE_GOLD_RECOVERY_CAP = 5_000_000;
 const SAFE_ESSENCE_RECOVERY_CAP = 1_000_000;
-const SAFE_LEVEL_RECOVERY_CAP = 2_000;
-const SAFE_BASE_DAMAGE_RECOVERY_CAP = 5_000;
-const SAFE_BASE_MAX_HP_RECOVERY_CAP = 100_000;
-const SAFE_TALENT_POINT_RECOVERY_CAP = 10_000;
+const SAFE_LEVEL_RECOVERY_CAP = 1_000_000;
+const SAFE_BASE_DAMAGE_RECOVERY_CAP = 2_000_000;
+const SAFE_BASE_MAX_HP_RECOVERY_CAP = 20_000_000;
+const SAFE_TALENT_POINT_RECOVERY_CAP = 2_000_000;
+const SAFE_XP_RECOVERY_CAP = 2_000_000_000;
 const VALID_TABS = new Set(["sanctuary", "character", "combat", "inventory", "skills", "talents", "crafting", "prestige", "account", "achievements", "stats", "registry", "system", "lab", "codex"]);
 const EXPEDITION_TABS = new Set(["combat", "inventory", "crafting", "codex"]);
+const TALENT_BY_ID = new Map(TALENTS.map(talent => [talent.id, talent]));
 
 function sanitizeStoredResource(value, { fallback = 0, recoveryCap = Number.MAX_SAFE_INTEGER } = {}) {
   const numeric = Number(value);
@@ -91,6 +96,16 @@ function getBaseDamageForLevel(level = 1) {
 
 function getBaseMaxHpForLevel(level = 1) {
   return 100 + (Math.max(0, Number(level || 1) - 1) * 12);
+}
+
+function getSpentTalentPoints(player = {}) {
+  const state = { player };
+  return [...new Set(player.unlockedTalents || [])].reduce((total, talentId) => {
+    const talent = TALENT_BY_ID.get(talentId);
+    if (!talent) return total;
+    const cost = getTalentCostForPlayer(state, talent);
+    return Number.isFinite(cost) ? total + Math.max(0, cost) : total;
+  }, 0);
 }
 
 function getLatestReplaySnapshot(replay = {}) {
@@ -1329,10 +1344,21 @@ export function mergeStateWithDefaults(base, incoming) {
       }
     );
   }
-  const sanitizedTalentPoints = sanitizeStoredResource(rawPlayer.talentPoints ?? base.player.talentPoints, {
+  const sanitizedStoredTalentPoints = sanitizeStoredResource(rawPlayer.talentPoints ?? base.player.talentPoints, {
     fallback: Number(recoverySnapshot?.talentPoints || base.player.talentPoints || 0),
     recoveryCap: SAFE_TALENT_POINT_RECOVERY_CAP,
   });
+  const talentAccountingPlayer = {
+    ...rawPlayer,
+    level: effectiveLevel,
+    talentPoints: sanitizedStoredTalentPoints,
+    unlockedTalents: [...new Set(rawPlayer.unlockedTalents || [])],
+  };
+  const minimumAvailableTalentPoints = Math.max(
+    0,
+    getLevelTalentPointEntitlement(effectiveLevel) - getSpentTalentPoints(talentAccountingPlayer)
+  );
+  const sanitizedTalentPoints = Math.max(sanitizedStoredTalentPoints, minimumAvailableTalentPoints);
   const sanitizedBaseDamage = sanitizeStoredResource(rawPlayer.baseDamage ?? base.player.baseDamage, {
     fallback: getBaseDamageForLevel(effectiveLevel),
     recoveryCap: SAFE_BASE_DAMAGE_RECOVERY_CAP,
@@ -1343,7 +1369,7 @@ export function mergeStateWithDefaults(base, incoming) {
   });
   const sanitizedXp = sanitizeStoredResource(rawPlayer.xp ?? base.player.xp, {
     fallback: 0,
-    recoveryCap: 50_000_000,
+    recoveryCap: SAFE_XP_RECOVERY_CAP,
   });
   const bestVisibleItemRating = Math.max(
     0,
@@ -1531,6 +1557,7 @@ export function mergeStateWithDefaults(base, incoming) {
     effectiveLevel !== Number(rawPlayer.level ?? effectiveLevel) ||
     sanitizedGold !== Number(rawPlayer.gold ?? sanitizedGold) ||
     sanitizedEssence !== Number(rawPlayer.essence ?? sanitizedEssence) ||
+    sanitizedTalentPoints !== Number(rawPlayer.talentPoints ?? sanitizedTalentPoints) ||
     (normalizedPrestige.echoes || 0) !== Number((migratedIncoming.prestige || {}).echoes ?? (normalizedPrestige.echoes || 0)) ||
     (normalizedPrestige.spentEchoes || 0) !== Number((migratedIncoming.prestige || {}).spentEchoes ?? (normalizedPrestige.spentEchoes || 0)) ||
     (normalizedPrestigeCycle.maxLevel || 1) !== Number((migratedIncoming.combat || {}).prestigeCycle?.maxLevel ?? normalizedPrestigeCycle.maxLevel) ||

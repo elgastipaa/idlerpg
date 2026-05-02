@@ -11,6 +11,8 @@ export default function HorizontalOptionSelector({
   options = [],
   selectedId,
   onSelect,
+  className = "",
+  variant = "default",
   header = null,
   showArrows = true,
   prevLabel = "←",
@@ -45,7 +47,14 @@ export default function HorizontalOptionSelector({
   );
 
   return (
-    <div className="horizontal-option-selector" {...withStyle(rootStyle)}>
+    <div
+      className={[
+        "horizontal-option-selector",
+        variant ? `horizontal-option-selector--${variant}` : "",
+        className,
+      ].filter(Boolean).join(" ")}
+      {...withStyle(rootStyle)}
+    >
       {(header != null || showArrows) && (
         <div
           className={[
@@ -64,7 +73,11 @@ export default function HorizontalOptionSelector({
                 type="button"
                 onClick={() => selectByIndex(selectedIndex - 1)}
                 disabled={!canMovePrev}
-                className="horizontal-option-selector__arrow fl2-button"
+                className={[
+                  "horizontal-option-selector__arrow",
+                  "fl-button",
+                  "fl-button--secondary",
+                ].join(" ")}
                 {...withStyle(typeof getArrowButtonStyle === "function" ? getArrowButtonStyle({ direction: "prev", disabled: !canMovePrev }) : null)}
               >
                 {prevLabel}
@@ -73,7 +86,11 @@ export default function HorizontalOptionSelector({
                 type="button"
                 onClick={() => selectByIndex(selectedIndex + 1)}
                 disabled={!canMoveNext}
-                className="horizontal-option-selector__arrow fl2-button"
+                className={[
+                  "horizontal-option-selector__arrow",
+                  "fl-button",
+                  "fl-button--secondary",
+                ].join(" ")}
                 {...withStyle(typeof getArrowButtonStyle === "function" ? getArrowButtonStyle({ direction: "next", disabled: !canMoveNext }) : null)}
               >
                 {nextLabel}
@@ -105,10 +122,11 @@ export default function HorizontalOptionSelector({
                 }}
                 className={[
                   "horizontal-option-selector__option",
-                  "fl2-button",
-                  selected ? "horizontal-option-selector__option--selected fl2-button--selected" : "",
+                  "fl-button",
+                  selected ? "horizontal-option-selector__option--selected fl-button--selected" : "fl-button--secondary",
                 ].filter(Boolean).join(" ")}
                 data-selected={selected ? "true" : undefined}
+                data-option-id={optionId}
                 {...withStyle(typeof getOptionButtonStyle === "function" ? getOptionButtonStyle({ option, index, selected }) : null)}
               >
                 {typeof renderOption === "function" ? renderOption({ option, index, selected }) : String(optionId)}

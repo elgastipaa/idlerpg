@@ -10,7 +10,18 @@ import {
 } from "../utils/itemPresentation";
 import { getClassPortraitAsset } from "../utils/assetRegistry";
 import ForgeIcon from "./icons/ForgeIcon";
-import { FlAsset } from "./ui/forge";
+import {
+  FlAsset,
+  FlBadge,
+  FlBuildIdentityCard,
+  FlButton,
+  FlHeroScreenHeaderModule,
+  FlModulePanel,
+  FlProgressBar,
+  FlQuickStatRow,
+  FlQuickStatsGroup,
+  FlTag,
+} from "./ui/forge";
 
 function getRequirementText(unlockCondition = {}) {
   if (unlockCondition.stat === "kills") return `${unlockCondition.value} bajas`;
@@ -119,11 +130,10 @@ export default function Character({ player, dispatch, state }) {
       "character-class-choice",
       isMobile ? "character-class-choice--mobile" : "",
     ].filter(Boolean).join(" ");
-    const classChoiceGridProps = {
-      style: {
-        "--character-class-grid-columns": isMobile ? "1fr" : "repeat(auto-fit, minmax(250px, 1fr))",
-      },
-    };
+    const classChoiceGridClass = [
+      "character-class-choice__grid",
+      isMobile ? "character-class-choice__grid--single" : "",
+    ].filter(Boolean).join(" ");
 
     return (
       <div className={classChoiceRootClass}>
@@ -132,7 +142,7 @@ export default function Character({ player, dispatch, state }) {
           <p className="character-class-choice__note">La clase se reinicia con cada prestigio.</p>
         </header>
 
-        <div className="character-class-choice__grid" {...classChoiceGridProps}>
+        <div className={classChoiceGridClass}>
           {CLASSES.map(clase => (
             <div
               key={clase.id}
@@ -141,7 +151,7 @@ export default function Character({ player, dispatch, state }) {
             >
               <div className="character-class-choice__icon">{clase.icon || "?"}</div>
               <div className="character-class-choice__name">{clase.name}</div>
-              <span className="character-class-choice__playstyle fl2-badge">{clase.playstyle || "Clase"}</span>
+              <span className="character-class-choice__playstyle fl-badge">{clase.playstyle || "Clase"}</span>
               <p className="character-class-choice__description">{clase.description}</p>
             </div>
           ))}
@@ -158,142 +168,132 @@ export default function Character({ player, dispatch, state }) {
   const currentSpec = selectedClass?.specializations?.find(spec => spec.id === player.specialization) || null;
   const characterPortraitAsset = getClassPortraitAsset(player.specialization || player.class);
   const modifiers = [
-    { val: player.damagePct, label: `+${Math.round((player.damagePct || 0) * 100)}% dano`, color: "#1D9E75" },
-    { val: player.hpPct, label: `+${Math.round((player.hpPct || 0) * 100)}% vida`, color: "#1D9E75" },
-    { val: player.flatGold, label: `+${formatNumber(player.flatGold || 0)} oro/kill`, color: "#f59e0b" },
-    { val: player.xpPct, label: `+${Math.round((player.xpPct || 0) * 100)}% XP`, color: "#534AB7" },
-    { val: player.flatCrit, label: `+${Math.round((player.flatCrit || 0) * 100)}% crit`, color: "#D85A30" },
+    { val: player.damagePct, label: `+${Math.round((player.damagePct || 0) * 100)}% dano`, tone: "success" },
+    { val: player.hpPct, label: `+${Math.round((player.hpPct || 0) * 100)}% vida`, tone: "success" },
+    { val: player.flatGold, label: `+${formatNumber(player.flatGold || 0)} oro/kill`, tone: "warning" },
+    { val: player.xpPct, label: `+${Math.round((player.xpPct || 0) * 100)}% XP`, tone: "arcane" },
+    { val: player.flatCrit, label: `+${Math.round((player.flatCrit || 0) * 100)}% crit`, tone: "danger" },
   ].filter(modifier => modifier.val > 0);
+  const buildIdentityTone = getBuildToneFromColor(buildTag?.color);
 
   if (player.specialization) {
     return (
       <div className="character-root character-root--forge-light">
-        <header
+        <FlHeroScreenHeaderModule
           className={[
-            "forge-character-hero-card",
-            spotlightHeroOverview ? "forge-character-hero-card--spotlight" : "",
+            "forge-character-hero-module",
+            spotlightHeroOverview ? "forge-character-hero-module--spotlight" : "",
           ].filter(Boolean).join(" ")}
+          title="Heroe"
+          headline={currentSpec?.name || player.specialization}
+          subtitle={buildTag?.name || player.class}
+          portrait={(
+            <div className="forge-character-portrait" aria-hidden="true">
+              <div className="forge-character-portrait-glow" />
+              <FlAsset
+                asset={characterPortraitAsset}
+                kind="portrait"
+                size="full"
+                fit="cover"
+                className="forge-character-portrait-asset"
+                imgClassName="forge-character-portrait-img"
+                fallbackIcon="hero"
+                loading="eager"
+                alt=""
+              />
+              <span className="forge-character-level-badge">{formatNumber(player.level || 1)}</span>
+            </div>
+          )}
+          chips={(
+            <div className="forge-character-chip-row">
+              <FlBadge
+                tone="warning"
+                variant="rect"
+                size="sm"
+                icon={<ForgeIcon name="combat" size={14} />}
+              >
+                {player.class}
+              </FlBadge>
+              <FlBadge tone="defense" variant="rect" size="sm">
+                {currentSpec?.name || player.specialization}
+              </FlBadge>
+              {buildTag?.name && (
+                <FlBadge tone={buildIdentityTone} variant="rect" size="sm">
+                  {buildTag.name}
+                </FlBadge>
+              )}
+            </div>
+          )}
           data-onboarding-target={spotlightHeroOverview ? "hero-overview" : undefined}
           onClick={() => spotlightHeroOverview && dispatch({ type: "ACK_ONBOARDING_STEP" })}
         >
-          <div className="forge-character-portrait" aria-hidden="true">
-            <div className="forge-character-portrait-glow" />
-            <FlAsset
-              asset={characterPortraitAsset}
-              kind="portrait"
-              size="full"
-              fit="cover"
-              className="forge-character-portrait-asset"
-              imgClassName="forge-character-portrait-img"
-              fallbackIcon="hero"
-              loading="eager"
-              alt=""
+          <div className="forge-character-bars">
+            <ForgeCharacterBar
+              icon="bleed"
+              label="Vida"
+              value={`${formatNumber(Math.floor(displayedHp || 0))} / ${formatNumber(displayedMaxHp || 0)}`}
+              percentage={hpPercentage}
+              tone="green"
             />
-            <span className="forge-character-level-badge">{formatNumber(player.level || 1)}</span>
+            <ForgeCharacterBar
+              icon="xp"
+              label="Experiencia"
+              value={`${formatNumber(Math.floor(player.xp || 0))} / ${formatNumber(xpNextLevel)}`}
+              percentage={xpPercentage}
+              tone="purple"
+            />
           </div>
+        </FlHeroScreenHeaderModule>
 
-          <div className="forge-character-main">
-            <div className="forge-character-heading-row">
-              <div className="forge-character-title-block">
-                <div className="forge-character-kicker">Heroe</div>
-                <div className="forge-character-chip-row">
-                  <span className="forge-character-chip forge-character-chip--class">
-                    <ForgeIcon name="combat" size={16} />
-                    {player.class}
-                  </span>
-                  <span className="forge-character-chip forge-character-chip--spec">
-                    {currentSpec?.name || player.specialization}
-                  </span>
-                  {buildTag?.name && (
-                    <span className="forge-character-chip forge-character-chip--build">
-                      {buildTag.name}
-                    </span>
-                  )}
-                </div>
-                <div className="forge-character-description">
-                  {currentSpec?.description || buildTag?.description || "Tu ficha resume la build activa y el estado real de esta run."}
-                </div>
-              </div>
-
-              <div className="forge-character-level-summary">
-                <span>Nivel {formatNumber(player.level || 1)}</span>
-                <small><ForgeIcon name="skull" size={14} /> {formatNumber(kills)} bajas</small>
-              </div>
-            </div>
-
-            <div className="forge-character-bars">
-              <ForgeCharacterBar
-                icon="bleed"
-                label="Vida"
-                value={`${formatNumber(Math.floor(displayedHp || 0))} / ${formatNumber(displayedMaxHp || 0)}`}
-                percentage={hpPercentage}
-                tone="green"
-              />
-              <ForgeCharacterBar
-                icon="xp"
-                label="Experiencia"
-                value={`${formatNumber(Math.floor(player.xp || 0))} / ${formatNumber(xpNextLevel)}`}
-                percentage={xpPercentage}
-                tone="purple"
-              />
-            </div>
-          </div>
-        </header>
-
-        <section className="forge-character-section">
-          <div className="forge-character-section-title">Build actual</div>
+        <FlModulePanel title="Build actual" className="forge-character-build-module" bodyClassName="forge-character-build-module__body">
           <div className="forge-character-build-grid">
-            <article className="forge-character-build-card forge-character-build-card--active">
-              <div className="forge-character-build-icon" aria-hidden="true">
-                <ForgeIcon name="armor" size={32} />
-              </div>
-              <div className="forge-character-build-copy">
-                <strong>{currentSpec?.name || player.specialization}</strong>
-                <span>{currentSpec?.description || "Tu subclase define el enfoque principal de esta run."}</span>
-                <small>Activa</small>
-              </div>
-            </article>
+            <FlBuildIdentityCard
+              icon="armor"
+              title={currentSpec?.name || player.specialization}
+              description={currentSpec?.description || "Tu subclase define el enfoque principal de esta run."}
+              meta="Activa"
+              active
+            />
 
-            <article className="forge-character-build-card">
-              <div className="forge-character-build-icon" aria-hidden="true">
-                <ForgeIcon name="hero" size={32} />
-              </div>
-              <div className="forge-character-build-copy">
-                <strong>{buildTag?.name || "Build en desarrollo"}</strong>
-                <span>{buildTag?.description || "Todavia no hay suficiente senal de equipo y talentos para fijar una identidad fuerte."}</span>
-                <small>Identidad de build</small>
-              </div>
-            </article>
+            <FlBuildIdentityCard
+              icon="hero"
+              title={buildTag?.name || "Build en desarrollo"}
+              description={buildTag?.description || "Todavia no hay suficiente senal de equipo y talentos para fijar una identidad fuerte."}
+              meta="Identidad de build"
+            />
           </div>
 
           {modifiers.length > 0 && (
             <div className="forge-character-modifiers">
               {modifiers.map(modifier => (
-                <span key={modifier.label} {...{ style: { "--modifier-color": modifier.color } }}>
+                <FlTag
+                  key={modifier.label}
+                  tone={getTagToneFromModifier(modifier.tone)}
+                  size="xs"
+                  className="forge-character-modifier-tag"
+                >
                   {modifier.label}
-                </span>
+                </FlTag>
               ))}
             </div>
           )}
-        </section>
+        </FlModulePanel>
 
-        <section className="forge-character-section">
-          <div className="forge-character-section-title">Lectura Rapida</div>
-          <p className="forge-character-section-copy">
+        <FlModulePanel title="Lectura Rapida" className="forge-character-quick-module" bodyClassName="forge-character-quick-module__body">
+          <p className="forge-character-quick-copy">
             Metricas activas para esta run y esta build. Si una mecanica no participa, no aparece aca.
           </p>
-          <div className="forge-character-table">
+          <FlQuickStatsGroup>
             {quickReadRows.map(row => (
-              <div key={row.label} className="forge-character-data-row">
-                <span className="forge-character-data-icon" aria-hidden="true">
-                  <ForgeIcon name={getQuickReadIcon(row.label)} size={18} />
-                </span>
-                <span>{row.label}</span>
-                <strong>{row.value}</strong>
-              </div>
+              <FlQuickStatRow
+                key={row.label}
+                icon={getQuickReadIcon(row.label)}
+                label={row.label}
+                value={row.value}
+              />
             ))}
-          </div>
-        </section>
+          </FlQuickStatsGroup>
+        </FlModulePanel>
       </div>
     );
   }
@@ -306,17 +306,16 @@ export default function Character({ player, dispatch, state }) {
     "character-pre-spec-header",
     spotlightHeroOverview ? "character-pre-spec-header--spotlight" : "",
   ].filter(Boolean).join(" ");
-  const barsProps = {
-    style: {
-      "--character-pre-spec-bars-columns": isMobile ? "1fr" : "1fr 1fr",
-    },
-  };
-  const specGridProps = {
-    style: {
-      "--character-spec-grid-columns": availableSpecs.length > 1 ? "repeat(2, minmax(0, 1fr))" : "1fr",
-      "--character-spec-grid-gap": isNarrowMobile ? "6px" : "8px",
-    },
-  };
+  const barsClassName = [
+    "character-pre-spec-bars",
+    isMobile ? "character-pre-spec-bars--single" : "",
+  ].filter(Boolean).join(" ");
+  const specGridClassName = [
+    "character-spec-grid",
+    availableSpecs.length > 1 ? "" : "character-spec-grid--single",
+    specTutorialActive && isNarrowMobile ? "character-spec-grid--compact-gap" : "",
+  ].filter(Boolean).join(" ");
+  const buildToneClass = getBuildToneClass(buildTag?.color);
 
   return (
     <div className={preSpecRootClass}>
@@ -332,7 +331,7 @@ export default function Character({ player, dispatch, state }) {
               <span className="character-pre-spec-chip">{selectedClass?.icon || "?"} {player.class}</span>
               {player.specialization && <span className="character-pre-spec-chip character-pre-spec-chip--spec">{currentSpec?.name || player.specialization}</span>}
               {buildTag?.name && (
-                <span className="character-pre-spec-chip character-pre-spec-chip--build" {...{ style: { "--build-chip-tone": buildTag.color || "#534AB7" } }}>
+                <span className={["character-pre-spec-chip", "character-pre-spec-chip--build", buildToneClass].filter(Boolean).join(" ")}>
                   {buildTag.name}
                 </span>
               )}
@@ -347,7 +346,7 @@ export default function Character({ player, dispatch, state }) {
           </div>
         </div>
 
-        <div className="character-pre-spec-bars" {...barsProps}>
+        <div className={barsClassName}>
           <ProgressCard label="Vida" value={`${formatNumber(Math.floor(displayedHp || 0))} / ${formatNumber(displayedMaxHp || 0)}`} percentage={hpPercentage} tone={hpPercentage > 30 ? "var(--tone-success, #1D9E75)" : "var(--tone-danger, #D85A30)"} />
           <ProgressCard label="Experiencia" value={`${formatNumber(Math.floor(player.xp || 0))} / ${formatNumber(xpNextLevel)}`} percentage={xpPercentage} tone="var(--tone-accent, #534AB7)" />
         </div>
@@ -370,7 +369,7 @@ export default function Character({ player, dispatch, state }) {
                 <div className="character-pre-spec-eyebrow">
                   Identidad de build
                 </div>
-                <div className="character-pre-spec-build-tag-title" {...{ style: { "--build-tag-tone": buildTag?.color || "var(--fl2-text)" } }}>
+                <div className={["character-pre-spec-build-tag-title", buildToneClass].filter(Boolean).join(" ")}>
                   {buildTag?.name || "Build en desarrollo"}
                 </div>
                 <div className="character-pre-spec-build-tag-description">
@@ -381,15 +380,20 @@ export default function Character({ player, dispatch, state }) {
             {modifiers.length > 0 && (
               <div className="forge-character-modifiers">
                 {modifiers.map(modifier => (
-                  <span key={modifier.label} {...{ style: { "--modifier-color": modifier.color } }}>
+                  <FlTag
+                    key={modifier.label}
+                    tone={getTagToneFromModifier(modifier.tone)}
+                    size="xs"
+                    className="forge-character-modifier-tag"
+                  >
                     {modifier.label}
-                  </span>
+                  </FlTag>
                 ))}
               </div>
             )}
           </div>
         ) : (
-          <div className="character-spec-grid" {...specGridProps}>
+          <div className={specGridClassName}>
             {availableSpecs.map(spec => {
               const canUnlock = specTutorialActive || canUnlockSpec(spec, player, kills);
               const reqText = getRequirementText(spec.unlockCondition);
@@ -412,19 +416,19 @@ export default function Character({ player, dispatch, state }) {
                       {specTutorialActive ? "Tutorial: elige una subclase" : `Req: ${reqText}`}
                     </div>
                   </div>
-                  <button
+                  <FlButton
                     disabled={!canUnlock}
                     data-onboarding-target={spotlightSpec ? "choose-spec" : undefined}
                     onClick={() => dispatch({ type: "SELECT_SPECIALIZATION", specId: spec.id })}
                     className={[
                       "character-spec-card__button",
-                      "fl2-button",
-                      canUnlock ? "fl2-button--success" : "",
                       spotlightSpec ? "character-spec-card__button--spotlight" : "",
                     ].filter(Boolean).join(" ")}
+                    variant={canUnlock ? "success" : "secondary"}
+                    size="sm"
                   >
                     Elegir
-                  </button>
+                  </FlButton>
                 </div>
               );
             })}
@@ -437,44 +441,47 @@ export default function Character({ player, dispatch, state }) {
         <div className="character-pre-spec-section-copy">
           Metricas activas para esta run y esta build. Si una mecanica no participa, no aparece aca.
         </div>
-        <div className="character-pre-spec-table">
-          {quickReadRows.map((row, index) => (
-            <DataRow
+        <FlQuickStatsGroup className="character-pre-spec-quick-stats">
+          {quickReadRows.map(row => (
+            <FlQuickStatRow
               key={row.label}
+              icon={getQuickReadIcon(row.label)}
               label={row.label}
               value={row.value}
-              accent={row.accent}
-              isLast={index === quickReadRows.length - 1}
             />
           ))}
-        </div>
+        </FlQuickStatsGroup>
       </section>
     </div>
   );
 }
 
 function ProgressCard({ label, value, percentage, tone }) {
-  const fillProps = {
-    style: {
-      "--character-progress-width": `${percentage}%`,
-      "--character-progress-tone": tone,
-    },
-  };
+  const isDangerTone = String(tone).includes("danger");
+  const progressType = isDangerTone ? "danger" : "success";
   return (
     <div className="character-progress-card">
       <div className="character-progress-card__meta">
         <span>{label}</span>
         <span>{value}</span>
       </div>
-      <div className="character-progress-card__track">
-        <div className="character-progress-card__fill" {...fillProps} />
-      </div>
+      <FlProgressBar
+        className="character-progress-card__progress"
+        type={progressType}
+        percent={percentage}
+        size="xs"
+        showValue={false}
+      />
     </div>
   );
 }
 
 function ForgeCharacterBar({ icon, label, value, percentage, tone = "green" }) {
-  const fillProps = { style: { "--forge-character-bar-width": `${Math.max(0, Math.min(100, percentage))}%` } };
+  const progressTypeMap = {
+    green: "success",
+    purple: "arcane",
+  };
+  const progressType = progressTypeMap[tone] || "progress";
   return (
     <div className={`forge-character-bar forge-character-bar--${tone}`}>
       <div className="forge-character-bar-icon" aria-hidden="true">
@@ -485,23 +492,43 @@ function ForgeCharacterBar({ icon, label, value, percentage, tone = "green" }) {
           <span>{label}</span>
           <strong>{value}</strong>
         </div>
-        <div className="forge-character-bar-track">
-          <span {...fillProps} />
-        </div>
+        <FlProgressBar
+          className="forge-character-bar-progress"
+          type={progressType}
+          percent={Math.max(0, Math.min(100, percentage))}
+          size="xs"
+          showValue={false}
+        />
       </div>
     </div>
   );
 }
 
-function DataRow({ label, value, accent, isLast = false }) {
-  const rowProps = { style: { "--character-data-accent": accent || "var(--fl2-text)" } };
-  return (
-    <div
-      className={["character-data-row", isLast ? "character-data-row--last" : ""].filter(Boolean).join(" ")}
-      {...rowProps}
-    >
-      <span>{label}</span>
-      <span>{value}</span>
-    </div>
-  );
+function getBuildToneClass(color = "") {
+  const normalized = String(color || "").toLowerCase();
+  if (normalized.includes("d85a30")) return "is-tone-danger";
+  if (normalized.includes("1d9e75")) return "is-tone-success";
+  if (normalized.includes("f59e0b")) return "is-tone-warning";
+  if (normalized.includes("534ab7")) return "is-tone-arcane";
+  return "is-tone-arcane";
+}
+
+function getBuildToneFromColor(color = "") {
+  const normalized = String(color || "").toLowerCase();
+  if (normalized.includes("d85a30")) return "danger";
+  if (normalized.includes("1d9e75")) return "success";
+  if (normalized.includes("f59e0b")) return "warning";
+  if (normalized.includes("534ab7")) return "arcane";
+  return "arcane";
+}
+
+function getTagToneFromModifier(tone = "") {
+  const normalized = String(tone || "").toLowerCase();
+  if (normalized === "success") return "success";
+  if (normalized === "danger") return "danger";
+  if (normalized === "warning") return "warning";
+  if (normalized === "arcane") return "arcane";
+  if (normalized === "defense") return "defense";
+  if (normalized === "reward") return "reward";
+  return "neutral";
 }

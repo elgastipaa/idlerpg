@@ -1,10 +1,10 @@
-.app-shell-root--forge-light-v2 .fl2-toast,
+.app-shell-root--forge-light-v2 .fl-toast,
 .app-shell-root--forge-light-v2 :where(.tester-toast) {
-  background: var(--fl2-surface-bg) !important;
-  border: 1px solid var(--fl2-gold-muted) !important;
-  border-radius: var(--fl2-radius-md) !important;
-  color: var(--fl2-text) !important;
-  box-shadow: var(--fl2-surface-shadow) !important;
+  background: var(--fl-surface-bg) !important;
+  border: 1px solid var(--fl-gold-muted) !important;
+  border-radius: var(--fl-radius-md) !important;
+  color: var(--fl-text-primary) !important;
+  box-shadow: var(--fl-surface-shadow) !important;
 }
 
 .app-shell-root--forge-light-v2 .action-toast {
@@ -26,26 +26,26 @@
   display: grid;
   gap: 4px;
   padding: 9px 12px;
-  color: var(--fl2-text);
-  background: var(--fl2-surface-bg);
-  border: 1px solid var(--fl2-gold-muted);
-  border-radius: var(--fl2-radius-lg);
-  box-shadow: var(--fl2-surface-shadow);
+  color: var(--fl-text-primary);
+  background: var(--fl-surface-bg);
+  border: 1px solid var(--fl-gold-muted);
+  border-radius: var(--fl-radius-lg);
+  box-shadow: var(--fl-surface-shadow);
   animation: fl2ToastPulseSuccess 820ms ease-out;
 }
 
 .app-shell-root--forge-light-v2 .action-toast[data-tone="info"] .action-toast__card {
-  border-color: color-mix(in srgb, var(--fl2-defense) 42%, transparent);
+  border-color: color-mix(in srgb, var(--fl-defense) 42%, transparent);
   animation-name: fl2ToastPulseInfo;
 }
 
 .app-shell-root--forge-light-v2 .action-toast[data-tone="warning"] .action-toast__card {
-  border-color: color-mix(in srgb, var(--fl2-warning) 46%, transparent);
+  border-color: color-mix(in srgb, var(--fl-warning) 46%, transparent);
   animation-name: fl2ToastPulseWarning;
 }
 
 .app-shell-root--forge-light-v2 .action-toast__eyebrow {
-  color: var(--fl2-success);
+  color: var(--fl-success);
   font-size: 0.52rem;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -53,11 +53,11 @@
 }
 
 .app-shell-root--forge-light-v2 .action-toast[data-tone="info"] .action-toast__eyebrow {
-  color: var(--fl2-defense);
+  color: var(--fl-defense);
 }
 
 .app-shell-root--forge-light-v2 .action-toast[data-tone="warning"] .action-toast__eyebrow {
-  color: var(--fl2-warning);
+  color: var(--fl-warning);
 }
 
 .app-shell-root--forge-light-v2 .action-toast__message {
@@ -66,19 +66,19 @@
   line-height: 1.3;
 }
 
-.app-shell-root--forge-light-v2 .fl2-feedback--crit {
-  color: var(--fl2-danger);
-  text-shadow: var(--fl2-glow-danger);
+.app-shell-root--forge-light-v2 .fl-feedback--crit {
+  color: var(--fl-danger);
+  text-shadow: var(--fl-glow-danger);
 }
 
-.app-shell-root--forge-light-v2 .fl2-feedback--heal,
-.app-shell-root--forge-light-v2 .fl2-feedback--success {
-  color: var(--fl2-success);
-  text-shadow: var(--fl2-glow-success);
+.app-shell-root--forge-light-v2 .fl-feedback--heal,
+.app-shell-root--forge-light-v2 .fl-feedback--success {
+  color: var(--fl-success);
+  text-shadow: var(--fl-glow-success);
 }
 
-.app-shell-root--forge-light-v2 .fl2-feedback--reward {
-  color: var(--fl2-reward);
+.app-shell-root--forge-light-v2 .fl-feedback--reward {
+  color: var(--fl-reward);
   text-shadow: 0 0 20px rgba(242, 184, 75, 0.4);
 }
 
@@ -86,13 +86,13 @@
   display: grid;
   gap: 7px;
   padding: 9px 10px;
-  color: var(--fl2-text);
+  color: var(--fl-text-primary);
   background:
     radial-gradient(circle at 9% 50%, rgba(138, 91, 232, 0.065), transparent 24%),
     linear-gradient(180deg, rgba(8, 10, 11, 0.58), rgba(5, 8, 10, 0.54));
   border: 1px solid rgba(138, 91, 232, 0.28);
-  border-radius: var(--fl2-radius-lg);
-  box-shadow: var(--fl2-surface-shadow);
+  border-radius: var(--fl-radius-lg);
+  box-shadow: var(--fl-surface-shadow);
 }
 
 .app-shell-root--forge-light-v2 .run-sigil-callout__head {
@@ -108,7 +108,7 @@
 }
 
 .app-shell-root--forge-light-v2 .run-sigil-callout__eyebrow {
-  color: var(--fl2-arcane);
+  color: var(--fl-arcane);
   font-size: 0.56rem;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -117,7 +117,7 @@
 
 .app-shell-root--forge-light-v2 .run-sigil-callout__title {
   margin-top: 3px;
-  color: var(--fl2-text);
+  color: var(--fl-text-primary);
   font-size: 0.78rem;
   font-weight: 900;
   line-height: 1.25;
@@ -125,7 +125,7 @@
 
 .app-shell-root--forge-light-v2 .run-sigil-callout__summary,
 .app-shell-root--forge-light-v2 .run-sigil-callout__subtitle {
-  color: var(--fl2-text-secondary);
+  color: var(--fl-text-secondary);
   font-size: 0.63rem;
   line-height: 1.35;
 }
@@ -144,7 +144,7 @@
 
 .app-shell-root--forge-light-v2 .run-sigil-callout__slot {
   padding: 2px 7px;
-  color: var(--fl2-text);
+  color: var(--fl-text-primary);
   font-size: 0.56rem;
   font-weight: 900;
   white-space: nowrap;
@@ -163,35 +163,35 @@
   font-size: 0.58rem;
   font-weight: 800;
   line-height: 1.3;
-  border-radius: var(--fl2-radius-md);
+  border-radius: var(--fl-radius-md);
 }
 
 .app-shell-root--forge-light-v2 .run-sigil-callout__delta--positive {
-  color: var(--fl2-success);
+  color: var(--fl-success);
   background: rgba(79, 209, 139, 0.1);
-  border: 1px solid color-mix(in srgb, var(--fl2-success) 42%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fl-success) 42%, transparent);
 }
 
 .app-shell-root--forge-light-v2 .run-sigil-callout__delta--negative {
-  color: var(--fl2-danger);
+  color: var(--fl-danger);
   background: rgba(224, 90, 90, 0.1);
-  border: 1px solid color-mix(in srgb, var(--fl2-danger) 38%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fl-danger) 38%, transparent);
 }
 
 @keyframes fl2ToastPulseInfo {
   0% { box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12); transform: translateY(2px); }
   60% { box-shadow: 0 14px 28px rgba(74, 143, 231, 0.18); transform: translateY(0); }
-  100% { box-shadow: var(--fl2-surface-shadow); transform: translateY(0); }
+  100% { box-shadow: var(--fl-surface-shadow); transform: translateY(0); }
 }
 
 @keyframes fl2ToastPulseWarning {
   0% { box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12); transform: translateY(2px); }
   60% { box-shadow: 0 14px 30px rgba(242, 184, 75, 0.22); transform: translateY(0); }
-  100% { box-shadow: var(--fl2-surface-shadow); transform: translateY(0); }
+  100% { box-shadow: var(--fl-surface-shadow); transform: translateY(0); }
 }
 
 @keyframes fl2ToastPulseSuccess {
   0% { box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12); transform: translateY(2px); }
   60% { box-shadow: 0 14px 30px rgba(79, 209, 139, 0.2); transform: translateY(0); }
-  100% { box-shadow: var(--fl2-surface-shadow); transform: translateY(0); }
+  100% { box-shadow: var(--fl-surface-shadow); transform: translateY(0); }
 }

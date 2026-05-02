@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import OverlayShell, { OverlaySurface } from "./OverlayShell";
 import JobProgressBar from "./JobProgressBar";
 import ActionToast from "./ActionToast";
+import { FlBadge, FlButton, FlMetricGrid, FlPanel, FlPanelHeader } from "./ui/forge";
 import useRelativeNow from "../hooks/useRelativeNow";
 import {
   getEffectiveOnboardingStep,
@@ -9,69 +10,18 @@ import {
   ONBOARDING_STEPS,
 } from "../engine/onboarding/onboardingEngine";
 
-function panelStyle(accent = "var(--tone-violet, #7c3aed)") {
-  return {
-    borderTop: `3px solid ${accent}`,
-    padding: "16px",
-    display: "grid",
-    gap: "12px",
-    alignSelf: "start",
-  };
+function panelClass(tone = "violet") {
+  return [
+    "fl-station-panel",
+    `fl-station-panel--${tone}`,
+  ].join(" ");
 }
 
-function metricCardStyle() {
-  return {
-    background: "var(--fl2-surface-bg-soft, var(--color-background-tertiary, #f8fafc))",
-    border: "1px solid var(--fl2-surface-border, var(--color-border-primary, #e2e8f0))",
-    borderRadius: "12px",
-    padding: "10px 12px",
-    display: "grid",
-    gap: "4px",
-  };
-}
-
-function actionButtonStyle({ primary = false, disabled = false, compact = false } = {}) {
-  return {
-    border: "1px solid",
-    borderColor: disabled
-      ? "var(--color-border-primary, #e2e8f0)"
-      : primary
-        ? "var(--tone-violet, #7c3aed)"
-        : "var(--color-border-primary, #e2e8f0)",
-    background: disabled
-      ? "var(--color-background-tertiary, #f8fafc)"
-      : primary
-        ? "var(--tone-violet-soft, #f3e8ff)"
-        : "var(--color-background-secondary, #ffffff)",
-    color: disabled
-      ? "var(--color-text-tertiary, #94a3b8)"
-      : primary
-        ? "var(--tone-violet, #7c3aed)"
-        : "var(--color-text-primary, #1e293b)",
-    borderRadius: "12px",
-    padding: compact ? "7px 11px" : "10px 14px",
-    fontSize: compact ? "0.68rem" : "0.72rem",
-    fontWeight: "900",
-    cursor: disabled ? "not-allowed" : "pointer",
-  };
-}
-
-function chipLabelStyle(color = "var(--tone-violet, #7c3aed)") {
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    minHeight: "24px",
-    boxSizing: "border-box",
-    whiteSpace: "nowrap",
-    border: "1px solid var(--fl2-surface-border, var(--color-border-primary, #e2e8f0))",
-    background: "var(--fl2-surface-bg-soft, var(--color-background-tertiary, #f8fafc))",
-    color,
-    borderRadius: "999px",
-    padding: "4px 8px",
-    fontSize: "0.62rem",
-    fontWeight: "900",
-    lineHeight: 1,
-  };
+function chipLabelClass(tone = "violet") {
+  return [
+    "fl-station-chip",
+    `fl-station-chip--${tone}`,
+  ].join(" ");
 }
 
 function formatRemaining(ms = 0) {
@@ -102,7 +52,7 @@ function getDistillPreview(bundle = {}) {
   return { amount: quantity, label: "Recurso refinado", duration: "20m" };
 }
 
-export default function DistilleryOverlay({ state, dispatch, isMobile = false, onClose }) {
+export default function DistilleryOverlay({ state, dispatch, isMobile = false, embedded = false, onClose }) {
   const now = useRelativeNow();
   const [actionToast, setActionToast] = useState(null);
   const [expandedSections, setExpandedSections] = useState(() => {
@@ -307,68 +257,69 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
     };
   }, [cargoInventory.length, expandedSections?.cargo, isMobile, onboardingStep]);
 
-  return (
-    <OverlayShell isMobile={isMobile} variant="forge" contentLabel="Destileria">
-      <OverlaySurface isMobile={isMobile} variant="forge" className="fl-station-overlay fl-station-overlay--distillery">
-        <div {...{ style: {
-          padding: "1rem",
-          display: "grid",
-          gap: "1rem",
-          alignItems: "start",
-          alignContent: "start",
-          color: "var(--color-text-primary, #1e293b)",
-        } }}>
-          <section className="fl2-inline-panel" {...{ style: panelStyle("var(--tone-violet, #7c3aed)") }}>
-            <div {...{ style: { display: "grid", gap: "12px", alignItems: "start" } }}>
-              <div {...{ style: { minWidth: 0 } }}>
-                <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" } }}>
-                  Destileria
-                </div>
-                <div {...{ style: { fontSize: "1.02rem", fontWeight: "900", marginTop: "4px" } }}>
-                  Refinado del Santuario
-                </div>
-                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" } }}>
-                  Convierte bundles en tinta, flux y polvo.
-                </div>
-              </div>
-            </div>
-
-            <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap" } }}>
-              <span {...{ style: chipLabelStyle("var(--tone-violet, #7c3aed)") }}>
+  const content = (
+    <div
+      className="fl-station-overlay fl-station-overlay--distillery overlay-station-body overlay-station-body--forge"
+    >
+          <FlPanel
+            variant="compact"
+            className="fl-distillery-hero-panel"
+            header={(
+              <FlPanelHeader
+                title="Destileria"
+                subtitle="Procesamiento del Santuario"
+                copy="Convierte bundles en tinta, flux y polvo."
+                actions={(
+                  <FlButton variant="secondary" size="sm" onClick={onClose}>
+                    Volver
+                  </FlButton>
+                )}
+              />
+            )}
+          >
+            <div className="fl-distillery-hero-panel__chips">
+              <FlBadge variant="pill" size="xs" tone="arcane">
                 {runningJobs.length} / {distillerySlots} jobs
-              </span>
-              <span {...{ style: chipLabelStyle("var(--tone-warning, #f59e0b)") }}>
+              </FlBadge>
+              <FlBadge variant="pill" size="xs" tone="warning">
                 {claimableJobs.length} claims
-              </span>
+              </FlBadge>
             </div>
+            <FlMetricGrid
+              className="fl-distillery-hero-metrics"
+              columns={4}
+              mobileColumns={3}
+              compact
+              items={[
+                {
+                  id: "dist-bundles",
+                  label: "Bundles",
+                  value: totalBundleQuantity,
+                  tone: "warning",
+                },
+                {
+                  id: "dist-ink",
+                  label: "Tinta",
+                  value: Math.floor(Number(resources?.codexInk || 0)).toLocaleString(),
+                  tone: "arcane",
+                },
+                {
+                  id: "dist-flux",
+                  label: "Flux",
+                  value: Math.floor(Number(resources?.sigilFlux || 0)).toLocaleString(),
+                  tone: "defense",
+                },
+                {
+                  id: "dist-dust",
+                  label: "Polvo",
+                  value: Math.floor(Number(resources?.relicDust || 0)).toLocaleString(),
+                  tone: "success",
+                },
+              ]}
+            />
+          </FlPanel>
 
-            <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" } }}>
-              <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
-                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Bundles</div>
-                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{totalBundleQuantity}</div>
-              </div>
-              <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
-                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Tinta</div>
-                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{Math.floor(Number(resources?.codexInk || 0)).toLocaleString()}</div>
-              </div>
-              <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
-                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Flux</div>
-                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{Math.floor(Number(resources?.sigilFlux || 0)).toLocaleString()}</div>
-              </div>
-              <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
-                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Polvo</div>
-                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{Math.floor(Number(resources?.relicDust || 0)).toLocaleString()}</div>
-              </div>
-            </div>
-
-            <div {...{ style: { display: "flex", justifyContent: "flex-end" } }}>
-              <button onClick={onClose} {...{ style: { ...actionButtonStyle({ compact: true }), flex: "0 0 auto" } }}>
-                Volver
-              </button>
-            </div>
-          </section>
-
-          <section className="fl2-inline-panel" {...{ style: panelStyle("var(--tone-violet, #7c3aed)") }}>
+          <section className={panelClass("violet")}>
             <div
               onClick={() => toggleSection("cargo")}
               {...{ style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" } }}
@@ -381,15 +332,16 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                   Bundles listos para refinar
                 </div>
               </div>
-              <button
+              <FlButton
+                variant="ghost"
+                size="xs"
                 onClick={event => {
                   event.stopPropagation();
                   toggleSection("cargo");
                 }}
-                {...{ style: { ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" } }}
               >
                 {expandedSections?.cargo ? "-" : "+"}
-              </button>
+              </FlButton>
             </div>
 
             {expandedSections?.cargo && (cargoInventory.length === 0 ? (
@@ -433,14 +385,17 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                           : undefined
                       }
                       {...{ style: {
-                        ...metricCardStyle(),
                         padding: "9px 10px",
                         gap: "6px",
+                        background: "var(--fl-surface-bg-soft)",
+                        border: "1px solid var(--fl-surface-border)",
+                        borderRadius: "12px",
+                        display: "grid",
                         position: tutorialBundleActive ? "relative" : "static",
                         zIndex: tutorialBundleActive ? 2 : 1,
                         boxShadow: tutorialBundleActive
                           ? "0 0 0 2px rgba(124,58,237,0.18), 0 12px 28px rgba(124,58,237,0.14)"
-                          : metricCardStyle().boxShadow,
+                          : "0 8px 18px rgba(0,0,0,0.22)",
                         animation: tutorialBundleActive ? "distillerySpotlightPulse 1600ms ease-in-out infinite" : "none",
                         cursor: tutorialBundleActive && !blocked ? "pointer" : "default",
                         touchAction: tutorialBundleActive ? "manipulation" : "auto",
@@ -455,7 +410,7 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                           </div>
                         </div>
                         <div {...{ style: { display: "grid", gap: "4px", justifyItems: "end", textAlign: "right" } }}>
-                          <span {...{ style: chipLabelStyle("var(--tone-violet, #7c3aed)") }}>x{Math.max(1, Number(bundle?.quantity || 1))}</span>
+                          <span className={chipLabelClass("violet")}>x{Math.max(1, Number(bundle?.quantity || 1))}</span>
                           <span {...{ style: { fontSize: "0.6rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" } }}>
                             {preview.amount} {preview.label} · {preview.duration}
                           </span>
@@ -466,7 +421,9 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                         <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" } }}>
                           {blocked ? "No hay slot libre en la Destilería." : "Listo para procesarse en tiempo real."}
                         </div>
-                        <button
+                        <FlButton
+                          variant={!blocked ? "default" : "secondary"}
+                          size="sm"
                           onPointerUp={
                             tutorialBundleActive
                               ? event => {
@@ -498,7 +455,6 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                               : undefined
                           }
                           {...{ style: {
-                            ...actionButtonStyle({ primary: !blocked, disabled: blocked, compact: true }),
                             position: tutorialBundleActive ? "relative" : "static",
                             zIndex: tutorialBundleActive ? 3 : 1,
                             touchAction: tutorialBundleActive ? "manipulation" : "auto",
@@ -506,7 +462,7 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                           } }}
                         >
                           {tutorialLocked ? "Bloqueado por tutorial" : "Destilar"}
-                        </button>
+                        </FlButton>
                       </div>
                     </div>
                   );
@@ -516,7 +472,7 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
           </section>
 
           {(runningJobs.length > 0 || claimableJobs.length > 0) && (
-            <section className="fl2-inline-panel" {...{ style: panelStyle("var(--tone-warning, #f59e0b)") }}>
+            <section className={panelClass("warning")}>
               <div
                 onClick={() => toggleSection("jobs")}
                 {...{ style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", cursor: "pointer" } }}
@@ -531,36 +487,39 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                 </div>
                 <div {...{ style: { display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" } }}>
                   {canRepeatClaimedDistillery && (
-                    <button
+                    <FlButton
+                      variant="secondary"
+                      size="sm"
                       onClick={event => {
                         event.stopPropagation();
                         claimAllDistilleryJobs({ restart: true });
                       }}
-                      {...{ style: actionButtonStyle({ compact: true }) }}
                     >
                       Todo + repetir
-                    </button>
+                    </FlButton>
                   )}
                   {claimableJobs.length > 1 && (
-                    <button
+                    <FlButton
+                      variant="default"
+                      size="sm"
                       onClick={event => {
                         event.stopPropagation();
                         claimAllDistilleryJobs();
                       }}
-                      {...{ style: actionButtonStyle({ primary: true, compact: true }) }}
                     >
                       Reclamar todo
-                    </button>
+                    </FlButton>
                   )}
-                  <button
+                  <FlButton
+                    variant="ghost"
+                    size="xs"
                     onClick={event => {
                       event.stopPropagation();
                       toggleSection("jobs");
                     }}
-                    {...{ style: { ...actionButtonStyle({ compact: true }), minWidth: "34px", padding: "4px 0", flex: "0 0 auto" } }}
                   >
                     {expandedSections?.jobs ? "-" : "+"}
-                  </button>
+                  </FlButton>
                 </div>
               </div>
 
@@ -574,12 +533,13 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
                           {job.output?.amount || 0} listo para reclamar
                         </div>
                       </div>
-                      <button
+                      <FlButton
+                        variant="default"
+                        size="sm"
                         onClick={() => claimDistilleryJob(job, { nowAt: now })}
-                        {...{ style: actionButtonStyle({ primary: true }) }}
                       >
                         Reclamar
-                      </button>
+                      </FlButton>
                     </div>
                   ))}
                 </div>
@@ -611,7 +571,27 @@ export default function DistilleryOverlay({ state, dispatch, isMobile = false, o
               )}
             </section>
           )}
-        </div>
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {content}
+        <ActionToast toast={actionToast} isMobile={isMobile} />
+      </>
+    );
+  }
+
+  return (
+    <OverlayShell isMobile={isMobile} embedded={embedded} variant="forge" contentLabel="Destileria">
+      <OverlaySurface
+        isMobile={isMobile}
+        embedded={embedded}
+        variant="forge"
+        className="fl-station-overlay fl-station-overlay--distillery"
+      >
+        {content}
       </OverlaySurface>
       <ActionToast toast={actionToast} isMobile={isMobile} />
     </OverlayShell>

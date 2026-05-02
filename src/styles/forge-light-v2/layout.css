@@ -1,0 +1,80 @@
+.app-shell-root--forge-light-v2 .fl-screen-stack {
+  display: grid;
+  align-content: start;
+  gap: var(--fl-space-6);
+  width: 100%;
+}
+
+.app-shell-root--forge-light-v2 .fl-section-stack {
+  display: grid;
+  align-content: start;
+  gap: var(--fl-space-5);
+}
+
+.app-shell-root--forge-light-v2 .fl-chip-row,
+.app-shell-root--forge-light-v2 .fl-action-row {
+  display: flex;
+  align-items: center;
+  gap: var(--fl-space-3);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.app-shell-root--forge-light-v2 .fl-action-row {
+  justify-content: flex-end;
+}
+
+.app-shell-root--forge-light-v2 .fl-action-row--start {
+  justify-content: flex-start;
+}
+
+.app-shell-root--forge-light-v2 .fl-action-row--between {
+  justify-content: space-between;
+}
+
+.app-shell-root--forge-light-v2 .fl-grid--metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 148px), 1fr));
+  gap: var(--fl-space-4);
+}
+
+.app-shell-root--forge-light-v2 .fl-dense-list {
+  display: grid;
+  align-content: start;
+  gap: var(--fl-space-3);
+  min-width: 0;
+}
+
+.app-shell-root--forge-light-v2 .fl-split--52-48,
+.app-shell-root--forge-light-v2 .fl-split--54-46 {
+  display: grid;
+  align-items: start;
+  gap: var(--fl-space-6);
+}
+
+.app-shell-root--forge-light-v2 .fl-split--52-48 {
+  grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr);
+}
+
+.app-shell-root--forge-light-v2 .fl-split--54-46 {
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+}
+
+@media (max-width: 760px) {
+  .app-shell-root--forge-light-v2 .fl-screen-stack {
+    gap: var(--fl-space-5);
+  }
+
+  .app-shell-root--forge-light-v2 .fl-split--52-48,
+  .app-shell-root--forge-light-v2 .fl-split--54-46 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell-root--forge-light-v2 .fl-action-row {
+    justify-content: stretch;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-action-row > :where(button, .fl-button) {
+    flex: 1 1 150px;
+  }
+}

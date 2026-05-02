@@ -1,155 +1,202 @@
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .forge-character-overview {
-  border-color: rgba(198, 161, 91, 0.22) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-hero-module {
+  background-color: var(--fl-bg-card);
+  background-image: var(--fl-texture-woven);
+  border: 1px solid var(--fl-gold-muted);
+  border-radius: var(--fl-radius-lg);
+  box-shadow: var(--fl-shadow-card);
+  overflow: hidden;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] :where(.forge-character-heading-row, .forge-character-section-title, .forge-character-data-row) {
-  color: var(--fl2-text) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-hero-module > .fl-panel__header {
+  background: var(--fl-panel-header-surface-module);
+  border-bottom: 1px solid var(--fl-panel-border-soft);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .forge-character-build-card {
-  background: rgba(13, 17, 24, 0.7) !important;
-  border-color: rgba(198, 161, 91, 0.18) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-hero-module > .fl-panel__body {
+  padding: 0;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] :where(.forge-character-hero-card, .forge-character-section) {
-  color: var(--fl2-text) !important;
-  background:
-    radial-gradient(circle at 50% 18%, rgba(243, 198, 95, 0.04), transparent 34%),
-    linear-gradient(180deg, rgba(8, 10, 11, 0.44), rgba(5, 8, 10, 0.38)) !important;
-  border-color: transparent !important;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 232, 166, 0.035),
-    inset 0 0 28px rgba(243, 198, 95, 0.035),
-    0 8px 16px rgba(0, 0, 0, 0.24) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-build-module,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-quick-module {
+  color: var(--fl-text-primary);
+  background-color: var(--fl-bg-card);
+  background-image: var(--fl-texture-woven);
+  border: 1px solid var(--fl-panel-border);
+  border-radius: var(--fl-radius-lg);
+  box-shadow: var(--fl-shadow-card);
+  overflow: hidden;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] :where(.forge-character-hero-card, .forge-character-section)::before {
-  content: none;
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-build-module > .fl-panel__header,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-quick-module > .fl-panel__header {
+  background: var(--fl-panel-header-surface-module);
+  border-bottom: 1px solid var(--fl-panel-border-soft);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .forge-character-hero-card + .forge-character-section,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .forge-character-section + .forge-character-section {
-  position: relative;
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-build-module .fl-module-panel__body,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-quick-module .fl-module-panel__body {
+  padding:
+    12px
+    var(--fl-module-panel-head-pad-x, 16px);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .forge-character-hero-card + .forge-character-section::after,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .forge-character-section + .forge-character-section::after {
-  content: "";
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  top: -8px;
-  height: 1px;
-  background: var(--fl2-divider-line);
-  pointer-events: none;
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-quick-copy {
+  margin: 0 0 10px;
+  color: var(--fl-text-secondary);
+  font-size: 0.68rem;
+  line-height: 1.4;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .forge-character-hero-card + .forge-character-section::before,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .forge-character-section + .forge-character-section::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: -10px;
-  z-index: 1;
-  width: 5px;
-  height: 5px;
-  background:
-    radial-gradient(circle, var(--fl2-gold-strong) 0 26%, var(--fl2-gold) 62%, rgba(198, 161, 91, 0.72) 100%);
-  border: 1px solid rgba(255, 232, 166, 0.48);
-  box-shadow: 0 0 10px rgba(243, 198, 95, 0.26);
-  transform: translateX(-50%) rotate(45deg);
-  pointer-events: none;
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-chip-row .fl-badge {
+  min-height: 24px;
+  padding-inline: 8px !important;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .forge-character-section-title {
-  position: relative;
-  display: flex;
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-chip-row .fl-badge__icon {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  padding-bottom: 0;
-  color: #d8c39c !important;
-  font-family: var(--fl2-font-display) !important;
-  font-size: 0.98rem;
-  letter-spacing: 0.03em !important;
-  border-bottom: 0 !important;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8), 0 0 14px rgba(243, 198, 95, 0.1);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .forge-character-section-title::after {
-  content: "";
-  flex: 1 1 auto;
-  height: 1px;
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .fl-build-identity-card {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 96px;
+  padding: 10px;
+  border: 1px solid rgba(198, 161, 91, 0.26);
+  border-radius: var(--fl-radius-md);
   background:
-    linear-gradient(90deg, rgba(198, 161, 91, 0.58), transparent),
-    radial-gradient(circle at 0 50%, rgba(255, 226, 150, 0.7), transparent 9px);
+    radial-gradient(circle at 8% 50%, rgba(255, 193, 79, 0.07), transparent 30%),
+    linear-gradient(180deg, rgba(14, 17, 18, 0.92), rgba(5, 8, 10, 0.9));
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .fl-build-identity-card--active {
+  border-color: color-mix(in srgb, var(--fl-gold-border) 76%, transparent);
+  box-shadow: inset 0 0 18px rgba(255, 165, 24, 0.06), 0 0 14px rgba(243, 198, 95, 0.12);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .fl-build-identity-card__icon {
+  width: 46px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fl-gold-glow);
+  border: 1px solid color-mix(in srgb, var(--fl-gold-border) 72%, transparent);
+  border-radius: var(--fl-radius-sm);
+  background:
+    radial-gradient(circle at 50% 45%, rgba(255, 203, 107, 0.16), transparent 66%),
+    linear-gradient(180deg, rgba(18, 23, 30, 0.9), rgba(6, 9, 14, 0.96));
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .fl-build-identity-card__copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .fl-build-identity-card__copy strong {
+  color: var(--fl-text-primary);
+  font-size: 0.94rem;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .fl-build-identity-card__copy span {
+  color: var(--fl-text-secondary);
+  font-size: 0.7rem;
+  line-height: 1.32;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .fl-build-identity-card__copy small {
+  color: var(--fl-defense);
+  font-size: 0.63rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-modifiers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-modifier-tag {
+  max-width: 100%;
 }
 
 @keyframes chooseSpecPulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(198, 161, 91, 0.24), var(--fl2-surface-shadow);
+    box-shadow: 0 0 0 0 rgba(198, 161, 91, 0.24), var(--fl-surface-shadow);
   }
 
   70% {
-    box-shadow: 0 0 0 10px rgba(198, 161, 91, 0), var(--fl2-glow-gold-soft);
+    box-shadow: 0 0 0 10px rgba(198, 161, 91, 0), var(--fl-glow-gold-soft);
   }
 
   100% {
-    box-shadow: 0 0 0 0 rgba(198, 161, 91, 0), var(--fl2-surface-shadow);
+    box-shadow: 0 0 0 0 rgba(198, 161, 91, 0), var(--fl-surface-shadow);
   }
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-class-choice,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec {
   display: flex;
   flex-direction: column;
   gap: calc(0.75rem * var(--density-scale, 1));
   max-width: 100%;
   padding: calc(1.1rem * var(--density-scale, 1));
-  color: var(--fl2-text);
+  color: var(--fl-text-primary);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-class-choice {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice {
   max-width: 800px;
   margin: 0 auto;
   padding: calc(1.2rem * var(--density-scale, 1));
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-class-choice--mobile,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec--mobile {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice--mobile,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec--mobile {
   padding: calc(0.92rem * var(--density-scale, 1));
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-class-choice__header {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice__header {
   margin-bottom: 2rem;
   text-align: center;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-class-choice__title {
-  color: var(--fl2-text);
-  font-family: var(--fl2-font-title);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice__title {
+  color: var(--fl-text-primary);
+  font-family: var(--fl-font-display);
   font-size: 1.7rem;
   font-weight: 900;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-class-choice--mobile .character-class-choice__title {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice--mobile .character-class-choice__title {
   font-size: 1.4rem;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-class-choice__note {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice__note {
   margin: 8px 0 0;
-  color: var(--fl2-danger);
+  color: var(--fl-danger);
   font-size: 0.85rem;
   font-weight: 900;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-class-choice__grid {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice__grid {
   display: grid;
-  grid-template-columns: var(--character-class-grid-columns, repeat(auto-fit, minmax(250px, 1fr)));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 15px;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-class-choice__card {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice__grid--single {
+  grid-template-columns: 1fr;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice__card {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -159,62 +206,62 @@
   transition: transform 0.1s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-class-choice--mobile .character-class-choice__card {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice--mobile .character-class-choice__card {
   padding: calc(0.95rem * var(--density-scale, 1));
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-class-choice__card:hover {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice__card:hover {
   transform: translateY(-1px);
-  border-color: var(--fl2-gold) !important;
+  border-color: var(--fl-gold-glow);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-class-choice__icon {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice__icon {
   margin-bottom: 10px;
   font-size: 2.5rem;
   line-height: 1;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-class-choice__name {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice__name {
   margin-bottom: 5px;
-  color: var(--fl2-text);
+  color: var(--fl-text-primary);
   font-size: 1.1rem;
   font-weight: 900;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-class-choice__playstyle {
-  color: var(--fl2-gold-strong) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice__playstyle {
+  color: var(--fl-gold-hover);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-class-choice__description {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-class-choice__description {
   margin: 12px 0 0;
-  color: var(--fl2-text-secondary);
+  color: var(--fl-text-secondary);
   font-size: 0.8rem;
   line-height: 1.4;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-header,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-section {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-header,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-section {
   padding: 12px;
-  color: var(--fl2-text);
-  background: var(--fl2-surface-bg);
-  border: 1px solid var(--fl2-surface-border);
-  border-radius: var(--fl2-radius-lg);
-  box-shadow: var(--fl2-surface-shadow);
+  color: var(--fl-text-primary);
+  background: var(--fl-surface-bg);
+  border: 1px solid var(--fl-surface-border);
+  border-radius: var(--fl-radius-lg);
+  box-shadow: var(--fl-surface-shadow);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-header--spotlight,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-spec-card--spotlight {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-header--spotlight,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-card--spotlight {
   position: relative;
   z-index: 2;
   animation: chooseSpecPulse 1600ms ease-in-out infinite;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-header--spotlight {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-header--spotlight {
   cursor: pointer;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-header__row,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-build-row {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-header__row,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-build-row {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -222,33 +269,33 @@
   flex-wrap: wrap;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-header__copy,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-build-copy,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-spec-card__copy {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-header__copy,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-build-copy,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-card__copy {
   min-width: 0;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-eyebrow,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-section-title {
-  color: var(--fl2-text-muted);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-eyebrow,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-section-title {
+  color: var(--fl-text-muted);
   font-size: 0.58rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-section-title {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-section-title {
   margin-bottom: 10px;
   font-size: 0.62rem;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-chips,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-bars {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-chips,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-bars {
   display: grid;
   gap: 8px;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-chips {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-chips {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -256,232 +303,254 @@
   margin-top: 4px;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-chip {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-chip {
   padding: 4px 10px;
-  color: var(--fl2-text);
+  color: var(--fl-text-primary);
   background: rgba(10, 13, 18, 0.42);
-  border: 1px solid var(--fl2-surface-border);
+  border: 1px solid var(--fl-surface-border);
   border-radius: 999px;
   font-size: 0.62rem;
   font-weight: 900;
   text-transform: uppercase;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-chip--spec {
-  color: var(--fl2-text-secondary);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-chip--spec {
+  color: var(--fl-text-secondary);
   font-size: 0.6rem;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-chip--build {
-  color: var(--build-chip-tone, var(--fl2-gold));
-  border-color: color-mix(in srgb, var(--build-chip-tone, var(--fl2-gold)) 34%, transparent);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-chip--build {
+  color: var(--fl-gold-glow);
+  border-color: color-mix(in srgb, var(--fl-gold-glow) 34%, transparent);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-description,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-build-description,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-build-tag-description,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-section-copy,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-spec-card__description {
-  color: var(--fl2-text-secondary);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-chip--build.is-tone-danger {
+  color: var(--fl-danger);
+  border-color: color-mix(in srgb, var(--fl-danger) 34%, transparent);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-chip--build.is-tone-success {
+  color: var(--fl-success);
+  border-color: color-mix(in srgb, var(--fl-success) 34%, transparent);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-chip--build.is-tone-warning {
+  color: var(--fl-warning);
+  border-color: color-mix(in srgb, var(--fl-warning) 34%, transparent);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-chip--build.is-tone-arcane {
+  color: var(--fl-arcane);
+  border-color: color-mix(in srgb, var(--fl-arcane) 34%, transparent);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-description,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-build-description,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-build-tag-description,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-section-copy,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-card__description {
+  color: var(--fl-text-secondary);
   font-size: 0.66rem;
   line-height: 1.35;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-build-description,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-build-tag-description,
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-spec-card__description {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-build-description,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-build-tag-description,
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-card__description {
   margin-top: 4px;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-level {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-level {
   text-align: right;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-level div {
-  color: var(--fl2-text);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-level div {
+  color: var(--fl-text-primary);
   font-size: 0.84rem;
   font-weight: 900;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-level span {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-level span {
   display: block;
   margin-top: 2px;
-  color: var(--fl2-text-secondary);
+  color: var(--fl-text-secondary);
   font-size: 0.62rem;
   font-weight: 800;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-bars {
-  grid-template-columns: var(--character-pre-spec-bars-columns, 1fr 1fr);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-bars {
+  grid-template-columns: 1fr 1fr;
   margin-top: 10px;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-progress-card {
-  padding: 8px 10px;
-  background: rgba(10, 13, 18, 0.42);
-  border: 1px solid var(--fl2-surface-border);
-  border-radius: var(--fl2-radius-md);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-bars--single {
+  grid-template-columns: 1fr;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-progress-card__meta {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-progress-card {
+  padding: 8px 10px;
+  background: rgba(10, 13, 18, 0.42);
+  border: 1px solid var(--fl-surface-border);
+  border-radius: var(--fl-radius-md);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-progress-card__meta {
   display: flex;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 5px;
-  color: var(--fl2-text);
+  color: var(--fl-text-primary);
   font-size: 0.66rem;
   font-weight: 900;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-progress-card__meta span:last-child {
-  color: var(--fl2-text-secondary);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-progress-card__meta span:last-child {
+  color: var(--fl-text-secondary);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-progress-card__track {
-  width: 100%;
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-progress-card__progress {
+  margin-top: 2px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-progress-card__progress .fl-progress__track {
   height: 6px;
-  overflow: hidden;
+  border: 0;
   background: rgba(10, 13, 18, 0.84);
-  border-radius: 999px;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-progress-card__fill {
-  width: var(--character-progress-width, 0%);
-  height: 100%;
-  background: var(--character-progress-tone, var(--fl2-gold));
-  transition: width 0.3s ease;
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-progress-card__progress .fl-progress__fill {
+  box-shadow: none;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-build {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-build {
   display: grid;
   gap: 10px;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-build-title {
-  color: var(--fl2-text);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-build-title {
+  color: var(--fl-text-primary);
   font-size: 0.92rem;
   font-weight: 900;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-build-tag {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-build-tag {
   min-width: 220px;
   padding: 10px 12px;
   background: rgba(10, 13, 18, 0.42);
-  border: 1px solid var(--fl2-surface-border);
-  border-radius: var(--fl2-radius-md);
+  border: 1px solid var(--fl-surface-border);
+  border-radius: var(--fl-radius-md);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-build-tag--full {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-build-tag--full {
   min-width: 100%;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-build-tag-title {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-build-tag-title {
   margin-top: 4px;
-  color: var(--build-tag-tone, var(--fl2-text));
+  color: var(--fl-text-primary);
   font-size: 0.82rem;
   font-weight: 900;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-spec-grid {
-  display: grid;
-  grid-template-columns: var(--character-spec-grid-columns, repeat(2, minmax(0, 1fr)));
-  gap: var(--character-spec-grid-gap, 8px);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-build-tag-title.is-tone-danger {
+  color: var(--fl-danger);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-spec-card {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-build-tag-title.is-tone-success {
+  color: var(--fl-success);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-build-tag-title.is-tone-warning {
+  color: var(--fl-warning);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-build-tag-title.is-tone-arcane {
+  color: var(--fl-arcane);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-grid--single {
+  grid-template-columns: 1fr;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-grid--compact-gap {
+  gap: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-card {
   display: grid;
   gap: 8px;
   padding: 10px;
-  background: var(--fl2-surface-bg);
-  border: 1px solid var(--fl2-surface-border);
-  border-radius: var(--fl2-radius-md);
+  background: var(--fl-surface-bg);
+  border: 1px solid var(--fl-surface-border);
+  border-radius: var(--fl-radius-md);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-spec-card--compact {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-card--compact {
   gap: 6px;
   padding: 8px;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-spec-card--locked {
-  border-color: color-mix(in srgb, var(--fl2-warning) 36%, transparent);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-card--locked {
+  border-color: color-mix(in srgb, var(--fl-warning) 36%, transparent);
   opacity: 0.72;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-spec-card__title {
-  color: var(--fl2-text);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-card__title {
+  color: var(--fl-text-primary);
   font-size: 0.76rem;
   font-weight: 900;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-spec-card--compact .character-spec-card__title {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-card--compact .character-spec-card__title {
   font-size: 0.7rem;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-spec-card--compact .character-spec-card__description {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-card--compact .character-spec-card__description {
   font-size: 0.58rem;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-spec-card__requirement {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-card__requirement {
   margin-top: 4px;
-  color: var(--fl2-danger);
+  color: var(--fl-danger);
   font-size: 0.6rem;
   font-weight: 900;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-spec-card__requirement--available {
-  color: var(--fl2-success);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-card__requirement--available {
+  color: var(--fl-success);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-spec-card__button {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-card__button {
   width: 100%;
   padding: 8px 10px;
   font-size: 0.66rem;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-spec-card__button--spotlight {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-spec-card__button--spotlight {
   position: relative;
   z-index: 3;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-section-copy {
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-section-copy {
   margin-bottom: 10px;
   font-size: 0.68rem;
   line-height: 1.4;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-pre-spec-table {
-  padding: 0 12px;
-  background: rgba(10, 13, 18, 0.42);
-  border: 1px solid var(--fl2-surface-border);
-  border-radius: var(--fl2-radius-md);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .character-pre-spec-quick-stats {
+  margin-top: 8px;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-data-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--fl2-gold-muted);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-bar-progress .fl-progress__track {
+  height: 8px;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-data-row--last {
-  border-bottom: 0;
-}
-
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-data-row span:first-child {
-  color: var(--fl2-text-secondary);
-  font-size: 0.7rem;
-  font-weight: 800;
-}
-
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .character-data-row span:last-child {
-  color: var(--character-data-accent, var(--fl2-text));
-  font-size: 0.76rem;
-  font-weight: 900;
-  text-align: right;
-}
-
-.app-shell-root--forge-light-v2[data-fl2-screen="character"] .forge-character-bar-track span {
-  width: var(--forge-character-bar-width, 0%);
+.app-shell-root--forge-light-v2[data-fl-screen="character"] .forge-character-bar-progress .fl-progress__fill {
+  box-shadow: none;
 }

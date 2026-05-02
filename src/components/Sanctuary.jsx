@@ -1,13 +1,9 @@
-import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
-import OverlayShell, { OverlaySurface } from "./OverlayShell";
-import JobProgressBar from "./JobProgressBar";
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import ActionToast from "./ActionToast";
 import ForgeIcon from "./icons/ForgeIcon";
-import { FlButton, FlIconFrame } from "./ui/forge";
-import { getStationAsset } from "../utils/assetRegistry";
+import { FlButton, FlHeroModule, FlJobRow, FlPanel, FlPanelHeader, FlRelicRow, FlStationCard } from "./ui/forge";
 import useRelativeNow from "../hooks/useRelativeNow";
 import useViewport from "../hooks/useViewport";
-import { getRarityColor } from "../constants/rarity";
 import { getRunSigil } from "../data/runSigils";
 import { getSanctuaryStationState } from "../engine/sanctuary/laboratoryEngine";
 import {
@@ -30,63 +26,19 @@ const BibliotecaOverlay = lazy(() => import("./BibliotecaOverlay"));
 const LaboratoryOverlay = lazy(() => import("./LaboratoryOverlay"));
 const SanctuaryClassSelector = lazy(() => import("./SanctuaryClassSelector"));
 
+const STATION_VIEWS = {
+  DISTILLERY: "distillery",
+  ERRANDS: "errands",
+  FORGE: "forge",
+  SIGILS: "sigils",
+  LIBRARY: "library",
+  LABORATORY: "laboratory",
+};
+
 // Visual-only Stitch/Sanctuary skin. Flip to false to restore the previous hub skin.
 const SANCTUARY_STITCH_VISUAL_TRIAL = false;
 // Keeps the visual direction but avoids expensive blur/shimmer/mask effects.
 const SANCTUARY_STITCH_PERF_SAFE = true;
-
-function sectionCardStyle(accent = "var(--tone-accent, #4338ca)") {
-  return {
-    background: "var(--color-background-secondary, #ffffff)",
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    borderRadius: "var(--dense-card-radius, 12px)",
-    padding: "var(--dense-panel-padding, 10px)",
-    display: "grid",
-    gap: "var(--dense-panel-gap, 8px)",
-    boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
-    borderTop: `3px solid ${accent}`,
-  };
-}
-
-function actionButtonStyle({ primary = false, disabled = false } = {}) {
-  return {
-    border: "1px solid",
-    borderColor: disabled
-      ? "var(--color-border-primary, #e2e8f0)"
-      : primary
-        ? "var(--tone-accent, #4338ca)"
-        : "var(--color-border-primary, #e2e8f0)",
-    background: disabled
-      ? "var(--color-background-tertiary, #f8fafc)"
-      : primary
-        ? "var(--tone-accent-soft, #eef2ff)"
-        : "var(--color-background-secondary, #ffffff)",
-    color: disabled
-      ? "var(--color-text-tertiary, #94a3b8)"
-      : primary
-        ? "var(--tone-accent, #4338ca)"
-        : "var(--color-text-primary, #1e293b)",
-    borderRadius: "var(--dense-card-radius, 12px)",
-    padding: "var(--dense-button-padding, 7px 10px)",
-    fontSize: "0.7rem",
-    lineHeight: 1.15,
-    fontWeight: "900",
-    cursor: disabled ? "not-allowed" : "pointer",
-    boxShadow: disabled ? "none" : "inset 0 0 0 1px rgba(255,255,255,0.02)",
-  };
-}
-
-function chipStyle(accent = "var(--tone-accent, #4338ca)") {
-  return {
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    background: "var(--color-background-tertiary, #f8fafc)",
-    color: accent,
-    borderRadius: "999px",
-    padding: "3px 7px",
-    fontSize: "0.62rem",
-    fontWeight: "900",
-  };
-}
 
 function formatRemaining(ms = 0) {
   const remainingMs = Math.max(0, Number(ms || 0));
@@ -97,29 +49,6 @@ function formatRemaining(ms = 0) {
   if (hours > 0) return `${hours}h ${minutes}m`;
   if (minutes > 0) return `${minutes}m ${seconds}s`;
   return `${seconds}s`;
-}
-
-function OverlayLoadingFallback({ label, isMobile = false }) {
-  return (
-    <OverlayShell isMobile={isMobile} contentLabel={`Cargando ${label}`}>
-      <OverlaySurface
-        isMobile={isMobile}
-        maxWidth="420px"
-        paddingMobile="18px 16px 20px"
-        paddingDesktop="20px 22px"
-        gap="0"
-        {...{ style: {
-          textAlign: "center",
-          fontSize: "0.78rem",
-          fontWeight: "900",
-          color: "var(--color-text-secondary, #64748b)",
-          background: "var(--color-background-secondary, #ffffff)",
-        } }}
-      >
-        Cargando {label}...
-      </OverlaySurface>
-    </OverlayShell>
-  );
 }
 
 function jobStationLabel(station = "") {
@@ -183,15 +112,6 @@ function getJobProgressFraction(job = {}, nowAt = Date.now()) {
   return Math.max(0, Math.min(1, (Number(nowAt || Date.now()) - startedAt) / (endsAt - startedAt)));
 }
 
-const SANCTUARY_STATION_ICONS = {
-  laboratory: "laboratory",
-  distillery: "distillery",
-  library: "library",
-  errands: "mail",
-  sigils: "sigilAltar",
-  forge: "anvil",
-};
-
 const SANCTUARY_JOB_ICONS = {
   distillery: "distillery",
   errands: "mail",
@@ -201,10 +121,6 @@ const SANCTUARY_JOB_ICONS = {
   laboratory: "laboratory",
 };
 
-function getSanctuaryStationIcon(stationId = "") {
-  return SANCTUARY_STATION_ICONS[stationId] || "sanctuary";
-}
-
 function getSanctuaryWorkIcon(row = {}) {
   return SANCTUARY_JOB_ICONS[row.station] || (row.kind === "claimable" ? "claim" : "repeat");
 }
@@ -212,13 +128,9 @@ function getSanctuaryWorkIcon(row = {}) {
 export default function Sanctuary({ state, dispatch }) {
   const now = useRelativeNow();
   const [actionToast, setActionToast] = useState(null);
-  const [showDistillery, setShowDistillery] = useState(false);
-  const [showErrands, setShowErrands] = useState(false);
-  const [showSanctuaryForge, setShowSanctuaryForge] = useState(false);
-  const [showSigilAltar, setShowSigilAltar] = useState(false);
-  const [showLibrary, setShowLibrary] = useState(false);
-  const [showLaboratory, setShowLaboratory] = useState(false);
+  const [activeStationView, setActiveStationView] = useState(null);
   const [pendingRelicExtractId, setPendingRelicExtractId] = useState(null);
+  const sanctuaryRootRef = useRef(null);
   const { viewportWidth } = useViewport();
   const isMobileViewport = viewportWidth < 768;
   const isNarrowViewport = viewportWidth < 420;
@@ -228,9 +140,19 @@ export default function Sanctuary({ state, dispatch }) {
     __liveNow: now,
   });
 
+  const hasStationViewOpen = activeStationView !== null;
+
+  function closeStationView() {
+    setActiveStationView(null);
+  }
+
+  function openStationView(viewId) {
+    setActiveStationView(viewId);
+  }
+
   useEffect(() => {
     if (
-      showDistillery ||
+      activeStationView === STATION_VIEWS.DISTILLERY ||
       [
         ONBOARDING_STEPS.DISTILLERY_READY,
         ONBOARDING_STEPS.RETURN_TO_SANCTUARY,
@@ -240,16 +162,7 @@ export default function Sanctuary({ state, dispatch }) {
     ) {
       loadDistilleryOverlay();
     }
-  }, [onboardingStep, showDistillery]);
-
-  function closeAllOverlays() {
-    setShowDistillery(false);
-    setShowErrands(false);
-    setShowSanctuaryForge(false);
-    setShowSigilAltar(false);
-    setShowLibrary(false);
-    setShowLaboratory(false);
-  }
+  }, [activeStationView, onboardingStep]);
 
   useEffect(() => {
     if (!actionToast?.id) return undefined;
@@ -258,9 +171,19 @@ export default function Sanctuary({ state, dispatch }) {
   }, [actionToast?.id]);
 
   useEffect(() => {
+    if (!activeStationView) return;
+    const frameId = window.requestAnimationFrame(() => {
+      sanctuaryRootRef.current?.scrollIntoView?.({ behavior: "auto", block: "start" });
+      window.scrollTo?.({ top: 0, behavior: "auto" });
+      document.querySelector("main")?.scrollTo?.({ top: 0, behavior: "auto" });
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [activeStationView]);
+
+  useEffect(() => {
     const handler = event => {
       if (event?.detail?.tab === "sanctuary") {
-        closeAllOverlays();
+        closeStationView();
         if (rawOnboardingStep === ONBOARDING_STEPS.RETURN_TO_SANCTUARY) {
           dispatch({ type: "CLOSE_LABORATORY" });
         }
@@ -342,7 +265,7 @@ export default function Sanctuary({ state, dispatch }) {
       if (frameId != null) cancelAnimationFrame(frameId);
       if (timeoutId != null) window.clearTimeout(timeoutId);
     };
-  }, [isMobileViewport, onboardingStep, showLaboratory]);
+  }, [isMobileViewport, onboardingStep, activeStationView]);
 
   const expeditionPhase = state.expedition?.phase || "sanctuary";
   const hasClass = Boolean(state.player?.class);
@@ -358,12 +281,10 @@ export default function Sanctuary({ state, dispatch }) {
   const resources = sanctuary?.resources || {};
   const activeRelics = sanctuary?.activeRelics || {};
   const sigilInfusions = sanctuary?.sigilInfusions || {};
-  const deepForgeSession = sanctuary?.deepForgeSession || null;
   const distillerySlots = Number(sanctuary?.stations?.distillery?.slots || 1);
   const errandSlots = Number(sanctuary?.stations?.errands?.slots || 2);
   const infusionSlots = Number(sanctuary?.stations?.sigilInfusion?.slots || 1);
   const librarySlots = Number(sanctuary?.stations?.codexResearch?.slots || 1);
-  const deepForgeSlots = Number(sanctuary?.stations?.deepForge?.slots || 1);
   const relicArmorySlots = Math.max(1, Number(sanctuary?.extractionUpgrades?.relicSlots || 4));
   const sortedRelicArmory = useMemo(
     () => [...relicArmory].sort((left, right) => Number(right?.rating || 0) - Number(left?.rating || 0)),
@@ -380,12 +301,12 @@ export default function Sanctuary({ state, dispatch }) {
   const blueprintDecisionUnlocked = isBlueprintDecisionUnlocked(state);
   useEffect(() => {
     if (!sanctuary?.pendingOpenForgeOverlay) return;
-    setShowSanctuaryForge(true);
+    openStationView(STATION_VIEWS.FORGE);
     dispatch({ type: "ACK_OPEN_SANCTUARY_FORGE" });
   }, [dispatch, sanctuary?.pendingOpenForgeOverlay]);
   useEffect(() => {
     if (!state?.combat?.reforgeSession) return;
-    setShowSanctuaryForge(true);
+    openStationView(STATION_VIEWS.FORGE);
   }, [state?.combat?.reforgeSession]);
   useEffect(() => {
     if (!pendingRelicExtractId) return undefined;
@@ -430,18 +351,12 @@ export default function Sanctuary({ state, dispatch }) {
   ].includes(onboardingStep);
   useEffect(() => {
     if (onboardingStep !== ONBOARDING_STEPS.FIRST_DISTILLERY_JOB || !distilleryUnlocked) return;
-    setShowLaboratory(false);
-    setShowErrands(false);
-    setShowSanctuaryForge(false);
-    setShowSigilAltar(false);
-    setShowLibrary(false);
-    setShowDistillery(true);
+    openStationView(STATION_VIEWS.DISTILLERY);
   }, [distilleryUnlocked, onboardingStep]);
 
   useEffect(() => {
     if (onboardingStep !== ONBOARDING_STEPS.FIRST_ECHOES) return;
-    setShowDistillery(false);
-    setShowLaboratory(false);
+    closeStationView();
   }, [onboardingStep]);
 
   function scrollToClassSelection() {
@@ -487,7 +402,7 @@ export default function Sanctuary({ state, dispatch }) {
     ) {
       return;
     }
-    setShowLaboratory(true);
+    openStationView(STATION_VIEWS.LABORATORY);
     if (onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY) {
       dispatch({ type: "OPEN_LABORATORY" });
     } else if (onboardingStep === ONBOARDING_STEPS.FIRST_SANCTUARY_RETURN) {
@@ -638,7 +553,7 @@ export default function Sanctuary({ state, dispatch }) {
         return;
       case ONBOARDING_STEPS.OPEN_DISTILLERY:
         if (distilleryUnlocked) {
-          setShowDistillery(true);
+          openStationView(STATION_VIEWS.DISTILLERY);
           dispatch({ type: "OPEN_DISTILLERY" });
           return;
         }
@@ -646,7 +561,7 @@ export default function Sanctuary({ state, dispatch }) {
         return;
       case ONBOARDING_STEPS.FIRST_DISTILLERY_JOB:
         if (distilleryUnlocked) {
-          setShowDistillery(true);
+          openStationView(STATION_VIEWS.DISTILLERY);
           return;
         }
         openLaboratoryFromSanctuary("header-cta");
@@ -656,7 +571,7 @@ export default function Sanctuary({ state, dispatch }) {
       case ONBOARDING_STEPS.FIRST_BLUEPRINT_MATERIALIZATION:
       case ONBOARDING_STEPS.FIRST_DEEP_FORGE_USE:
       case ONBOARDING_STEPS.DEEP_FORGE_READY:
-        setShowSanctuaryForge(true);
+        openStationView(STATION_VIEWS.FORGE);
         return;
       case ONBOARDING_STEPS.LIBRARY_READY:
       case ONBOARDING_STEPS.ERRANDS_READY:
@@ -718,7 +633,7 @@ export default function Sanctuary({ state, dispatch }) {
       return {
         label: "Volver al Santuario",
         primary: true,
-        action: () => setShowLaboratory(false),
+        action: closeStationView,
         helper: "Cierra el Laboratorio desde su boton real. El siguiente paso ya ocurre en el hub del Santuario.",
       };
     }
@@ -816,20 +731,20 @@ export default function Sanctuary({ state, dispatch }) {
   ].filter(Boolean).join(" ");
 
   const noClassContent = (
-    <div className={`${sanctuaryRootClassName} fl-sanctuary-empty`} {...{ style: { padding: "12px", display: "grid", gap: "12px" } }}>
-      <section className="fl-sanctuary-panel" {...{ style: sectionCardStyle("var(--tone-accent, #4338ca)") }}>
-        <div {...{ style: { display: "grid", gap: "6px" } }}>
-          <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" } }}>
+    <div className={`${sanctuaryRootClassName} fl-sanctuary-empty fl-sanctuary-empty-state`}>
+      <section className="fl-sanctuary-panel fl-sanctuary-empty-card fl-sanctuary-empty-card--accent">
+        <div className="fl-sanctuary-empty-copy">
+          <div className="fl-sanctuary-empty-eyebrow fl-sanctuary-empty-eyebrow--accent">
             Santuario
           </div>
-          <div {...{ style: { fontSize: "1rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
+          <div className="fl-sanctuary-empty-title">
             {showingSanctuaryIntro
               ? "Inicia tu primera expedicion desde aqui"
               : classSelectionRequested
                 ? "Elige una clase para esta expedicion"
                 : "La clase se define al iniciar expedicion"}
           </div>
-          <div {...{ style: { fontSize: "0.76rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 } }}>
+          <div className="fl-sanctuary-empty-body">
             {showingSanctuaryIntro
               ? "El Santuario es tu base. Primero aprendes a salir desde aqui; recien despues eliges una clase y entras al combate."
               : classSelectionRequested
@@ -837,15 +752,11 @@ export default function Sanctuary({ state, dispatch }) {
                 : "La clase ya no se elige de antemano. Primero inicia la expedicion y recien ahi decides con que arquetipo sales."}
           </div>
           {(showingSanctuaryIntro || !classSelectionRequested) && (
-            <div {...{ style: { display: "flex", justifyContent: "flex-end", marginTop: "6px" } }}>
+            <div className="fl-sanctuary-empty-cta">
               <button
                 onClick={expeditionCta.action}
                 data-onboarding-target={showingSanctuaryIntro ? "start-expedition" : undefined}
-                {...{ style: {
-                  ...actionButtonStyle({ primary: true }),
-                  boxShadow: "0 0 0 2px rgba(83,74,183,0.16), 0 12px 28px rgba(83,74,183,0.14)",
-                  animation: "sanctuarySpotlightPulse 1600ms ease-in-out infinite",
-                } }}
+                className="fl-sanctuary-empty-cta-button"
               >
                 {expeditionCta.label}
               </button>
@@ -855,21 +766,21 @@ export default function Sanctuary({ state, dispatch }) {
       </section>
 
       {showingSanctuaryIntro || !classSelectionRequested ? (
-        <div {...{ style: { padding: "12px", display: "grid", gap: "12px" } }}>
-          <section className="fl-sanctuary-panel" {...{ style: sectionCardStyle("var(--tone-info, #0369a1)") }}>
-            <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" } }}>
+        <div className="fl-sanctuary-empty-state">
+          <section className="fl-sanctuary-panel fl-sanctuary-empty-card fl-sanctuary-empty-card--info">
+            <div className="fl-sanctuary-empty-eyebrow fl-sanctuary-empty-eyebrow--info">
               {showingSanctuaryIntro ? "Primera run" : "Preparar salida"}
             </div>
-            <div {...{ style: { display: "grid", gap: "8px" } }}>
-              <div {...{ style: { fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
+            <div className="fl-sanctuary-empty-copy fl-sanctuary-empty-copy--lg-gap">
+              <div className="fl-sanctuary-empty-subtitle">
                 {showingSanctuaryIntro ? "Primero sal desde el Santuario." : "La clase se elige al preparar la expedicion."}
               </div>
-              <div {...{ style: { fontSize: "0.74rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.45 } }}>
+              <div className="fl-sanctuary-empty-body">
                 {showingSanctuaryIntro
                   ? <>Toca <strong>Iniciar expedicion</strong>. En el siguiente paso elegirás una clase para esa salida y, recien ahi, entrarás al combate para arrancar la run.</>
                   : <>Toca <strong>Iniciar expedicion</strong>. Cuando se abra la preparacion de la salida, ahi recien vas a elegir la clase de esta run.</>}
               </div>
-              <div {...{ style: { fontSize: "0.68rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)" } }}>
+              <div className="fl-sanctuary-empty-note">
                 Usa el boton real resaltado arriba, no este panel.
               </div>
             </div>
@@ -878,8 +789,8 @@ export default function Sanctuary({ state, dispatch }) {
       ) : (
         <Suspense
           fallback={(
-            <section className="fl-sanctuary-panel" {...{ style: sectionCardStyle("var(--tone-info, #0369a1)") }}>
-              <div {...{ style: { fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)" } }}>
+            <section className="fl-sanctuary-panel fl-sanctuary-empty-card fl-sanctuary-empty-card--info">
+              <div className="fl-sanctuary-empty-loading">
                 Cargando selector de clase...
               </div>
             </section>
@@ -950,7 +861,7 @@ export default function Sanctuary({ state, dispatch }) {
         title: "Vuelve al Santuario",
         body: "Ya reclamaste la investigacion. Cierra el Laboratorio desde su boton real y despues abrimos la Destileria desde el hub.",
         cta: "Cerrar Laboratorio",
-        action: () => setShowLaboratory(false),
+        action: closeStationView,
       };
     }
     if (onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY) {
@@ -1054,7 +965,7 @@ export default function Sanctuary({ state, dispatch }) {
         title: "Decide que hacer con tu primera pieza de Forja",
         body: "La pieza rescatada no vuelve equipada. Elige si la guardas para trabajarla o si la desguazas para recuperar recursos.",
         cta: "Abrir Forja",
-        action: () => setShowSanctuaryForge(true),
+        action: () => openStationView(STATION_VIEWS.FORGE),
       };
     }
     if (blueprintDecisionUnlocked && Number(state?.prestige?.level || 0) >= 3 && !deepForgeStation.unlocked) {
@@ -1132,7 +1043,7 @@ export default function Sanctuary({ state, dispatch }) {
         title: "Necesitas Tinta de Biblioteca para activar hitos permanentes",
         body: "Recupera codex traces, destilalos y luego invierte esa tinta en la Biblioteca para convertir kills y descubrimientos en bonificaciones reales.",
         cta: "Abrir Biblioteca",
-        action: () => setShowLibrary(true),
+        action: () => openStationView(STATION_VIEWS.LIBRARY),
       };
     }
     return {
@@ -1141,7 +1052,7 @@ export default function Sanctuary({ state, dispatch }) {
       title: "Ya tienes el loop principal funcionando",
       body: "Ahora el foco es sostener la Forja del Santuario, mantener jobs corriendo y convertir una buena expedicion en mejor cuenta, no solo en mejor run.",
       cta: "Abrir Forja",
-      action: () => setShowSanctuaryForge(true),
+      action: () => openStationView(STATION_VIEWS.FORGE),
     };
   }, [
     blueprintDecisionUnlocked,
@@ -1305,6 +1216,7 @@ export default function Sanctuary({ state, dispatch }) {
     {
       id: "laboratory",
       title: "Laboratorio",
+      accentTone: "defense",
       status: laboratoryUnlocked ? `${laboratoryRunningCount} activo(s)` : "Bloqueado",
       detail: laboratoryUnlocked
         ? `Experimentos y mejoras persistentes. ${laboratoryClaimableCount} disponible(s).`
@@ -1312,6 +1224,13 @@ export default function Sanctuary({ state, dispatch }) {
       tone: "var(--tone-accent, #4338ca)",
       actionLabel: laboratoryUnlocked ? "Abrir" : "Cerrado",
       locked: !laboratoryUnlocked,
+      state: !laboratoryUnlocked
+        ? "locked"
+        : laboratoryClaimableCount > 0
+          ? "claimable"
+          : laboratoryRunningCount > 0
+            ? "job-active"
+            : "active",
       action: laboratoryUnlocked ? () => openLaboratoryFromSanctuary("overview-laboratory") : null,
       onboardingTarget:
         onboardingStep === ONBOARDING_STEPS.OPEN_LABORATORY
@@ -1323,6 +1242,7 @@ export default function Sanctuary({ state, dispatch }) {
     {
       id: "distillery",
       title: "Destileria",
+      accentTone: "gold",
       status: distilleryUnlocked ? `${runningByStation.distillery || 0}/${distillerySlots}` : "Bloqueada",
       detail: distilleryUnlocked
         ? `Convierte cargo recuperado en recursos. ${totalCargoQuantity} bundle(s).`
@@ -1330,12 +1250,19 @@ export default function Sanctuary({ state, dispatch }) {
       tone: "var(--tone-violet, #7c3aed)",
       actionLabel: distilleryUnlocked ? "Abrir" : "Laboratorio",
       locked: !distilleryUnlocked,
+      state: !distilleryUnlocked
+        ? "locked"
+        : (runningByStation.distillery || 0) > 0
+          ? "job-active"
+          : totalCargoQuantity > 0
+            ? "claimable"
+            : "active",
       action: () => {
         if (!distilleryUnlocked) {
           openLaboratoryFromSanctuary("overview-distillery");
           return;
         }
-        setShowDistillery(true);
+        openStationView(STATION_VIEWS.DISTILLERY);
         if (onboardingStep === ONBOARDING_STEPS.OPEN_DISTILLERY) {
           dispatch({ type: "OPEN_DISTILLERY" });
         }
@@ -1348,6 +1275,7 @@ export default function Sanctuary({ state, dispatch }) {
     {
       id: "library",
       title: "Biblioteca",
+      accentTone: "arcane",
       status: libraryStation.unlocked ? `${runningLibraryJobs.length}/${librarySlots}` : "Bloqueada",
       detail: libraryStation.unlocked
         ? `Investiga conocimiento antiguo. ${claimableLibraryJobs.length} disponible(s).`
@@ -1355,11 +1283,21 @@ export default function Sanctuary({ state, dispatch }) {
       tone: "var(--tone-accent, #4338ca)",
       actionLabel: libraryStation.unlocked ? "Abrir" : "Laboratorio",
       locked: !libraryStation.unlocked,
-      action: () => (libraryStation.unlocked ? setShowLibrary(true) : openLaboratoryFromSanctuary("overview-library")),
+      state: !libraryStation.unlocked
+        ? "locked"
+        : claimableLibraryJobs.length > 0
+          ? "claimable"
+          : runningLibraryJobs.length > 0
+            ? "job-active"
+            : "active",
+      action: () => (libraryStation.unlocked
+        ? openStationView(STATION_VIEWS.LIBRARY)
+        : openLaboratoryFromSanctuary("overview-library")),
     },
     {
       id: "errands",
       title: "Encargos",
+      accentTone: "defense",
       status: errandStation.unlocked ? `${runningErrandJobs.length}/${errandSlots}` : "Bloqueados",
       detail: errandStation.unlocked
         ? `Envia aliados a recuperar recompensas. ${Math.max(0, errandSlots - runningErrandJobs.length)} equipo(s) libre(s).`
@@ -1367,11 +1305,21 @@ export default function Sanctuary({ state, dispatch }) {
       tone: "var(--tone-info, #0369a1)",
       actionLabel: errandStation.unlocked ? "Abrir" : "Laboratorio",
       locked: !errandStation.unlocked,
-      action: () => (errandStation.unlocked ? setShowErrands(true) : openLaboratoryFromSanctuary("overview-errands")),
+      state: !errandStation.unlocked
+        ? "locked"
+        : claimableErrandJobs.length > 0
+          ? "claimable"
+          : runningErrandJobs.length > 0
+            ? "job-active"
+            : "active",
+      action: () => (errandStation.unlocked
+        ? openStationView(STATION_VIEWS.ERRANDS)
+        : openLaboratoryFromSanctuary("overview-errands")),
     },
     {
       id: "sigils",
       title: "Altar de Sigilos",
+      accentTone: "success",
       status: infusionStation.unlocked ? `${runningByStation.sigilInfusion || 0}/${infusionSlots}` : "Bloqueado",
       detail: infusionStation.unlocked
         ? `Invoca y mejora sigilos permanentes. ${Object.values(sigilInfusions).reduce((total, entry) => total + Math.max(0, Number(entry?.charges || 0)), 0)} disponible(s).`
@@ -1379,18 +1327,29 @@ export default function Sanctuary({ state, dispatch }) {
       tone: "var(--tone-success, #10b981)",
       actionLabel: infusionStation.unlocked ? "Abrir" : "Laboratorio",
       locked: !infusionStation.unlocked,
-      action: () => (infusionStation.unlocked ? setShowSigilAltar(true) : openLaboratoryFromSanctuary("overview-sigil")),
+      state: !infusionStation.unlocked
+        ? "locked"
+        : (runningByStation.sigilInfusion || 0) > 0
+          ? "job-active"
+          : totalStoredSigilCharges > 0
+            ? "claimable"
+            : "active",
+      action: () => (infusionStation.unlocked
+        ? openStationView(STATION_VIEWS.SIGILS)
+        : openLaboratoryFromSanctuary("overview-sigil")),
     },
     ...(blueprintDecisionUnlocked
       ? [{
           id: "forge",
           title: "Forja",
+          accentTone: "danger",
           status: "Operativa",
           detail: "Mejora, repara y forja equipo con materiales especiales.",
           tone: "var(--tone-danger, #D85A30)",
           actionLabel: "Abrir",
           locked: false,
-          action: () => setShowSanctuaryForge(true),
+          state: "active",
+          action: () => openStationView(STATION_VIEWS.FORGE),
         }]
       : []),
   ]), [
@@ -1416,258 +1375,270 @@ export default function Sanctuary({ state, dispatch }) {
     runningErrandJobs.length,
     runningLibraryJobs.length,
     sigilInfusions,
+    totalStoredSigilCharges,
     totalCargoQuantity,
   ]);
   const visibleStationOverviewRows = stationOverviewRows;
-  if (!hasClass && (!infrastructureVisible || classSelectionRequested)) {
+  const stationViewNode = (() => {
+    const fallback = (label) => <div className="fl-sanctuary-overlay-loading">Cargando {label}...</div>;
+    if (activeStationView === STATION_VIEWS.DISTILLERY) {
+      return (
+        <Suspense fallback={fallback("Destileria")}>
+          <DistilleryOverlay
+            state={state}
+            dispatch={dispatch}
+            isMobile={isMobileViewport}
+            embedded
+            onClose={closeStationView}
+          />
+        </Suspense>
+      );
+    }
+    if (activeStationView === STATION_VIEWS.ERRANDS) {
+      return (
+        <Suspense fallback={fallback("Encargos")}>
+          <EncargosOverlay
+            state={state}
+            dispatch={dispatch}
+            isMobile={isMobileViewport}
+            embedded
+            onClose={closeStationView}
+          />
+        </Suspense>
+      );
+    }
+    if (activeStationView === STATION_VIEWS.FORGE) {
+      return (
+        <Suspense fallback={fallback("Forja")}>
+          <SanctuaryForgeOverlay
+            state={state}
+            dispatch={dispatch}
+            isMobile={isMobileViewport}
+            embedded
+            onClose={() => {
+              if (state?.combat?.reforgeSession) return;
+              closeStationView();
+            }}
+          />
+        </Suspense>
+      );
+    }
+    if (activeStationView === STATION_VIEWS.SIGILS) {
+      return (
+        <Suspense fallback={fallback("Altar de Sigilos")}>
+          <SigilAltarOverlay
+            state={state}
+            dispatch={dispatch}
+            isMobile={isMobileViewport}
+            embedded
+            onClose={closeStationView}
+          />
+        </Suspense>
+      );
+    }
+    if (activeStationView === STATION_VIEWS.LIBRARY) {
+      return (
+        <Suspense fallback={fallback("Biblioteca")}>
+          <BibliotecaOverlay
+            state={state}
+            dispatch={dispatch}
+            isMobile={isMobileViewport}
+            embedded
+            onClose={closeStationView}
+          />
+        </Suspense>
+      );
+    }
+    if (activeStationView === STATION_VIEWS.LABORATORY) {
+      return (
+        <Suspense fallback={fallback("Laboratorio")}>
+          <LaboratoryOverlay
+            state={state}
+            dispatch={dispatch}
+            isMobile={isMobileViewport}
+            embedded
+            onClose={closeStationView}
+          />
+        </Suspense>
+      );
+    }
+    return null;
+  })();
+
+  if (!hasClass && (!infrastructureVisible || classSelectionRequested) && !hasStationViewOpen) {
     return noClassContent;
   }
 
   return (
-    <div className={sanctuaryRootClassName} {...{ style: { padding: isMobileViewport ? "calc(0.5rem * var(--density-scale, 1))" : "calc(0.65rem * var(--density-scale, 1))", display: "grid", gap: "calc(0.5rem * var(--density-scale, 1))", background: "transparent", color: "var(--fl-text-1, #ead7b5)" } }}>
-      <header className="fl-sanctuary-hero">
-        <div>
-          <div className="fl-sanctuary-kicker">Base persistente</div>
-          <h1 className="fl-sanctuary-title">Santuario</h1>
-        </div>
-        <div className="fl-sanctuary-hero-sigil" aria-hidden="true">
-          <ForgeIcon name="sanctuary" size={28} />
-        </div>
-      </header>
+    <div
+      ref={sanctuaryRootRef}
+      className={[
+      sanctuaryRootClassName,
+      "fl-sanctuary-root",
+      isMobileViewport ? "fl-sanctuary-root--mobile" : "",
+      hasStationViewOpen ? "fl-sanctuary-root--station-open" : "",
+      ].filter(Boolean).join(" ")}
+    >
+      {!hasStationViewOpen && (
+        <FlHeroModule
+          variant="sanctuary-v2"
+          eyebrow="Base persistente"
+          title="Santuario"
+          end={(
+            <FlButton
+              className="fl-sanctuary-hero-cta"
+              variant="default"
+              size="sm"
+              onClick={expeditionCta.action}
+              icon={<ForgeIcon name="combat" size={14} />}
+            >
+              Volver a Expedición
+            </FlButton>
+          )}
+        />
+      )}
 
-      <div className="fl-sanctuary-expedition-cta">
-        <button
-          onClick={expeditionCta.action}
-          className={[
-            "fl-sanctuary-button",
-            "fl-sanctuary-button--back",
-            expeditionCta.primary ? "fl-sanctuary-button--primary" : "",
-          ].filter(Boolean).join(" ")}
-          {...{ style: { width: isMobileViewport ? "min(74vw, 250px)" : "auto", minWidth: isMobileViewport ? "0" : "210px" } }}
-        >
-          <ForgeIcon name="combat" size={17} />
-          {expeditionCta.label}
-        </button>
-      </div>
-
-      <section className="fl-sanctuary-panel fl-sanctuary-panel--jobs">
-        <div className="fl-sanctuary-panel__header">
-          <div>
-            <div className="fl-sanctuary-panel__eyebrow">Trabajos</div>
-          </div>
-          <div className="fl-sanctuary-header-actions">
-            <span className="fl-sanctuary-chip fl-sanctuary-chip--info">
-              {claimableJobs.length} listos · {runningJobs.length} corriendo
-            </span>
-            {claimableJobs.length > 1 && (
+      {!hasStationViewOpen && (
+      <FlPanel
+        variant="compact"
+        className="fl-jobs-module-panel"
+        header={(
+          <FlPanelHeader
+            className="fl-jobs-module-panel__header"
+            title="Trabajos"
+            primaryAction={claimableJobs.length > 0 ? (
               <FlButton
                 onClick={() => claimAllSanctuaryJobs(claimableJobs)}
-                variant="primary"
-                size="sm"
-                className="fl-sanctuary-button fl-sanctuary-button--primary"
-                icon={<ForgeIcon name="claim" size={16} />}
+                variant="default"
+                size="xs-compact"
+                ariaLabel="Reclamar Todo"
+                icon={<ForgeIcon name="claim" size={14} />}
               >
-                Reclamar todo
+                TODO
               </FlButton>
-            )}
-            {canRepeatClaimableJobs && (
+            ) : null}
+            secondaryAction={canRepeatClaimableJobs ? (
               <FlButton
                 onClick={() => claimAllSanctuaryJobs(claimableJobs, { repeat: true })}
                 variant="secondary"
-                size="sm"
-                className="fl-sanctuary-button fl-sanctuary-button--secondary"
-                icon={<ForgeIcon name="repeat" size={16} />}
+                size="xs-compact"
+                ariaLabel="Reclamar Todo y Repetir"
+                icon={<ForgeIcon name="repeat" size={14} />}
               >
-                Todo + repetir
+                TODO
               </FlButton>
-            )}
-          </div>
-        </div>
-
+            ) : null}
+          />
+        )}
+      >
         {workRows.length <= 0 ? (
-          <div className="fl-sanctuary-empty-state">
+          <div className="fl-jobs-module-panel__empty">
             No hay trabajos activos en este momento.
           </div>
         ) : (
-          <div className="fl-sanctuary-list fl-sanctuary-job-list">
+          <div className="fl-jobs-module-panel__body">
             {workRows.map(row => (
-              <div
+              <FlJobRow
                 key={row.id}
                 className={[
                   "fl-sanctuary-row",
                   "fl-sanctuary-job-row",
+                  "fl-jobs-module-row",
                   `fl-sanctuary-row--${row.kind}`,
                 ].join(" ")}
-              >
-                <div className="fl-sanctuary-row-icon" aria-hidden="true">
-                  <ForgeIcon name={getSanctuaryWorkIcon(row)} size={34} />
-                  {row.kind === "claimable" && <span className="fl-sanctuary-ready-dot" />}
-                </div>
-                <div className="fl-sanctuary-row-body">
-                  <div className="fl-sanctuary-row-topline">
-                    <div className="fl-sanctuary-row-title-group">
-                      <div className="fl-sanctuary-row-title">{row.title}</div>
-                      <div className={[
-                        "fl-sanctuary-row-state",
-                        row.kind === "claimable" ? "fl-sanctuary-row-state--ready" : "fl-sanctuary-row-state--running",
-                      ].join(" ")}
-                      >
-                        {row.kind === "claimable" ? "Listo para reclamar" : "En progreso..."}
-                      </div>
-                    </div>
-                    <span className={[
-                      "fl-sanctuary-chip",
-                      row.kind === "claimable" ? "fl-sanctuary-chip--success" : "fl-sanctuary-chip--info",
-                    ].join(" ")}
-                    >
-                      {row.kind === "claimable" ? row.stationLabel : row.chip}
-                    </span>
-                  </div>
-                  <div className="fl-sanctuary-row-detail">
-                    {row.kind === "claimable" ? row.detail : "Tiempo restante:"}
-                  </div>
-                  {row.kind === "claimable" ? (
-                    <div className="fl-sanctuary-row-actions">
-                      <FlButton
-                        onClick={row.action}
-                        variant="primary"
-                        size="sm"
-                        className="fl-sanctuary-button fl-sanctuary-button--primary"
-                      >
-                        <ForgeIcon name="claim" size={16} />
-                        {row.actionLabel}
-                      </FlButton>
-                      {row.secondaryAction && (
-                        <button
-                          onClick={row.secondaryAction}
-                          className="fl-sanctuary-button fl-sanctuary-button--icon"
-                          aria-label={row.secondaryActionLabel}
-                          title={row.secondaryActionLabel}
-                        >
-                          <ForgeIcon name="repeat" size={19} />
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="fl-sanctuary-progress-wrap">
-                      <JobProgressBar
-                        startedAt={row?.startedAt}
-                        endsAt={row?.endsAt}
-                        now={now}
-                        tone="var(--tone-info, #6ec9ff)"
-                        track="rgba(255, 218, 138, 0.12)"
-                        leftLabel={row.stationLabel}
-                        rightLabel={row.chip}
-                        compact
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
+                ready={row.kind === "claimable"}
+                icon={getSanctuaryWorkIcon(row)}
+                title={row.title}
+                detail={row.detail}
+                statusLabel={row.kind === "claimable" ? "Listo para reclamar" : "En progreso..."}
+                progress={row.kind === "running" ? getJobProgressFraction(row, now) : 0}
+                chipLabel={row.kind === "running" ? row.chip : row.stationLabel}
+                actionLabel={row.kind === "claimable" ? row.actionLabel : ""}
+                onAction={row.kind === "claimable" ? row.action : undefined}
+                secondaryActionLabel={row.secondaryActionLabel}
+                onSecondaryAction={row.secondaryAction}
+              />
             ))}
           </div>
         )}
-      </section>
-
-      {infrastructureVisible && (
-        <section className="fl-sanctuary-panel fl-sanctuary-panel--stations">
-          <div className="fl-sanctuary-panel__header">
-            <div>
-              <div className="fl-sanctuary-panel__eyebrow">Estaciones</div>
-              <div className="fl-sanctuary-panel__subtitle">Accesos operativos del Santuario</div>
-            </div>
-          </div>
-
-          <div className="fl-sanctuary-list fl-sanctuary-station-list">
-            {visibleStationOverviewRows.map(row => (
-              <div
-                key={row.id}
-                data-onboarding-target={row.onboardingTarget || undefined}
-                className={[
-                  "fl-sanctuary-row",
-                  "fl-sanctuary-station-row",
-                  row.locked ? "fl-sanctuary-row--locked" : "",
-                  row.onboardingTarget ? "fl-sanctuary-row--spotlight" : "",
-                ].filter(Boolean).join(" ")}
-              >
-                <div className="fl-sanctuary-row-icon" aria-hidden="true">
-                  <FlIconFrame
-                    size="lg"
-                    asset={getStationAsset(row.id)}
-                    kind="station"
-                    fallbackIcon={getSanctuaryStationIcon(row.id)}
-                    locked={row.locked}
-                    className="fl-sanctuary-station-asset"
-                  />
-                </div>
-                <div className="fl-sanctuary-row-body">
-                  <div className="fl-sanctuary-row-title">{row.title}</div>
-                  <div className="fl-sanctuary-row-detail">{row.detail}</div>
-                </div>
-                <div className="fl-sanctuary-row-actions fl-sanctuary-row-actions--station">
-                  <span className={[
-                    "fl-sanctuary-chip",
-                    row.locked ? "fl-sanctuary-chip--danger" : "fl-sanctuary-chip--info",
-                  ].join(" ")}
-                  >
-                    {row.status}
-                  </span>
-                  <FlButton
-                    onClick={row.action || undefined}
-                    disabled={!row.action}
-                    variant="secondary"
-                    size="sm"
-                    className="fl-sanctuary-button fl-sanctuary-button--secondary"
-                  >
-                    {row.actionLabel}
-                  </FlButton>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+      </FlPanel>
       )}
 
-      {infrastructureVisible && (
-        <section className="fl-sanctuary-panel fl-sanctuary-panel--relics">
-          <div className="fl-sanctuary-panel__header">
-            <div>
-              <div className="fl-sanctuary-panel__eyebrow">Arsenal de Reliquias</div>
-              <div className="fl-sanctuary-panel__subtitle">
-                Gestion de reliquias persistentes
-              </div>
-            </div>
-            <div className="fl-sanctuary-header-actions">
-              <span className="fl-sanctuary-chip fl-sanctuary-chip--danger">
-                {relicCount} / {relicArmorySlots}
-              </span>
-              <span className={[
-                "fl-sanctuary-chip",
-                activeRelics?.weapon ? "fl-sanctuary-chip--success" : "",
-              ].filter(Boolean).join(" ")}
-              >
-                Arma {activeRelics?.weapon ? "activa" : "vacia"}
-              </span>
-              <span className={[
-                "fl-sanctuary-chip",
-                activeRelics?.armor ? "fl-sanctuary-chip--success" : "",
-              ].filter(Boolean).join(" ")}
-              >
-                Armadura {activeRelics?.armor ? "activa" : "vacia"}
-              </span>
-            </div>
+      {!hasStationViewOpen && infrastructureVisible && (
+        <FlPanel
+          variant="compact"
+          className="fl-stations-module-panel"
+          header={(
+            <FlPanelHeader
+              className="fl-stations-module-panel__header"
+              title="Estaciones"
+            />
+          )}
+        >
+          <div className="fl-stations-module-panel__body">
+            {visibleStationOverviewRows.map(row => (
+              <FlStationCard
+                key={row.id}
+                className={[
+                  "fl-sanctuary-station-row",
+                  "fl-sanctuary-station-row--module",
+                ].filter(Boolean).join(" ")}
+                stationId={row.id}
+                title={row.title}
+                detail={row.detail}
+                status={row.status}
+                accentTone={row.accentTone}
+                locked={row.locked}
+                actionLabel={row.actionLabel}
+                onAction={row.action || undefined}
+                onboardingTarget={row.onboardingTarget}
+                state={row.onboardingTarget ? "spotlight" : (row.state || (row.locked ? "locked" : "active"))}
+                spotlightText={row.onboardingTarget ? "✦ Estación prioritaria para el siguiente paso" : ""}
+              />
+            ))}
+          </div>
+        </FlPanel>
+      )}
+
+      {!hasStationViewOpen && infrastructureVisible && (
+        <FlPanel
+          variant="compact"
+          className="fl-relics-module-panel"
+          header={(
+            <FlPanelHeader
+              className="fl-relics-module-panel__header"
+              title="Arsenal de Reliquias"
+            />
+          )}
+        >
+          <div className="fl-relics-module-panel__meta">
+            <span className="fl-sanctuary-chip fl-sanctuary-chip--danger">{relicCount} / {relicArmorySlots}</span>
+            <span className={["fl-sanctuary-chip", activeRelics?.weapon ? "fl-sanctuary-chip--success" : ""].filter(Boolean).join(" ")}>
+              Arma {activeRelics?.weapon ? "activa" : "vacia"}
+            </span>
+            <span className={["fl-sanctuary-chip", activeRelics?.armor ? "fl-sanctuary-chip--success" : ""].filter(Boolean).join(" ")}>
+              Armadura {activeRelics?.armor ? "activa" : "vacia"}
+            </span>
           </div>
 
           {sortedRelicArmory.length === 0 ? (
-            <div className="fl-sanctuary-empty-state">
+            <div className="fl-relics-module-panel__empty">
               Aun no hay reliquias en el arsenal. Al extraer una pieza desde expedicion aparece aqui para activarla o extraerla.
             </div>
           ) : (
-            <div className="fl-sanctuary-list fl-sanctuary-relic-list">
+            <div className="fl-relics-module-panel__body">
               {sortedRelicArmory.slice(0, relicArmorySlots).map(relic => {
                 const slot = relic?.slot === "armor" ? "armor" : "weapon";
                 const isActive = activeRelics?.[slot] === relic.id;
-                const entropy = Math.max(0, Math.floor(Number(relic?.entropy || 0)));
+                const relicTier = Math.max(1, Number(relic?.itemTier || relic?.item?.itemTier || 1));
+                const contextTag = String(relic?.contextAttunement || "none").toLowerCase() !== "none"
+                  ? `attune ${String(relic?.contextAttunement || "").toLowerCase()}`
+                  : "";
+                const detailLine = [
+                  slot === "armor" ? "armadura" : "arma",
+                  `tier ${relicTier}`,
+                  contextTag,
+                ].filter(Boolean).join(" · ");
                 const stabilizePlan = calculateRelicEntropyStabilizePlan(relic);
                 const availableSigilFlux = Math.max(0, Number(resources?.sigilFlux || 0));
                 const availableRelicDust = Math.max(0, Number(resources?.relicDust || 0));
@@ -1675,150 +1646,51 @@ export default function Sanctuary({ state, dispatch }) {
                   stabilizePlan.entropyReduced > 0 &&
                   availableRelicDust >= stabilizePlan.relicDustCost &&
                   availableSigilFlux >= stabilizePlan.sigilFluxCost;
+
                 return (
-                  <div
+                  <FlRelicRow
                     key={relic.id}
-                    className={[
-                      "fl-sanctuary-row",
-                      "fl-sanctuary-relic-row",
-                      isActive ? "fl-sanctuary-row--active" : "",
-                    ].filter(Boolean).join(" ")}
-                  >
-                    <div className="fl-sanctuary-row-icon" aria-hidden="true">
-                      <ForgeIcon name={slot === "armor" ? "armor" : "combat"} size={32} />
-                    </div>
-                    <div className="fl-sanctuary-row-body">
-                      <div className="fl-sanctuary-row-title" {...{ style: { color: getRarityColor(relic?.rarity || "rare") } }}>
-                        {relic?.name || "Reliquia"}
-                      </div>
-                      <div className="fl-sanctuary-row-detail">
-                        {relic?.rarity || "rare"} · {slot === "armor" ? "armadura" : "arma"} · rating {Math.round(Number(relic?.rating || 0))} · entropy {entropy}
-                      </div>
-                    </div>
-                    <div className="fl-sanctuary-row-actions fl-sanctuary-row-actions--relic">
-                      <span className={[
-                        "fl-sanctuary-chip",
-                        isActive ? "fl-sanctuary-chip--success" : "fl-sanctuary-chip--danger",
-                      ].join(" ")}
-                      >
-                        {isActive ? "Activa" : "Reserva"}
-                      </span>
-                      <button
-                        onClick={() => !isActive && dispatch({ type: "SET_ACTIVE_RELIC", slot, relicId: relic.id })}
-                        disabled={isActive}
-                        className={[
-                          "fl-sanctuary-button",
-                          isActive ? "fl-sanctuary-button--secondary" : "fl-sanctuary-button--primary",
-                        ].join(" ")}
-                      >
-                        {isActive ? "Activa" : "Equipar"}
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (pendingRelicExtractId !== relic.id) {
-                            setPendingRelicExtractId(relic.id);
-                            return;
-                          }
-                          dispatch({ type: "DISCARD_RELIC", relicId: relic.id });
-                          setPendingRelicExtractId(null);
-                        }}
-                        className={[
-                          "fl-sanctuary-button",
-                          pendingRelicExtractId === relic.id ? "fl-sanctuary-button--primary" : "fl-sanctuary-button--secondary",
-                        ].join(" ")}
-                      >
-                        {pendingRelicExtractId === relic.id ? "Confirmar" : "Extraer"}
-                      </button>
-                      {stabilizePlan.entropyReduced > 0 && (
-                        <button
-                          onClick={() => canStabilize && dispatch({ type: "STABILIZE_RELIC_ENTROPY", relicId: relic.id })}
-                          disabled={!canStabilize}
-                          className={[
-                            "fl-sanctuary-button",
-                            canStabilize ? "fl-sanctuary-button--primary" : "fl-sanctuary-button--secondary",
-                          ].join(" ")}
-                          title={`Reduce ${stabilizePlan.entropyReduced} de entropia por ${stabilizePlan.relicDustCost} polvo y ${stabilizePlan.sigilFluxCost} flux`}
-                        >
-                          Estabilizar
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                    relic={relic}
+                    slot={slot}
+                    rarity={relic?.rarity || "rare"}
+                    name={relic?.name || "Reliquia"}
+                    detail={detailLine}
+                    active={isActive}
+                    equipLabel={isActive ? "Activa" : "Activar"}
+                    onEquip={!isActive ? () => dispatch({ type: "SET_ACTIVE_RELIC", slot, relicId: relic.id }) : undefined}
+                    extractLabel={pendingRelicExtractId === relic.id ? "Confirmar" : "Extraer"}
+                    extractVariant={pendingRelicExtractId === relic.id ? "danger" : "danger-ghost"}
+                    onExtract={() => {
+                      if (pendingRelicExtractId !== relic.id) {
+                        setPendingRelicExtractId(relic.id);
+                        return;
+                      }
+                      dispatch({ type: "DISCARD_RELIC", relicId: relic.id });
+                      setPendingRelicExtractId(null);
+                    }}
+                    showStabilize={stabilizePlan.entropyReduced > 0}
+                    canStabilize={canStabilize}
+                    stabilizeHint={`Reduce ${stabilizePlan.entropyReduced} de entropia por ${stabilizePlan.relicDustCost} polvo y ${stabilizePlan.sigilFluxCost} flux`}
+                    onStabilize={canStabilize ? () => dispatch({ type: "STABILIZE_RELIC_ENTROPY", relicId: relic.id }) : undefined}
+                  />
                 );
               })}
-              {sortedRelicArmory.length > relicArmorySlots && (
-                <div className="fl-sanctuary-list-note">
-                  Mostrando {relicArmorySlots} de {sortedRelicArmory.length} reliquias.
-                </div>
-              )}
             </div>
           )}
+
+          {sortedRelicArmory.length > relicArmorySlots && (
+            <div className="fl-relics-module-panel__note">
+              Mostrando {relicArmorySlots} de {sortedRelicArmory.length} reliquias.
+            </div>
+          )}
+        </FlPanel>
+      )}
+
+
+      {hasStationViewOpen && (
+        <section className="fl-sanctuary-station-view">
+          {stationViewNode}
         </section>
-      )}
-
-
-      {showDistillery && (
-        <Suspense fallback={<OverlayLoadingFallback label="Destileria" isMobile={isMobileViewport} />}>
-          <DistilleryOverlay
-            state={state}
-            dispatch={dispatch}
-            isMobile={isMobileViewport}
-            onClose={() => setShowDistillery(false)}
-          />
-        </Suspense>
-      )}
-      {showErrands && (
-        <Suspense fallback={<OverlayLoadingFallback label="Encargos" isMobile={isMobileViewport} />}>
-          <EncargosOverlay
-            state={state}
-            dispatch={dispatch}
-            isMobile={isMobileViewport}
-            onClose={() => setShowErrands(false)}
-          />
-        </Suspense>
-      )}
-      {showSanctuaryForge && (
-        <Suspense fallback={<OverlayLoadingFallback label="Forja" isMobile={isMobileViewport} />}>
-          <SanctuaryForgeOverlay
-            state={state}
-            dispatch={dispatch}
-            isMobile={isMobileViewport}
-            onClose={() => {
-              if (state?.combat?.reforgeSession) return;
-              setShowSanctuaryForge(false);
-            }}
-          />
-        </Suspense>
-      )}
-      {showSigilAltar && (
-        <Suspense fallback={<OverlayLoadingFallback label="Altar de Sigilos" isMobile={isMobileViewport} />}>
-          <SigilAltarOverlay
-            state={state}
-            dispatch={dispatch}
-            isMobile={isMobileViewport}
-            onClose={() => setShowSigilAltar(false)}
-          />
-        </Suspense>
-      )}
-      {showLibrary && (
-        <Suspense fallback={<OverlayLoadingFallback label="Biblioteca" isMobile={isMobileViewport} />}>
-          <BibliotecaOverlay
-            state={state}
-            dispatch={dispatch}
-            isMobile={isMobileViewport}
-            onClose={() => setShowLibrary(false)}
-          />
-        </Suspense>
-      )}
-      {showLaboratory && (
-        <Suspense fallback={<OverlayLoadingFallback label="Laboratorio" isMobile={isMobileViewport} />}>
-          <LaboratoryOverlay
-            state={state}
-            dispatch={dispatch}
-            isMobile={isMobileViewport}
-            onClose={() => setShowLaboratory(false)}
-          />
-        </Suspense>
       )}
       <ActionToast toast={actionToast} isMobile={isMobileViewport} />
     </div>

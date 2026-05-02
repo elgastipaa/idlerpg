@@ -10,6 +10,7 @@ function withStyle(style) {
 
 export default function OverlayStationShell({
   isMobile = false,
+  embedded = false,
   variant = "default",
   contentLabel = "Estacion",
   eyebrow,
@@ -36,6 +37,7 @@ export default function OverlayStationShell({
   return (
     <OverlayShell
       isMobile={isMobile}
+      embedded={embedded}
       variant={variant}
       contentLabel={contentLabel}
       className={[isForge ? "overlay-station-shell--forge" : "", shellClassName].filter(Boolean).join(" ")}
@@ -47,6 +49,7 @@ export default function OverlayStationShell({
       >
         <OverlaySurface
           isMobile={isMobile}
+          embedded={embedded}
           maxWidth={maxWidth}
           paddingMobile="0"
           paddingDesktop="0"
@@ -100,7 +103,7 @@ export default function OverlayStationShell({
                   {closeLabel}
                 </FlButton>
               ) : (
-                <button className="overlay-station-close fl2-button" onClick={onClose}>
+                <button className="overlay-station-close fl-button" onClick={onClose}>
                   {closeLabel}
                 </button>
               )

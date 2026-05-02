@@ -4,7 +4,7 @@ import { useGame } from "./hooks/useGame";
 import useViewport from "./hooks/useViewport";
 import OverlayShell, { OverlaySurface } from "./components/OverlayShell";
 import ForgeIcon from "./components/icons/ForgeIcon";
-import { FlAsset, FlButton, FlCard, FlProgressBar } from "./components/ui/forge";
+import { FlAsset, FlBottomNav, FlButton, FlCard, FlHeaderBar, FlTabs } from "./components/ui/forge";
 import { getRarityColor } from "./constants/rarity";
 import { getItemAsset } from "./utils/assetRegistry";
 import {
@@ -36,12 +36,14 @@ import {
   shouldShowHeroPrimaryTab,
 } from "./engine/onboarding/onboardingEngine";
 import { buildTesterSnapshot, copyTextToClipboard, createDebugErrorEntry, formatDebugValue } from "./utils/testerSnapshot";
+import { formatHeaderResource } from "./utils/formatHeaderResource";
 
 const Prestige = lazy(() => import("./components/Prestige"));
 const HeroView = lazy(() => import("./components/HeroView"));
 const ExpeditionView = lazy(() => import("./components/ExpeditionView"));
 const RegistryView = lazy(() => import("./components/RegistryView"));
 const Sanctuary = lazy(() => import("./components/Sanctuary"));
+const Crafting = lazy(() => import("./components/Crafting"));
 const OnboardingOverlay = lazy(() => import("./components/OnboardingOverlay"));
 const ExtractionOverlay = lazy(() => import("./components/ExtractionOverlay"));
 const ForgeLightKitDemo = lazy(() => import("./components/ForgeLightKitDemo"));
@@ -244,32 +246,6 @@ const THEMES = {
 function formatOfflineValue(value) {
   if (typeof value !== "number") return value;
   return Math.floor(value).toLocaleString();
-}
-
-function formatHeaderResource(value) {
-  if (typeof value !== "number") return value;
-  const floored = Math.floor(value);
-  const absValue = Math.abs(floored);
-  if (absValue < 1000) return floored.toLocaleString();
-
-  const units = [
-    { threshold: 1_000_000_000, suffix: "B" },
-    { threshold: 1_000_000, suffix: "M" },
-    { threshold: 1_000, suffix: "k" },
-  ];
-
-  let unitIndex = units.findIndex(entry => absValue >= entry.threshold);
-  if (unitIndex === -1) unitIndex = units.length - 1;
-
-  let unit = units[unitIndex];
-  let compactValue = Math.floor((absValue / unit.threshold) * 10) / 10;
-  if (compactValue >= 999.9 && unitIndex > 0) {
-    unit = units[unitIndex - 1];
-    compactValue = 1.0;
-  }
-
-  const signedValue = floored < 0 ? -compactValue : compactValue;
-  return `${signedValue.toFixed(1)}${unit.suffix}`;
 }
 
 function getOfflineHeadline(summary) {
@@ -487,10 +463,9 @@ function PrimaryTabIcon({ id, active = false, size = 20 }) {
   return (
     <span
       className={[
-        "fl-icon-frame",
         "fl-primary-tab-icon",
         size >= 24 ? "fl-primary-tab-icon--lg" : "",
-        active ? "fl-icon-frame--active" : "",
+        active ? "fl-primary-tab-icon--active" : "",
       ].filter(Boolean).join(" ")}
       aria-hidden="true"
     >
@@ -535,59 +510,30 @@ function findPlayerItemById(player = {}, itemId = null) {
 }
 
 const AppHeader = React.memo(function AppHeader({
-  isMobile,
   currentPrimaryLabel,
   reforgeLocked,
   onHeaderDebugTap,
-  resourceSummary,
+  resources,
   onToggleTheme,
-  theme,
   player,
 }) {
   const heroName = getHeaderHeroName(player);
   const heroLevel = Math.max(1, Number(player?.level || 1));
   const heroPower = getHeaderHeroPower(player);
   const heroClass = player?.class || "warrior";
+  const heroClassLabel = player?.specialization || "Libre";
 
   return (
-    <header className="app-header-shell">
-      <div className="app-header-inner">
-        <div className="app-header-left app-header-identity" onClick={onHeaderDebugTap}>
-          <span className="app-header-avatar" aria-hidden="true">
-            <FlAsset kind="portrait" assetId={heroClass} size="sm" fallbackIcon="hero" alt="" />
-            <span className="app-header-level">{heroLevel}</span>
-          </span>
-          <div className="app-header-copy">
-            <span className="app-header-kicker">Forjador</span>
-            <h1 className="app-header-title">
-              {heroName}
-            </h1>
-            <span className="app-header-power">
-              <ForgeIcon name="combat" size={14} />
-              {formatHeaderResource(heroPower)}
-            </span>
-          </div>
-          {reforgeLocked && (
-            <span className="app-header-reforge-badge">
-              Reforja
-            </span>
-          )}
-        </div>
-        <div className="app-header-right">
-          <div className="app-header-resource-wrap">
-            {resourceSummary}
-          </div>
-          <button
-            onClick={onToggleTheme}
-            title="Cambiar tema"
-            aria-label="Cambiar tema"
-            className="app-header-menu-button"
-          >
-            <ForgeIcon name="more" size={19} />
-          </button>
-        </div>
-      </div>
-    </header>
+    <FlHeaderBar
+      className="app-header-shell"
+      hero={{ name: heroName, level: heroLevel, class: heroClass }}
+      resources={resources}
+      status={heroClassLabel}
+      activeContext={`${currentPrimaryLabel || "Santuario"} · ${formatHeaderResource(heroPower)} poder`}
+      badge={reforgeLocked ? "Reforja" : ""}
+      menuAction={{ onClick: onToggleTheme, ariaLabel: "Cambiar tema", icon: "grid" }}
+      onHeroClick={onHeaderDebugTap}
+    />
   );
 });
 
@@ -595,88 +541,95 @@ const DesktopPrimaryTabs = React.memo(function DesktopPrimaryTabs({
   entries,
   onTabPress,
 }) {
+  const items = entries.map(entry => {
+    let badge = null;
+    let badgeTone = "danger";
+    if (entry.showSanctuaryBadge) {
+      badge = entry.sanctuaryBadgeValue;
+      badgeTone = "warning";
+    } else if (entry.showInventoryBadge) {
+      badge = entry.inventoryBadgeValue;
+      badgeTone = "success";
+    } else if (entry.showTalentBadge) {
+      badge = entry.talentBadgeValue;
+      badgeTone = "danger";
+    }
+
+    return {
+      id: entry.id,
+      label: PRIMARY_TAB_CONFIG[entry.id].label,
+      icon: <PrimaryTabIcon id={entry.id} active={entry.isActive} size={19} />,
+      disabled: entry.hardDisabled,
+      onboardingTarget: entry.onboardingTarget,
+      badge,
+      badgeTone,
+      className: [
+        entry.hasSpotlight ? "app-primary-tab-button--spotlight" : "",
+        entry.blockedByOnboarding ? "app-primary-tab-button--blocked" : "",
+      ].filter(Boolean).join(" "),
+    };
+  });
+
   return (
     <div className="app-desktop-primary-tabs">
-      <nav className="app-desktop-primary-tabs__nav">
-        {entries.map(entry => (
-          <button
-            className={[
-              "app-primary-tab-button",
-              entry.isActive ? "app-primary-tab-button--active" : "",
-              entry.hasSpotlight ? "app-primary-tab-button--spotlight" : "",
-              entry.blockedByOnboarding ? "app-primary-tab-button--blocked" : "",
-            ].filter(Boolean).join(" ")}
-            key={entry.id}
-            disabled={entry.hardDisabled}
-            data-onboarding-target={entry.onboardingTarget}
-            onClick={() => onTabPress(entry.id)}
-          >
-            <PrimaryTabIcon id={entry.id} active={entry.isActive} size={19} />
-            <span className="fl-tab-label">{PRIMARY_TAB_CONFIG[entry.id].label}</span>
-            {entry.showTalentBadge && (
-              <span className="app-primary-tab-badge app-primary-tab-badge--danger">
-                {entry.talentBadgeValue}
-              </span>
-            )}
-            {entry.showSanctuaryBadge && (
-              <span className="app-primary-tab-badge app-primary-tab-badge--warning">
-                {entry.sanctuaryBadgeValue}
-              </span>
-            )}
-            {entry.showInventoryBadge && (
-              <span className="app-primary-tab-badge app-primary-tab-badge--success">
-                {entry.inventoryBadgeValue}
-              </span>
-            )}
-          </button>
-        ))}
-      </nav>
+      <FlTabs
+        className="app-desktop-primary-tabs__nav"
+        items={items}
+        activeId={entries.find(entry => entry.isActive)?.id}
+        variant="forge"
+        scrollable={false}
+        fullWidth
+        ariaLabel="Secciones principales"
+        onChange={onTabPress}
+      />
     </div>
   );
 });
 
 const MobilePrimaryTabs = React.memo(function MobilePrimaryTabs({
   entries,
-  navHeight,
   onTabPress,
 }) {
+  const activeEntry = entries.find(entry => entry.isActive);
+  const items = entries.map(entry => {
+    const config = PRIMARY_TAB_CONFIG[entry.id] || {};
+    let badge = null;
+    let badgeTone = "danger";
+    if (entry.showSanctuaryBadge) {
+      badge = entry.sanctuaryBadgeValue;
+      badgeTone = "warning";
+    } else if (entry.showInventoryBadge) {
+      badge = entry.inventoryBadgeValue;
+      badgeTone = "success";
+    } else if (entry.showTalentBadge) {
+      badge = entry.talentBadgeValue;
+      badgeTone = "danger";
+    }
+
+    return {
+      id: entry.id,
+      label: config.label || entry.id,
+      icon: <PrimaryTabIcon id={entry.id} active={entry.isActive} size={25} />,
+      active: entry.isActive,
+      disabled: entry.hardDisabled,
+      locked: entry.blockedByOnboarding,
+      hasSpotlight: entry.hasSpotlight,
+      onboardingTarget: entry.onboardingTarget,
+      badge,
+      badgeTone,
+    };
+  });
+
   return (
-    <nav className="app-mobile-primary-tabs">
-      {entries.map(entry => (
-        <button
-          className={[
-            "app-primary-tab-button",
-            entry.isActive ? "app-primary-tab-button--active" : "",
-            entry.hasSpotlight ? "app-primary-tab-button--spotlight" : "",
-            entry.blockedByOnboarding ? "app-primary-tab-button--blocked" : "",
-          ].filter(Boolean).join(" ")}
-          key={entry.id}
-          disabled={entry.hardDisabled}
-          data-onboarding-target={entry.onboardingTarget}
-          onClick={() => onTabPress(entry.id)}
-        >
-          <PrimaryTabIcon id={entry.id} active={entry.isActive} size={25} />
-          <span className="app-mobile-primary-tab-label">
-            {PRIMARY_TAB_CONFIG[entry.id].label}
-          </span>
-          {entry.showSanctuaryBadge && (
-            <span className="app-primary-tab-badge app-primary-tab-badge--floating app-primary-tab-badge--warning">
-              {entry.sanctuaryBadgeValue}
-            </span>
-          )}
-          {entry.showInventoryBadge && (
-            <span className="app-primary-tab-badge app-primary-tab-badge--floating app-primary-tab-badge--success">
-              {entry.inventoryBadgeValue}
-            </span>
-          )}
-          {entry.showTalentBadge && (
-            <span className="app-primary-tab-badge app-primary-tab-badge--floating app-primary-tab-badge--danger">
-              {entry.talentBadgeValue}
-            </span>
-          )}
-        </button>
-      ))}
-    </nav>
+    <FlBottomNav
+      className="app-mobile-primary-tabs"
+      items={items}
+      activeId={activeEntry?.id}
+      variant="icon-label"
+      fixed
+      safeArea
+      onChange={onTabPress}
+    />
   );
 });
 
@@ -731,6 +684,14 @@ function GameApp({ forceForgeLightCombatTrial = false }) {
   const recentErrorLogRef = useRef([]);
   const headerTapTimesRef = useRef([]);
   const previousCombatLogRef = useRef(null);
+  const directCraftingOpenRef = useRef(false);
+  const directCraftingRequested =
+    typeof window !== "undefined" &&
+    (
+      ["#crafting", "#forja", "#forge"].includes(window.location.hash.toLowerCase()) ||
+      ["crafting"].includes((new URLSearchParams(window.location.search).get("open") || "").toLowerCase()) ||
+      ["crafting"].includes((new URLSearchParams(window.location.search).get("screen") || "").toLowerCase())
+    );
   const offlineSummary = state.combat?.offlineSummary;
   const talentPoints = Math.max(0, Number(state.player?.talentPoints || 0));
   const hasTalentPoints = talentPoints > 0;
@@ -1123,6 +1084,17 @@ function GameApp({ forceForgeLightCombatTrial = false }) {
   }, [dispatch, forceForgeLightCombatTrial, state.currentTab]);
 
   useEffect(() => {
+    if (directCraftingOpenRef.current || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const hash = window.location.hash.toLowerCase();
+    const requestedEntry = (params.get("open") || params.get("screen") || params.get("captureScreen") || "").toLowerCase();
+    const shouldOpenCrafting = hash === "#crafting" || hash === "#forja" || hash === "#forge" || requestedEntry === "crafting";
+    if (!shouldOpenCrafting) return;
+    directCraftingOpenRef.current = true;
+    dispatch({ type: "OPEN_SANCTUARY_FORGE", meta: { replay: false, forceDirectEntry: true } });
+  }, [dispatch]);
+
+  useEffect(() => {
     if (!shouldOfferLegacyRepair) {
       setShowLegacySavePrompt(false);
       return;
@@ -1208,36 +1180,36 @@ function GameApp({ forceForgeLightCombatTrial = false }) {
     state.expedition?.phase,
     scrollAppToTopSoon,
   ]);
-  const resourceSummary = useMemo(() => (
-    <div className="app-header-resources" {...{ style: { display: "flex", alignItems: "center", gap: "6px", minWidth: 0, overflowX: "auto", scrollbarWidth: "none" } }}>
-      {showActiveRunSigil && (
-        <HeaderCompactChip
-          text={activeRunSigilLabel}
-          color="var(--tone-accent, #4338ca)"
-          borderColor="rgba(99,102,241,0.22)"
-          background="var(--tone-accent-soft, #eef2ff)"
-        />
-      )}
-      <HeaderResourcePill
-        icon="gold"
-        label="Oro"
-        value={formatHeaderResource(state.player?.gold || 0)}
-        color="var(--fl-gold-0, #fff1b8)"
-        borderColor="var(--fl-border-soft, rgba(198,138,39,0.34))"
-        background="linear-gradient(180deg, rgba(28,22,10,0.98), rgba(8,10,10,0.98))"
-        compact
-      />
-      <HeaderResourcePill
-        icon="essence"
-        label="Esencia"
-        value={formatHeaderResource(state.player?.essence || 0)}
-        color="var(--fl-purple, #b34cff)"
-        borderColor="rgba(179,76,255,0.36)"
-        background="linear-gradient(180deg, rgba(34,12,50,0.88), rgba(8,10,10,0.98))"
-        compact
-      />
-    </div>
-  ), [activeRunSigilLabel, showActiveRunSigil, state.player?.essence, state.player?.gold]);
+  const headerResources = useMemo(() => [
+    ...(showActiveRunSigil ? [{
+      id: "run-sigil",
+      glyph: "⛊",
+      label: "",
+      ariaLabel: "Sigilo activo",
+      value: activeRunSigilLabel,
+      tone: "arcane",
+    }] : []),
+    {
+      id: "gold",
+      type: "gold",
+      glyph: "🪙",
+      label: "",
+      ariaLabel: "Oro",
+      value: formatHeaderResource(state.player?.gold || 0),
+      tone: "gold",
+      showPlus: true,
+    },
+    {
+      id: "essence",
+      type: "essence",
+      glyph: "💎",
+      label: "",
+      ariaLabel: "Esencia",
+      value: formatHeaderResource(state.player?.essence || 0),
+      tone: "arcane",
+      showPlus: true,
+    },
+  ], [activeRunSigilLabel, showActiveRunSigil, state.player?.essence, state.player?.gold]);
   const handleThemeToggle = useCallback(() => {
     dispatch({ type: "TOGGLE_THEME" });
   }, [dispatch]);
@@ -1478,15 +1450,14 @@ function GameApp({ forceForgeLightCombatTrial = false }) {
   }
 
   return (
-    <div className={appShellRootClassName} data-fl2-screen={FORGE_LIGHT_V2_ACTIVE ? forgeLightV2Screen : undefined}>
+    <div className={appShellRootClassName} data-fl-screen={FORGE_LIGHT_V2_ACTIVE ? forgeLightV2Screen : undefined}>
       <AppHeader
         isMobile={isMobile}
         currentPrimaryLabel={currentPrimaryLabel}
         reforgeLocked={reforgeLocked}
         onHeaderDebugTap={handleHeaderDebugTap}
-        resourceSummary={resourceSummary}
+        resources={headerResources}
         onToggleTheme={handleThemeToggle}
-        theme={theme}
         player={state.player}
       />
 
@@ -1500,13 +1471,26 @@ function GameApp({ forceForgeLightCombatTrial = false }) {
           />
         )}
 
-        <PrimaryTabViewport
-          currentPrimaryLabel={currentPrimaryLabel}
-          recoverToTab={recoverToTab}
-          component={ActivePrimaryTabComponent}
-          tabState={activePrimaryTabState}
-          dispatch={dispatch}
-        />
+        {directCraftingRequested ? (
+          <Suspense fallback={<div className="subview-loading-card">Cargando Forja...</div>}>
+            <Crafting
+              state={state}
+              dispatch={dispatch}
+              onClose={() => {
+                window.history.replaceState(null, "", window.location.pathname + window.location.search);
+                dispatch({ type: "SET_TAB", tab: "sanctuary", meta: { replay: false } });
+              }}
+            />
+          </Suspense>
+        ) : (
+          <PrimaryTabViewport
+            currentPrimaryLabel={currentPrimaryLabel}
+            recoverToTab={recoverToTab}
+            component={ActivePrimaryTabComponent}
+            tabState={activePrimaryTabState}
+            dispatch={dispatch}
+          />
+        )}
       </div>
 
       {state.combat?.pendingRunSetup && (
@@ -1923,15 +1907,15 @@ function OverlayLoadingCard({ label, isMobile = false }) {
   );
 }
 
-function OfflineMetric({ label, value, icon, tone = "gold" }) {
+function OfflineMetric({ label, value, icon, tone = "default" }) {
   return (
-    <FlCard variant="compact" className="fl-offline-metric" data-tone={tone}>
-      <span className="fl-offline-metric__icon" aria-hidden="true">
-        <ForgeIcon name={icon} size={22} />
-      </span>
-      <span className="fl-offline-metric__label">{label}</span>
-      <strong className="fl-offline-metric__value">{value}</strong>
-    </FlCard>
+    <div className="fl-offline-reward-cell" data-tone={tone}>
+      <span className="fl-offline-reward-icon" aria-hidden="true">{icon}</span>
+      <div className="fl-offline-reward-copy">
+        <span className="fl-offline-reward-label">{label}</span>
+        <strong className="fl-offline-reward-value">{value}</strong>
+      </div>
+    </div>
   );
 }
 
@@ -1967,168 +1951,75 @@ function OfflineSummaryPanel({ summary, isMobile, onDismiss }) {
     : summary.bestDropHighlight?.label;
 
   return (
-    <FlCard variant="premium" className="fl-offline-summary">
-      <div className="fl-offline-summary__header">
-        <div className="fl-offline-summary__title-row">
-          <span className="fl-offline-summary__mark" aria-hidden="true">
-            <ForgeIcon name="mark" size={25} />
-          </span>
-          <div className="fl-offline-summary__copy">
-            <div className="fl-offline-summary__eyebrow">Cronica Offline</div>
-            <div className="fl-offline-summary__headline">
-              {getOfflineHeadline(summary)}
-            </div>
-            <div className="fl-offline-summary__time">
-              <ForgeIcon name="upgrade" size={15} />
-              {animatedValue(summary.simulatedSeconds)}s resueltos offline
-            </div>
-          </div>
-        </div>
-        <FlButton
-          variant="secondary"
-          size="sm"
-          className="fl-offline-summary__close"
+    <section className="fl-offline-modal" role="status" aria-label="Cronica offline">
+      <div className="fl-offline-header">
+        <div className="fl-offline-title">✦ Cronica Offline</div>
+        <button
+          type="button"
+          className="fl-offline-close"
           onClick={onDismiss}
           aria-label="Cerrar cronica offline"
           title="Cerrar"
         >
-          <ForgeIcon name="add" size={18} />
-        </FlButton>
+          ✕
+        </button>
       </div>
+      <div className="fl-offline-body">
+        <div className="fl-offline-headline">{getOfflineHeadline(summary)}</div>
+        <div className="fl-offline-time">⏳ {animatedValue(summary.simulatedSeconds)}s resueltos offline</div>
 
-      <div className="fl-offline-summary__progress">
-        <div className="fl-offline-summary__progress-meta">
-          <span>Resolviendo resumen</span>
-          <strong>{progressPercent}%</strong>
+        <div className="fl-offline-bar">
+          <div className="fl-offline-bar-label">
+            <span>Resolviendo resumen</span>
+            <span className="fl-offline-bar-value">{progressPercent}%</span>
+          </div>
+          <div className="fl-offline-bar-track fl-offline-bar-track--progress">
+            <div
+              className="fl-offline-bar-fill"
+              style={{ "--fl-offline-progress": `${progressPercent}%` }}
+            />
+          </div>
         </div>
-        <FlProgressBar
-          type="progress"
-          percent={progressPercent}
-          size="lg"
-          showValue={false}
-          aria-label="Resolviendo resumen offline"
-        />
-      </div>
 
-      <div className="fl-offline-summary__metrics">
-        <OfflineMetric label="Oro" value={animatedValue(summary.goldGained)} icon="gold" tone="gold" />
-        <OfflineMetric label="XP" value={animatedValue(summary.xpGained)} icon="xp" tone="violet" />
-        <OfflineMetric label="Esencia" value={animatedValue(summary.essenceGained)} icon="essence" tone="essence" />
-        <OfflineMetric label="Kills" value={animatedValue(summary.killsGained)} icon="skull" tone="danger" />
-        <OfflineMetric label="Items" value={animatedValue(summary.itemsGained)} icon="inventory" tone="item" />
-        <OfflineMetric label="Niveles" value={animatedValue(summary.levelsGained)} icon="hero" tone="success" />
-      </div>
+        <div className="fl-offline-rewards-grid">
+          <OfflineMetric label="Oro" value={animatedValue(summary.goldGained)} icon="🪙" tone="gold" />
+          <OfflineMetric label="XP" value={animatedValue(summary.xpGained)} icon="✦" tone="xp" />
+          <OfflineMetric label="Esencia" value={animatedValue(summary.essenceGained)} icon="💎" tone="essence" />
+          <OfflineMetric label="Kills" value={animatedValue(summary.killsGained)} icon="💀" tone="default" />
+          <OfflineMetric label="Items" value={animatedValue(summary.itemsGained)} icon="🎁" tone="default" />
+          <OfflineMetric label="Niveles" value={animatedValue(summary.levelsGained)} icon="⛊" tone="success" />
+        </div>
 
-      {summary.bestDropName && (
-        <FlCard
-          variant="panel"
-          className={[
-            "fl-offline-drop",
-            bestDropVisible ? "fl-offline-drop--visible" : "",
-          ].filter(Boolean).join(" ")}
-        >
-          <FlAsset
-            asset={bestDropAsset}
-            kind="item"
-            size={isMobile ? "lg" : "xl"}
-            fit="contain"
-            framed
-            rarity={summary.bestDropRarity || "epic"}
-            className="fl-offline-drop__asset"
-            alt=""
-          />
-          <div className="fl-offline-drop__body">
-            <div className="fl-offline-drop__eyebrow">Mejor Drop</div>
-            <div className="fl-offline-drop__name">
-              {summary.bestDropName}
+        {summary.bestDropName && (
+          <div
+            className={[
+              "fl-offline-best-drop",
+              bestDropVisible ? "fl-offline-best-drop--visible" : "",
+            ].filter(Boolean).join(" ")}
+          >
+            <div className="fl-offline-best-drop-frame">
+              <FlAsset
+                asset={bestDropAsset}
+                kind="item"
+                size={isMobile ? "md" : "lg"}
+                fit="contain"
+                rarity={summary.bestDropRarity || "epic"}
+                className="fl-offline-best-drop-asset"
+                alt=""
+              />
             </div>
-            <div className="fl-offline-drop__meta" {...{ style: { color: getRarityColor(summary.bestDropRarity) } }}>
-              {summary.bestDropRarity || "item"}{bestDropHighlight ? ` · ${bestDropHighlight}` : ""}{summary.bestDropPerfectRolls ? ` · ${summary.bestDropPerfectRolls} perfect` : ""}
+            <div className="fl-offline-best-drop-copy">
+              <div className="fl-offline-best-drop-label">Mejor Drop ◈</div>
+              <div className="fl-offline-best-drop-name">{summary.bestDropName}</div>
+              <div className="fl-offline-best-drop-rarity" data-rarity={summary.bestDropRarity || "common"}>
+                {summary.bestDropRarity || "item"}{bestDropHighlight ? ` · ${bestDropHighlight}` : ""}{summary.bestDropPerfectRolls ? ` · ${summary.bestDropPerfectRolls} perfect` : ""}
+              </div>
             </div>
           </div>
-        </FlCard>
-      )}
-    </FlCard>
+        )}
+      </div>
+    </section>
   );
-}
-
-function HeaderResourcePill({ icon, label, value, color, borderColor, background, compact = false }) {
-  return (
-    <div
-      className="fl-header-resource"
-      {...{ style: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "6px",
-        padding: compact ? "4px 8px" : "5px 9px",
-        borderRadius: "999px",
-        border: `1px solid ${borderColor}`,
-        background,
-        minWidth: 0,
-      } }}
-    >
-      {icon && (
-        <span
-          className={[
-            "fl-icon-frame",
-            icon === "gold" ? "fl-icon-frame--resource-gold" : "",
-            icon === "essence" ? "fl-icon-frame--resource-essence" : "",
-          ].filter(Boolean).join(" ")}
-          {...{ style: { "--fl-icon-frame-size": compact ? "23px" : "27px" } }}
-          aria-hidden="true"
-        >
-          <FlAsset kind="system" assetId={icon} size="sm" fallbackIcon={icon} alt="" />
-        </span>
-      )}
-      <span className="fl-header-resource-label" {...{ style: { fontSize: compact ? "0.52rem" : "0.58rem", fontWeight: "900", color: "var(--fl-text-2, #bda98b)", textTransform: "uppercase", letterSpacing: "0.04em" } }}>
-        {label}
-      </span>
-      <span className="fl-header-resource-value" {...{ style: { fontSize: compact ? "0.72rem" : "0.78rem", fontWeight: "900", color, lineHeight: 1 } }}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function HeaderCompactChip({ text, color, borderColor, background }) {
-  return (
-    <div
-      {...{ style: {
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "4px 8px",
-        borderRadius: "999px",
-        border: `1px solid ${borderColor}`,
-        background,
-        minWidth: 0,
-      } }}
-    >
-      <span {...{ style: { fontSize: "0.7rem", fontWeight: "900", color, lineHeight: 1, whiteSpace: "nowrap" } }}>
-        {text}
-      </span>
-    </div>
-  );
-}
-
-function themeToggleButtonStyle() {
-  return {
-    border: "1px solid var(--color-border-tertiary, #cbd5e1)",
-    background: "var(--color-background-secondary, #ffffff)",
-    color: "var(--color-text-primary, #1e293b)",
-    borderRadius: "999px",
-    width: "clamp(34px, 3.2vw, 38px)",
-    height: "clamp(34px, 3.2vw, 38px)",
-    padding: 0,
-    cursor: "pointer",
-    fontSize: "clamp(0.94rem, 1.7vw, 1rem)",
-    fontWeight: "900",
-    lineHeight: 1,
-    boxShadow: "0 6px 18px var(--color-shadow, rgba(15,23,42,0.08))",
-    flexShrink: 0,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-  };
 }
 
 function RunSigilOverlay({

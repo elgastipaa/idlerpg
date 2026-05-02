@@ -2,7 +2,7 @@ import React from "react";
 
 const VALID_TONES = new Set(["neutral", "success", "danger", "warning", "arcane", "defense", "reward"]);
 const VALID_SIZES = new Set(["xs", "sm", "md"]);
-const VALID_VARIANTS = new Set(["status", "pill", "count", "rarity", "tier", "lock", "notification", "comparison", "comparison-delta"]);
+const VALID_VARIANTS = new Set(["status", "rect", "pill", "count", "rarity", "tier", "lock", "notification", "comparison", "comparison-delta"]);
 
 function cx(...parts) {
   return parts.filter(Boolean).join(" ");

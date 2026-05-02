@@ -46,33 +46,35 @@ const FlItemCard = React.forwardRef(function FlItemCard(
       onClick={onClick}
       className={cx("fl-item-card", `fl-item-card--${normalizedVariant}`, className)}
     >
-      <FlIconFrame
-        className="fl-item-card__icon"
-        size={normalizedVariant === "compact" ? "md" : "xl"}
-        rarity={rarity}
-        asset={asset}
-        kind="item"
-        fallbackIcon={asset.fallbackIcon}
-      />
-      <div className="fl-item-card__copy">
-        <FlBadge className="fl-item-card__rarity" variant="rarity" rarity={rarity}>
-          {rarity}
-        </FlBadge>
-        <strong className="fl-item-card__title">{title}</strong>
-        {power !== "" && <span className="fl-item-card__power">P {power}</span>}
-        {affixes.length > 0 && (
-          <div className="fl-item-card__affixes">
-            {affixes.map((affix, index) => (
-              <FlTag key={`${affix?.stat || affix?.label || "affix"}-${index}`} tone={affix?.tone || "success"}>
-                {affix?.label || affix?.stat || affix?.value || "Afijo"}
-              </FlTag>
-            ))}
-          </div>
-        )}
+      <div className="fl-card__body">
+        <FlIconFrame
+          className="fl-item-card__icon"
+          size={normalizedVariant === "compact" ? "md" : "xl"}
+          rarity={rarity}
+          asset={asset}
+          kind="item"
+          fallbackIcon={asset.fallbackIcon}
+        />
+        <div className="fl-item-card__copy">
+          <FlBadge className="fl-item-card__rarity" variant="rarity" rarity={rarity}>
+            {rarity}
+          </FlBadge>
+          <strong className="fl-item-card__title">{title}</strong>
+          {power !== "" && <span className="fl-item-card__power">P {power}</span>}
+          {affixes.length > 0 && (
+            <div className="fl-item-card__affixes">
+              {affixes.map((affix, index) => (
+                <FlTag key={`${affix?.stat || affix?.label || "affix"}-${index}`} tone={affix?.tone || "success"}>
+                  {affix?.label || affix?.stat || affix?.value || "Afijo"}
+                </FlTag>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-      {actions && <div className="fl-item-card__actions">{actions}</div>}
+      {actions && <div className="fl-card__footer fl-item-card__actions">{actions}</div>}
       {!actions && normalizedVariant === "comparison" && (
-        <div className="fl-item-card__actions">
+        <div className="fl-card__footer fl-item-card__actions">
           <FlButton size="sm" variant="secondary">Comparar</FlButton>
         </div>
       )}

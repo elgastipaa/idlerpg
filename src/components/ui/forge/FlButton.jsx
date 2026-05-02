@@ -1,8 +1,9 @@
 import React from "react";
 
-const VALID_VARIANTS = new Set(["primary", "secondary", "ghost", "danger", "danger-ghost", "destructive", "success", "compact", "icon-only"]);
-const VALID_SIZES = new Set(["sm", "md", "lg", "full", "full-width"]);
+const VALID_VARIANTS = new Set(["default", "primary", "cta", "secondary", "ghost", "danger", "danger-ghost", "destructive", "success", "compact", "icon-only"]);
+const VALID_SIZES = new Set(["xs", "xs-compact", "sm", "md", "lg", "full", "full-width"]);
 const VALID_STATES = new Set(["default", "pressed", "loading", "success", "error"]);
+const VALID_EMPHASIS = new Set(["default", "strong"]);
 
 function cx(...parts) {
   return parts.filter(Boolean).join(" ");
@@ -23,7 +24,7 @@ function renderSlot(slot, className, ariaHidden = true) {
 
 const FlButton = React.forwardRef(function FlButton(
   {
-    variant = "secondary",
+    variant = "default",
     size = "md",
     type = "button",
     icon = null,
@@ -33,6 +34,7 @@ const FlButton = React.forwardRef(function FlButton(
     loading = false,
     disabled = false,
     selected = false,
+    emphasis = "default",
     state = "default",
     className = "",
     children,
@@ -42,9 +44,10 @@ const FlButton = React.forwardRef(function FlButton(
   },
   ref
 ) {
-  const normalizedVariant = normalizeOption(variant, VALID_VARIANTS, "secondary");
+  const normalizedVariant = normalizeOption(variant, VALID_VARIANTS, "default");
   const normalizedSize = normalizeOption(size, VALID_SIZES, "md");
   const normalizedState = loading ? "loading" : normalizeOption(state, VALID_STATES, "default");
+  const normalizedEmphasis = normalizeOption(emphasis, VALID_EMPHASIS, "default");
   const isDisabled = disabled || loading;
 
   return (
@@ -56,11 +59,13 @@ const FlButton = React.forwardRef(function FlButton(
         "fl-button",
         `fl-button--${normalizedVariant}`,
         `fl-button--${normalizedSize}`,
+        normalizedEmphasis !== "default" && `fl-button--emphasis-${normalizedEmphasis}`,
         selected && "fl-button--selected",
         className
       )}
       data-state={normalizedState}
       data-selected={selected ? "true" : undefined}
+      data-has-cost={cost != null && cost !== "" ? "true" : undefined}
       aria-label={ariaLabel}
       aria-busy={loading ? "true" : undefined}
       aria-pressed={selected ? "true" : undefined}

@@ -1,17 +1,833 @@
-.app-shell-root--forge-light-v2[data-fl2-screen="crafting"] .fl-crafting-title,
-.app-shell-root--forge-light-v2[data-fl2-screen="crafting"] .fl-crafting-item-name,
-.app-shell-root--forge-light-v2[data-fl2-screen="crafting"] .fl-crafting-result-power {
-  color: var(--fl2-text) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-title,
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-item-name,
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-result-power {
+  color: var(--fl-text-primary) !important;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="crafting"] :where(.fl-crafting-stage, .fl-crafting-item-card, .fl-crafting-item-drawer, .fl-crafting-drawer-item, .fl-crafting-legacy-workbench, .fl-crafting-inventory-panel) {
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] :where(.fl-crafting-item-card, .fl-crafting-item-drawer, .fl-crafting-drawer-item) {
   background:
     radial-gradient(circle at 50% 18%, rgba(243, 198, 95, 0.045), transparent 32%),
     linear-gradient(180deg, rgba(8, 10, 11, 0.56), rgba(5, 8, 10, 0.52)) !important;
   border-color: rgba(198, 161, 91, 0.2) !important;
-  color: var(--fl2-text) !important;
+  color: var(--fl-text-primary) !important;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="crafting"] .fl-crafting-stat-arrow {
-  color: var(--fl2-gold) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] :where(.fl-crafting-showcase, .fl-crafting-result-card, .fl-crafting-material-panel, .fl-crafting-stat-panel, .fl-crafting-feedback, .fl-crafting-item-drawer) {
+  background: var(--fl-surface-premium) !important;
+  border-color: var(--fl-border-premium) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-showcase {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--fl-radius-lg);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-showcase::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 54% 28% at 50% 2%, rgba(230, 196, 122, 0.11), transparent 64%),
+    radial-gradient(ellipse 38% 24% at 88% 22%, rgba(74, 143, 231, 0.055), transparent 62%);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-mode-tabs {
+  width: 100%;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-tab-asset {
+  filter: drop-shadow(0 0 8px rgba(230, 196, 122, 0.24));
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-item-card {
+  border-color: var(--inventory-rarity-color, var(--item-rarity, var(--fl-border-premium))) !important;
+  box-shadow:
+    0 0 22px color-mix(in srgb, var(--inventory-rarity-color, var(--item-rarity, var(--fl-gold-glow))) 24%, transparent),
+    var(--fl-shadow-card),
+    var(--fl-shadow-inset) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-item-art {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-preview-entropy-track {
+  position: relative;
+  height: 12px;
+  box-shadow:
+    inset 0 2px 9px rgba(0, 0, 0, 0.72),
+    inset 0 0 0 1px rgba(255, 232, 180, 0.025);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-preview-entropy-next {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--entropy-next, 0%);
+  background: linear-gradient(90deg, rgba(242, 184, 75, 0.18), rgba(224, 90, 90, 0.34));
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-preview-entropy-current {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--entropy-current, 0%);
+  background: linear-gradient(90deg, #4a2e0a, #8b5a1a, var(--fl-gold-glow), var(--fl-gold-hover)) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-drawer-item {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--fl-radius-md) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-drawer-item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    var(--fl-texture-noise),
+    linear-gradient(180deg, rgba(18, 24, 33, 0.86), rgba(10, 13, 18, 0.94));
+  opacity: 0.72;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-drawer-item[data-selected="true"] {
+  border-color: var(--fl-gold-hover) !important;
+  box-shadow: var(--fl-glow-gold-soft), var(--fl-shadow-inset) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-drawer-item:disabled {
+  opacity: 0.58;
+  filter: saturate(0.72);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-material-section .fl-resource-counter__copy {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-material-section .fl-resource-counter__value,
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-material-section .fl-resource-counter__delta {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-compact-panel.fl-card {
+  margin-top: var(--fl-space-2);
+  padding: 11px 13px 10px;
+  background:
+    var(--fl-texture-woven),
+    var(--fl-texture-panel-fine),
+    var(--fl-texture-noise),
+    linear-gradient(135deg, var(--fl-bg-card), var(--fl-bg-surface) 58%, var(--fl-bg-card-deep)) !important;
+  border: 1px solid var(--fl-border-premium) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.72),
+    inset 0 0 0 1px rgba(185, 135, 60, 0.16),
+    inset 0 1px 0 rgba(255, 236, 184, 0.045),
+    0 4px 12px rgba(0, 0, 0, 0.28) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-compact-panel.fl-card::before {
+  background:
+    linear-gradient(180deg, rgba(255, 236, 184, 0.035), transparent 34%, transparent 72%, rgba(0, 0, 0, 0.12)),
+    radial-gradient(ellipse at 50% 0%, rgba(230, 196, 122, 0.02), transparent 55%);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-compact-panel.fl-card::after {
+  content: none !important;
+  display: none !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-upgrade-milestones {
+  padding: 11px 13px 11px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-upgrade-milestone-progress {
+  width: 100%;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-entropy-panel {
+  margin-top: 6px;
+  padding: 6px 10px 7px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-entropy-panel .fl-entropy-track {
+  margin: 0;
+}
+
+@media (max-width: 520px) {
+  .app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-material-section .fl-resource-counter {
+    justify-content: center;
+    gap: 0;
+    text-align: center;
+  }
+
+  .app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-material-section .fl-resource-counter__icon {
+    display: none;
+  }
+
+  .app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-material-section .fl-resource-counter__copy {
+    justify-items: center;
+  }
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light :where(.fl-crafting-title, .fl-crafting-item-name, .fl-crafting-result-power) {
+  color: var(--fl-text-primary) !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-stage {
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light :where(.fl-crafting-item-card, .fl-crafting-item-drawer, .fl-crafting-drawer-item) {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(243, 198, 95, 0.045), transparent 32%),
+    linear-gradient(180deg, rgba(8, 10, 11, 0.56), rgba(5, 8, 10, 0.52)) !important;
+  border-color: rgba(198, 161, 91, 0.2) !important;
+  color: var(--fl-text-primary) !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light :where(.fl-crafting-showcase, .fl-crafting-result-card, .fl-crafting-material-panel, .fl-crafting-stat-panel, .fl-crafting-feedback, .fl-crafting-item-drawer) {
+  background: var(--fl-surface-premium) !important;
+  border-color: var(--fl-border-premium) !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light :where(.fl-forge-upgrade-module, .fl-forge-mode-module) .fl-crafting-material-panel {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 0 !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light :where(.fl-forge-upgrade-module, .fl-forge-mode-module) .fl-crafting-material-section {
+  border-right: 0 !important;
+  border-bottom: 1px solid rgba(198, 161, 91, 0.18) !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light :where(.fl-forge-upgrade-module, .fl-forge-mode-module) .fl-crafting-material-section:last-child {
+  border-bottom: 0 !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-showcase {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--fl-radius-lg);
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-fx-layer {
+  position: fixed;
+  left: calc(env(safe-area-inset-left) + 8px);
+  right: calc(env(safe-area-inset-right) + 8px);
+  bottom: calc(
+    var(--app-bottom-nav-offset, 72px) +
+    env(safe-area-inset-bottom) +
+    var(--fl-crafting-subtabs-offset, 58px) +
+    var(--fl-crafting-cta-dock-offset, 76px) - 6px
+  );
+  height: 46px;
+  z-index: 7810;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-fx-plus {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 0);
+  color: var(--fl-success);
+  font-family: var(--fl-font-number);
+  font-size: clamp(1.25rem, 4.8vw, 1.95rem);
+  font-weight: 900;
+  line-height: 1;
+  text-shadow:
+    0 0 14px rgba(79, 209, 139, 0.48),
+    0 2px 10px rgba(0, 0, 0, 0.86);
+  will-change: transform, opacity;
+  animation: flCraftingPlusFloat 980ms ease-out both;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-fx-plus--slot-1 { left: 25%; }
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-fx-plus--slot-2 { left: 35%; }
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-fx-plus--slot-3 { left: 45%; }
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-fx-plus--slot-4 { left: 55%; }
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-fx-plus--slot-5 { left: 65%; }
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-fx-plus--slot-6 { left: 75%; }
+
+@keyframes flCraftingPlusFloat {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 8px) scale(0.84);
+    filter: blur(0.8px);
+  }
+  16% {
+    opacity: 1;
+    transform: translate(-50%, -6px) scale(1.06);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -54px) scale(1.02);
+    filter: blur(0);
+  }
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-showcase::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 54% 28% at 50% 2%, rgba(230, 196, 122, 0.11), transparent 64%),
+    radial-gradient(ellipse 38% 24% at 88% 22%, rgba(74, 143, 231, 0.055), transparent 62%);
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-mode-tabs {
+  width: 100%;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-item-card {
+  border-color: var(--inventory-rarity-color, var(--item-rarity, var(--fl-border-premium))) !important;
+  box-shadow:
+    0 0 22px color-mix(in srgb, var(--inventory-rarity-color, var(--item-rarity, var(--fl-gold-glow))) 24%, transparent),
+    var(--fl-shadow-card),
+    var(--fl-shadow-inset) !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-material-section .fl-resource-counter__copy {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-material-section .fl-resource-counter__value,
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-material-section .fl-resource-counter__delta {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-compact-panel.fl-card {
+  margin-top: var(--fl-space-2);
+  padding: 11px 13px 10px;
+  background:
+    var(--fl-texture-woven),
+    var(--fl-texture-panel-fine),
+    var(--fl-texture-noise),
+    linear-gradient(135deg, var(--fl-bg-card), var(--fl-bg-surface) 58%, var(--fl-bg-card-deep)) !important;
+  border: 1px solid var(--fl-border-premium) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.72),
+    inset 0 0 0 1px rgba(185, 135, 60, 0.16),
+    inset 0 1px 0 rgba(255, 236, 184, 0.045),
+    0 4px 12px rgba(0, 0, 0, 0.28) !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-compact-panel.fl-card::before {
+  background:
+    linear-gradient(180deg, rgba(255, 236, 184, 0.035), transparent 34%, transparent 72%, rgba(0, 0, 0, 0.12)),
+    radial-gradient(ellipse at 50% 0%, rgba(230, 196, 122, 0.02), transparent 55%);
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-compact-panel.fl-card::after {
+  content: none !important;
+  display: none !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-upgrade-milestones {
+  padding: 11px 13px 11px;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-upgrade-milestone-progress {
+  width: 100%;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-entropy-panel {
+  margin-top: 5px;
+  padding: 6px 9px 7px;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-entropy-panel .fl-entropy-track__meta {
+  margin-bottom: 5px;
+}
+
+/* Optional layout toggle:
+   remove compact-card wrappers for secondary crafting blocks and use neutral containers + ornamental dividers. */
+.app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--neutral-sections-v1 .fl-crafting-divider {
+  margin: 10px 0 8px;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--neutral-sections-v1 .fl-crafting-neutral-section {
+  display: grid;
+  gap: 6px;
+  padding: 2px 4px;
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--neutral-sections-v1 :is(
+  .fl-crafting-result-card,
+  .fl-crafting-entropy-panel,
+  .fl-crafting-upgrade-milestones
+) {
+  background: transparent !important;
+  background-image: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--neutral-sections-v1 .fl-crafting-result-card::before,
+.app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--neutral-sections-v1 .fl-crafting-result-card::after,
+.app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--neutral-sections-v1 .fl-crafting-result-state::before,
+.app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--neutral-sections-v1 .fl-crafting-result-state::after {
+  content: none !important;
+  display: none !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--neutral-sections-v1 .fl-crafting-upgrade-milestones,
+.app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--neutral-sections-v1 .fl-crafting-entropy-panel {
+  margin-top: 0;
+}
+
+@media (max-width: 520px) {
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-material-section .fl-resource-counter {
+    justify-content: center;
+    gap: 0;
+    text-align: center;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-material-section .fl-resource-counter__icon {
+    display: none !important;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-material-section .fl-resource-counter__copy {
+    justify-items: center;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-material-section .fl-resource-counter__value {
+    font-size: 0.55rem;
+    line-height: 1.12;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-material-section .fl-resource-counter__delta {
+    font-size: 0.5rem;
+    line-height: 1.12;
+    overflow-wrap: normal;
+    white-space: nowrap;
+    word-break: normal;
+  }
+
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] .fl-crafting-stat-arrow {
+  color: var(--fl-gold-glow) !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light {
+  --fl-crafting-subtabs-offset: 0px;
+  --fl-crafting-cta-dock-offset: 76px;
+  display: grid;
+  gap: 8px;
+  color: var(--fl-text-primary);
+  padding: 0 0 10px;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light.is-mobile {
+  padding: 0 0 calc(var(--app-bottom-nav-offset, 72px) + env(safe-area-inset-bottom) + var(--fl-crafting-subtabs-offset, 58px) + var(--fl-crafting-cta-dock-offset, 76px));
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-top-toolbar {
+  border: 1px solid var(--fl-surface-border);
+  border-radius: 10px;
+  background: var(--fl-surface-bg);
+  padding: 8px;
+  display: grid;
+  gap: 7px;
+}
+
+/* Legacy neutralization for Forge CTA/action row:
+   prevents old forge-light.css / responsive.css selectors from changing shape, layout or chrome. */
+.app-shell-root--forge-light-v2 .crafting-root--forge-light :where(.fl-forge-upgrade-module, .fl-forge-mode-module) .fl-crafting-action-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-lock-notice {
+  border: 1px solid color-mix(in srgb, var(--fl-arcane) 46%, transparent);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--fl-arcane) 14%, transparent);
+  color: var(--fl-arcane);
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+
+/* Crafting overlay: hide outer station header and keep close action inside Forja card */
+.app-shell-root--forge-light-v2 .overlay-station-body--forge-crafting > .overlay-station-header--forge-crafting {
+  display: none !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-head {
+  position: relative;
+  padding: 12px 16px;
+  margin: -10px -10px 8px;
+  border-bottom: 1px solid var(--fl-gold-muted);
+  background: var(--fl-panel-header-surface-module);
+  box-shadow: none;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-head::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(230, 196, 122, 0.42), transparent);
+  pointer-events: none;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-title-row {
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-title-stack {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-title {
+  font-size: clamp(1.08rem, 3.8vw, 1.38rem) !important;
+  line-height: 1.02 !important;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-subtitle {
+  margin-top: 4px;
+  color: var(--fl-text-secondary);
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
+
+.app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-close {
+  flex: 0 0 auto;
+  min-width: 82px;
+  margin-left: 10px;
+}
+
+@media (max-width: 760px) {
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-title {
+    font-size: clamp(1rem, 4.2vw, 1.2rem) !important;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-head {
+    padding: 10px 12px;
+    margin: -8px -8px 6px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light {
+    padding-bottom: calc(var(--app-bottom-nav-offset, 72px) + env(safe-area-inset-bottom) + 84px) !important;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light .fl-crafting-close {
+    min-width: 74px;
+    margin-left: 8px;
+  }
+}
+
+/* Reversible mobile layout pass:
+   target = fit header + stage + stats while keeping CTA visible in small viewports. */
+@media (max-width: 520px) {
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 {
+    --fl-crafting-subtabs-offset: 58px;
+    --fl-crafting-cta-dock-offset: 74px;
+    gap: 6px;
+    padding: 0 0 calc(var(--app-bottom-nav-offset, 72px) + env(safe-area-inset-bottom) + var(--fl-crafting-subtabs-offset, 58px) + var(--fl-crafting-cta-dock-offset, 74px)) !important;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-top-toolbar {
+    padding: 5px 6px;
+    gap: 4px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-showcase {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-head {
+    padding: 8px 9px;
+    margin: -6px -6px 4px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-title {
+    font-size: 1rem !important;
+    line-height: 1.04;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-subtitle {
+    font-size: 0.56rem;
+    line-height: 1.1;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-close {
+    min-width: 66px;
+    padding-inline: 8px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 :where(.fl-forge-upgrade-module, .fl-forge-mode-module) .fl-crafting-stage {
+    gap: 6px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 :where(.fl-forge-upgrade-module, .fl-forge-mode-module) .fl-crafting-item-card.fl-card::before,
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 :where(.fl-forge-upgrade-module, .fl-forge-mode-module) .fl-crafting-item-card.fl-card::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 :where(.fl-forge-upgrade-module, .fl-forge-mode-module) .fl-crafting-item-card.fl-card {
+    overflow: hidden;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 :is(.fl-crafting-upgrade-milestones, .fl-crafting-entropy-panel) {
+    margin-top: 3px;
+    padding: 8px 10px 8px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-upgrade-milestones {
+    padding: 9px 11px 10px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-entropy-panel .fl-entropy-track__meta {
+    margin-bottom: 3px;
+    font-size: 0.56rem;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1.fl-crafting--neutral-sections-v1 .fl-crafting-neutral-section {
+    padding: 1px 3px;
+    gap: 4px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1.fl-crafting--neutral-sections-v1 .fl-crafting-divider {
+    margin: 7px 0 6px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-stats-compare {
+    gap: 4px;
+    margin-top: 1px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-stat-panel {
+    padding: 5px;
+    gap: 3px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-stat-panel h3 {
+    font-size: 0.54rem;
+    margin-bottom: 1px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-stat-panel :where(.fl-stat-row, .fl-stat-row--compact) {
+    min-height: 14px;
+    padding-block: 1px;
+    gap: 3px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-stat-panel :where(.fl-stat-row__label, .fl-stat-row__value, .fl-stat-row__delta) {
+    font-size: 0.5rem;
+    line-height: 1.05;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-stat-arrow {
+    font-size: 1rem;
+    line-height: 1;
+    margin-top: 0;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 :where(.fl-forge-upgrade-module, .fl-forge-mode-module) .fl-crafting-result-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "level power";
+    justify-items: center;
+    align-content: center;
+    gap: 1px;
+    padding: 8px 6px 5px;
+    min-height: unset !important;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 :where(.fl-forge-upgrade-module, .fl-forge-mode-module) :is(.fl-crafting-material-panel.fl-card, .fl-crafting-result-card.fl-card)::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 :where(.fl-forge-upgrade-module, .fl-forge-mode-module) .fl-crafting-result-card::before,
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 :where(.fl-forge-upgrade-module, .fl-forge-mode-module) .fl-crafting-result-card::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-result-state {
+    display: none !important;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-result-state::before,
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-result-state::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-result-level {
+    grid-area: level;
+    justify-self: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    white-space: nowrap;
+    font-size: 0.76rem !important;
+    line-height: 1;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-result-level::before {
+    content: "Nivel";
+    font-size: 0.5rem;
+    line-height: 1.05;
+    text-transform: uppercase;
+    color: var(--fl-text-muted);
+    letter-spacing: 0.04em;
+    margin-right: 2px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 :is(.fl-crafting-result-level, .fl-crafting-result-power) span {
+    color: var(--fl-text-primary) !important;
+    text-shadow: none !important;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 :is(.fl-crafting-result-level, .fl-crafting-result-power) :is(b, strong) {
+    color: var(--fl-success) !important;
+    text-shadow: 0 0 10px rgba(79, 209, 139, 0.32) !important;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 :is(.fl-crafting-result-level, .fl-crafting-result-power) b {
+    opacity: 0.92;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 :is(.fl-crafting-result-level, .fl-crafting-result-power) strong {
+    font-weight: 900;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-result-power-label {
+    display: none !important;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-result-power {
+    grid-area: power;
+    justify-self: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    white-space: nowrap;
+    font-size: 0.76rem !important;
+    line-height: 1;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-result-power::before {
+    content: "Poder";
+    font-size: 0.5rem;
+    line-height: 1.05;
+    text-transform: uppercase;
+    color: var(--fl-text-muted);
+    letter-spacing: 0.04em;
+    margin-right: 2px;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 :where(.fl-forge-upgrade-module, .fl-forge-mode-module) .fl-crafting-action-row {
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 6px;
+    position: fixed !important;
+    left: calc(env(safe-area-inset-left) + 8px);
+    right: calc(env(safe-area-inset-right) + 8px);
+    bottom: calc(var(--app-bottom-nav-offset, 72px) + env(safe-area-inset-bottom) + var(--fl-crafting-subtabs-offset, 58px) + 8px) !important;
+    z-index: 7800 !important;
+    display: block !important;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 :where(.fl-crafting-primary-action, .fl-button.fl-crafting-primary-action) {
+    min-height: 38px !important;
+    padding-block: 5px !important;
+    width: 100% !important;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-primary-action .fl-button__label {
+    font-size: 0.7rem;
+  }
+
+  .app-shell-root--forge-light-v2 .crafting-root--forge-light.fl-crafting--mobile-compact-v1 .fl-crafting-primary-action .fl-button__cost {
+    font-size: 0.62rem;
+    line-height: 1.05;
+  }
+}
+
+@media (max-width: 1024px) {
+  .app-shell-root--forge-light-v2 .overlay-shell--forge-crafting .fl-tabs.fl-subtabs-segmented.fl-subtabs-segmented--mobile-sticky {
+    position: fixed !important;
+    left: calc(env(safe-area-inset-left) + 8px) !important;
+    right: calc(env(safe-area-inset-right) + 8px) !important;
+    bottom: calc(env(safe-area-inset-bottom) + 8px) !important;
+    z-index: 7700 !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .fl-crafting-mobile-subtabs-layer {
+    position: fixed;
+    left: calc(env(safe-area-inset-left) + 8px);
+    right: calc(env(safe-area-inset-right) + 8px);
+    bottom: calc(var(--app-bottom-nav-offset, 72px) + env(safe-area-inset-bottom) + 8px);
+    z-index: 7700;
+    pointer-events: none;
+  }
+
+  .fl-crafting-mobile-subtabs-layer .fl-tabs.fl-subtabs-segmented--mobile-floating {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    pointer-events: auto;
+    box-sizing: border-box;
+  }
 }

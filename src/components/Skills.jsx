@@ -1,8 +1,8 @@
-import React, { useEffect } from "react";
-import { calcStats } from "../engine/combat/statEngine";
-import { getClassBuildStatGroups } from "../utils/classBuildStats";
+import React, { useEffect, useState } from "react";
 import { ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
+import { formatHeaderResource } from "../utils/formatHeaderResource";
 import ForgeIcon from "./icons/ForgeIcon";
+import { FlButton, FlScreenHeaderModule, FlStatRow, FlTabs } from "./ui/forge";
 
 const UPGRADES_UI = [
   { id: "damage", name: "Fuerza", description: "+2% dano total", baseCost: 180, costMultiplier: 1.18, maxLevel: 50, icon: "?" },
@@ -37,32 +37,23 @@ const ATTRIBUTE_VISUALS = {
   xpBonus: { icon: "xp", tone: "blue" },
 };
 
-function formatGold(value = 0) {
-  return Math.floor(Number(value || 0)).toLocaleString();
-}
-
-function buildProgressNodes(currentLevel = 0, maxLevel = 1) {
-  const nodeCount = 7;
-  const ratio = Math.max(0, Math.min(1, currentLevel / Math.max(1, maxLevel)));
-  return Array.from({ length: nodeCount }, (_, index) => {
-    const threshold = nodeCount <= 1 ? 1 : index / (nodeCount - 1);
-    return threshold <= ratio || (currentLevel > 0 && index === 0);
-  });
-}
-
 export default function Skills({ state, dispatch }) {
   const { player } = state;
   const onboardingStep = state?.onboarding?.step || null;
   const spotlightAttributes = onboardingStep === ONBOARDING_STEPS.SPEND_ATTRIBUTE;
   const playerUpgrades = player.upgrades || {};
-  const computedStats = calcStats(player);
-  const buildGroups = getClassBuildStatGroups(player.class, computedStats);
-  const classLabel = player.class ? `${player.class.charAt(0).toUpperCase()}${player.class.slice(1)}` : "Clase";
+  const [activeSectionId, setActiveSectionId] = useState(ATTRIBUTE_SECTIONS[0]?.id || "");
   const upgradeSections = ATTRIBUTE_SECTIONS.map(section => ({
     ...section,
     upgrades: section.upgradeIds
       .map(id => UPGRADES_UI.find(entry => entry.id === id))
       .filter(Boolean),
+  }));
+  const activeSection = upgradeSections.find(section => section.id === activeSectionId) || upgradeSections[0] || null;
+  const visibleSections = activeSection ? [activeSection] : [];
+  const sectionTabs = upgradeSections.map(section => ({
+    id: section.id,
+    label: section.label,
   }));
 
   useEffect(() => {
@@ -90,52 +81,46 @@ export default function Skills({ state, dispatch }) {
     };
   }, [spotlightAttributes]);
 
+  useEffect(() => {
+    if (!upgradeSections.length) return;
+    if (!activeSectionId || !upgradeSections.some(section => section.id === activeSectionId)) {
+      setActiveSectionId(upgradeSections[0].id);
+    }
+  }, [activeSectionId, upgradeSections]);
+
+  useEffect(() => {
+    if (!spotlightAttributes) return;
+    if (activeSectionId !== "combat") {
+      setActiveSectionId("combat");
+    }
+  }, [spotlightAttributes, activeSectionId]);
+
   return (
     <div className="skills-root skills-root--forge-light">
-      <section className="forge-skills-shell">
-        <header className="forge-skills-page-header">
-          <div className="forge-skills-title-wrap">
-            <span className="forge-skills-back" aria-hidden="true">«</span>
-            <h2>Atributos</h2>
-            <span className="forge-skills-info" aria-hidden="true">i</span>
-          </div>
-          <div className="forge-skills-header-actions">
-            <span className="forge-skills-gold-chip">
-              <ForgeIcon name="gold" size={16} />
-              {formatGold(player.gold || 0)} oro
-            </span>
-          </div>
-        </header>
-
-        <div className="forge-skills-tabbar" aria-label="Categorias de atributos">
-          {upgradeSections.map((section, index) => (
-            <span
-              key={section.id}
-              className={[
-                "forge-skills-tab",
-                index === 0 ? "forge-skills-tab--active" : "",
-              ].filter(Boolean).join(" ")}
-            >
-              <ForgeIcon name={section.id === "combat" ? "combat" : "gold"} size={18} />
-              {section.label}
-            </span>
-          ))}
-        </div>
+      <FlScreenHeaderModule
+        title="Atributos"
+        headline=""
+        className="forge-skills-screen"
+        bodyClassName="forge-skills-screen__body"
+      >
+        <FlTabs
+          items={sectionTabs}
+          activeId={activeSectionId}
+          onChange={id => setActiveSectionId(id)}
+          variant="segmented"
+          size="sm"
+          fullWidth
+          scrollable={false}
+          showStepArrows
+          prevAriaLabel="Categoria anterior"
+          nextAriaLabel="Categoria siguiente"
+          ariaLabel="Categorias de atributos"
+          className="forge-skills-selector fl-subtabs-segmented"
+        />
 
         <div className="forge-attributes-panel">
-          {upgradeSections.map(section => (
+          {visibleSections.map(section => (
             <section key={section.id} className="forge-attribute-section">
-              <div className="forge-attribute-section-header">
-                <div className="forge-attribute-section-title">
-                  <ForgeIcon name={section.id === "combat" ? "combat" : "repeat"} size={16} />
-                  <span>{section.label}</span>
-                  <small>{section.description}</small>
-                </div>
-                <div className="forge-attribute-section-count">
-                  {section.upgrades.length} atributo{section.upgrades.length === 1 ? "" : "s"}
-                </div>
-              </div>
-
               <div className="forge-attribute-list">
                 {section.upgrades.map(up => {
                   const currentLevel = playerUpgrades[up.id] || 0;
@@ -144,107 +129,46 @@ export default function Skills({ state, dispatch }) {
                   const canAfford = player.gold >= cost;
                   const spotlightUpgrade = spotlightAttributes && up.id === "damage" && !isMaxed;
                   const lockedByTutorial = spotlightAttributes && up.id !== "damage";
-                  const progress = (currentLevel / up.maxLevel) * 100;
                   const visual = ATTRIBUTE_VISUALS[up.id] || ATTRIBUTE_VISUALS.damage;
-                  const progressNodes = buildProgressNodes(currentLevel, up.maxLevel);
-                  const progressFillProps = { style: { "--forge-attribute-progress": `${progress}%` } };
-
                   return (
-                    <div
+                    <FlStatRow
                       key={up.id}
+                      variant="attribute"
+                      tone={visual.tone}
+                      icon={<ForgeIcon name={visual.icon} size={30} />}
+                      label={up.name}
+                      meta={`${currentLevel}/${up.maxLevel}`}
+                      description={up.description}
+                      currentLevel={currentLevel}
+                      maxLevel={up.maxLevel}
+                      milestoneStep={5}
+                      trackFrame="none"
+                      action={(
+                        <FlButton
+                          disabled={lockedByTutorial || !canAfford || isMaxed}
+                          onClick={() => dispatch({ type: "UPGRADE_PLAYER", upgradeId: up.id })}
+                          data-onboarding-target={spotlightUpgrade ? "upgrade-attribute" : undefined}
+                          className="forge-attribute-buy-action"
+                          variant={isMaxed ? "ghost" : canAfford ? "default" : "secondary"}
+                          size="sm"
+                          icon={!isMaxed ? <span className="forge-attribute-buy-glyph" aria-hidden="true">🪙</span> : null}
+                        >
+                          {isMaxed ? "MAX" : formatHeaderResource(cost)}
+                        </FlButton>
+                      )}
                       data-onboarding-target={spotlightUpgrade ? "upgrade-attribute-card" : undefined}
                       className={[
-                        "forge-attribute-row",
-                        `forge-attribute-row--${visual.tone}`,
-                        canAfford && !isMaxed ? "forge-attribute-row--affordable" : "",
                         spotlightUpgrade ? "forge-attribute-row--spotlight" : "",
                         lockedByTutorial ? "forge-attribute-row--tutorial-locked" : "",
                       ].filter(Boolean).join(" ")}
-                    >
-                      <div className="forge-attribute-icon" aria-hidden="true">
-                        <ForgeIcon name={visual.icon} size={30} />
-                      </div>
-
-                      <div className="forge-attribute-copy">
-                        <div className="forge-attribute-topline">
-                          <span className="forge-attribute-name">{up.name}</span>
-                          <span className="forge-attribute-level">
-                            {currentLevel}/{up.maxLevel}
-                          </span>
-                        </div>
-                        <div className="forge-attribute-description">{up.description}</div>
-                        <div className="forge-attribute-track" aria-hidden="true">
-                          <span className="forge-attribute-track-line" />
-                          <span
-                            className="forge-attribute-track-fill"
-                            data-progress={Math.round(progress)}
-                            {...progressFillProps}
-                          />
-                          {progressNodes.map((active, index) => (
-                            <span
-                              key={`${up.id}-${index}`}
-                              className={[
-                                "forge-attribute-node",
-                                active ? "forge-attribute-node--active" : "",
-                              ].filter(Boolean).join(" ")}
-                            />
-                          ))}
-                        </div>
-                      </div>
-
-                      <button
-                        disabled={lockedByTutorial || !canAfford || isMaxed}
-                        onClick={() => dispatch({ type: "UPGRADE_PLAYER", upgradeId: up.id })}
-                        data-onboarding-target={spotlightUpgrade ? "upgrade-attribute" : undefined}
-                        className={[
-                          "forge-attribute-buy",
-                          canAfford && !isMaxed ? "forge-attribute-buy--ready" : "",
-                          isMaxed ? "forge-attribute-buy--maxed" : "",
-                        ].filter(Boolean).join(" ")}
-                      >
-                        {!isMaxed && <ForgeIcon name="gold" size={17} />}
-                        <span>{isMaxed ? "MAX" : formatGold(cost)}</span>
-                        {!isMaxed && <small>g</small>}
-                      </button>
-                    </div>
+                    />
                   );
                 })}
               </div>
             </section>
           ))}
         </div>
-      </section>
-
-      {buildGroups.length > 0 && (
-        <section className="forge-skills-reading forge-skills-reading--secondary">
-          <header className="forge-skills-section-header">
-            <h2>Lectura actual</h2>
-            <span>
-              {classLabel}
-            </span>
-          </header>
-
-          <div className="forge-skills-reading-grid">
-            {buildGroups.map(group => (
-              <div key={group.id} className="forge-skills-reading-card">
-                <div className="forge-skills-reading-card-content">
-                  <div className="forge-skills-reading-title">
-                    {group.label}
-                  </div>
-                  <div className="forge-skills-reading-entries">
-                    {group.entries.map(entry => (
-                      <div key={entry.key} className="forge-skills-reading-entry">
-                        <div>{entry.label}</div>
-                        <strong>{entry.value}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      </FlScreenHeaderModule>
     </div>
   );
 }

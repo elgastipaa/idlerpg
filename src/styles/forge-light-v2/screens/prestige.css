@@ -1,12 +1,173 @@
-.app-shell-root--forge-light-v2[data-fl2-screen="prestige"] .prestige-root--forge-light {
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .prestige-root--forge-light {
   background: transparent !important;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  color: var(--fl-text-primary);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="prestige"] :where(.prestige-hero-copy, .prestige-outcome-title, .prestige-metric-card) {
-  color: var(--fl2-text) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .fl-prestige-hero-panel .fl-panel-header-block__title {
+  color: var(--fl-gold-glow);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="prestige"] :where(.prestige-outcome-column, .prestige-metric-card, .prestige-run-sigil-panel) {
-  background: rgba(13, 17, 24, 0.7) !important;
-  border-color: rgba(198, 161, 91, 0.18) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .fl-prestige-hero-panel .fl-panel-header-block__subtitle {
+  color: #f8fafc;
+  font-size: 1.18rem;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .fl-prestige-hero-panel .fl-panel-header-block__copy {
+  color: #cbd5e1;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .fl-prestige-hero-panel > .fl-panel__body {
+  display: grid;
+  gap: 10px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .fl-prestige-hero-panel__header-badges {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .fl-prestige-hero-panel__hero-row {
+  display: flex;
+  align-items: center;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .forge-prestige-crest {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  color: #fff1b8;
+  border: 1px solid rgba(198, 138, 39, 0.42);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(243, 198, 95, 0.2), transparent 56%),
+    conic-gradient(from 45deg, transparent, rgba(243, 198, 95, 0.24), transparent 28%, rgba(166, 84, 255, 0.18), transparent 62%, rgba(243, 198, 95, 0.2), transparent);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 232, 166, 0.08),
+    0 0 24px rgba(243, 198, 95, 0.16);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .forge-prestige-crest::before,
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .forge-prestige-crest::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 1px solid rgba(243, 198, 95, 0.22);
+  border-radius: 50%;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .forge-prestige-crest::after {
+  inset: 18px;
+  border-color: rgba(166, 84, 255, 0.22);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .forge-prestige-crest .forge-icon {
+  width: 58px;
+  height: 58px;
+  filter:
+    drop-shadow(0 0 11px rgba(243, 198, 95, 0.42))
+    drop-shadow(0 8px 16px rgba(0, 0, 0, 0.7));
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .fl-prestige-hero-panel--spotlight {
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 0 0 2px rgba(199, 210, 254, 0.28), 0 16px 34px rgba(15, 23, 42, 0.28) !important;
+  animation: prestigeSpotlightPulse 1600ms ease-in-out infinite;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .prestige-run-sigil-panel {
+  background:
+    var(--fl-texture-noise),
+    linear-gradient(180deg, rgba(18, 24, 33, 0.88), rgba(8, 11, 16, 0.94)) !important;
+  border-color: rgba(198, 161, 91, 0.22) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 232, 166, 0.05),
+    0 8px 20px rgba(0, 0, 0, 0.38) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .prestige-outcome-grid {
+  gap: 10px !important;
+  margin-top: 12px !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .prestige-simple-outcome-card.fl-simple-card.fl-card {
+  min-height: 88px;
+  border-radius: var(--fl-radius-md);
+  padding: 14px 16px;
+  background: var(--fl-bg-card-deep) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.78),
+    inset 0 0 0 1px rgba(255, 232, 166, 0.04),
+    inset 0 1px 0 rgba(255, 236, 184, 0.06),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.46) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .prestige-simple-outcome-card .fl-simple-card__title {
+  font-size: 0.86rem;
+  letter-spacing: 0.06em;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .prestige-simple-outcome-card .fl-simple-card__title-icon {
+  font-size: 0.9rem;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .prestige-simple-outcome-card .fl-simple-card__list > li {
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .prestige-simple-outcome-card.fl-simple-card--tone-success {
+  border-color: rgba(34, 197, 94, 0.62) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.8),
+    inset 0 0 0 1px rgba(134, 239, 172, 0.1),
+    inset 0 1px 0 rgba(220, 252, 231, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.48),
+    0 0 14px rgba(34, 197, 94, 0.08) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .prestige-simple-outcome-card.fl-simple-card--tone-danger {
+  border-color: rgba(216, 90, 48, 0.68) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.8),
+    inset 0 0 0 1px rgba(254, 202, 202, 0.08),
+    inset 0 1px 0 rgba(255, 226, 214, 0.07),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.48),
+    0 0 14px rgba(216, 90, 48, 0.08) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .prestige-simple-outcome-card.fl-simple-card--tone-success .fl-simple-card__title {
+  color: var(--fl-success);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .prestige-simple-outcome-card.fl-simple-card--tone-danger .fl-simple-card__title {
+  color: var(--fl-danger);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .prestige-simple-outcome-card.fl-simple-card--tone-success .fl-simple-card__list > li::before {
+  color: var(--fl-success);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] .prestige-simple-outcome-card.fl-simple-card--tone-danger .fl-simple-card__list > li::before {
+  color: var(--fl-danger);
+}
+
+@media (min-width: 768px) {
+  .app-shell-root--forge-light-v2[data-fl-screen="prestige"] .forge-prestige-crest {
+    width: 122px;
+    height: 122px;
+  }
+
+  .app-shell-root--forge-light-v2[data-fl-screen="prestige"] .forge-prestige-crest .forge-icon {
+    width: 76px;
+    height: 76px;
+  }
 }

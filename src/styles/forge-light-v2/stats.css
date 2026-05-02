@@ -1,5 +1,4 @@
-.app-shell-root--forge-light-v2 .fl2-stat-row,
-.app-shell-root--forge-light-v2 :where(.forge-character-data-row, .stat-row, .forge-skills-reading-entry) {
+.app-shell-root--forge-light-v2 :where(.fl-stat-row, .stat-row) {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -7,31 +6,107 @@
   border-bottom: 1px solid rgba(198, 161, 91, 0.07) !important;
 }
 
-.app-shell-root--forge-light-v2 :where(.forge-character-data-row:last-child, .stat-row:last-child, .forge-skills-reading-entry:last-child) {
+.app-shell-root--forge-light-v2 :where(.fl-stat-row:last-child, .stat-row:last-child) {
   border-bottom: 0 !important;
 }
 
-.app-shell-root--forge-light-v2 :where(.forge-character-data-row span:first-child, .stat-name, .res-label) {
-  color: var(--fl2-text-secondary) !important;
+.app-shell-root--forge-light-v2 :where(.fl-stat-row__label, .stat-name, .res-label) {
+  color: var(--fl-text-secondary) !important;
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.app-shell-root--forge-light-v2 :where(.forge-character-data-row strong, .stat-value, .res-amount) {
-  color: var(--fl2-text) !important;
+.app-shell-root--forge-light-v2 :where(.fl-stat-row__value, .stat-value, .res-amount) {
+  color: var(--fl-text-primary) !important;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
 }
 
-.app-shell-root--forge-light-v2 .fl2-resource-pill,
+.app-shell-root--forge-light-v2 .fl-quick-stats {
+  display: grid;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
+}
+
+.app-shell-root--forge-light-v2 .fl-quick-stat-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0;
+  border-bottom: 1px solid rgba(198, 161, 91, 0.16);
+}
+
+.app-shell-root--forge-light-v2 .fl-quick-stat-row:last-child {
+  border-bottom: 0;
+}
+
+.app-shell-root--forge-light-v2 .fl-quick-stat-row__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fl-gold-glow);
+  opacity: 0.94;
+}
+
+.app-shell-root--forge-light-v2 .fl-quick-stat-row__label {
+  min-width: 0;
+  color: var(--fl-text-secondary);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.app-shell-root--forge-light-v2 .fl-quick-stat-row__value {
+  color: var(--fl-text-primary);
+  font-size: 0.82rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.app-shell-root--forge-light-v2 .fl-resource-pill,
 .app-shell-root--forge-light-v2 :where(.fl-header-resource, .resource-pill, .res-pill, .prestige-breakdown-row > *, .codex-radar-chips > *) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   background: rgba(13, 17, 24, 0.78) !important;
-  border: 1px solid var(--fl2-gold-muted) !important;
-  border-radius: var(--fl2-radius-md) !important;
-  color: var(--fl2-text) !important;
+  border: 1px solid var(--fl-gold-muted) !important;
+  border-radius: var(--fl-radius-md) !important;
+  color: var(--fl-text-primary) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-stat-module .fl-panel__body {
+  padding: 6px 8px;
+}
+
+.app-shell-root--forge-light-v2 .fl-stat-module .combat-stat-module__row {
+  gap: 0;
+}
+
+.app-shell-root--forge-light-v2 .fl-stat-module .combat-stat-card {
+  padding: 5px 6px;
+  min-height: 44px;
+}
+
+@media (max-width: 720px) {
+  .app-shell-root--forge-light-v2 .fl-quick-stat-row {
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    min-height: 34px;
+    padding: 0;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-quick-stat-row__label {
+    font-size: 0.68rem;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-quick-stat-row__value {
+    font-size: 0.76rem;
+  }
 }

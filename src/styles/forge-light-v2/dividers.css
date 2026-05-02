@@ -1,5 +1,5 @@
 .app-shell-root--forge-light-v2 {
-  --fl2-divider-line:
+  --fl-divider-line:
     linear-gradient(
       90deg,
       transparent,
@@ -10,24 +10,24 @@
     );
 }
 
-.app-shell-root--forge-light-v2 .fl2-divider {
+.app-shell-root--forge-light-v2 .fl-divider {
   position: relative;
   height: 9px;
   pointer-events: none;
 }
 
-.app-shell-root--forge-light-v2 .fl2-divider::before {
+.app-shell-root--forge-light-v2 .fl-divider::before {
   content: "";
   position: absolute;
   left: 8px;
   right: 8px;
   top: 50%;
   height: 1px;
-  background: var(--fl2-divider-line);
+  background: var(--fl-divider-line);
   transform: translateY(-50%);
 }
 
-.app-shell-root--forge-light-v2 .fl2-divider::after {
+.app-shell-root--forge-light-v2 .fl-divider::after {
   content: "";
   position: absolute;
   left: 50%;
@@ -35,31 +35,31 @@
   width: 5px;
   height: 5px;
   background:
-    radial-gradient(circle, var(--fl2-gold-strong) 0 26%, var(--fl2-gold) 62%, rgba(198, 161, 91, 0.72) 100%);
+    radial-gradient(circle, var(--fl-gold-hover) 0 26%, var(--fl-gold-glow) 62%, rgba(198, 161, 91, 0.72) 100%);
   border: 1px solid rgba(255, 232, 166, 0.48);
   box-shadow: 0 0 10px rgba(243, 198, 95, 0.26);
   transform: translate(-50%, -50%) rotate(45deg);
 }
 
-.app-shell-root--forge-light-v2 .fl2-primary-card + .fl2-primary-card,
-.app-shell-root--forge-light-v2 .fl2-primary-section + .fl2-primary-section {
+.app-shell-root--forge-light-v2 .fl-primary-card + .fl-primary-card,
+.app-shell-root--forge-light-v2 .fl-primary-section + .fl-primary-section {
   position: relative;
 }
 
-.app-shell-root--forge-light-v2 .fl2-primary-card + .fl2-primary-card::before,
-.app-shell-root--forge-light-v2 .fl2-primary-section + .fl2-primary-section::before {
+.app-shell-root--forge-light-v2 .fl-primary-card + .fl-primary-card::before,
+.app-shell-root--forge-light-v2 .fl-primary-section + .fl-primary-section::before {
   content: "";
   position: absolute;
   left: 8px;
   right: 8px;
   top: -8px;
   height: 1px;
-  background: var(--fl2-divider-line);
+  background: var(--fl-divider-line);
   pointer-events: none;
 }
 
-.app-shell-root--forge-light-v2 .fl2-primary-card + .fl2-primary-card::after,
-.app-shell-root--forge-light-v2 .fl2-primary-section + .fl2-primary-section::after {
+.app-shell-root--forge-light-v2 .fl-primary-card + .fl-primary-card::after,
+.app-shell-root--forge-light-v2 .fl-primary-section + .fl-primary-section::after {
   content: "";
   position: absolute;
   left: 50%;
@@ -67,7 +67,7 @@
   width: 5px;
   height: 5px;
   background:
-    radial-gradient(circle, var(--fl2-gold-strong) 0 26%, var(--fl2-gold) 62%, rgba(198, 161, 91, 0.72) 100%);
+    radial-gradient(circle, var(--fl-gold-hover) 0 26%, var(--fl-gold-glow) 62%, rgba(198, 161, 91, 0.72) 100%);
   border: 1px solid rgba(255, 232, 166, 0.48);
   box-shadow: 0 0 10px rgba(243, 198, 95, 0.26);
   transform: translateX(-50%) rotate(45deg);

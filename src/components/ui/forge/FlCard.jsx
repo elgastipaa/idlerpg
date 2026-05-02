@@ -1,6 +1,7 @@
 import React from "react";
 
 const VALID_VARIANTS = new Set(["default", "compact", "panel", "premium"]);
+const VALID_TONES = new Set(["default", "danger", "success", "arcane", "defense", "weekly"]);
 const VALID_STATES = new Set(["default", "pressed", "selected", "disabled", "locked", "loading", "success", "error"]);
 
 function cx(...parts) {
@@ -15,6 +16,7 @@ const FlCard = React.forwardRef(function FlCard(
   {
     as,
     variant = "default",
+    tone = "default",
     state = "default",
     selected = false,
     interactive = false,
@@ -34,6 +36,7 @@ const FlCard = React.forwardRef(function FlCard(
   ref
 ) {
   const normalizedVariant = normalizeOption(variant, VALID_VARIANTS, "default");
+  const normalizedTone = normalizeOption(tone, VALID_TONES, "default");
   const computedState = loading
     ? "loading"
     : disabled
@@ -68,12 +71,14 @@ const FlCard = React.forwardRef(function FlCard(
       className={cx(
         "fl-card",
         `fl-card--${normalizedVariant}`,
+        normalizedTone !== "default" && `fl-card--tone-${normalizedTone}`,
         isInteractive && "fl-card--interactive",
         selected && "fl-card--selected",
         rarity && `fl-rarity--${rarity}`,
         className
       )}
       data-state={computedState}
+      data-tone={normalizedTone !== "default" ? normalizedTone : undefined}
       data-selected={selected ? "true" : undefined}
       data-rarity={rarity || undefined}
       type={isButton ? type : undefined}

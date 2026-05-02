@@ -1,119 +1,188 @@
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] {
-  color: var(--fl2-text);
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] {
+  color: var(--fl-text-primary);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"].app-shell-root--forge-combat {
+.app-shell-root--forge-light-v2[data-fl-screen="combat"].app-shell-root--forge-combat {
   background:
-    var(--fl2-screen-bg, url("/assets/combat/backgrounds/ruinas_olvidadas.png")) center top / cover no-repeat fixed,
+    var(--fl-screen-bg, url("/assets/combat/backgrounds/ruinas_olvidadas.png")) center top / cover no-repeat fixed,
     #05080a !important;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-root {
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-root {
   --color-background-primary: transparent;
   --color-background-secondary: rgba(8, 10, 11, 0.58);
   --color-background-tertiary: rgba(5, 8, 10, 0.48);
-  --color-text-primary: var(--fl2-text);
-  --color-text-secondary: var(--fl2-text-secondary);
-  --color-text-tertiary: var(--fl2-text-muted);
-  --color-border-primary: var(--fl2-gold-muted);
+  --color-text-primary: var(--fl-text-primary);
+  --color-text-secondary: var(--fl-text-secondary);
+  --color-text-tertiary: var(--fl-text-muted);
+  --color-border-primary: var(--fl-gold-muted);
   --color-border-secondary: rgba(198, 161, 91, 0.16);
-  --tone-success: var(--fl2-success);
-  --tone-success-strong: var(--fl2-success);
+  --tone-success: var(--fl-success);
+  --tone-success-strong: var(--fl-success);
   --tone-success-soft: rgba(79, 209, 139, 0.1);
-  --tone-danger: var(--fl2-danger);
-  --tone-danger-strong: var(--fl2-danger);
+  --tone-danger: var(--fl-danger);
+  --tone-danger-strong: var(--fl-danger);
   --tone-danger-soft: rgba(224, 90, 90, 0.1);
-  --tone-warning: var(--fl2-warning);
+  --tone-warning: var(--fl-warning);
   --tone-warning-soft: rgba(242, 184, 75, 0.1);
-  --tone-violet: var(--fl2-arcane);
+  --tone-violet: var(--fl-arcane);
   --tone-violet-soft: rgba(138, 91, 232, 0.11);
-  --tone-accent: var(--fl2-arcane);
+  --tone-accent: var(--fl-arcane);
   --tone-accent-soft: rgba(138, 91, 232, 0.11);
-  color: var(--fl2-text);
-  font-family: var(--fl2-font-ui);
+  color: var(--fl-text-primary);
+  font-family: var(--fl-font-ui);
   position: relative;
   min-height: calc(100dvh - var(--app-header-offset, 62px) - var(--app-bottom-nav-offset, 0px));
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-root--forge-assets,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-root {
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-root--forge-assets,
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-root {
   background: transparent !important;
   box-shadow: none !important;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-root--forge-assets::before,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-root::before {
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-root--forge-assets::before,
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-root::before {
   content: none !important;
   background: transparent !important;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-main-panel,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-stat-grid,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-session-panel,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-log-panel {
-  color: var(--fl2-text) !important;
-  border-color: transparent !important;
-  border-radius: var(--fl2-radius-lg) !important;
-  box-shadow: var(--fl2-surface-shadow) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-main-panel {
+  color: var(--fl-text-primary) !important;
   clip-path: none !important;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-main-panel {
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-main-panel--default {
+  border: 2px solid rgba(198, 161, 91, 0.24) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-main-panel--boss {
+  border: 2px solid color-mix(in srgb, var(--fl-warning) 65%, var(--fl-gold-border)) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.86),
+    inset 0 0 0 1px rgba(255, 232, 166, 0.07),
+    0 0 24px rgba(242, 184, 75, 0.16),
+    var(--fl-surface-shadow) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-overflow-banner {
+  display: grid;
+  gap: 7px;
+  padding: 10px 12px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--fl-radius-md);
+  background:
+    linear-gradient(180deg, rgba(242, 184, 75, 0.14), rgba(242, 184, 75, 0.06)),
+    var(--fl-surface-premium-compact);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 232, 166, 0.06),
+    0 8px 18px rgba(0, 0, 0, 0.34);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-overflow-banner[data-mobile="true"] {
+  padding: 8px 10px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-overflow-banner__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-overflow-banner__copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-overflow-banner__eyebrow {
+  color: var(--fl-warning);
+  font-size: 0.54rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-overflow-banner__title {
+  color: var(--fl-text-primary);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-overflow-banner__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-overflow-banner__chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-overflow-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.56rem;
+  font-weight: 900;
+  border: 1px solid var(--fl-gold-muted);
+  background: rgba(8, 10, 11, 0.58);
+  color: var(--fl-text-secondary);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-overflow-chip--warning {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--fl-warning);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-overflow-chip--neutral {
+  border-color: var(--fl-gold-muted);
+  background: rgba(8, 10, 11, 0.58);
+  color: var(--fl-text-secondary);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-overflow-banner__hint {
+  color: var(--fl-text-secondary);
+  font-size: 0.6rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-overflow-banner__meta {
+  color: var(--fl-text-muted);
+  font-size: 0.58rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-main-panel {
   position: relative;
   background:
     radial-gradient(circle at 50% 30%, rgba(243, 198, 95, 0.04), transparent 34%),
     linear-gradient(180deg, rgba(7, 10, 11, 0.07), rgba(7, 10, 11, 0.16)) !important;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-stat-grid {
-  position: relative;
-  z-index: 2;
-  overflow: visible !important;
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-stat-module.fl-panel,
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-session-panel.fl-panel,
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-panel.fl-panel {
+  border: 1px solid var(--fl-panel-border) !important;
   background:
-    radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.055), transparent 24%),
-    linear-gradient(180deg, rgba(8, 10, 11, 0.62), rgba(5, 8, 10, 0.58)) !important;
+    var(--fl-texture-woven),
+    var(--fl-texture-panel-fine),
+    var(--fl-texture-noise),
+    linear-gradient(135deg, var(--fl-bg-card), var(--fl-bg-surface) 58%, var(--fl-bg-card-deep)) !important;
+  box-shadow: var(--fl-shadow-card) !important;
+  border-radius: var(--fl-radius-lg) !important;
+  overflow: hidden;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-session-panel,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-log-panel {
-  position: relative;
-  background:
-    radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.05), transparent 24%),
-    linear-gradient(180deg, rgba(8, 10, 11, 0.58), rgba(5, 8, 10, 0.54)) !important;
-}
-
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-stat-grid::before,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-session-panel::before,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-log-panel::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: -10px;
-  z-index: 1;
-  width: 5px;
-  height: 5px;
-  background:
-    radial-gradient(circle, var(--fl2-gold-strong) 0 26%, var(--fl2-gold) 62%, rgba(198, 161, 91, 0.72) 100%);
-  border: 1px solid rgba(255, 232, 166, 0.48);
-  box-shadow: 0 0 10px rgba(243, 198, 95, 0.26);
-  transform: translate(-50%, 50%) rotate(45deg);
-  pointer-events: none;
-}
-
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-stat-grid::after,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-session-panel::after,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-log-panel::after {
-  content: "";
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  top: -7px;
-  height: 1px;
-  background: var(--fl2-divider-line);
-  pointer-events: none;
-}
-
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-enemy-stage {
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-enemy-stage {
   background:
     linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.06) 62%, rgba(0, 0, 0, 0.12)),
     radial-gradient(circle at 50% 58%, rgba(105, 226, 79, 0.1), transparent 27%),
@@ -121,66 +190,784 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-enemy-stage::before {
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-enemy-stage::before {
   background: radial-gradient(ellipse at center, rgba(105, 226, 79, 0.18), transparent 70%) !important;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-tier__title,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-enemy-name,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-stat-card p:nth-child(2) {
-  color: var(--fl2-gold) !important;
-  font-family: var(--fl2-font-display);
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-tier__title,
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-enemy-name {
+  color: var(--fl-gold-glow) !important;
+  font-family: var(--fl-font-display);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-tier__zone,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-stat-card p:first-child {
-  color: var(--fl2-text-muted) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-enemy-intel-tags {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+  margin: 1px 0 2px;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-tier__nav,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-tier__auto,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-stage-control,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-side-action,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-session-panel button,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-log-panel button {
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-enemy-intel-tags .fl-tag {
+  max-width: 100%;
+  background:
+    linear-gradient(180deg, rgba(255, 232, 166, 0.06), rgba(0, 0, 0, 0)),
+    rgba(8, 10, 11, 0.7) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-enemy-intel-tags .fl-tag--arcane {
+  box-shadow: 0 0 10px rgba(138, 91, 232, 0.24);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-enemy-intel-tags .fl-tag--warning {
+  box-shadow: 0 0 10px rgba(242, 184, 75, 0.2);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-enemy-intel-tags .fl-tag--danger {
+  box-shadow: 0 0 10px rgba(224, 90, 90, 0.22);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-enemy-intel-tags .fl-tag--defense {
+  box-shadow: 0 0 10px rgba(96, 157, 255, 0.2);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-tier__zone {
+  color: var(--fl-text-muted) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-tier__nav.fl-button {
   border-color: rgba(198, 161, 91, 0.35) !important;
   background: rgba(8, 10, 11, 0.68) !important;
-  color: var(--fl2-text-secondary) !important;
+  color: var(--fl-text-secondary) !important;
   box-shadow:
-    var(--fl2-shadow-inset),
+    var(--fl-shadow-inset),
     0 2px 8px rgba(0, 0, 0, 0.3) !important;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-tier__nav:hover:not(:disabled),
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-tier__auto:hover:not(:disabled),
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-stage-control:hover:not(:disabled),
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-side-action:hover:not(:disabled),
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-session-panel button:hover:not(:disabled),
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-log-panel button:hover:not(:disabled) {
-  border-color: var(--fl2-gold-strong) !important;
-  color: var(--fl2-text) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-tier__nav.fl-button:hover:not(:disabled) {
+  border-color: var(--fl-gold-hover) !important;
+  color: var(--fl-text-primary) !important;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-stage-control--extract,
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-tier__auto.is-active {
-  border-color: var(--fl2-gold) !important;
-  background: linear-gradient(180deg, #2a1e0d 0%, #1a1309 100%) !important;
-  color: var(--fl2-text) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-action-strip {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  flex-direction: column-reverse;
+  align-items: center;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-extract-button,
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-stage-extract-button {
+  min-width: 92px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-stage-controls {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-auto-switch,
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-stage-switch {
+  width: 92px;
+  min-width: 92px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-tier__switch {
+  min-width: 88px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-tier__switch {
+  margin-left: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-auto-switch.is-spotlighted,
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-stage-switch.is-spotlighted,
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-tier__switch.is-spotlighted,
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-extract-button.is-spotlighted,
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-stage-extract-button.is-spotlighted {
+  animation: fl2SpotlightPulse 1600ms ease-in-out infinite;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-extraction-decision {
+  display: flex;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-extraction-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--fl-gold-muted);
+  background: rgba(8, 10, 11, 0.62);
   box-shadow:
-    0 0 0 1px rgba(198, 161, 91, 0.08) inset,
-    var(--fl2-shadow-inset),
-    0 4px 12px rgba(0, 0, 0, 0.4) !important;
+    inset 0 0 0 1px rgba(198, 161, 91, 0.14),
+    0 2px 6px rgba(0, 0, 0, 0.3);
+  font-size: 0.58rem;
+  line-height: 1.3;
+  font-weight: 900;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-hpbar--hero .combat-forge-hpbar__fill {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--fl2-success) 35%, black), var(--fl2-success));
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-extraction-pill__label--success {
+  color: var(--fl-success);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-forge-resourcebar__fill {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--fl2-defense) 35%, black), var(--fl2-defense));
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-extraction-pill__label--accent {
+  color: var(--fl-arcane);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] .combat-stat-card {
-  border-right-color: var(--fl2-gold-muted) !important;
-  border-radius: 0 !important;
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-extraction-pill__detail {
+  color: var(--fl-text-secondary);
+}
+
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-hpbar--hero .combat-forge-hpbar__fill {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--fl-success) 35%, black), var(--fl-success));
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-forge-resourcebar__fill {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--fl-defense) 35%, black), var(--fl-defense));
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-stat-module .fl-panel__body {
+  padding: 6px 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] :where(.combat-session-panel, .combat-log-panel).fl-panel .fl-panel__body {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-stat-module__row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-stat-card {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 5px 6px;
+  text-align: center;
+  min-height: 44px;
+  background: transparent !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-stat-card + .combat-stat-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background:
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(198, 161, 91, 0.2) 16%,
+      rgba(243, 198, 95, 0.52) 52%,
+      rgba(198, 161, 91, 0.2) 84%,
+      transparent 100%
+    );
+  pointer-events: none;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-stat-card + .combat-stat-card::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  background: var(--fl-gold-border);
+  border: 1px solid rgba(255, 232, 166, 0.42);
+  transform: translate(-50%, -50%) rotate(45deg);
+  box-shadow: 0 0 6px rgba(230, 196, 122, 0.24);
+  pointer-events: none;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-stat-card__label {
+  margin: 0;
+  color: var(--fl-text-muted);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-stat-card__value {
+  margin: 0;
+  color: var(--fl-gold-border);
+  font-family: var(--fl-font-display);
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-stat-card__hint {
+  margin: 0;
+  color: var(--fl-text-secondary);
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-session-footer__actions :where(.fl-badge, .fl-tag) {
+  min-height: 22px !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-session-panel--dense .fl-panel__body,
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-panel.combat-session-panel--dense .fl-panel__body {
+  padding: 0;
+  gap: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] :where(.combat-session-panel, .combat-log-panel).fl-panel .fl-panel__body > * {
+  margin-left: 14px;
+  margin-right: 14px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-session-panel--dense.fl-panel .fl-panel__body > * {
+  margin-left: 10px;
+  margin-right: 10px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-session-copy {
+  color: var(--fl-text-secondary);
+  font-size: 0.62rem;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-session-copy--dense {
+  font-size: 0.6rem;
+  -webkit-line-clamp: 2;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-session-copy--full {
+  -webkit-line-clamp: unset;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-session-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-session-footer__meta {
+  color: var(--fl-text-secondary);
+  font-weight: 900;
+  font-size: 0.62rem;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-session-footer__meta--dense {
+  font-size: 0.58rem;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-session-footer__actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  justify-self: end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-arrow.fl-button {
+  position: absolute;
+  z-index: 2;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0 !important;
+  border-radius: 999px !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-arrow--left.fl-button {
+  top: 6px;
+  left: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-arrow--right.fl-button {
+  top: 6px;
+  right: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-session-panel--dense .combat-weekly-arrow--left.fl-button {
+  top: 4px;
+  left: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-session-panel--dense .combat-weekly-arrow--right.fl-button {
+  top: 4px;
+  right: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-arrow--inline.fl-button {
+  position: static;
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-arrow .fl-button__content {
+  gap: 0;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-arrow .fl-button__label {
+  font-size: 0.86rem;
+  line-height: 1;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-ledger-strip {
+  display: none;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-ledger-strip--dense {
+  padding-left: 34px;
+  padding-right: 34px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-arrows-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-status,
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-index,
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-boss-mutations {
+  color: var(--fl-text-muted);
+  font-weight: 900;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-index {
+  font-size: 0.6rem;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-index--dense {
+  font-size: 0.56rem;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-difficulty-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-difficulty-button.fl-button {
+  min-width: 132px;
+  justify-content: flex-start;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-difficulty-button .fl-button__content {
+  width: 100%;
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  text-align: left;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-weekly-difficulty-button .fl-button__cost {
+  color: var(--fl-text-muted);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-action.fl-button {
+  min-width: 86px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-collapsible-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-collapsible-header__title {
+  font-size: 9px;
+  color: var(--fl-text-muted);
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-collapsible-header__state {
+  font-size: 0.62rem;
+  color: var(--fl-text-secondary);
+  font-weight: 900;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-talents-panel {
+  background: var(--color-background-secondary, #fff);
+  border-radius: 16px;
+  padding: 10px;
+  border: 1px solid var(--color-border-primary, #e2e8f0);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-talents-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-talents-panel__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-talents-panel__item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-talents-panel__name {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--color-text-primary, #1e293b);
+  line-height: 1.35;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-talents-panel__desc {
+  font-weight: 400;
+  color: var(--fl-text-muted);
+  font-size: 10px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-talents-panel__active-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fl-arcane) 14%, transparent);
+  color: var(--fl-arcane);
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-talents-panel__progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-talents-panel__progress-track {
+  flex: 1;
+  height: 6px;
+  background: var(--color-background-tertiary, #f1f5f9);
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-primary, #e2e8f0);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-talents-panel__progress-fill {
+  height: 100%;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-talents-panel__progress-label {
+  font-size: 9px;
+  font-weight: 900;
+  min-width: 88px;
+  text-align: right;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-toolbar {
+  display: flex;
+  justify-content: space-between;
+  margin: 6px 0 4px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-toolbar__eyebrow {
+  font-size: 0.58rem;
+  color: var(--color-text-tertiary, #94a3b8);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-toolbar__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-list {
+  background: var(--color-background-primary, #0f172a);
+  border-radius: 12px;
+  padding: 10px;
+  max-height: var(--combat-log-max-height, 112px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--color-border-primary, #22314d);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-line {
+  font-size: 11px;
+  margin: 0;
+  font-family: monospace;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--color-border-secondary, #1e293b33);
+  color: var(--color-text-tertiary, #94a3b8);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-line__prompt {
+  opacity: 0.2;
+  margin-right: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-line--achievement { color: var(--tone-warning, #fde68a); font-weight: 900; }
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-line--objective { color: var(--tone-info, #93c5fd); font-weight: 900; }
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-line--boss { color: var(--tone-violet, #c4b5fd); font-weight: 900; }
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-line--victory { color: var(--fl-success); font-weight: 900; }
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-line--down { color: var(--tone-danger, #fca5a5); font-weight: 900; }
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-line--critical { color: var(--fl-warning); font-weight: 900; }
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-line--gain { color: var(--fl-success); font-weight: 700; }
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-line--danger { color: var(--tone-danger, #ef4444); }
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-log-line--level { color: var(--tone-violet, #a855f7); font-weight: 700; }
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+  border-radius: 12px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel.is-spotlighted {
+  padding: 8px 10px;
+  background: var(--tone-accent-soft, #eef2ff);
+  box-shadow: 0 0 0 2px rgba(83, 74, 183, 0.18), 0 12px 28px rgba(83, 74, 183, 0.14);
+  animation: combatSpotlightPulse 1600ms ease-in-out infinite;
+  cursor: pointer;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel__enemy-name {
+  margin: 0;
+  font-weight: 900;
+  color: var(--fl-gold-glow);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: help;
+  display: block;
+  max-width: 100%;
+  font-family: var(--fl-font-display);
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel__legendary-summary {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel__panel.fl-panel {
+  width: min(100%, 560px);
+  margin-top: 8px;
+  text-align: left;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel__panel .fl-panel__body {
+  display: grid;
+  gap: 9px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel__toggle.fl-button {
+  min-width: 92px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel__meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel__sections {
+  display: grid;
+  gap: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel__section {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--fl-gold-muted);
+  border-radius: var(--fl-radius-md);
+  background:
+    linear-gradient(180deg, rgba(255, 232, 166, 0.035), rgba(0, 0, 0, 0)),
+    rgba(8, 10, 11, 0.42);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel__section-title {
+  font-size: 0.54rem;
+  color: var(--fl-text-muted);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel__list {
+  display: grid;
+  gap: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel__entry {
+  display: grid;
+  gap: 3px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel__entry-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel__entry-label {
+  font-size: 0.64rem;
+  color: var(--fl-text-primary);
+  font-weight: 900;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel__entry-description {
+  font-size: 0.6rem;
+  color: var(--fl-text-secondary);
+  line-height: 1.35;
+  font-weight: 800;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-encounter-intel__entry-description--accent {
+  color: var(--fl-arcane);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-reset-progress {
+  background: none;
+  border: 0;
+  color: var(--fl-danger);
+  font-size: 9px;
+  cursor: pointer;
+  opacity: 0.4;
+  align-self: center;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-status-tray {
+  box-sizing: border-box;
+  min-height: 33px;
+  margin-top: 6px;
+  padding: 5px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--fl-gold-muted);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 232, 166, 0.06), rgba(0, 0, 0, 0)),
+    rgba(8, 10, 11, 0.54);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-status-tray[data-mobile="true"] {
+  min-height: 31px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-status-tray__list {
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+  min-width: max-content;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-status-tray__empty {
+  color: var(--fl-text-muted);
+  font-size: 0.6rem;
+  font-weight: 800;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: fit-content;
+  padding: 4px 8px;
+  border: 1px solid var(--fl-gold-muted);
+  border-radius: 999px;
+  background: rgba(8, 10, 11, 0.52);
+  color: var(--fl-text-secondary);
+  font-size: 0.58rem;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-status-pill[data-tone="success"] {
+  color: var(--fl-success);
+  background: rgba(79, 209, 139, 0.11);
+  border-color: color-mix(in srgb, var(--fl-success) 45%, transparent);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-status-pill[data-tone="danger"] {
+  color: var(--fl-danger);
+  background: rgba(224, 90, 90, 0.12);
+  border-color: color-mix(in srgb, var(--fl-danger) 45%, transparent);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-status-pill[data-tone="warning"] {
+  color: var(--fl-warning);
+  background: rgba(242, 184, 75, 0.12);
+  border-color: color-mix(in srgb, var(--fl-warning) 45%, transparent);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-status-pill[data-tone="boss"],
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-status-pill[data-tone="info"] {
+  color: var(--fl-defense);
+  background: rgba(74, 143, 231, 0.12);
+  border-color: color-mix(in srgb, var(--fl-defense) 45%, transparent);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-status-pill[data-pulse="true"] {
+  animation: combatStatusPillPulse 3600ms ease-in-out infinite;
+  animation-delay: var(--combat-pill-delay, 0ms);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-status-pill__value {
+  opacity: 0.9;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] .combat-status-pill__detail {
+  opacity: 0.86;
+  font-size: 0.54rem;
+  font-weight: 800;
 }

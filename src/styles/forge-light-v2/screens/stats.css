@@ -1,8 +1,23 @@
-.app-shell-root--forge-light-v2[data-fl2-screen="stats"] :where(.stats-root, .stats-panel, .stats-card),
-.app-shell-root--forge-light-v2[data-fl2-screen="system"] :where(.stats-root, .stats-panel, .stats-card) {
+.app-shell-root--forge-light-v2[data-fl-screen="stats"] :where(.stats-root, .stats-panel, .stats-card),
+.app-shell-root--forge-light-v2[data-fl-screen="system"] :where(.stats-root, .stats-panel, .stats-card) {
   background:
     radial-gradient(circle at 9% 50%, rgba(74, 143, 231, 0.05), transparent 24%),
-    linear-gradient(180deg, rgba(8, 10, 11, 0.56), rgba(5, 8, 10, 0.52)) !important;
-  border-color: rgba(198, 161, 91, 0.18) !important;
-  color: var(--fl2-text) !important;
+    linear-gradient(180deg, rgba(8, 10, 11, 0.56), rgba(5, 8, 10, 0.52));
+  border-color: rgba(198, 161, 91, 0.18);
+  color: var(--fl-text-primary);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="stats"] .stats-root-shell,
+.app-shell-root--forge-light-v2[data-fl-screen="system"] .stats-root-shell {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--fl-text-primary);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="stats"] .horizontal-option-selector--chips .horizontal-option-selector__option--selected,
+.app-shell-root--forge-light-v2[data-fl-screen="system"] .horizontal-option-selector--chips .horizontal-option-selector__option--selected {
+  border-color: var(--fl-gold-border);
+  color: var(--fl-gold-hover);
 }

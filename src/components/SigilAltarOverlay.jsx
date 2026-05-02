@@ -2,89 +2,30 @@ import React, { useEffect, useMemo, useState } from "react";
 import OverlayShell, { OverlaySurface } from "./OverlayShell";
 import JobProgressBar from "./JobProgressBar";
 import HorizontalOptionSelector from "./HorizontalOptionSelector";
+import { FlBadge, FlButton, FlMetricGrid, FlPanel, FlPanelHeader } from "./ui/forge";
 import { RUN_SIGILS, getRunSigil } from "../data/runSigils";
 import { getSigilInfusionRecipe } from "../engine/sanctuary/jobEngine";
 import useRelativeNow from "../hooks/useRelativeNow";
 
-function sectionPanelStyle(accent = "var(--tone-success, #10b981)") {
-  return {
-    background: "var(--color-background-secondary, #ffffff)",
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    borderTop: `3px solid ${accent}`,
-    borderRadius: "16px",
-    padding: "16px",
-    display: "grid",
-    gap: "12px",
-    alignSelf: "start",
-    boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
-  };
+function panelClass(tone = "success") {
+  return [
+    "fl-station-panel",
+    `fl-station-panel--${tone}`,
+  ].join(" ");
 }
 
-function cardStyle() {
-  return {
-    background: "var(--color-background-tertiary, #f8fafc)",
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    borderRadius: "12px",
-    padding: "10px",
-    display: "grid",
-    gap: "8px",
-  };
+function cardClass({ compact = false } = {}) {
+  return [
+    "fl-station-metric-card",
+    compact ? "fl-station-metric-card--compact" : "",
+  ].filter(Boolean).join(" ");
 }
 
-function metricCardStyle() {
-  return {
-    background: "var(--color-background-tertiary, #f8fafc)",
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    borderRadius: "12px",
-    padding: "8px 10px",
-    display: "grid",
-    gap: "2px",
-  };
-}
-
-function actionButtonStyle({ primary = false, disabled = false, compact = false } = {}) {
-  return {
-    border: "1px solid",
-    borderColor: disabled
-      ? "var(--color-border-primary, #e2e8f0)"
-      : primary
-        ? "var(--tone-success, #10b981)"
-        : "var(--color-border-primary, #e2e8f0)",
-    background: disabled
-      ? "var(--color-background-tertiary, #f8fafc)"
-      : primary
-        ? "var(--tone-success-soft, #ecfdf5)"
-        : "var(--color-background-secondary, #ffffff)",
-    color: disabled
-      ? "var(--color-text-tertiary, #94a3b8)"
-      : primary
-        ? "var(--tone-success, #10b981)"
-        : "var(--color-text-primary, #1e293b)",
-    borderRadius: "12px",
-    padding: compact ? "7px 11px" : "10px 14px",
-    fontSize: compact ? "0.68rem" : "0.72rem",
-    fontWeight: "900",
-    cursor: disabled ? "not-allowed" : "pointer",
-    boxShadow: disabled ? "none" : "inset 0 0 0 1px rgba(255,255,255,0.02)",
-  };
-}
-
-function chipLabelStyle(color = "var(--tone-success, #10b981)") {
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    minHeight: "24px",
-    boxSizing: "border-box",
-    whiteSpace: "nowrap",
-    border: "1px solid var(--color-border-primary, #e2e8f0)",
-    background: "var(--color-background-tertiary, #f8fafc)",
-    color,
-    borderRadius: "999px",
-    padding: "4px 8px",
-    fontSize: "0.62rem",
-    fontWeight: "900",
-    lineHeight: 1,
-  };
+function chipLabelClass(tone = "success") {
+  return [
+    "fl-station-chip",
+    `fl-station-chip--${tone}`,
+  ].join(" ");
 }
 
 function formatRemaining(ms = 0) {
@@ -114,7 +55,7 @@ function getInitialSigilSelection(sanctuary = {}) {
   return RUN_SIGILS[0]?.id || "free";
 }
 
-export default function SigilAltarOverlay({ state, dispatch, isMobile = false, onClose }) {
+export default function SigilAltarOverlay({ state, dispatch, isMobile = false, embedded = false, onClose }) {
   const now = useRelativeNow();
   const sanctuary = state.sanctuary || {};
   const [selectedSigilId, setSelectedSigilId] = useState(() => getInitialSigilSelection(sanctuary));
@@ -176,69 +117,68 @@ export default function SigilAltarOverlay({ state, dispatch, isMobile = false, o
     }
   }, [infusionOptions, selectedInfusion, selectedSigilId]);
 
-  return (
-    <OverlayShell isMobile={isMobile} variant="forge" contentLabel="Altar de Sigilos">
-      <OverlaySurface isMobile={isMobile} variant="forge" className="fl-station-overlay fl-station-overlay--sigils">
-        <div {...{ style: {
-          padding: "1rem",
-          display: "grid",
-          gap: "1rem",
-          alignItems: "start",
-          alignContent: "start",
-          background: "var(--color-background-primary, #f8fafc)",
-          color: "var(--color-text-primary, #1e293b)",
-        } }}>
-          <section {...{ style: sectionPanelStyle("var(--tone-success, #10b981)") }}>
-            <div {...{ style: { display: "grid", gap: "12px", alignItems: "start" } }}>
-              <div {...{ style: { minWidth: 0 } }}>
-                <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-success, #10b981)" } }}>
-                  Altar de Sigilos
-                </div>
-                <div {...{ style: { fontSize: "1.02rem", fontWeight: "900", marginTop: "4px" } }}>
-                  Preparación persistente de la próxima expedición
-                </div>
-                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" } }}>
-                  Prepara cargas con tiempo real. La próxima expedición consume automáticamente una carga del sigilo equipado.
-                </div>
-              </div>
-            </div>
-
-            <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap" } }}>
-              <span {...{ style: chipLabelStyle("var(--tone-success, #10b981)") }}>
+  const content = (
+    <div
+      className="fl-station-overlay fl-station-overlay--sigils overlay-station-body overlay-station-body--forge"
+    >
+          <FlPanel
+            variant="compact"
+            className="fl-sigils-hero-panel"
+            header={(
+              <FlPanelHeader
+                title="Altar de Sigilos"
+                subtitle="Preparación persistente de la próxima expedición"
+                copy="Prepara cargas con tiempo real. La próxima expedición consume automáticamente una carga del sigilo equipado."
+                actions={(
+                  <FlButton variant="secondary" size="sm" onClick={onClose}>
+                    Volver
+                  </FlButton>
+                )}
+              />
+            )}
+          >
+            <div className="fl-sigils-hero-panel__chips">
+              <FlBadge variant="pill" size="xs" tone="success">
                 {runningInfusionJobs.length} / {infusionSlots} jobs
-              </span>
-              <span {...{ style: chipLabelStyle("var(--tone-accent, #4338ca)") }}>
+              </FlBadge>
+              <FlBadge variant="pill" size="xs" tone="reward">
                 {Math.floor(Number(resources?.sigilFlux || 0)).toLocaleString()} flux
-              </span>
-              <span {...{ style: chipLabelStyle("var(--tone-info, #0369a1)") }}>
+              </FlBadge>
+              <FlBadge variant="pill" size="xs" tone="defense">
                 {totalCharges} cargas
-              </span>
+              </FlBadge>
             </div>
 
-            <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" } }}>
-              <div {...{ style: metricCardStyle() }}>
-                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Flux</div>
-                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{Math.floor(Number(resources?.sigilFlux || 0)).toLocaleString()}</div>
-              </div>
-              <div {...{ style: metricCardStyle() }}>
-                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Jobs</div>
-                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{runningInfusionJobs.length}</div>
-              </div>
-              <div {...{ style: metricCardStyle() }}>
-                <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Cargas</div>
-                <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{totalCharges}</div>
-              </div>
-            </div>
-
-            <div {...{ style: { display: "flex", justifyContent: "flex-end" } }}>
-              <button onClick={onClose} {...{ style: { ...actionButtonStyle({ compact: true }), flex: "0 0 auto" } }}>
-                Volver
-              </button>
-            </div>
-          </section>
+            <FlMetricGrid
+              className="fl-sigils-hero-metrics"
+              columns={3}
+              mobileColumns={3}
+              compact
+              items={[
+                {
+                  id: "sigils-flux",
+                  label: "Flux",
+                  value: Math.floor(Number(resources?.sigilFlux || 0)).toLocaleString(),
+                  tone: "arcane",
+                },
+                {
+                  id: "sigils-jobs",
+                  label: "Jobs",
+                  value: runningInfusionJobs.length,
+                  tone: "defense",
+                },
+                {
+                  id: "sigils-charges",
+                  label: "Cargas",
+                  value: totalCharges,
+                  tone: "success",
+                },
+              ]}
+            />
+          </FlPanel>
 
           <section className="overlay-split-54-46">
-            <div {...{ style: sectionPanelStyle("var(--tone-success, #10b981)") }}>
+            <div className={panelClass("success")}>
               <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start" } }}>
                 <div>
                   <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-success, #10b981)" } }}>
@@ -260,19 +200,6 @@ export default function SigilAltarOverlay({ state, dispatch, isMobile = false, o
                   onSelect={option => setSelectedSigilId(option?.sigil?.id || "free")}
                   getOptionId={option => option?.sigil?.id || "free"}
                   getOptionKey={option => `sigil-option-${option?.sigil?.id || "free"}`}
-                  getArrowButtonStyle={({ disabled }) => ({
-                    ...actionButtonStyle({ compact: true, disabled }),
-                    minWidth: "34px",
-                    padding: "4px 0",
-                  })}
-                  getOptionButtonStyle={({ selected }) => ({
-                    ...actionButtonStyle({ compact: true, primary: selected }),
-                    minWidth: "118px",
-                    display: "grid",
-                    gap: "1px",
-                    textAlign: "left",
-                    flexShrink: 0,
-                  })}
                   renderOption={({ option, selected }) => {
                     const runningCount = option.runningJobs.length;
                     const status = option.blocked
@@ -294,7 +221,7 @@ export default function SigilAltarOverlay({ state, dispatch, isMobile = false, o
                 />
 
                 {selectedInfusion && (
-                  <div {...{ style: cardStyle() }}>
+                  <div className={cardClass()}>
                     <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" } }}>
                       <div {...{ style: { minWidth: 0 } }}>
                         <div {...{ style: { fontSize: "0.78rem", fontWeight: "900" } }}>{selectedInfusion.sigil.name}</div>
@@ -303,10 +230,10 @@ export default function SigilAltarOverlay({ state, dispatch, isMobile = false, o
                         </div>
                       </div>
                       <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" } }}>
-                        <span {...{ style: chipLabelStyle("var(--tone-success, #10b981)") }}>
+                        <span className={chipLabelClass("success")}>
                           {selectedInfusion.storedCharges} carga{selectedInfusion.storedCharges === 1 ? "" : "s"}
                         </span>
-                        <span {...{ style: chipLabelStyle("var(--tone-info, #0369a1)") }}>
+                        <span className={chipLabelClass("info")}>
                           {selectedInfusion.runningJobs.length} en curso
                         </span>
                       </div>
@@ -329,13 +256,14 @@ export default function SigilAltarOverlay({ state, dispatch, isMobile = false, o
                             : "Te falta flux de sigilo."
                           : "Listo para infusionar."}
                       </div>
-                      <button
+                      <FlButton
+                        variant={!selectedInfusion.blocked ? "default" : "secondary"}
+                        size="sm"
                         onClick={() => dispatch({ type: "START_SIGIL_INFUSION", sigilId: selectedInfusion.sigil.id, now })}
                         disabled={selectedInfusion.blocked}
-                        {...{ style: actionButtonStyle({ primary: !selectedInfusion.blocked, disabled: selectedInfusion.blocked }) }}
                       >
                         Infusionar
-                      </button>
+                      </FlButton>
                     </div>
 
                     {selectedInfusion.runningJobs.length > 0 && (
@@ -358,7 +286,7 @@ export default function SigilAltarOverlay({ state, dispatch, isMobile = false, o
               </div>
             </div>
 
-            <div {...{ style: sectionPanelStyle("var(--tone-accent, #4338ca)") }}>
+            <div className={panelClass("accent")}>
               <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start" } }}>
                 <div>
                   <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" } }}>
@@ -381,7 +309,7 @@ export default function SigilAltarOverlay({ state, dispatch, isMobile = false, o
                 ) : (
                   <div {...{ style: { display: "grid", gap: "8px" } }}>
                     {storedEntries.map(entry => (
-                      <div key={entry.sigilId} {...{ style: cardStyle() }}>
+                      <div key={entry.sigilId} className={cardClass()}>
                         <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start" } }}>
                           <div>
                             <div {...{ style: { fontSize: "0.78rem", fontWeight: "900" } }}>{entry.label || getRunSigil(entry.sigilId).name}</div>
@@ -389,7 +317,7 @@ export default function SigilAltarOverlay({ state, dispatch, isMobile = false, o
                               {entry.summary || "Carga persistente lista para una futura expedición."}
                             </div>
                           </div>
-                          <span {...{ style: chipLabelStyle("var(--tone-accent, #4338ca)") }}>
+                          <span className={chipLabelClass("accent")}>
                             {Math.max(0, Number(entry?.charges || 0))} carga{Math.max(0, Number(entry?.charges || 0)) !== 1 ? "s" : ""}
                           </span>
                         </div>
@@ -399,7 +327,7 @@ export default function SigilAltarOverlay({ state, dispatch, isMobile = false, o
                 )}
 
                 {runningInfusionJobs.length > 0 && (
-                  <div {...{ style: cardStyle() }}>
+                  <div className={cardClass()}>
                     <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" } }}>
                       Trabajos del altar
                     </div>
@@ -425,7 +353,22 @@ export default function SigilAltarOverlay({ state, dispatch, isMobile = false, o
               </>
             </div>
           </section>
-        </div>
+    </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <OverlayShell isMobile={isMobile} embedded={embedded} variant="forge" contentLabel="Altar de Sigilos">
+      <OverlaySurface
+        isMobile={isMobile}
+        embedded={embedded}
+        variant="forge"
+        className="fl-station-overlay fl-station-overlay--sigils"
+      >
+        {content}
       </OverlaySurface>
     </OverlayShell>
   );

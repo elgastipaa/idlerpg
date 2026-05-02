@@ -1,66 +1,66 @@
-.app-shell-root--forge-light-v2 .fl2-surface {
-  color: var(--fl2-text);
-  background: var(--fl2-surface-bg);
-  border: 1px solid var(--fl2-surface-border);
-  border-radius: var(--fl2-radius-lg);
-  box-shadow: var(--fl2-surface-shadow);
+.app-shell-root--forge-light-v2 .fl-surface {
+  color: var(--fl-text-primary);
+  background: var(--fl-surface-bg);
+  border: 1px solid var(--fl-surface-border);
+  border-radius: var(--fl-radius-lg);
+  box-shadow: var(--fl-surface-shadow);
 }
 
-.app-shell-root--forge-light-v2 .fl2-surface--soft {
-  --fl2-surface: var(--fl2-surface-soft);
+.app-shell-root--forge-light-v2 .fl-surface--soft {
+  --fl-surface-local: var(--fl-surface-soft);
 }
 
-.app-shell-root--forge-light-v2 .fl2-surface--strong {
-  --fl2-surface: var(--fl2-surface-strong);
+.app-shell-root--forge-light-v2 .fl-surface--strong {
+  --fl-surface-local: var(--fl-surface-strong);
 }
 
-.app-shell-root--forge-light-v2 .fl2-surface--glass {
-  background: var(--fl2-surface-bg-soft);
+.app-shell-root--forge-light-v2 .fl-surface--glass {
+  background: var(--fl-surface-bg-soft);
   border-color: rgba(198, 161, 91, 0.18);
 }
 
-.app-shell-root--forge-light-v2 .fl2-inline-surface {
-  color: var(--fl2-text) !important;
-  background: var(--fl2-surface-bg) !important;
-  border: 1px solid var(--fl2-surface-border) !important;
-  border-radius: var(--fl2-radius-lg) !important;
-  box-shadow: var(--fl2-surface-shadow) !important;
+.app-shell-root--forge-light-v2 .fl-inline-surface {
+  color: var(--fl-text-primary) !important;
+  background: var(--fl-surface-bg) !important;
+  border: 1px solid var(--fl-surface-border) !important;
+  border-radius: var(--fl-radius-lg) !important;
+  box-shadow: var(--fl-surface-shadow) !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-inline-surface--soft {
-  background: var(--fl2-surface-bg-soft) !important;
+.app-shell-root--forge-light-v2 .fl-inline-surface--soft {
+  background: var(--fl-surface-bg-soft) !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-inline-surface--strong,
-.app-shell-root--forge-light-v2 .fl2-inline-modal {
-  background: var(--fl2-surface-bg-strong) !important;
-  border-color: var(--fl2-surface-border) !important;
+.app-shell-root--forge-light-v2 .fl-inline-surface--strong,
+.app-shell-root--forge-light-v2 .fl-inline-modal {
+  background: var(--fl-surface-bg-strong) !important;
+  border-color: var(--fl-surface-border) !important;
   box-shadow:
     0 24px 60px rgba(0, 0, 0, 0.56),
     inset 0 0 0 1px rgba(255, 232, 166, 0.04) !important;
   backdrop-filter: blur(10px);
 }
 
-.app-shell-root--forge-light-v2 .fl2-inline-chip,
-.app-shell-root--forge-light-v2 .fl2-inline-note,
-.app-shell-root--forge-light-v2 .fl2-inline-field {
-  color: var(--fl2-text) !important;
-  background: var(--fl2-surface-bg-soft) !important;
+.app-shell-root--forge-light-v2 .fl-inline-chip,
+.app-shell-root--forge-light-v2 .fl-inline-note,
+.app-shell-root--forge-light-v2 .fl-inline-field {
+  color: var(--fl-text-primary) !important;
+  background: var(--fl-surface-bg-soft) !important;
   border-color: rgba(198, 161, 91, 0.18) !important;
   box-shadow: inset 0 0 0 1px rgba(255, 232, 166, 0.03) !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-inline-panel {
-  color: var(--fl2-text) !important;
+.app-shell-root--forge-light-v2 .fl-inline-panel {
+  color: var(--fl-text-primary) !important;
   background:
     radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.05), transparent 24%),
-    var(--fl2-surface-bg) !important;
+    var(--fl-surface-bg) !important;
   border-color: rgba(198, 161, 91, 0.22) !important;
-  box-shadow: var(--fl2-surface-shadow) !important;
+  box-shadow: var(--fl-surface-shadow) !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-primary-card {
-  color: var(--fl2-text) !important;
+.app-shell-root--forge-light-v2 .fl-primary-card {
+  color: var(--fl-text-primary) !important;
   background:
     radial-gradient(circle at 50% 18%, rgba(243, 198, 95, 0.04), transparent 34%),
     linear-gradient(180deg, rgba(8, 10, 11, 0.44), rgba(5, 8, 10, 0.38)) !important;
@@ -71,20 +71,18 @@
     0 8px 16px rgba(0, 0, 0, 0.24) !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-primary-card--strong {
+.app-shell-root--forge-light-v2 .fl-primary-card--strong {
   background:
     radial-gradient(circle at 50% 18%, rgba(243, 198, 95, 0.055), transparent 34%),
     linear-gradient(180deg, rgba(8, 10, 11, 0.58), rgba(5, 8, 10, 0.5)) !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-card,
-.app-shell-root--forge-light-v2 .fl-card,
-.app-shell-root--forge-light-v2 .fl-panel {
-  color: var(--fl2-text);
-  background: var(--fl2-surface-bg) !important;
-  border-color: var(--fl2-surface-border) !important;
-  border-radius: var(--fl2-radius-lg) !important;
-  box-shadow: var(--fl2-surface-shadow) !important;
+.app-shell-root--forge-light-v2 .fl-card {
+  color: var(--fl-text-primary);
+  background: var(--fl-surface-bg) !important;
+  border-color: var(--fl-surface-border) !important;
+  border-radius: var(--fl-radius-lg) !important;
+  box-shadow: var(--fl-surface-shadow) !important;
 }
 
 .app-shell-root--forge-light-v2 .fl-card[data-state="pressed"] {
@@ -93,18 +91,18 @@
 }
 
 .app-shell-root--forge-light-v2 .fl-card[data-state="selected"] {
-  border-color: var(--fl2-gold) !important;
-  box-shadow: var(--fl2-glow-gold-soft), var(--fl2-surface-shadow) !important;
+  border-color: var(--fl-gold-glow) !important;
+  box-shadow: var(--fl-glow-gold-soft), var(--fl-surface-shadow) !important;
 }
 
 .app-shell-root--forge-light-v2 .fl-card[data-state="success"] {
-  border-color: color-mix(in srgb, var(--fl2-success) 68%, transparent) !important;
-  box-shadow: var(--fl2-glow-success), var(--fl2-surface-shadow) !important;
+  border-color: color-mix(in srgb, var(--fl-success) 68%, transparent) !important;
+  box-shadow: var(--fl-glow-success), var(--fl-surface-shadow) !important;
 }
 
 .app-shell-root--forge-light-v2 .fl-card[data-state="error"] {
-  border-color: color-mix(in srgb, var(--fl2-danger) 68%, transparent) !important;
-  box-shadow: var(--fl2-glow-danger), var(--fl2-surface-shadow) !important;
+  border-color: color-mix(in srgb, var(--fl-danger) 68%, transparent) !important;
+  box-shadow: var(--fl-glow-danger), var(--fl-surface-shadow) !important;
 }
 
 .app-shell-root--forge-light-v2 .fl-card[data-state="loading"] {
@@ -122,6 +120,11 @@
   background: rgba(0, 0, 0, 0.34) !important;
 }
 
+.app-shell-root--forge-light-v2 .overlay-shell.overlay-shell--embedded {
+  position: static;
+  background: transparent !important;
+}
+
 .app-shell-root--forge-light-v2 .overlay-shell::before {
   content: "";
   position: fixed;
@@ -134,18 +137,34 @@
     radial-gradient(circle at 50% 88%, rgba(0, 0, 0, 0.34), transparent 42%);
 }
 
+.app-shell-root--forge-light-v2 .overlay-shell.overlay-shell--embedded::before {
+  display: none;
+}
+
 .app-shell-root--forge-light-v2 .overlay-shell__surface {
   position: relative;
   z-index: 1;
-  color: var(--fl2-text);
+  color: var(--fl-text-primary);
   background:
     radial-gradient(circle at 50% 0%, rgba(243, 198, 95, 0.055), transparent 32%),
     linear-gradient(180deg, rgba(7, 9, 10, 0.68), rgba(3, 5, 6, 0.62));
-  border: 1px solid var(--fl2-surface-border);
+  border: 1px solid var(--fl-surface-border);
   box-shadow:
     0 24px 60px rgba(0, 0, 0, 0.5),
     inset 0 0 0 1px rgba(255, 232, 166, 0.04);
   backdrop-filter: blur(10px);
+}
+
+.app-shell-root--forge-light-v2 .overlay-shell__surface.overlay-shell__surface--embedded {
+  max-width: none;
+  max-height: none;
+  overflow: visible;
+  border-radius: 0;
+  box-shadow: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
 }
 
 .app-shell-root--forge-light-v2 .fl-station-overlay,
@@ -166,12 +185,12 @@
 .app-shell-root--forge-light-v2 .fl-station-overlay .overlay-cols-1-2 > div[style*="background"],
 .app-shell-root--forge-light-v2 .fl-station-overlay .overlay-cols-1-3 > div[style*="background"],
 .app-shell-root--forge-light-v2 .fl-station-overlay .overlay-cols-2-4 > div[style*="background"] {
-  color: var(--fl2-text) !important;
+  color: var(--fl-text-primary) !important;
   background:
     radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.05), transparent 24%),
     linear-gradient(180deg, rgba(8, 10, 11, 0.48), rgba(5, 8, 10, 0.42)) !important;
   border-color: rgba(198, 161, 91, 0.22) !important;
-  box-shadow: var(--fl2-surface-shadow) !important;
+  box-shadow: var(--fl-surface-shadow) !important;
 }
 
 .app-shell-root--forge-light-v2 .overlay-station-body {
@@ -180,7 +199,7 @@
   align-content: start;
   gap: 1rem;
   padding: 1rem;
-  color: var(--fl2-text);
+  color: var(--fl-text-primary);
   background:
     radial-gradient(circle at 12% 0%, rgba(243, 198, 95, 0.06), transparent 32%),
     rgba(7, 9, 10, 0.38);
@@ -197,12 +216,12 @@
   gap: 10px;
   flex-wrap: wrap;
   padding: 14px 16px;
-  color: var(--fl2-text);
-  background: var(--fl2-surface-bg);
-  border: 1px solid var(--fl2-surface-border);
-  border-top: 3px solid var(--overlay-station-accent, var(--fl2-gold));
-  border-radius: var(--fl2-radius-lg);
-  box-shadow: var(--fl2-surface-shadow);
+  color: var(--fl-text-primary);
+  background: var(--fl-surface-bg);
+  border: 1px solid var(--fl-surface-border);
+  border-top: 3px solid var(--overlay-station-accent, var(--fl-gold-glow));
+  border-radius: var(--fl-radius-lg);
+  box-shadow: var(--fl-surface-shadow);
 }
 
 .app-shell-root--forge-light-v2 .overlay-station-header--forge {
@@ -214,7 +233,7 @@
 }
 
 .app-shell-root--forge-light-v2 .overlay-station-eyebrow {
-  color: var(--overlay-station-accent, var(--fl2-gold));
+  color: var(--overlay-station-accent, var(--fl-gold-glow));
   font-size: 0.66rem;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -222,7 +241,7 @@
 }
 
 .app-shell-root--forge-light-v2 .overlay-station-header--forge .overlay-station-eyebrow {
-  color: var(--fl-gold-hover, var(--fl2-gold-strong));
+  color: var(--fl-gold-hover, var(--fl-gold-hover));
 }
 
 .app-shell-root--forge-light-v2 .overlay-station-header-content--with-eyebrow {
@@ -230,7 +249,7 @@
 }
 
 .app-shell-root--forge-light-v2 .overlay-station-title {
-  color: var(--fl2-text);
+  color: var(--fl-text-primary);
   font-size: 1.02rem;
   font-weight: 900;
 }
@@ -242,7 +261,7 @@
 .app-shell-root--forge-light-v2 .overlay-station-description {
   max-width: 56ch;
   margin-top: 4px;
-  color: var(--fl2-text-secondary);
+  color: var(--fl-text-secondary);
   font-size: 0.68rem;
   line-height: 1.35;
 }

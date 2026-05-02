@@ -3,7 +3,7 @@ import ForgeIcon from "../../icons/ForgeIcon";
 import FlBadge from "./FlBadge.jsx";
 
 const VALID_VARIANTS = new Set(["default", "primary", "toggle", "danger", "compact"]);
-const VALID_SIZES = new Set(["sm", "md", "lg"]);
+const VALID_SIZES = new Set(["xs", "sm", "md", "lg"]);
 
 function cx(...parts) {
   return parts.filter(Boolean).join(" ");
@@ -11,6 +11,22 @@ function cx(...parts) {
 
 function normalizeOption(value, validOptions, fallback) {
   return validOptions.has(value) ? value : fallback;
+}
+
+function resolveButtonVariant(variant, active) {
+  if (variant === "danger") return "danger";
+  if (variant === "primary") return "primary";
+  if (variant === "toggle") return active ? "selected" : "secondary";
+  if (variant === "compact") return "default";
+  return "default";
+}
+
+function resolveButtonSize(size) {
+  if (size === "lg") return "sm";
+  if (size === "md") return "sm";
+  if (size === "sm") return "xs";
+  if (size === "xs") return "xs";
+  return "xs";
 }
 
 const FlSideAction = React.forwardRef(function FlSideAction(
@@ -31,6 +47,8 @@ const FlSideAction = React.forwardRef(function FlSideAction(
 ) {
   const normalizedVariant = normalizeOption(variant, VALID_VARIANTS, "default");
   const normalizedSize = normalizeOption(size, VALID_SIZES, "md");
+  const buttonVariant = resolveButtonVariant(normalizedVariant, active);
+  const buttonSize = resolveButtonSize(normalizedSize);
   const iconNode = React.isValidElement(icon)
     ? icon
     : icon
@@ -43,6 +61,9 @@ const FlSideAction = React.forwardRef(function FlSideAction(
       ref={ref}
       type="button"
       className={cx(
+        "fl-button",
+        `fl-button--${buttonVariant}`,
+        `fl-button--${buttonSize}`,
         "fl-side-action",
         `fl-side-action--${normalizedVariant}`,
         `fl-side-action--${normalizedSize}`,

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import JobProgressBar from "./JobProgressBar";
 import useRelativeNow from "../hooks/useRelativeNow";
 import HorizontalOptionSelector from "./HorizontalOptionSelector";
+import { FlBadge, FlButton, FlMetricGrid, FlPanel, FlPanelHeader } from "./ui/forge";
 import {
   getLaboratoryCatalog,
   getSanctuaryStationState,
@@ -328,71 +329,76 @@ export default function Laboratory({ state, dispatch, onBack, backDisabled = fal
   }, [spotlightGroupVisible, spotlightResearchId]);
 
   return (
-    <div {...{ style: {
-      padding: "1rem",
-      display: "grid",
-      gap: "1rem",
-      alignItems: "start",
-      alignContent: "start",
-      background: "var(--color-background-primary, #f8fafc)",
-      color: "var(--color-text-primary, #1e293b)",
-    } }}>
-      <section {...{ style: panelStyle("var(--tone-accent, #4338ca)") }}>
-        <div {...{ style: { display: "grid", gap: "12px", alignItems: "start" } }}>
-          <div {...{ style: { minWidth: 0 } }}>
-            <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" } }}>
-              Laboratorio
-            </div>
-            <div {...{ style: { fontSize: "1.02rem", fontWeight: "900", marginTop: "4px" } }}>
-              Infraestructura del Santuario
-            </div>
-            <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" } }}>
-              Desbloquea funciones y mejora capacidad con tinta, polvo y esencia.
-            </div>
-          </div>
-        </div>
-
-        <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap" } }}>
-          <span {...{ style: chipStyle("var(--tone-accent, #4338ca)") }}>{completedCount}/{catalog.length} estudios</span>
-          <span {...{ style: chipStyle("var(--tone-success, #10b981)") }}>{unlockedStations}/5 estaciones</span>
-        </div>
-
-        <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" } }}>
-          <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
-            <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Tinta</div>
-            <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{Math.floor(Number(sanctuary?.resources?.codexInk || 0)).toLocaleString()}</div>
-          </div>
-          <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
-            <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Polvo</div>
-            <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{Math.floor(Number(sanctuary?.resources?.relicDust || 0)).toLocaleString()}</div>
-          </div>
-          <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
-            <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Esencia</div>
-            <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{Math.floor(Number(state?.player?.essence || 0)).toLocaleString()}</div>
-          </div>
-          <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
-            <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>En curso</div>
-            <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{runningJobs.length}</div>
-          </div>
-          <div {...{ style: { ...metricCardStyle(), padding: "8px 10px", gap: "2px" } }}>
-            <div {...{ style: { fontSize: "0.56rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>Listas</div>
-            <div {...{ style: { fontSize: "0.88rem", fontWeight: "900" } }}>{claimableJobs.length}</div>
-          </div>
-        </div>
-
-        {onBack && (
-          <div {...{ style: { display: "flex", justifyContent: "flex-end" } }}>
-            <button
-              onClick={onBack}
-              disabled={backDisabled}
-              data-onboarding-target={backTarget}
-              {...{ style: { ...buttonStyle({ compact: true, disabled: backDisabled }), opacity: backDisabled ? 0.6 : 1, flex: "0 0 auto" } }}
-            >
-              Volver
-            </button>
-          </div>
+    <div className="laboratory-root">
+      <FlPanel
+        variant="compact"
+        className="fl-laboratory-hero-panel"
+        header={(
+          <FlPanelHeader
+            title="Laboratorio"
+            subtitle="Infraestructura del Santuario"
+            copy="Desbloquea funciones y mejora capacidad con tinta, polvo y esencia."
+            actions={onBack ? (
+              <FlButton
+                variant="secondary"
+                size="sm"
+                onClick={onBack}
+                disabled={backDisabled}
+                data-onboarding-target={backTarget}
+              >
+                Volver
+              </FlButton>
+            ) : null}
+          />
         )}
-      </section>
+      >
+        <div className="fl-laboratory-hero-panel__chips">
+          <FlBadge variant="pill" size="xs" tone="reward">
+            {completedCount}/{catalog.length} estudios
+          </FlBadge>
+          <FlBadge variant="pill" size="xs" tone="success">
+            {unlockedStations}/5 estaciones
+          </FlBadge>
+        </div>
+        <FlMetricGrid
+          className="fl-laboratory-hero-metrics"
+          columns={5}
+          mobileColumns={3}
+          compact
+          items={[
+            {
+              id: "lab-ink",
+              label: "Tinta",
+              value: Math.floor(Number(sanctuary?.resources?.codexInk || 0)).toLocaleString(),
+              tone: "arcane",
+            },
+            {
+              id: "lab-dust",
+              label: "Polvo",
+              value: Math.floor(Number(sanctuary?.resources?.relicDust || 0)).toLocaleString(),
+              tone: "warning",
+            },
+            {
+              id: "lab-essence",
+              label: "Esencia",
+              value: Math.floor(Number(state?.player?.essence || 0)).toLocaleString(),
+              tone: "defense",
+            },
+            {
+              id: "lab-running",
+              label: "En curso",
+              value: runningJobs.length,
+              tone: "success",
+            },
+            {
+              id: "lab-ready",
+              label: "Listas",
+              value: claimableJobs.length,
+              tone: "success",
+            },
+          ]}
+        />
+      </FlPanel>
 
       {(claimableJobs.length > 0 || runningJobs.length > 0) && (
         <section {...{ style: panelStyle("var(--tone-warning, #f59e0b)") }}>

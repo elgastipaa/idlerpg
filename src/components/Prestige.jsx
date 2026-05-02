@@ -20,6 +20,7 @@ import { getOnboardingFirstEchoNodeId, getOnboardingStepInteractionMode, ONBOARD
 import { buildRunOutcomeSummary } from "../utils/runOutcomeSummary";
 import RunSigilCallout from "./RunSigilCallout";
 import ForgeIcon from "./icons/ForgeIcon";
+import { FlBadge, FlButton, FlMetricGrid, FlPanel, FlPanelHeader, FlSimpleCard } from "./ui/forge";
 
 const PERCENT_KEYS = new Set([
   "damagePct",
@@ -327,40 +328,38 @@ export default function Prestige({ state, dispatch }) {
   }, [spotlightFirstEchoNode, spotlightFirstEchoes, tutorialEchoNodeId, activeBranchId]);
 
   return (
-    <div className="prestige-root prestige-root--forge-light" {...{ style: { padding: "calc(0.85rem * var(--density-scale, 1))", display: "flex", flexDirection: "column", gap: "calc(0.8rem * var(--density-scale, 1))", color: "var(--color-text-primary, #1e293b)" } }}>
-      <section
-        className="prestige-summary-panel prestige-summary-panel--hero"
+    <div className="prestige-root prestige-root--forge-light">
+      <FlPanel
+        variant="compact"
+        className={[
+          "fl-prestige-hero-panel",
+          spotlightFirstEchoes ? "fl-prestige-hero-panel--spotlight" : "",
+        ].filter(Boolean).join(" ")}
         data-onboarding-target={spotlightFirstEchoes ? "prestige-summary" : undefined}
-        onClick={() => spotlightFirstEchoes && dispatch({ type: "ACK_ONBOARDING_STEP" })}
-        {...{ style: {
-          ...summaryPanelStyle,
-          position: spotlightFirstEchoes ? "relative" : "static",
-          zIndex: spotlightFirstEchoes ? 2 : 1,
-          boxShadow: spotlightFirstEchoes
-            ? "0 0 0 2px rgba(199,210,254,0.28), 0 16px 34px rgba(15,23,42,0.28)"
-            : "none",
-          animation: spotlightFirstEchoes ? "prestigeSpotlightPulse 1600ms ease-in-out infinite" : "none",
-          cursor: spotlightFirstEchoes ? "pointer" : "default",
-        } }}
+        onClick={spotlightFirstEchoes ? () => dispatch({ type: "ACK_ONBOARDING_STEP" }) : undefined}
+        header={(
+          <FlPanelHeader
+            title="Ecos"
+            subtitle={prestigeCheck.ok ? `+${formatNumber(echoesOnNext)} ecos al extraer` : "Todavia no rinde extraer por ecos"}
+            copy={prestigeCheck.ok
+              ? `${prestigeMomentum.label} · ${formatMultiplier(prestigeMomentum.multiplier)} de momentum.`
+              : "Empuja tier y nivel para volver rentable la proxima extraccion."}
+            actions={(
+              <div className="fl-prestige-hero-panel__header-badges">
+                <FlBadge variant="pill" tone="arcane" size="xs">
+                  {formatNumber(prestige.echoes || 0)} disponibles
+                </FlBadge>
+                <FlBadge variant="pill" tone="warning" size="xs">
+                  {formatMultiplier(prestigeMomentum.multiplier)} momentum
+                </FlBadge>
+              </div>
+            )}
+          />
+        )}
       >
-        <div className="prestige-hero-head" {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "start", gap: "12px", flexWrap: "wrap" } }}>
+        <div className="fl-prestige-hero-panel__hero-row">
           <div className="forge-prestige-crest" aria-hidden="true">
             <ForgeIcon name="essence" size={76} />
-          </div>
-          <div className="prestige-hero-copy" {...{ style: { minWidth: 0 } }}>
-            <div {...{ style: sectionTitleStyle }}>Ecos</div>
-            <div {...{ style: { fontSize: "1.18rem", color: "#f8fafc", fontWeight: 900, marginTop: "6px" } }}>
-              {prestigeCheck.ok ? `+${formatNumber(echoesOnNext)} ecos al extraer` : "Todavia no rinde extraer por ecos"}
-            </div>
-            <div {...{ style: { ...smallCopyStyle, marginTop: "6px", color: "#cbd5e1" } }}>
-              {prestigeCheck.ok
-                ? `${prestigeMomentum.label} · ${formatMultiplier(prestigeMomentum.multiplier)} de momentum.`
-                : "Empuja tier y nivel para volver rentable la proxima extraccion."}
-            </div>
-          </div>
-          <div className="prestige-hero-badges" {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: isMobile ? "stretch" : "flex-end" } }}>
-            <div {...{ style: summaryBadgeStyle }}>{formatNumber(prestige.echoes || 0)} disponibles</div>
-            <div {...{ style: summaryBadgeStyle }}>{formatMultiplier(prestigeMomentum.multiplier)} momentum</div>
           </div>
         </div>
 
@@ -383,41 +382,51 @@ export default function Prestige({ state, dispatch }) {
         <div className="prestige-outcome-grid" {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: "8px", marginTop: "10px" } }}>
           <QuickPrestigeOutcomeColumn
             label="Conservas"
-            tone="#10b981"
+            tone="success"
             items={quickPrestigeKeeps}
             fallback="Sin conservaciones adicionales."
           />
           <QuickPrestigeOutcomeColumn
             label="Se reinicia"
-            tone="#D85A30"
+            tone="danger"
             items={quickPrestigeResets}
             fallback="Sin reinicios adicionales."
           />
         </div>
 
-        <div className="prestige-metric-grid" {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, minmax(0, 1fr))", gap: "8px", marginTop: "12px" } }}>
-          <div className="prestige-metric-card" {...{ style: resetMetricCardStyle }}>
-            <div {...{ style: resetMetricLabelStyle }}>Tier actual</div>
-            <div {...{ style: resetMetricValueStyle }}>{formatNumber(prestigeMomentum.currentTier || prestigePreview.progress?.maxTier || 1)}</div>
-          </div>
-          <div className="prestige-metric-card" {...{ style: resetMetricCardStyle }}>
-            <div {...{ style: resetMetricLabelStyle }}>Momentum</div>
-            <div {...{ style: resetMetricValueStyle }}>{formatMultiplier(prestigeMomentum.multiplier)}</div>
-            <div {...{ style: resetMetricHintStyle }}>{prestigeMomentum.label}</div>
-          </div>
-          <div className="prestige-metric-card" {...{ style: resetMetricCardStyle }}>
-            <div {...{ style: resetMetricLabelStyle }}>Base sin momentum</div>
-            <div {...{ style: resetMetricValueStyle }}>{formatNumber(prestigeMomentum.baseEchoes || 0)}</div>
-            {!!prestigeMomentum.momentumDeltaEchoes && (
-              <div {...{ style: resetMetricHintStyle }}>
-                {Number(prestigeMomentum.momentumDeltaEchoes || 0) >= 0
+        <FlMetricGrid
+          className="prestige-metric-grid prestige-metric-grid--hero"
+          columns={3}
+          mobileColumns={2}
+          compact
+          items={[
+            {
+              id: "prestige-current-tier",
+              label: "Tier actual",
+              value: formatNumber(prestigeMomentum.currentTier || prestigePreview.progress?.maxTier || 1),
+              tone: "warning",
+            },
+            {
+              id: "prestige-momentum",
+              label: "Momentum",
+              value: formatMultiplier(prestigeMomentum.multiplier),
+              hint: prestigeMomentum.label,
+              tone: "arcane",
+            },
+            {
+              id: "prestige-base-echoes",
+              label: "Base sin momentum",
+              value: formatNumber(prestigeMomentum.baseEchoes || 0),
+              hint: Number(prestigeMomentum.momentumDeltaEchoes || 0) === 0
+                ? ""
+                : Number(prestigeMomentum.momentumDeltaEchoes || 0) > 0
                   ? `Bonus ${formatSignedNumber(prestigeMomentum.momentumDeltaEchoes)}`
-                  : `Penalidad ${formatSignedNumber(prestigeMomentum.momentumDeltaEchoes)}`}
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
+                  : `Penalidad ${formatSignedNumber(prestigeMomentum.momentumDeltaEchoes)}`,
+              tone: Number(prestigeMomentum.momentumDeltaEchoes || 0) >= 0 ? "success" : "danger",
+            },
+          ]}
+        />
+      </FlPanel>
 
       {showRunSigilCallout && (
         <div className="prestige-run-sigil-panel">
@@ -433,24 +442,6 @@ export default function Prestige({ state, dispatch }) {
       )}
 
       <section className="prestige-summary-panel" {...{ style: summaryPanelStyle }}>
-        <div {...{ style: { display: "grid", gap: "4px" } }}>
-          <div {...{ style: sectionTitleStyle }}>Reset de prestige</div>
-          <div {...{ style: { fontSize: "0.96rem", color: "#f8fafc", fontWeight: 900 } }}>
-            {prestigeOutcomeSummary.title}
-          </div>
-          <div {...{ style: { ...smallCopyStyle, color: "#94a3b8" } }}>
-            Lectura corta de lo que realmente pasa cuando esa extraccion ya convierte a ecos.
-          </div>
-        </div>
-
-        <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: "10px", marginTop: "12px" } }}>
-          {prestigeOutcomeSummary.groups.map(group => (
-            <OutcomeSummaryCard key={group.id} group={group} />
-          ))}
-        </div>
-      </section>
-
-      <section className="prestige-summary-panel" {...{ style: summaryPanelStyle }}>
         <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" } }}>
           <div>
             <div {...{ style: sectionTitleStyle }}>Ecos disponibles</div>
@@ -461,24 +452,38 @@ export default function Prestige({ state, dispatch }) {
           <div {...{ style: summaryBadgeStyle }}>{activePrestigeNodes} nodos activos</div>
         </div>
 
-        <div {...{ style: { display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: "8px", marginTop: "12px" } }}>
-          <div className="prestige-metric-card" {...{ style: resetMetricCardStyle }}>
-            <div {...{ style: resetMetricLabelStyle }}>Disponibles</div>
-            <div {...{ style: resetMetricValueStyle }}>{formatNumber(prestige.echoes || 0)}</div>
-          </div>
-          <div className="prestige-metric-card" {...{ style: resetMetricCardStyle }}>
-            <div {...{ style: resetMetricLabelStyle }}>Gastados</div>
-            <div {...{ style: resetMetricValueStyle }}>{formatNumber(prestige.spentEchoes || 0)}</div>
-          </div>
-          <div className="prestige-metric-card" {...{ style: resetMetricCardStyle }}>
-            <div {...{ style: resetMetricLabelStyle }}>Totales</div>
-            <div {...{ style: resetMetricValueStyle }}>{formatNumber(prestige.totalEchoesEarned || 0)}</div>
-          </div>
-          <div className="prestige-metric-card" {...{ style: resetMetricCardStyle }}>
-            <div {...{ style: resetMetricLabelStyle }}>Resonancia</div>
-            <div {...{ style: resetMetricValueStyle }}>{formatNumber(resonanceSummary.totalEchoesEarned || prestige.totalEchoesEarned || 0)}</div>
-          </div>
-        </div>
+        <FlMetricGrid
+          className="prestige-metric-grid prestige-metric-grid--echoes"
+          columns={4}
+          mobileColumns={2}
+          compact
+          items={[
+            {
+              id: "prestige-echoes-available",
+              label: "Disponibles",
+              value: formatNumber(prestige.echoes || 0),
+              tone: "success",
+            },
+            {
+              id: "prestige-echoes-spent",
+              label: "Gastados",
+              value: formatNumber(prestige.spentEchoes || 0),
+              tone: "warning",
+            },
+            {
+              id: "prestige-echoes-total",
+              label: "Totales",
+              value: formatNumber(prestige.totalEchoesEarned || 0),
+              tone: "defense",
+            },
+            {
+              id: "prestige-echoes-resonance",
+              label: "Resonancia",
+              value: formatNumber(resonanceSummary.totalEchoesEarned || prestige.totalEchoesEarned || 0),
+              tone: "arcane",
+            },
+          ]}
+        />
 
         <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" } }}>
           {highlightedBonuses.length > 0 ? highlightedBonuses.map(([key, value]) => (
@@ -503,9 +508,12 @@ export default function Prestige({ state, dispatch }) {
       </section>
 
       <section className="prestige-summary-panel" {...{ style: summaryPanelStyle }}>
-        <button
+        <FlButton
           onClick={() => setShowAbyssMilestones(current => !current)}
-          {...{ style: { width: "100%", background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" } }}
+          className="prestige-collapsible-toggle"
+          variant="ghost"
+          size="full"
+          {...{ style: { width: "100%", padding: 0, textAlign: "left" } }}
         >
           <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" } }}>
             <div>
@@ -521,7 +529,7 @@ export default function Prestige({ state, dispatch }) {
               <span {...{ style: { ...compactChipStyle, color: "#e2e8f0" } }}>{showAbyssMilestones ? "Ocultar" : "Ver"}</span>
             </div>
           </div>
-        </button>
+        </FlButton>
 
         {showAbyssMilestones && (
           <>
@@ -584,18 +592,15 @@ export default function Prestige({ state, dispatch }) {
               const summary = branchSummaries[branch.id] || { activeNodes: 0, investedLevels: 0, purchasableNow: 0, totalNodes: 0 };
               const unlocked = summary.unlocked !== false;
               return (
-                <button
+                <FlButton
                   key={`branch-tab-${branch.id}`}
                   onClick={() => setActiveBranchId(branch.id)}
+                  variant={active ? "default" : "secondary"}
+                  selected={active}
+                  size="sm"
                   {...{ style: {
                     minWidth: isMobile ? "138px" : "158px",
-                    border: "1px solid",
-                    borderColor: active ? `${branch.color}88` : unlocked ? "rgba(255,255,255,0.12)" : "#334155",
-                    background: active ? `${branch.color}22` : "#0f172a",
                     color: active ? branch.color : unlocked ? "#cbd5e1" : "#94a3b8",
-                    borderRadius: "12px",
-                    padding: "9px 10px",
-                    cursor: "pointer",
                     textAlign: "left",
                     flexShrink: 0,
                     opacity: unlocked ? 1 : 0.78,
@@ -617,7 +622,7 @@ export default function Prestige({ state, dispatch }) {
                       {summary.purchasableNow} comprable{summary.purchasableNow === 1 ? "" : "s"}
                     </div>
                   )}
-                </button>
+                </FlButton>
               );
             })}
           </div>
@@ -647,23 +652,20 @@ export default function Prestige({ state, dispatch }) {
               {PRESTIGE_NODE_FILTERS.map(filter => {
                 const active = nodeVisibilityFilter === filter.id;
                 return (
-                  <button
+                  <FlButton
                     key={filter.id}
                     onClick={() => setNodeVisibilityFilter(filter.id)}
+                    variant={active ? "default" : "ghost"}
+                    selected={active}
+                    size="xs"
                     {...{ style: {
-                      border: "1px solid",
-                      borderColor: active ? activeBranch.color : "rgba(148,163,184,0.22)",
-                      background: active ? `${activeBranch.color}22` : "rgba(255,255,255,0.04)",
                       color: active ? activeBranch.color : "#cbd5e1",
-                      borderRadius: "999px",
-                      padding: "4px 8px",
                       fontSize: "0.58rem",
                       fontWeight: "900",
-                      cursor: "pointer",
                     } }}
                   >
                     {filter.label}
-                  </button>
+                  </FlButton>
                 );
               })}
             </div>
@@ -774,11 +776,19 @@ export default function Prestige({ state, dispatch }) {
                                     ? `${purchase.cost} ecos`
                                     : "Bloqueado"}
                           </span>
-                          <button
+                          <FlButton
                             onClick={() => dispatch({ type: "BUY_PRESTIGE_NODE", nodeId: node.id })}
                             disabled={!buttonEnabled}
                             data-onboarding-target={spotlightNode ? "buy-first-echo-node" : undefined}
-                            {...{ style: nodeBuyButtonStyle(activeBranch.color, buttonEnabled) }}
+                            variant={buttonEnabled ? "default" : "secondary"}
+                            size="xs"
+                            className="prestige-node-buy-button"
+                            {...{ style: {
+                              ...nodeBuyButtonStyle(activeBranch.color, buttonEnabled),
+                              border: "none",
+                              background: "none",
+                              boxShadow: "none",
+                            } }}
                           >
                             {level >= node.maxLevel
                               ? "Maximo"
@@ -789,7 +799,7 @@ export default function Prestige({ state, dispatch }) {
                                   : purchase.reason === "exclusive"
                                     ? "Elegido otro"
                                     : "No disponible"}
-                          </button>
+                          </FlButton>
                         </div>
                       </div>
                     );
@@ -878,35 +888,6 @@ const compactChipStyle = {
   fontWeight: 900,
   color: "#cbd5e1",
   background: "rgba(255,255,255,0.05)",
-};
-
-const resetMetricCardStyle = {
-  borderRadius: "var(--dense-card-radius, 12px)",
-  border: "1px solid rgba(148,163,184,0.18)",
-  background: "rgba(255,255,255,0.04)",
-  padding: "var(--dense-panel-padding, 10px)",
-  display: "grid",
-  gap: "4px",
-};
-
-const resetMetricLabelStyle = {
-  fontSize: "0.62rem",
-  color: "#94a3b8",
-  fontWeight: 900,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-};
-
-const resetMetricValueStyle = {
-  fontSize: "0.98rem",
-  color: "#f8fafc",
-  fontWeight: 900,
-};
-
-const resetMetricHintStyle = {
-  fontSize: "0.64rem",
-  color: "#cbd5e1",
-  fontWeight: 800,
 };
 
 const bonusChipStyle = {
@@ -1055,43 +1036,18 @@ function OutcomeSummaryCard({ group }) {
   );
 }
 
-function QuickPrestigeOutcomeColumn({ label, tone, items = [], fallback = "" }) {
-  const isKeep = tone === "#10b981";
+function QuickPrestigeOutcomeColumn({ label, tone = "default", items = [], fallback = "" }) {
+  const isKeep = tone === "success";
+  const resolvedItems = items.length > 0 ? items : [fallback];
 
   return (
-    <div
-      className={[
-        "prestige-outcome-column",
-        isKeep ? "prestige-outcome-column--keep" : "prestige-outcome-column--reset",
-      ].join(" ")}
-      {...{ style: {
-        background: "rgba(15,23,42,0.36)",
-        border: "1px solid rgba(148,163,184,0.22)",
-        borderTop: `3px solid ${tone}`,
-        borderRadius: "12px",
-        padding: "9px 10px",
-        display: "grid",
-        gap: "6px",
-      } }}
-    >
-      <div className="prestige-outcome-title" {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.06em", color: tone } }}>
-        <ForgeIcon name={isKeep ? "essence" : "extract"} size={18} />
-        <span>{label}</span>
-      </div>
-      {items.length > 0 ? (
-        <div {...{ style: { display: "grid", gap: "4px" } }}>
-          {items.map(item => (
-            <div key={`${label}-${item}`} {...{ style: { fontSize: "0.64rem", color: "#cbd5e1", lineHeight: 1.4 } }}>
-              • {item}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div {...{ style: { fontSize: "0.64rem", color: "#94a3b8", lineHeight: 1.4 } }}>
-          {fallback}
-        </div>
-      )}
-    </div>
+    <FlSimpleCard
+      className="prestige-simple-outcome-card"
+      tone={tone}
+      title={label}
+      icon={isKeep ? "💎" : "⚔"}
+      items={resolvedItems}
+    />
   );
 }
 

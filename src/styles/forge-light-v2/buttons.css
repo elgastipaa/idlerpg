@@ -1,209 +1,671 @@
 .app-shell-root--forge-light-v2 button {
-  font-family: var(--fl2-font-ui);
+  font-family: var(--fl-font-ui);
 }
 
-.app-shell-root--forge-light-v2 .fl2-button,
-.app-shell-root--forge-light-v2 :where(.fl-button, .fl-sanctuary-button, .subtab-dock-button, .app-primary-tab-button, .fl-crafting-primary-action, .fl-crafting-secondary-action) {
+.app-shell-root--forge-light-v2 .fl-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-family: var(--fl2-font-ui) !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.08em !important;
+  min-height: 40px;
+  padding: 11px 22px;
+  line-height: 1;
+  font-family: var(--fl-font-ui) !important;
+  font-size: 14px;
+  font-weight: 600 !important;
+  letter-spacing: 2px !important;
   text-transform: uppercase;
-  border-radius: var(--fl2-radius-md) !important;
-  border: 1px solid rgba(198, 161, 91, 0.35) !important;
-  background: var(--fl2-bg-card-deep) !important;
-  color: var(--fl2-text-secondary) !important;
+  white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
+  border-radius: var(--fl-radius-md) !important;
+  border: 1px solid var(--fl-border-dark) !important;
+  background: var(--fl-texture-noise), linear-gradient(180deg, #0b0f15, #07090d) !important;
+  color: var(--fl-text-secondary) !important;
   box-shadow:
-    var(--fl2-shadow-inset),
-    0 2px 8px rgba(0, 0, 0, 0.3) !important;
+    0 0 0 1px rgba(0, 0, 0, 0.78),
+    inset 0 0 0 1px var(--fl-border-bronze-muted),
+    inset 0 1px 0 rgba(255, 236, 184, 0.14),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.52),
+    0 4px 10px rgba(0, 0, 0, 0.36) !important;
   transition:
+    transform 0.12s ease,
     color 0.12s ease,
     border-color 0.12s ease,
-    background 0.12s ease,
     box-shadow 0.12s ease,
-    transform 0.12s ease !important;
-  user-select: none;
-}
-
-.app-shell-root--forge-light-v2 .fl2-button:hover:not(:disabled),
-.app-shell-root--forge-light-v2 :where(.fl-button, .fl-sanctuary-button, .subtab-dock-button, .app-primary-tab-button, .fl-crafting-primary-action, .fl-crafting-secondary-action):hover:not(:disabled) {
-  border-color: var(--fl2-gold) !important;
-  color: var(--fl2-text) !important;
-}
-
-.app-shell-root--forge-light-v2 .fl2-button:active:not(:disabled),
-.app-shell-root--forge-light-v2 :where(.fl-button, .fl-sanctuary-button, .subtab-dock-button, .app-primary-tab-button, .fl-crafting-primary-action, .fl-crafting-secondary-action):active:not(:disabled) {
-  transform: translateY(1px);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6) !important;
-}
-
-.app-shell-root--forge-light-v2 :where(.fl-button[data-state="pressed"], .fl-button--pressed):not(:disabled) {
-  transform: translateY(1px);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.62) !important;
-}
-
-.app-shell-root--forge-light-v2 .fl2-button:focus-visible,
-.app-shell-root--forge-light-v2 :where(.fl-button, .fl-sanctuary-button, .subtab-dock-button, .app-primary-tab-button, .fl-crafting-primary-action, .fl-crafting-secondary-action):focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--fl2-gold-strong) 74%, transparent);
-  outline-offset: 2px;
-}
-
-.app-shell-root--forge-light-v2 .fl2-button--primary,
-.app-shell-root--forge-light-v2 :where(.fl-button--primary, .fl-sanctuary-button--primary, .fl-crafting-primary-action),
-.app-shell-root--forge-light-v2 :where(.app-primary-tab-button--active, .subtab-dock-button--active) {
-  background: linear-gradient(180deg, #2a1e0d 0%, #1a1309 100%) !important;
-  border-color: var(--fl2-gold) !important;
-  color: var(--fl2-text) !important;
-  box-shadow:
-    0 0 0 1px rgba(198, 161, 91, 0.08) inset,
-    var(--fl2-shadow-inset),
-    0 4px 12px rgba(0, 0, 0, 0.4) !important;
-}
-
-.app-shell-root--forge-light-v2 .fl2-button--primary:hover:not(:disabled),
-.app-shell-root--forge-light-v2 :where(.fl-button--primary, .fl-sanctuary-button--primary, .fl-crafting-primary-action):hover:not(:disabled),
-.app-shell-root--forge-light-v2 :where(.app-primary-tab-button--active, .subtab-dock-button--active):hover:not(:disabled) {
-  border-color: var(--fl2-gold-strong) !important;
-  color: var(--fl2-gold-strong) !important;
-  box-shadow:
-    var(--fl2-glow-gold-soft),
-    var(--fl2-shadow-inset),
-    0 4px 12px rgba(0, 0, 0, 0.4) !important;
-}
-
-.app-shell-root--forge-light-v2 .fl2-button--cta {
-  position: relative;
+    background 0.12s ease !important;
   overflow: hidden;
-  background: linear-gradient(180deg, #3d2a0e 0%, #251905 50%, #3d2a0e 100%) !important;
-  border-width: 2px !important;
-  border-color: var(--fl2-gold) !important;
-  color: var(--fl2-gold) !important;
-  text-shadow: 0 0 20px rgba(230, 196, 122, 0.5);
-  box-shadow:
-    var(--fl2-glow-gold-soft),
-    inset 0 1px 0 rgba(255, 232, 180, 0.12),
-    0 6px 20px rgba(0, 0, 0, 0.5) !important;
+  transform: translateZ(0);
 }
 
-.app-shell-root--forge-light-v2 .fl2-button--cta::before {
+.app-shell-root--forge-light-v2 .fl-button:not(.fl-button--selected):not(.fl-button--cta):not(.fl-button--ghost):not([data-state="loading"])::before {
   content: "";
   position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(255, 232, 180, 0.06) 0%, transparent 50%);
-  border-radius: inherit;
+  inset: 2px;
+  border-radius: calc(var(--fl-radius-md) - 2px);
   pointer-events: none;
+  border: 1px solid rgba(210, 173, 102, 0.18);
+  background: linear-gradient(180deg, rgba(255, 236, 184, 0.075), transparent 42%, rgba(0, 0, 0, 0.16));
 }
 
-.app-shell-root--forge-light-v2 .fl2-button--cta:hover:not(:disabled) {
-  border-color: var(--fl2-gold-strong) !important;
-  color: var(--fl2-gold-strong) !important;
+.app-shell-root--forge-light-v2 .fl-button__content,
+.app-shell-root--forge-light-v2 .fl-button__icon,
+.app-shell-root--forge-light-v2 .fl-button__badge {
+  position: relative;
+  z-index: 1;
+}
+
+.app-shell-root--forge-light-v2 .fl-button__content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.app-shell-root--forge-light-v2 .fl-button__label {
+  line-height: 1;
+}
+
+.app-shell-root--forge-light-v2 .fl-button__cost {
+  font-size: 0.82em;
+  opacity: 0.88;
+}
+
+.app-shell-root--forge-light-v2 .fl-button__corner {
+  display: none !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--sm {
+  min-height: 32px;
+  padding: 8px 16px !important;
+  font-size: 12px;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--xs {
+  min-height: 28px;
+  padding: 6px 12px !important;
+  font-size: 11px;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--xs-compact {
+  min-height: 30px;
+  padding: 7px 14px !important;
+  font-size: 11px;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--md {
+  min-height: 40px;
+  padding: 11px 22px !important;
+  font-size: 14px;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--lg {
+  min-height: 46px;
+  padding: 14px 32px !important;
+  font-size: 16px;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--full,
+.app-shell-root--forge-light-v2 .fl-button--full-width {
+  width: 100%;
+}
+
+.app-shell-root--forge-light-v2 .fl-button:focus-visible {
+  outline: none;
+  box-shadow: var(--fl-focus-ring), 0 0 0 1px rgba(0, 0, 0, 0.78), inset 0 0 0 1px var(--fl-border-bronze-muted), inset 0 1px 0 rgba(255, 236, 184, 0.14), inset 0 -2px 0 rgba(0, 0, 0, 0.52), 0 4px 10px rgba(0, 0, 0, 0.36) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-button:hover:not(:disabled) {
+  color: var(--fl-text-primary) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-button:active:not(:disabled),
+.app-shell-root--forge-light-v2 :where(.fl-button[data-state="pressed"], .fl-button--pressed):not(:disabled) {
+  transform: translateY(1px);
   box-shadow:
-    var(--fl2-glow-gold-strong),
-    inset 0 1px 0 rgba(255, 232, 180, 0.15),
-    0 8px 24px rgba(0, 0, 0, 0.5) !important;
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    inset 0 0 0 1px rgba(185, 135, 60, 0.25),
+    inset 0 2px 7px rgba(0, 0, 0, 0.72) !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-button--ghost,
+.app-shell-root--forge-light-v2 .fl-button--default,
+.app-shell-root--forge-light-v2 .fl-button--primary,
+.app-shell-root--forge-light-v2 :where(.fl-button--default, .fl-button--primary) {
+  background: var(--fl-texture-noise), var(--fl-button-bevel), linear-gradient(180deg, #30200b 0%, #1a1007 58%, #0d0804 100%) !important;
+  border-color: var(--fl-border-dark) !important;
+  color: #f5e8c9 !important;
+  text-shadow: 0 1px 0 #000, 0 0 10px rgba(230, 196, 122, 0.12);
+}
+
+.app-shell-root--forge-light-v2 .fl-button--default:hover:not(:disabled),
+.app-shell-root--forge-light-v2 .fl-button--primary:hover:not(:disabled),
+.app-shell-root--forge-light-v2 :where(.fl-button--default, .fl-button--primary):hover:not(:disabled) {
+  border-color: var(--fl-border-dark) !important;
+  color: var(--fl-gold-hover) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    inset 0 0 0 1px rgba(230, 196, 122, 0.48),
+    inset 0 1px 0 rgba(255, 236, 184, 0.18),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.58),
+    0 0 12px rgba(230, 196, 122, 0.16),
+    0 5px 12px rgba(0, 0, 0, 0.42) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--secondary,
+.app-shell-root--forge-light-v2 :where(.fl-button--secondary) {
+  background: var(--fl-texture-metal), linear-gradient(180deg, #151b24 0%, #0c1016 100%) !important;
+  border-color: var(--fl-border-dark) !important;
+  color: var(--fl-text-secondary) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--secondary:hover:not(:disabled),
+.app-shell-root--forge-light-v2 :where(.fl-button--secondary):hover:not(:disabled) {
+  border-color: var(--fl-border-dark) !important;
+  color: var(--fl-text-primary) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.82),
+    inset 0 0 0 1px rgba(198, 161, 91, 0.38),
+    inset 0 1px 0 rgba(255, 236, 184, 0.12),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.54),
+    0 4px 10px rgba(0, 0, 0, 0.38) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--ghost,
 .app-shell-root--forge-light-v2 :where(.fl-button--ghost) {
   background: transparent !important;
-  border-color: transparent !important;
-  color: var(--fl2-text-muted) !important;
+  border: 1px solid transparent !important;
+  color: var(--fl-text-muted) !important;
   box-shadow: none !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-button--ghost:hover:not(:disabled),
+.app-shell-root--forge-light-v2 .fl-button--ghost:hover:not(:disabled),
 .app-shell-root--forge-light-v2 :where(.fl-button--ghost):hover:not(:disabled) {
-  border-color: var(--fl2-gold-muted) !important;
-  color: var(--fl2-text-secondary) !important;
+  color: var(--fl-text-secondary) !important;
+  border-color: var(--fl-gold-muted) !important;
   box-shadow: none !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-button--danger,
+.app-shell-root--forge-light-v2 .fl-button--danger,
 .app-shell-root--forge-light-v2 :where(.fl-button--danger, .fl-button--danger-ghost, .fl-button--destructive),
 .app-shell-root--forge-light-v2 :where(.fl-inventory-row-action--sell) {
-  background: linear-gradient(180deg, rgba(224, 90, 90, 0.15) 0%, rgba(224, 90, 90, 0.06) 100%) !important;
-  border-color: var(--fl2-danger) !important;
-  color: var(--fl2-danger) !important;
-  box-shadow: 0 0 12px rgba(224, 90, 90, 0.15) !important;
+  background: var(--fl-texture-noise), var(--fl-button-bevel), linear-gradient(180deg, #271a08, #120b04) !important;
+  border-color: var(--fl-border-dark) !important;
+  color: color-mix(in srgb, var(--fl-danger) 88%, #ffd5d5) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    inset 0 0 0 1px rgba(224, 90, 90, 0.34),
+    inset 0 1px 0 rgba(255, 180, 180, 0.14),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.56),
+    0 0 12px rgba(224, 90, 90, 0.14),
+    0 4px 10px rgba(0, 0, 0, 0.4) !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-button--danger:hover:not(:disabled),
+.app-shell-root--forge-light-v2 .fl-button--danger:hover:not(:disabled),
 .app-shell-root--forge-light-v2 :where(.fl-button--danger, .fl-button--danger-ghost, .fl-button--destructive):hover:not(:disabled),
 .app-shell-root--forge-light-v2 :where(.fl-inventory-row-action--sell):hover:not(:disabled) {
-  box-shadow: var(--fl2-glow-danger) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    inset 0 0 0 1px rgba(255, 133, 133, 0.44),
+    inset 0 1px 0 rgba(255, 196, 196, 0.16),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.56),
+    0 0 14px rgba(224, 90, 90, 0.24),
+    0 5px 12px rgba(0, 0, 0, 0.42) !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-button--success,
+.app-shell-root--forge-light-v2 .fl-button--danger-ghost {
+  color: color-mix(in srgb, var(--fl-danger) 88%, #ffd5d5) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--success,
 .app-shell-root--forge-light-v2 :where(.fl-button--success, .fl-button[data-state="success"]),
 .app-shell-root--forge-light-v2 :where(.fl-inventory-row-action--equip) {
-  background: linear-gradient(180deg, rgba(79, 209, 139, 0.15) 0%, rgba(79, 209, 139, 0.06) 100%) !important;
-  border-color: var(--fl2-success) !important;
-  color: var(--fl2-success) !important;
-  box-shadow: 0 0 12px rgba(79, 209, 139, 0.15) !important;
+  background: var(--fl-texture-metal), linear-gradient(180deg, #18202b, #0c1016) !important;
+  border-color: var(--fl-border-dark) !important;
+  color: var(--fl-success) !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-button--selected,
+.app-shell-root--forge-light-v2 .fl-button--selected,
 .app-shell-root--forge-light-v2 :where(.fl-button--selected, .fl-button[data-selected="true"]),
-.app-shell-root--forge-light-v2 :where(.is-active, .is-selected):is(button, .fl-button, .fl-sanctuary-button) {
-  background: linear-gradient(180deg, rgba(198, 161, 91, 0.18) 0%, rgba(198, 161, 91, 0.08) 100%) !important;
-  border-color: var(--fl2-gold-strong) !important;
-  color: var(--fl2-gold-strong) !important;
-  box-shadow: var(--fl2-glow-gold-soft) !important;
+.app-shell-root--forge-light-v2 :where(.is-active, .is-selected):is(button, .fl-button) {
+  background: var(--fl-texture-noise), linear-gradient(90deg, #1a1105, #3b2608 55%, #5b3a12) !important;
+  border-color: var(--fl-border-dark) !important;
+  color: var(--fl-gold-hover) !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-button--loading,
+.app-shell-root--forge-light-v2 .fl-button--cta,
+.app-shell-root--forge-light-v2 .fl-button--cta {
+  border-radius: var(--fl-radius-lg) !important;
+  min-height: 54px;
+  padding: 10px 18px !important;
+  background:
+    var(--fl-texture-noise),
+    linear-gradient(180deg, rgba(255, 236, 184, 0.16) 0%, rgba(255, 236, 184, 0.04) 23%, rgba(0, 0, 0, 0.2) 58%, rgba(0, 0, 0, 0.42) 100%),
+    linear-gradient(135deg, #4a310d 0%, #241504 52%, #5b3a0e 100%) !important;
+  border: 1px solid var(--fl-border-dark) !important;
+  color: var(--fl-gold-glow) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.92),
+    inset 0 0 0 1px rgba(230, 196, 122, 0.52),
+    inset 0 2px 0 rgba(255, 236, 184, 0.16),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.54),
+    0 0 16px rgba(230, 196, 122, 0.18),
+    0 8px 18px rgba(0, 0, 0, 0.48) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--cta .fl-button__content {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--cta .fl-button__label {
+  font-size: 0.96rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  line-height: 1;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--cta[data-has-cost="true"] .fl-button__cost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.82;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--cta::before,
+.app-shell-root--forge-light-v2 .fl-button--cta::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: calc(var(--fl-radius-lg) - 3px);
+  pointer-events: none;
+  border: 1px solid rgba(255, 236, 184, 0.12);
+  background:
+    linear-gradient(90deg, transparent 0%, rgba(255, 236, 184, 0.1) 50%, transparent 100%),
+    linear-gradient(180deg, rgba(255, 236, 184, 0.07), transparent 44%);
+}
+
+.app-shell-root--forge-light-v2 .fl-button--cta:hover:not(:disabled),
+.app-shell-root--forge-light-v2 .fl-button--cta:hover:not(:disabled) {
+  border-color: var(--fl-border-dark) !important;
+  color: var(--fl-gold-hover) !important;
+}
+
+/* Canonical Forge CTA override: neutralize legacy crafting clip-path/button chrome */
+.app-shell-root--forge-light-v2 .fl-crafting-primary-action.fl-button {
+  clip-path: none !important;
+  border-radius: var(--fl-radius-lg) !important;
+  min-height: 56px !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-crafting-primary-action.fl-button::after {
+  content: none !important;
+  display: none !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-crafting-primary-action.fl-button .fl-button__content {
+  gap: 3px !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-crafting-primary-action.fl-button .fl-button__label {
+  font-size: 1rem !important;
+  letter-spacing: 0.08em !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-crafting-primary-action.fl-button .fl-button__cost {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  opacity: 0.82 !important;
+  text-transform: none !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--emphasis-strong {
+  background:
+    var(--fl-texture-noise),
+    linear-gradient(180deg, rgba(255, 236, 184, 0.16) 0%, rgba(255, 236, 184, 0.04) 23%, rgba(0, 0, 0, 0.2) 58%, rgba(0, 0, 0, 0.42) 100%),
+    linear-gradient(135deg, #4a310d 0%, #241504 52%, #5b3a0e 100%) !important;
+  border-color: var(--fl-border-dark) !important;
+  color: var(--fl-gold-glow) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--emphasis-strong:hover:not(:disabled) {
+  color: var(--fl-gold-hover) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-button--loading,
 .app-shell-root--forge-light-v2 .fl-button[data-state="loading"] {
-  position: relative;
   color: transparent !important;
   cursor: wait !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-button--loading::after,
+.app-shell-root--forge-light-v2 .fl-button--loading::after,
 .app-shell-root--forge-light-v2 .fl-button[data-state="loading"]::after {
   content: "";
   position: absolute;
   width: 16px;
   height: 16px;
-  border: 2px solid var(--fl2-gold-muted);
-  border-top-color: var(--fl2-gold);
+  border: 2px solid var(--fl-gold-muted);
+  border-top-color: var(--fl-gold-glow);
   border-radius: 50%;
-  animation: fl2-spin 0.7s linear infinite;
+  animation: fl-spin 0.7s linear infinite;
 }
 
 .app-shell-root--forge-light-v2 .fl-button__spinner {
   width: 16px !important;
   height: 16px !important;
-  border: 2px solid var(--fl2-gold-muted) !important;
-  border-top-color: var(--fl2-gold) !important;
+  border: 2px solid var(--fl-gold-muted) !important;
+  border-top-color: var(--fl-gold-glow) !important;
   border-radius: 50% !important;
-  animation: fl2-spin 0.7s linear infinite !important;
+  animation: fl-spin 0.7s linear infinite !important;
 }
 
-.app-shell-root--forge-light-v2 :where(.fl-button--compact, .fl-button--icon-only, .fl-sanctuary-button--icon) {
+.app-shell-root--forge-light-v2 :where(.fl-button--compact, .fl-button--icon-only) {
   min-width: 36px;
   min-height: 36px;
   padding: 0 !important;
 }
 
 .app-shell-root--forge-light-v2 .fl-button[data-state="error"] {
-  border-color: var(--fl2-danger) !important;
-  color: var(--fl2-danger) !important;
-  box-shadow: var(--fl2-glow-danger) !important;
+  border-color: var(--fl-border-dark) !important;
+  color: color-mix(in srgb, var(--fl-danger) 88%, #ffd5d5) !important;
 }
 
-.app-shell-root--forge-light-v2 :where(button, .fl2-button):disabled,
-.app-shell-root--forge-light-v2 :where(.subtab-dock-button--disabled) {
+.app-shell-root--forge-light-v2 :where(button, .fl-button):disabled {
   cursor: not-allowed !important;
   opacity: 0.6 !important;
-  color: var(--fl2-text-muted) !important;
-  border-color: rgba(198, 161, 91, 0.12) !important;
-  box-shadow: none !important;
+  color: var(--fl-text-disabled) !important;
+  border-color: color-mix(in srgb, var(--fl-border-dark) 66%, #111) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.86),
+    inset 0 0 0 1px rgba(185, 135, 60, 0.12),
+    inset 0 1px 0 rgba(255, 236, 184, 0.06),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.52) !important;
 }
 
-@keyframes fl2-spin {
+.app-shell-root--forge-light-v2 .fl-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid var(--fl-border-dark);
+  border-radius: 999px;
+  background:
+    var(--fl-texture-noise),
+    linear-gradient(180deg, #0f141c 0%, #090d13 100%);
+  color: var(--fl-text-secondary);
+  font-family: var(--fl-font-ui);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.84),
+    inset 0 0 0 1px rgba(198, 161, 91, 0.18),
+    inset 0 1px 0 rgba(255, 236, 184, 0.08),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.52),
+    0 4px 10px rgba(0, 0, 0, 0.38);
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease,
+    box-shadow 0.12s ease,
+    transform 0.12s ease;
+}
+
+.app-shell-root--forge-light-v2 .fl-switch--rect {
+  border-radius: var(--fl-radius-md);
+  padding: 4px 8px 4px 6px;
+}
+
+.app-shell-root--forge-light-v2 .fl-switch--rect .fl-switch__track {
+  border-radius: 5px;
+}
+
+.app-shell-root--forge-light-v2 .fl-switch--rect .fl-switch__knob {
+  border-radius: 4px;
+}
+
+.app-shell-root--forge-light-v2 .fl-switch__track {
+  position: relative;
+  width: 30px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.78);
+  background:
+    linear-gradient(180deg, rgba(255, 236, 184, 0.08), rgba(0, 0, 0, 0.4)),
+    linear-gradient(180deg, #2b160b, #130a05);
+  box-shadow:
+    inset 0 0 0 1px rgba(198, 161, 91, 0.2),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.46);
+}
+
+.app-shell-root--forge-light-v2 .fl-switch__knob {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.75);
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0) 52%),
+    linear-gradient(180deg, #f5ddb1, #b78945 62%, #6f4a1e);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 241, 200, 0.34),
+    0 1px 2px rgba(0, 0, 0, 0.52);
+  transition: transform 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
+}
+
+.app-shell-root--forge-light-v2 .fl-switch__label {
+  color: inherit;
+  line-height: 1;
+}
+
+.app-shell-root--forge-light-v2 .fl-switch.is-on {
+  color: var(--fl-gold-hover);
+  border-color: var(--fl-border-dark);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.88),
+    inset 0 0 0 1px rgba(230, 196, 122, 0.34),
+    inset 0 1px 0 rgba(255, 236, 184, 0.12),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.54),
+    0 0 12px rgba(230, 196, 122, 0.14),
+    0 5px 12px rgba(0, 0, 0, 0.42);
+}
+
+.app-shell-root--forge-light-v2 .fl-switch.is-on .fl-switch__track {
+  background:
+    linear-gradient(180deg, rgba(255, 236, 184, 0.18), rgba(0, 0, 0, 0.34)),
+    linear-gradient(180deg, #4b3211, #1f1308);
+  box-shadow:
+    inset 0 0 0 1px rgba(230, 196, 122, 0.42),
+    0 0 8px rgba(230, 196, 122, 0.18);
+}
+
+.app-shell-root--forge-light-v2 .fl-switch.is-on .fl-switch__knob {
+  transform: translateX(14px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 241, 200, 0.36),
+    0 0 8px rgba(230, 196, 122, 0.34);
+}
+
+.app-shell-root--forge-light-v2 .fl-switch:hover:not(:disabled) {
+  color: var(--fl-text-primary);
+}
+
+.app-shell-root--forge-light-v2 .fl-switch:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.app-shell-root--forge-light-v2 .fl-switch:focus-visible {
+  outline: none;
+  box-shadow:
+    var(--fl-focus-ring),
+    0 0 0 1px rgba(0, 0, 0, 0.88),
+    inset 0 0 0 1px rgba(230, 196, 122, 0.26),
+    inset 0 1px 0 rgba(255, 236, 184, 0.1),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.52);
+}
+
+.app-shell-root--forge-light-v2 .fl-switch--sm {
+  min-height: 28px;
+  gap: 7px;
+  padding: 4px 7px 4px 4px;
+  font-size: 10px;
+}
+
+.app-shell-root--forge-light-v2 .fl-switch--sm.fl-switch--rect {
+  padding: 4px 7px 4px 6px;
+}
+
+.app-shell-root--forge-light-v2 .fl-switch--sm .fl-switch__track {
+  width: 26px;
+  height: 14px;
+}
+
+.app-shell-root--forge-light-v2 .fl-switch--sm .fl-switch__knob {
+  width: 10px;
+  height: 10px;
+}
+
+.app-shell-root--forge-light-v2 .fl-switch--sm.is-on .fl-switch__knob {
+  transform: translateX(12px);
+}
+
+.app-shell-root--forge-light-v2 .fl-switch.is-disabled,
+.app-shell-root--forge-light-v2 .fl-switch:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.app-shell-root--forge-light-v2 .fl-side-action {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  width: 82px;
+  min-width: 82px;
+  min-height: 76px;
+  padding: 8px 6px !important;
+  border-radius: var(--fl-radius-sm) !important;
+  line-height: 1;
+  overflow: visible !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-side-action > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app-shell-root--forge-light-v2 .fl-side-action--primary,
+.app-shell-root--forge-light-v2 .fl-side-action--active,
+.app-shell-root--forge-light-v2 .fl-side-action[data-active="true"] {
+  color: var(--fl-gold-hover);
+}
+
+.app-shell-root--forge-light-v2 .fl-side-action--danger {
+  color: color-mix(in srgb, var(--fl-danger) 88%, #ffd5d5);
+}
+
+.app-shell-root--forge-light-v2 .fl-side-action--compact,
+.app-shell-root--forge-light-v2 .fl-side-action--sm {
+  width: 74px;
+  min-width: 74px;
+  min-height: 66px;
+  padding: 7px 5px !important;
+  font-size: 10px !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-side-action--xs {
+  width: 66px;
+  min-width: 66px;
+  min-height: 56px;
+  padding: 6px 4px !important;
+  font-size: 9px !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-side-action--xs .fl-side-action__icon,
+.app-shell-root--forge-light-v2 .fl-side-action--xs .fl-side-action__icon .forge-icon,
+.app-shell-root--forge-light-v2 .fl-side-action--xs .fl-side-action__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.app-shell-root--forge-light-v2 .fl-side-action--xs .fl-side-action__badge.fl-badge {
+  width: 17px !important;
+  min-width: 17px !important;
+  height: 17px !important;
+  min-height: 17px !important;
+  top: -6px;
+  right: -6px;
+  font-size: 9px !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-side-action:disabled,
+.app-shell-root--forge-light-v2 .fl-side-action--loading {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.app-shell-root--forge-light-v2 .fl-side-action__icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-shell-root--forge-light-v2 .fl-side-action__icon .forge-icon,
+.app-shell-root--forge-light-v2 .fl-side-action__icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.app-shell-root--forge-light-v2 .fl-side-action__label {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: inherit;
+  line-height: 1.05;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell-root--forge-light-v2 .fl-side-action__badge.fl-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 19px !important;
+  min-width: 19px !important;
+  height: 19px !important;
+  min-height: 19px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  clip-path: none !important;
+  background: #d62828 !important;
+  color: #fff !important;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.48), 0 0 8px rgba(214, 40, 40, 0.28) !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+}
+
+@keyframes fl-spin {
   to {
     transform: rotate(360deg);
   }

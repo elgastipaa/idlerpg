@@ -1069,7 +1069,7 @@ function baseGameReducer(state, action) {
 
   switch (action.type) {
     case "OPEN_SANCTUARY_FORGE": {
-      if (isSanctuaryLockedDuringExpeditionTutorial(state)) {
+      if (isSanctuaryLockedDuringExpeditionTutorial(state) && !action?.meta?.forceDirectEntry) {
         return {
           ...state,
           currentTab: "combat",

@@ -18,21 +18,17 @@ export const getLifetimeXp = (level = 1, currentXp = 0) => {
   return total;
 };
 
-function grantsTalentPointOnLevel(level) {
-  if (level <= 12) return true;
-  if (level <= 30) return level % 2 === 0;
-  if (level <= 75) return level % 3 === 0;
-  return level % 4 === 0;
-}
+export const getLevelTalentPointEntitlement = (level = 1) => {
+  const safeLevel = Math.max(1, Math.floor(Number(level || 1)));
+  return safeLevel - 1;
+};
 
 export const applyLevelUp = (player) => {
   let p = { ...player };
   while (p.xp >= xpRequired(p.level)) {
     p.xp -= xpRequired(p.level);
     p.level++;
-    if (grantsTalentPointOnLevel(p.level)) {
-      p.talentPoints = (p.talentPoints || 0) + 1;
-    }
+    p.talentPoints = (p.talentPoints || 0) + 1;
     p.baseMaxHp = (p.baseMaxHp || 100) + 12;
     p.baseDamage = (p.baseDamage || 10) + 1;
   }

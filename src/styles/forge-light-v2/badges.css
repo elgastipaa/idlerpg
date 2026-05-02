@@ -1,7 +1,9 @@
-.app-shell-root--forge-light-v2 .fl2-badge,
+.app-shell-root--forge-light-v2 .fl-badge,
+.app-shell-root--forge-light-v2 .fl-badge,
+.app-shell-root--forge-light-v2 .fl-tag,
 .app-shell-root--forge-light-v2 .progress-card-header-badge,
 .app-shell-root--forge-light-v2 .progress-status-chip {
-  --fl2-badge-tone: var(--progress-chip-tone, var(--fl2-gold-muted));
+  --fl-badge-tone: var(--progress-chip-tone, var(--fl-gold-muted));
   min-height: 22px !important;
   display: inline-flex !important;
   align-items: center !important;
@@ -10,8 +12,8 @@
   width: max-content;
   max-width: 100%;
   padding: 0 9px !important;
-  color: color-mix(in srgb, var(--fl2-badge-tone) 58%, var(--fl2-text)) !important;
-  font-family: var(--fl2-font-ui) !important;
+  color: color-mix(in srgb, var(--fl-badge-tone) 58%, var(--fl-text-primary)) !important;
+  font-family: var(--fl-font-ui) !important;
   font-size: 0.66rem !important;
   font-weight: 900 !important;
   letter-spacing: 0.06em !important;
@@ -19,23 +21,103 @@
   text-transform: uppercase !important;
   white-space: nowrap !important;
   background:
-    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--fl2-badge-tone) 18%, transparent), transparent 58%),
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--fl-badge-tone) 18%, transparent), transparent 58%),
     linear-gradient(180deg, rgba(16, 20, 25, 0.96), rgba(7, 9, 12, 0.98)) !important;
-  border: 1px solid color-mix(in srgb, var(--fl2-badge-tone) 52%, transparent) !important;
-  border-radius: var(--fl2-radius-sm) !important;
+  border: 1px solid color-mix(in srgb, var(--fl-badge-tone) 52%, transparent) !important;
+  border-radius: var(--fl-radius-sm) !important;
   box-shadow: inset 0 0 0 1px rgba(255, 232, 180, 0.035) !important;
   clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0 50%);
 }
 
-.app-shell-root--forge-light-v2 .fl2-badge--pill,
+.app-shell-root--forge-light-v2 .fl-badge--pill,
+.app-shell-root--forge-light-v2 :where(.fl-badge--pill, .fl-badge--count, .fl-badge--notification),
 .app-shell-root--forge-light-v2 .progress-card-header-badge,
 .app-shell-root--forge-light-v2 .progress-status-chip {
   border-radius: 999px !important;
   clip-path: none;
 }
 
-.app-shell-root--forge-light-v2 :where(.fl-sanctuary-chip, .forge-character-chip, .forge-talent-detail-pill, .fl-crafting-result-state) {
-  --fl2-badge-tone: var(--fl2-gold);
+.app-shell-root--forge-light-v2 .fl-badge--rect {
+  border-radius: var(--fl-radius-sm) !important;
+  clip-path: none !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-badge[data-tone="success"],
+.app-shell-root--forge-light-v2 .fl-tag--success {
+  --fl-badge-tone: var(--fl-success);
+}
+
+.app-shell-root--forge-light-v2 .fl-badge[data-tone="danger"],
+.app-shell-root--forge-light-v2 .fl-tag--danger {
+  --fl-badge-tone: var(--fl-danger);
+}
+
+.app-shell-root--forge-light-v2 .fl-badge[data-tone="warning"],
+.app-shell-root--forge-light-v2 .fl-tag--warning {
+  --fl-badge-tone: var(--fl-warning);
+}
+
+.app-shell-root--forge-light-v2 .fl-badge[data-tone="arcane"],
+.app-shell-root--forge-light-v2 .fl-tag--arcane {
+  --fl-badge-tone: var(--fl-arcane);
+}
+
+.app-shell-root--forge-light-v2 .fl-badge[data-tone="defense"],
+.app-shell-root--forge-light-v2 .fl-tag--defense {
+  --fl-badge-tone: var(--fl-defense);
+}
+
+.app-shell-root--forge-light-v2 .fl-badge[data-tone="reward"],
+.app-shell-root--forge-light-v2 .fl-tag--reward {
+  --fl-badge-tone: var(--fl-reward);
+}
+
+.app-shell-root--forge-light-v2 .fl-badge--xs {
+  min-height: 18px !important;
+  padding: 0 7px !important;
+  font-size: 0.56rem !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-badge--md {
+  min-height: 26px !important;
+  padding: 0 11px !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-tag {
+  cursor: default;
+}
+
+.app-shell-root--forge-light-v2 .fl-tag--xs {
+  min-height: 16px !important;
+  padding: 1px 6px !important;
+  font-size: 0.56rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+  line-height: 1 !important;
+  clip-path: none !important;
+  border-radius: var(--fl-radius-sm) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-tag--selected,
+.app-shell-root--forge-light-v2 .fl-tag[data-selected="true"],
+.app-shell-root--forge-light-v2 .fl-badge--selected,
+.app-shell-root--forge-light-v2 .fl-badge[data-selected="true"] {
+  color: var(--fl-gold-hover) !important;
+  border-color: var(--fl-gold-hover) !important;
+  box-shadow: var(--fl-glow-gold-soft) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-tag__remove {
+  margin: 0 -5px 0 1px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.app-shell-root--forge-light-v2 :where(.fl-sanctuary-chip, .forge-talent-detail-pill, .fl-crafting-result-state) {
+  --fl-badge-tone: var(--fl-gold-glow);
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -43,8 +125,8 @@
   width: max-content;
   max-width: 100%;
   padding: 0 9px !important;
-  color: color-mix(in srgb, var(--fl2-badge-tone) 58%, var(--fl2-text)) !important;
-  font-family: var(--fl2-font-ui) !important;
+  color: color-mix(in srgb, var(--fl-badge-tone) 58%, var(--fl-text-primary)) !important;
+  font-family: var(--fl-font-ui) !important;
   font-size: 0.66rem !important;
   font-weight: 900 !important;
   letter-spacing: 0.06em !important;
@@ -52,21 +134,64 @@
   text-transform: uppercase !important;
   white-space: nowrap !important;
   background:
-    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--fl2-badge-tone) 18%, transparent), transparent 58%),
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--fl-badge-tone) 18%, transparent), transparent 58%),
     linear-gradient(180deg, rgba(16, 20, 25, 0.96), rgba(7, 9, 12, 0.98)) !important;
-  border: 1px solid color-mix(in srgb, var(--fl2-badge-tone) 52%, transparent) !important;
-  border-radius: var(--fl2-radius-sm) !important;
+  border: 1px solid color-mix(in srgb, var(--fl-badge-tone) 52%, transparent) !important;
+  border-radius: var(--fl-radius-sm) !important;
   box-shadow: inset 0 0 0 1px rgba(255, 232, 180, 0.035) !important;
 }
 
 .app-shell-root--forge-light-v2 :where(.fl-sanctuary-chip--success, .forge-talent-detail-pill--available) {
-  --fl2-badge-tone: var(--fl2-success);
+  --fl-badge-tone: var(--fl-success);
 }
 
 .app-shell-root--forge-light-v2 :where(.fl-sanctuary-chip--danger, .forge-talent-detail-pill--locked) {
-  --fl2-badge-tone: var(--fl2-danger);
+  --fl-badge-tone: var(--fl-danger);
 }
 
 .app-shell-root--forge-light-v2 :where(.fl-sanctuary-chip--info, .forge-talent-detail-pill--owned) {
-  --fl2-badge-tone: var(--fl2-defense);
+  --fl-badge-tone: var(--fl-defense);
 }
+
+.app-shell-root--forge-light-v2 .fl-notif-badge {
+  --fl-notif-tone: var(--fl-danger);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-family: var(--fl-font-ui);
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+  color: #fff;
+  background: var(--fl-notif-tone);
+  border: 1.5px solid var(--fl-bg-card);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 2px 5px rgba(0, 0, 0, 0.5);
+}
+
+.app-shell-root--forge-light-v2 .fl-notif-badge--xs {
+  min-width: 16px;
+  height: 16px;
+  font-size: 0.52rem;
+}
+
+.app-shell-root--forge-light-v2 .fl-notif-badge--md {
+  min-width: 20px;
+  height: 20px;
+  font-size: 0.62rem;
+}
+
+.app-shell-root--forge-light-v2 .fl-notif-badge[data-tone="danger"] { --fl-notif-tone: var(--fl-danger); color: #fff; }
+.app-shell-root--forge-light-v2 .fl-notif-badge[data-tone="success"] { --fl-notif-tone: var(--fl-success); color: #0d1a12; }
+.app-shell-root--forge-light-v2 .fl-notif-badge[data-tone="warning"] { --fl-notif-tone: var(--fl-warning); color: #1e1404; }
+.app-shell-root--forge-light-v2 .fl-notif-badge[data-tone="arcane"] { --fl-notif-tone: var(--fl-arcane); color: #f6eeff; }
+.app-shell-root--forge-light-v2 .fl-notif-badge[data-tone="defense"] { --fl-notif-tone: var(--fl-defense); color: #eaf3ff; }
+.app-shell-root--forge-light-v2 .fl-notif-badge[data-tone="reward"] { --fl-notif-tone: var(--fl-reward); color: #1e1404; }

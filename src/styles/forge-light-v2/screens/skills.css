@@ -1,13 +1,74 @@
-.app-shell-root--forge-light-v2[data-fl2-screen="skills"] .forge-skills-shell,
-.app-shell-root--forge-light-v2[data-fl2-screen="skills"] .forge-attribute-section,
-.app-shell-root--forge-light-v2[data-fl2-screen="skills"] .forge-skills-reading-card {
+.app-shell-root--forge-light-v2[data-fl-screen="skills"] .forge-skills-screen {
   background:
     radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.045), transparent 24%),
-    linear-gradient(180deg, rgba(8, 10, 11, 0.56), rgba(5, 8, 10, 0.52)) !important;
-  border-color: rgba(198, 161, 91, 0.18) !important;
-  color: var(--fl2-text) !important;
+    linear-gradient(180deg, rgba(8, 10, 11, 0.56), rgba(5, 8, 10, 0.52));
+  border-color: rgba(198, 161, 91, 0.18);
+  color: var(--fl-text-primary);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="skills"] .forge-attribute-name {
-  color: var(--fl2-text) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="skills"] .forge-skills-screen {
+  --fl-screen-header-module-pad-y: 8px;
+  --fl-screen-header-module-pad-x: 14px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="skills"] .forge-skills-screen__body {
+  display: grid;
+  gap: 0;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="skills"] .forge-skills-screen > .fl-panel__body > .forge-skills-screen__body > .fl-screen-header-module__copy {
+  padding-top: 4px !important;
+  padding-bottom: 0 !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="skills"] .forge-skills-screen .fl-screen-header {
+  gap: 2px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="skills"] .forge-skills-screen > .fl-panel__body > .forge-skills-screen__body > .forge-skills-selector {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: -2px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="skills"] .forge-skills-screen > .fl-panel__body > .forge-skills-screen__body > .forge-attributes-panel {
+  padding-top: 0 !important;
+  padding-bottom: 2px !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="skills"] .forge-skills-selector {
+  width: 100%;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="skills"] .forge-attributes-panel {
+  gap: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="skills"] .forge-attribute-list > .fl-stat-row.fl-stat-row--attribute:last-child {
+  border-bottom: 0;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="skills"] .forge-attribute-section {
+  gap: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="skills"] .forge-attribute-buy-action .fl-button__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transform: translateY(-0.5px);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="skills"] .forge-attribute-buy-glyph {
+  display: inline-block;
+  font-size: 0.95em;
+  line-height: 1;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="skills"] .forge-attribute-name {
+  color: var(--fl-text-primary);
 }

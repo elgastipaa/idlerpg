@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { getObjectiveStatusMeta, resolveObjectiveStatus } from "../engine/progression/objectiveStatus";
 import { getWeeklyLedgerContractsWithProgress } from "../engine/progression/weeklyLedger";
 import useViewport from "../hooks/useViewport";
-import { CardHeader, InlineAction, Panel, ProgressBar, StatusChip } from "./ui/ProgressPrimitives";
+import { FlBadge, FlButton, FlPanel, FlProgressBar, FlScreenHeader } from "./ui/forge";
 
 function formatCount(value = 0) {
   return Math.max(0, Number(value || 0)).toLocaleString();
@@ -110,25 +110,20 @@ export default function AccountProgressView({ state, dispatch }) {
   return (
     <div className="account-progress-view">
       <Panel>
-        <div className="account-progress-header">
-          <div className="account-progress-header-copy">
-            <div className="account-progress-eyebrow account-progress-eyebrow--accent">
-              Cuenta
+        <FlScreenHeader
+          className="account-progress-header"
+          eyebrow="Cuenta"
+          title="Resumen de cuenta"
+          subtitle="Vista compacta de progreso largo sin duplicar detalles de Ecos, Biblioteca, Abismo y Deep Forge."
+          chips={(
+            <div className="account-progress-chip-row">
+              <StatusChip label={`P${formatCount(prestige.level || 0)}`} tone="var(--tone-accent, #4338ca)" surface="var(--tone-accent-soft, #eef2ff)" />
+              <StatusChip label={`Abismo ${formatCount(highestDepth)}`} tone="var(--tone-info, #0369a1)" surface="var(--tone-info-soft, #f0f9ff)" />
+              <StatusChip label={`${formatCount(stashProjects.length)} proyecto${stashProjects.length === 1 ? "" : "s"}`} tone="var(--tone-violet, #7c3aed)" surface="var(--tone-violet-soft, #f3e8ff)" />
+              <StatusChip label={`${formatCount(relicArmory.length)} reliquia${relicArmory.length === 1 ? "" : "s"}`} tone="var(--tone-danger, #D85A30)" surface="var(--tone-danger-soft, #fff1f2)" />
             </div>
-            <div className="account-progress-title">
-              Resumen de cuenta
-            </div>
-            <div className="account-progress-description">
-              Vista compacta de progreso largo sin duplicar detalles de Ecos, Biblioteca, Abismo y Deep Forge.
-            </div>
-          </div>
-          <div className="account-progress-chip-row">
-            <StatusChip label={`P${formatCount(prestige.level || 0)}`} tone="var(--tone-accent, #4338ca)" surface="var(--tone-accent-soft, #eef2ff)" />
-            <StatusChip label={`Abismo ${formatCount(highestDepth)}`} tone="var(--tone-info, #0369a1)" surface="var(--tone-info-soft, #f0f9ff)" />
-            <StatusChip label={`${formatCount(stashProjects.length)} proyecto${stashProjects.length === 1 ? "" : "s"}`} tone="var(--tone-violet, #7c3aed)" surface="var(--tone-violet-soft, #f3e8ff)" />
-            <StatusChip label={`${formatCount(relicArmory.length)} reliquia${relicArmory.length === 1 ? "" : "s"}`} tone="var(--tone-danger, #D85A30)" surface="var(--tone-danger-soft, #fff1f2)" />
-          </div>
-        </div>
+          )}
+        />
 
         <div className="account-progress-metrics">
           <AccountMetric label="Resonancia" value={`${formatCount(prestige.totalEchoesEarned || 0)} ecos`} />
@@ -149,49 +144,45 @@ export default function AccountProgressView({ state, dispatch }) {
         dense={isDenseWeeklyMobile}
         {...weeklyPanelProps}
       >
-        <div className={["account-progress-header", isDenseWeeklyMobile ? "account-progress-header--dense" : ""].filter(Boolean).join(" ")}>
-          <div className="account-progress-header-copy">
-            <div className="account-progress-eyebrow account-progress-eyebrow--warning">
-              Weekly Ledger
-            </div>
-            <div className="account-progress-title account-progress-title--compact">
-              Contratos de la semana
-            </div>
-            <div className="account-progress-description account-progress-description--compact">
-              Vista compacta: las 3 misiones quedan visibles y se reclaman desde aqui.
-            </div>
-          </div>
-          <div className="account-progress-chip-row">
-            <StatusChip label={`Semana ${state?.weeklyLedger?.weekKey || "-"}`} tone="var(--tone-warning, #f59e0b)" surface="var(--tone-warning-soft, #fff7ed)" dense={isDenseWeeklyMobile} />
-            {weeklyTotalContracts > 0 && (
-              <StatusChip label={`${formatCount(completedWeeklyContracts)}/${formatCount(weeklyTotalContracts)} completas`} tone="var(--tone-accent, #4338ca)" surface="var(--tone-accent-soft, #eef2ff)" dense={isDenseWeeklyMobile} />
-            )}
-            <StatusChip
-              tone={claimableWeeklyContracts > 0 || weeklyAllClaimed ? "var(--tone-success, #10b981)" : "var(--tone-warning, #f59e0b)"}
-              surface={claimableWeeklyContracts > 0 || weeklyAllClaimed ? "var(--tone-success-soft, #ecfdf5)" : "var(--tone-warning-soft, #fff7ed)"}
-              dense={isDenseWeeklyMobile}
-              label={weeklyAllClaimed
-                ? "Todo reclamado"
-                : claimableWeeklyContracts > 0
-                  ? `${formatCount(claimableWeeklyContracts)} para reclamar`
-                  : "En progreso"}
-            />
-            {claimableWeeklyContracts > 1 && !weeklyAllClaimed && (
-              <InlineAction
-                onClick={() => {
-                  claimableWeeklyContractEntries.forEach(contract => {
-                    dispatch({ type: "CLAIM_WEEKLY_LEDGER_CONTRACT", contractId: contract.id });
-                  });
-                }}
-                tone="var(--tone-success, #10b981)"
-                surface="var(--tone-success-soft, #ecfdf5)"
+        <FlScreenHeader
+          className={["account-progress-header", isDenseWeeklyMobile ? "account-progress-header--dense" : ""].filter(Boolean).join(" ")}
+          compact={isDenseWeeklyMobile}
+          eyebrow="Weekly Ledger"
+          title="Contratos de la semana"
+          subtitle="Vista compacta: las 3 misiones quedan visibles y se reclaman desde aqui."
+          chips={(
+            <div className="account-progress-chip-row">
+              <StatusChip label={`Semana ${state?.weeklyLedger?.weekKey || "-"}`} tone="var(--tone-warning, #f59e0b)" surface="var(--tone-warning-soft, #fff7ed)" dense={isDenseWeeklyMobile} />
+              {weeklyTotalContracts > 0 && (
+                <StatusChip label={`${formatCount(completedWeeklyContracts)}/${formatCount(weeklyTotalContracts)} completas`} tone="var(--tone-accent, #4338ca)" surface="var(--tone-accent-soft, #eef2ff)" dense={isDenseWeeklyMobile} />
+              )}
+              <StatusChip
+                tone={claimableWeeklyContracts > 0 || weeklyAllClaimed ? "var(--tone-success, #10b981)" : "var(--tone-warning, #f59e0b)"}
+                surface={claimableWeeklyContracts > 0 || weeklyAllClaimed ? "var(--tone-success-soft, #ecfdf5)" : "var(--tone-warning-soft, #fff7ed)"}
                 dense={isDenseWeeklyMobile}
-              >
-                Reclamar todo
-              </InlineAction>
-            )}
-          </div>
-        </div>
+                label={weeklyAllClaimed
+                  ? "Todo reclamado"
+                  : claimableWeeklyContracts > 0
+                    ? `${formatCount(claimableWeeklyContracts)} para reclamar`
+                    : "En progreso"}
+              />
+              {claimableWeeklyContracts > 1 && !weeklyAllClaimed && (
+                <InlineAction
+                  onClick={() => {
+                    claimableWeeklyContractEntries.forEach(contract => {
+                      dispatch({ type: "CLAIM_WEEKLY_LEDGER_CONTRACT", contractId: contract.id });
+                    });
+                  }}
+                  tone="var(--tone-success, #10b981)"
+                  surface="var(--tone-success-soft, #ecfdf5)"
+                  dense={isDenseWeeklyMobile}
+                >
+                  Reclamar todo
+                </InlineAction>
+              )}
+            </div>
+          )}
+        />
 
         <div className="account-weekly-grid" {...weeklyGridProps}>
           {weeklyContracts.map(contract => (
@@ -200,6 +191,119 @@ export default function AccountProgressView({ state, dispatch }) {
         </div>
       </Panel>
     </div>
+  );
+}
+
+const Panel = React.forwardRef(function AccountPanel({ children, style = {}, dense = false, ...rest }, ref) {
+  const panelProps = style && Object.keys(style).length > 0 ? { style } : {};
+  return (
+    <FlPanel
+      {...rest}
+      {...panelProps}
+      ref={ref}
+      variant="compact"
+      className={["progress-panel", dense ? "progress-panel--dense" : ""].filter(Boolean).join(" ")}
+    >
+      {children}
+    </FlPanel>
+  );
+});
+
+function toneFromCssVar(raw = "") {
+  const value = String(raw || "").toLowerCase();
+  if (value.includes("success")) return "success";
+  if (value.includes("danger")) return "danger";
+  if (value.includes("warning")) return "warning";
+  if (value.includes("violet") || value.includes("accent")) return "arcane";
+  if (value.includes("info")) return "defense";
+  return "neutral";
+}
+
+function progressTypeFromCssVar(raw = "") {
+  const tone = toneFromCssVar(raw);
+  if (tone === "danger") return "danger";
+  if (tone === "success") return "success";
+  if (tone === "arcane") return "arcane";
+  return "progress";
+}
+
+function CardHeader({
+  tag = "",
+  title = "",
+  badge = "",
+  badgeTone = "var(--tone-accent, #4338ca)",
+  dense = false,
+}) {
+  return (
+    <div className={["progress-card-header", dense ? "progress-card-header--dense" : ""].filter(Boolean).join(" ")}>
+      <div className="progress-card-header-copy">
+        {tag ? (
+          <div className="progress-card-header-tag">
+            {tag}
+          </div>
+        ) : null}
+        <div className="progress-card-header-title">
+          {title}
+        </div>
+      </div>
+      {badge ? (
+        <FlBadge
+          variant="rect"
+          size={dense ? "xs" : "sm"}
+          tone={toneFromCssVar(badgeTone)}
+          className="progress-card-header-badge"
+        >
+          {badge}
+        </FlBadge>
+      ) : null}
+    </div>
+  );
+}
+
+function StatusChip({ label = "", tone = "var(--tone-accent, #4338ca)", dense = false }) {
+  return (
+    <FlBadge
+      variant="rect"
+      tone={toneFromCssVar(tone)}
+      size={dense ? "xs" : "sm"}
+      className={["progress-status-chip", dense ? "progress-status-chip--dense" : ""].filter(Boolean).join(" ")}
+    >
+      {label}
+    </FlBadge>
+  );
+}
+
+function ProgressBar({ percent = 0, tone = "var(--tone-warning, #f59e0b)", dense = false }) {
+  return (
+    <FlProgressBar
+      className={["progress-primitive-bar", dense ? "progress-primitive-bar--dense" : ""].filter(Boolean).join(" ")}
+      type={progressTypeFromCssVar(tone)}
+      percent={percent}
+      size={dense ? "xs" : "sm"}
+      showValue={false}
+    />
+  );
+}
+
+function InlineAction({
+  children,
+  onClick,
+  disabled = false,
+  tone = "var(--tone-accent, #4338ca)",
+  dense = false,
+}) {
+  const mappedTone = toneFromCssVar(tone);
+  const variant = mappedTone === "success" ? "success" : mappedTone === "danger" ? "danger" : "default";
+  return (
+    <FlButton
+      className={["progress-inline-action", dense ? "progress-inline-action--dense" : ""].filter(Boolean).join(" ")}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      variant={variant}
+      size={dense ? "sm" : "md"}
+    >
+      {children}
+    </FlButton>
   );
 }
 

@@ -21,7 +21,7 @@ import { summarizeLootRuleAutomation } from "../utils/lootFilter";
 import { getOnboardingStepInteractionMode, isAutoAdvanceUnlocked, isExtractionUnlocked, ONBOARDING_STEPS } from "../engine/onboarding/onboardingEngine";
 import { getMaxRunSigilSlots } from "../engine/progression/abyssProgression";
 import RunSigilCallout from "./RunSigilCallout";
-import { CardHeader, InlineAction, ProgressBar, StatusChip } from "./ui/ProgressPrimitives";
+import { FlBadge, FlButton, FlPanel, FlPanelHeader, FlProgressBar, FlSideAction, FlSwitch, FlTag } from "./ui/forge";
 import ForgeIcon from "./icons/ForgeIcon";
 
 const COLORS = {
@@ -217,6 +217,16 @@ function formatMultiplierBonus(multiplier = 1, digits = 0) {
   return formatSignedPercent(Number(multiplier || 1) - 1, digits);
 }
 
+function resolveFlToneFromObjectiveStatus(status) {
+  if (status === "claimable" || status === "claimed") return "success";
+  return "warning";
+}
+
+function resolveFlProgressTypeFromObjectiveStatus(status) {
+  if (status === "claimable" || status === "claimed") return "success";
+  return "reward";
+}
+
 function formatTickCount(ticks = 0) {
   const value = Math.max(0, Number(ticks || 0));
   return `${value} tick${value === 1 ? "" : "s"}`;
@@ -250,12 +260,12 @@ function formatAbyssBossUpgradeSummary(profile = null) {
 
 function getIntelSourceMeta(id, depthIds = new Set(), mutatorIds = new Set()) {
   if (depthIds.has(id)) {
-    return { label: "Abismo", colors: { bg: "var(--tone-warning-soft, #fff7ed)", fg: "var(--tone-warning-strong, #c2410c)", border: "rgba(245,158,11,0.22)" } };
+    return { label: "Abismo", tone: "warning" };
   }
   if (mutatorIds.has(id)) {
-    return { label: "Anomalia", colors: { bg: "var(--tone-accent-soft, #eef2ff)", fg: "var(--tone-accent, #4338ca)", border: "rgba(99,102,241,0.18)" } };
+    return { label: "Anomalia", tone: "arcane" };
   }
-  return { label: "Base", colors: { bg: "var(--color-background-secondary, #fff)", fg: "var(--color-text-secondary, #475569)", border: "var(--color-border-primary, #e2e8f0)" } };
+  return { label: "Base", tone: "neutral" };
 }
 
 function getStackedMultiplier(perStackMultiplier = 1, stacks = 0) {
@@ -437,16 +447,7 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
   }, [featuredWeeklyContract, orderedWeeklyContracts]);
   const showWeeklyLedgerCard = Boolean(state?.weeklyLedger);
   const showWeeklySelectorArrows = orderedWeeklyContracts.length > 1;
-  const showWeeklyCardEdgeArrows = showWeeklySelectorArrows && isMobile;
   const isSessionDenseMobile = isMobile;
-  const sessionCardCompactStyle = isSessionDenseMobile ? { padding: "8px", gap: "6px" } : undefined;
-  const sessionProgressBarHeight = isSessionDenseMobile ? "4px" : "6px";
-  const sessionSectionTagSize = isSessionDenseMobile ? "0.54rem" : "0.58rem";
-  const sessionTitleSize = isSessionDenseMobile ? "0.76rem" : "0.82rem";
-  const sessionCopySize = isSessionDenseMobile ? "0.6rem" : "0.62rem";
-  const sessionMetaSize = isSessionDenseMobile ? "0.58rem" : "0.62rem";
-  const sessionHintSize = isSessionDenseMobile ? "0.54rem" : "0.58rem";
-  const sessionActionPadding = isSessionDenseMobile ? "6px 9px" : "7px 10px";
   const weeklyBossOverview = useMemo(
     () => getWeeklyBossOverview(state, state?.weeklyBoss || {}),
     [state]
@@ -523,13 +524,13 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
       return {
         label: "Valor para asegurar",
         detail: `${runCargoCount} bundle(s) · ${runBossKills} boss(es)`,
-        tone: "var(--tone-success, #10b981)",
+        toneClass: "success",
       };
     }
     return {
       label: "Push disponible",
       detail: "Aun no acumulaste valor persistente fuerte.",
-      tone: "var(--tone-accent, #4338ca)",
+      toneClass: "accent",
     };
   }, [extractionUnlocked, runBossKills, runCargoCount]);
 
@@ -884,6 +885,63 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
     ...(enemy?.monsterAffixes || []).slice(0, 2).map(affix => ({ id: `monster-${affix.id || affix.name}`, label: affix.name })),
     ...(enemy?.mechanics || []).slice(0, 2).map(mechanic => ({ id: `mech-${mechanic.id || mechanic.name}`, label: mechanic.name })),
   ].filter(Boolean);
+  const enemyHudIntelTags = useMemo(() => {
+    const tags = [];
+
+    if (abyssMutator?.name) {
+      tags.push({
+        id: `mutator-${abyssMutator.id || abyssMutator.name}`,
+        label: abyssMutator.name,
+        tone: "arcane",
+      });
+    }
+
+    if (enemy?.isBoss && bossDepthSummary) {
+      tags.push({
+        id: `boss-depth-${enemy?.id || enemy?.name || "boss"}`,
+        label: bossDepthSummary,
+        tone: "warning",
+      });
+    }
+
+    (enemy?.monsterAffixes || []).forEach(affix => {
+      if (!affix?.name) return;
+      const sourceMeta = getIntelSourceMeta(affix.id, depthAffixIds, mutatorAffixIds);
+      const affixTone = sourceMeta.tone === "neutral" ? "defense" : sourceMeta.tone;
+      tags.push({
+        id: `affix-${affix.id || affix.name}`,
+        label: affix.name,
+        tone: affixTone,
+      });
+    });
+
+    (enemy?.mechanics || []).forEach(mechanic => {
+      if (!mechanic?.name) return;
+      const sourceMeta = getIntelSourceMeta(mechanic.id, depthMechanicIds, mutatorMechanicIds);
+      const mechanicTone = sourceMeta.tone === "neutral" ? "danger" : sourceMeta.tone;
+      tags.push({
+        id: `mech-${mechanic.id || mechanic.name}`,
+        label: mechanic.name,
+        tone: mechanicTone,
+      });
+    });
+
+    const seen = new Set();
+    return tags.filter(tag => {
+      const key = `${tag.tone}:${tag.label}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [
+    abyssMutator,
+    bossDepthSummary,
+    depthAffixIds,
+    depthMechanicIds,
+    enemy,
+    mutatorAffixIds,
+    mutatorMechanicIds,
+  ]);
   const enemyLegendaryDrops = useMemo(() => getTargetedLegendaryDropsForEnemy(enemy, { abyss: state?.abyss || {} }), [enemy, state?.abyss]);
   const missingEnemyPowers = useMemo(() => {
     const discoveries = state?.codex?.powerDiscoveries || {};
@@ -1212,18 +1270,18 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
     return COLORS.danger;
   };
 
-  const getLogEntryStyle = entry => {
+  const getLogEntryTone = entry => {
     const text = entry.toLowerCase();
-    if (text.includes("logro:")) return { color: "var(--tone-warning, #fde68a)", fontWeight: "900" };
-    if (text.includes("objetivo:")) return { color: "var(--tone-info, #93c5fd)", fontWeight: "900" };
-    if (text.includes("boss abatido")) return { color: "var(--tone-violet, #c4b5fd)", fontWeight: "900" };
-    if (text.includes("victoria")) return { color: COLORS.success, fontWeight: "900" };
-    if (text.includes("cayo frente")) return { color: "var(--tone-danger, #fca5a5)", fontWeight: "900" };
-    if (text.includes("critico")) return { color: COLORS.warning, fontWeight: "900" };
-    if (text.includes("derrotado") || text.includes("obtienes")) return { color: COLORS.success, fontWeight: "bold" };
-    if (text.includes("mueres") || text.includes("recibes")) return { color: "var(--tone-danger, #ef4444)" };
-    if (text.includes("nivel")) return { color: "var(--tone-violet, #a855f7)", fontWeight: "bold" };
-    return { color: "var(--color-text-tertiary, #94a3b8)" };
+    if (text.includes("logro:")) return "achievement";
+    if (text.includes("objetivo:")) return "objective";
+    if (text.includes("boss abatido")) return "boss";
+    if (text.includes("victoria")) return "victory";
+    if (text.includes("cayo frente")) return "down";
+    if (text.includes("critico")) return "critical";
+    if (text.includes("derrotado") || text.includes("obtienes")) return "gain";
+    if (text.includes("mueres") || text.includes("recibes")) return "danger";
+    if (text.includes("nivel")) return "level";
+    return "default";
   };
   const floatingCombatEvents = (combat.floatEvents || []).slice(-10);
   const combatDamageFloatEvents = floatingCombatEvents.filter(event => event.kind !== "xp");
@@ -1249,6 +1307,7 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
 
   const combatRootClassName = [
     "combat-root",
+    "combat-root--ui-v4",
     forgeCombatEnabled ? "combat-root--forge-assets" : "",
     forgeLightTrialEnabled ? "combat-root--forge-light-prueba" : "",
     COMBAT_STITCH_VISUAL_TRIAL ? "combat-root--stitch-trial" : "",
@@ -1264,80 +1323,60 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
     >
       {visibleOverflowEvent && (
         <section
-          {...{ style: {
-            border: "1px solid rgba(245,158,11,0.3)",
-            background: isDarkMode ? "rgba(245,158,11,0.14)" : "#fff7ed",
-            borderRadius: "12px",
-            padding: isMobile ? "8px 10px" : "10px 12px",
-            display: "grid",
-            gap: "7px",
-          } }}
+          className="combat-overflow-banner"
+          data-mobile={isMobile ? "true" : undefined}
         >
-          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "start", flexWrap: "wrap" } }}>
-            <div>
-              <div {...{ style: { fontSize: "0.54rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" } }}>
+          <div className="combat-overflow-banner__top">
+            <div className="combat-overflow-banner__copy">
+              <div className="combat-overflow-banner__eyebrow">
                 Mochila llena
               </div>
-              <div {...{ style: { fontSize: "0.72rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", marginTop: "3px", lineHeight: 1.3 } }}>
+              <div className="combat-overflow-banner__title">
                 {visibleOverflowEvent.incomingItemKept
                   ? `${visibleOverflowEvent.incomingItemName} entró y desplazó ${visibleOverflowEvent.droppedItemName}.`
                   : `${visibleOverflowEvent.incomingItemName} no entró y se perdió.`}
               </div>
             </div>
-            <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" } }}>
-              <button
+            <div className="combat-overflow-banner__actions">
+              <FlButton
                 onClick={() => {
                   dispatch({ type: "REQUEST_LOOT_FILTER_OPEN" });
                   dispatch({ type: "SET_TAB", tab: "inventory" });
                 }}
-                {...{ style: {
-                  border: "1px solid rgba(245,158,11,0.38)",
-                  background: "rgba(245,158,11,0.1)",
-                  color: "var(--tone-warning, #f59e0b)",
-                  borderRadius: "8px",
-                  padding: "5px 8px",
-                  fontSize: "0.58rem",
-                  fontWeight: "900",
-                  cursor: "pointer",
-                } }}
+                className="combat-overflow-banner__action combat-overflow-banner__action--primary"
+                variant="default"
+                size="sm"
               >
                 Abrir filtro
-              </button>
-              <button
+              </FlButton>
+              <FlButton
                 onClick={() => setDismissedOverflowEventId(visibleOverflowEvent.id)}
-                {...{ style: {
-                  border: "1px solid var(--color-border-primary, #e2e8f0)",
-                  background: "var(--color-background-secondary, #ffffff)",
-                  color: "var(--color-text-secondary, #64748b)",
-                  borderRadius: "8px",
-                  padding: "5px 8px",
-                  fontSize: "0.58rem",
-                  fontWeight: "900",
-                  cursor: "pointer",
-                } }}
+                className="combat-overflow-banner__action combat-overflow-banner__action--secondary"
+                variant="secondary"
+                size="sm"
               >
                 Ocultar
-              </button>
+              </FlButton>
             </div>
           </div>
-          <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
-            <span {...{ style: { fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.12)", color: "var(--tone-warning, #f59e0b)" } }}>
+          <div className="combat-overflow-banner__chips">
+            <span className="combat-overflow-chip combat-overflow-chip--warning">
               {Math.max(0, Number(overflowStats.total || 0))} overflow
             </span>
-            <span {...{ style: { fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #64748b)" } }}>
+            <span className="combat-overflow-chip combat-overflow-chip--neutral">
               {Math.max(0, Number(overflowStats.lost || 0))} perdidos
             </span>
-            <span {...{ style: { fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.12)", color: "var(--tone-warning, #f59e0b)" } }}>
+            <span className="combat-overflow-chip combat-overflow-chip--warning">
               Entra {String(visibleOverflowEvent.incomingItemRarity || "common").toUpperCase()} · P {Math.floor(Number(visibleOverflowEvent.incomingItemRating || 0))}
             </span>
-            <span {...{ style: { fontSize: "0.56rem", fontWeight: "900", borderRadius: "999px", padding: "2px 8px", border: "1px solid var(--color-border-primary, #e2e8f0)", background: "var(--color-background-secondary, #fff)", color: "var(--color-text-secondary, #64748b)" } }}>
+            <span className="combat-overflow-chip combat-overflow-chip--neutral">
               Sale {String(visibleOverflowEvent.droppedItemRarity || "common").toUpperCase()} · P {Math.floor(Number(visibleOverflowEvent.droppedItemRating || 0))}
             </span>
           </div>
-          <div {...{ style: { fontSize: "0.6rem", fontWeight: "800", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.35 } }}>
+          <div className="combat-overflow-banner__hint">
             Ajustalo en Mochila con filtro de loot si se repite seguido.
           </div>
-          <div {...{ style: { fontSize: "0.58rem", fontWeight: "800", color: "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.35 } }}>
+          <div className="combat-overflow-banner__meta">
             Regla activa: {lootRuleSummary}.
           </div>
         </section>
@@ -1352,10 +1391,10 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
         />
       )}
       <section
-        className="combat-main-panel"
-        {...{ style: {
-          border: `2px solid ${enemy.isBoss ? COLORS.warning : "var(--color-border-primary, #e2e8f0)"}`,
-        } }}
+        className={[
+          "combat-main-panel",
+          enemy.isBoss ? "combat-main-panel--boss" : "combat-main-panel--default",
+        ].join(" ")}
       >
         {forgeCombatEnabled ? (
           <CombatForgeTierTrack
@@ -1436,89 +1475,69 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
               {">"}
             </button>
             {!isMobile && autoAdvanceUnlocked && (
-              <button
-                onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
-                title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
-                aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+              <FlSwitch
+                checked={autoAdvance}
+                onChange={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
+                label="Auto"
+                size="sm"
+                variant="rect"
+                className={[
+                  "combat-auto-switch",
+                  "combat-auto-switch--desktop",
+                  spotlightAutoAdvance ? "is-spotlighted" : "",
+                ].filter(Boolean).join(" ")}
                 data-onboarding-target={spotlightAutoAdvance ? "auto-advance" : undefined}
-                {...{ style: {
-                  ...autoAdvanceBtnStyle(autoAdvance),
-                  boxShadow: spotlightAutoAdvance
-                    ? "0 0 0 3px rgba(99,102,241,0.22), 0 0 24px rgba(99,102,241,0.24), 0 14px 30px rgba(99,102,241,0.22)"
-                    : autoAdvanceBtnStyle(autoAdvance).boxShadow,
-                  animation: spotlightAutoAdvance ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
-                  transform: spotlightAutoAdvance ? "scale(1.05)" : "none",
-                } }}
-              >
-                🥾
-              </button>
+                ariaLabel={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+              />
             )}
           </div>
         )}
 
         {!forgeCombatEnabled && (
           <>
-            <div className="combat-forge-action-strip" {...{ style: { display: "flex", justifyContent: "center", gap: "8px", flexWrap: "wrap", alignItems: "center" } }}>
+            <div className="combat-forge-action-strip">
               {isMobile && autoAdvanceUnlocked && (
-                <button
-                  onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
-                  title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
-                  aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+                <FlSwitch
+                  checked={autoAdvance}
+                  onChange={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
+                  label="Auto"
+                  size="sm"
+                  variant="rect"
+                  className={[
+                    "combat-auto-switch",
+                    spotlightAutoAdvance ? "is-spotlighted" : "",
+                  ].filter(Boolean).join(" ")}
                   data-onboarding-target={spotlightAutoAdvance ? "auto-advance" : undefined}
-                  {...{ style: {
-                    ...autoAdvanceBtnStyle(autoAdvance),
-                    boxShadow: spotlightAutoAdvance
-                      ? "0 0 0 3px rgba(99,102,241,0.22), 0 0 24px rgba(99,102,241,0.24), 0 14px 30px rgba(99,102,241,0.22)"
-                      : autoAdvanceBtnStyle(autoAdvance).boxShadow,
-                    animation: spotlightAutoAdvance ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
-                    transform: spotlightAutoAdvance ? "scale(1.05)" : "none",
-                  } }}
-                >
-                  🥾
-                </button>
+                  ariaLabel={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+                />
               )}
               {extractionUnlocked && (
-                <button
+                <FlButton
                   onClick={() => dispatch({ type: "OPEN_EXTRACTION", exitReason: "retire" })}
+                  variant="default"
+                  size="xs"
+                  className={[
+                    "combat-extract-button",
+                    spotlightExtraction ? "is-spotlighted" : "",
+                  ].filter(Boolean).join(" ")}
                   data-onboarding-target={spotlightExtraction ? "open-extraction" : undefined}
-                  {...{ style: {
-                    border: "1px solid var(--tone-accent, #534AB7)",
-                    background: "var(--tone-accent-soft, #eef2ff)",
-                    color: "var(--tone-accent, #534AB7)",
-                    borderRadius: "999px",
-                    padding: "6px 11px",
-                    fontSize: "0.62rem",
-                    fontWeight: "900",
-                    cursor: "pointer",
-                    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.02)",
-                    position: spotlightExtraction ? "relative" : "static",
-                    zIndex: spotlightExtraction ? 2 : 1,
-                    animation: spotlightExtraction ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
-                  } }}
                 >
                   Extraer al Santuario
-                </button>
+                </FlButton>
               )}
             </div>
             {extractionUnlocked && extractionDecision && (
-              <div className="combat-forge-extraction-decision" {...{ style: { display: "flex", justifyContent: "center", marginTop: "6px" } }}>
-                <div
-                  {...{ style: {
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    flexWrap: "wrap",
-                    padding: "5px 8px",
-                    borderRadius: "999px",
-                    border: "1px solid var(--color-border-primary, #e2e8f0)",
-                    background: "var(--color-background-tertiary, #f8fafc)",
-                    fontSize: "0.58rem",
-                    lineHeight: 1.3,
-                    fontWeight: "900",
-                  } }}
-                >
-                  <span {...{ style: { color: extractionDecision.tone } }}>{extractionDecision.label}</span>
-                  <span {...{ style: { color: "var(--color-text-secondary, #64748b)" } }}>{extractionDecision.detail}</span>
+              <div className="combat-forge-extraction-decision">
+                <div className="combat-forge-extraction-pill">
+                  <span
+                    className={[
+                      "combat-forge-extraction-pill__label",
+                      extractionDecision.toneClass ? `combat-forge-extraction-pill__label--${extractionDecision.toneClass}` : "",
+                    ].filter(Boolean).join(" ")}
+                  >
+                    {extractionDecision.label}
+                  </span>
+                  <span className="combat-forge-extraction-pill__detail">{extractionDecision.detail}</span>
                 </div>
               </div>
             )}
@@ -1541,33 +1560,34 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
           {forgeCombatEnabled && (extractionUnlocked || (isMobile && autoAdvanceUnlocked)) && (
             <div className="combat-forge-stage-controls">
               {extractionUnlocked && (
-                <button
+                <FlButton
                   className={[
-                    "combat-forge-stage-control",
-                    "combat-forge-stage-control--extract",
+                    "combat-forge-stage-extract-button",
                     spotlightExtraction ? "is-spotlighted" : "",
                   ].filter(Boolean).join(" ")}
                   onClick={() => dispatch({ type: "OPEN_EXTRACTION", exitReason: "retire" })}
                   data-onboarding-target={spotlightExtraction ? "open-extraction" : undefined}
+                  variant="default"
+                  size="xs"
                 >
                   Extraer
-                </button>
+                </FlButton>
               )}
               {isMobile && autoAdvanceUnlocked && (
-                <button
+                <FlSwitch
+                  checked={autoAdvance}
+                  onChange={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
+                  label="Auto"
+                  size="sm"
+                  variant="rect"
                   className={[
-                    "combat-forge-stage-control",
-                    "combat-forge-stage-control--auto",
+                    "combat-forge-stage-switch",
                     autoAdvance ? "is-active" : "",
                     spotlightAutoAdvance ? "is-spotlighted" : "",
                   ].filter(Boolean).join(" ")}
-                  onClick={() => dispatch({ type: "TOGGLE_AUTO_ADVANCE" })}
-                  title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
-                  aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
                   data-onboarding-target={spotlightAutoAdvance ? "auto-advance" : undefined}
-                >
-                  AUTO
-                </button>
+                  ariaLabel={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+                />
               )}
             </div>
           )}
@@ -1586,6 +1606,15 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
               {enemy.isBoss ? "BOSS " : ""}
               {enemy.name}
             </button>
+            {enemyHudIntelTags.length > 0 && (
+              <div className="combat-forge-enemy-intel-tags">
+                {enemyHudIntelTags.map(tag => (
+                  <FlTag key={tag.id} size="xs" tone={tag.tone}>
+                    {tag.label}
+                  </FlTag>
+                ))}
+              </div>
+            )}
             <CombatForgeHpBar
               variant="enemy"
               iconName="skull"
@@ -1674,22 +1703,10 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
         <div
           data-onboarding-target={spotlightCombatEncounter ? "combat-encounter" : undefined}
           onClick={() => spotlightCombatEncounter && dispatch({ type: "ACK_ONBOARDING_STEP" })}
-          {...{ style: {
-            textAlign: "center",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            minWidth: 0,
-            width: "100%",
-            borderRadius: "12px",
-            padding: spotlightCombatEncounter ? "8px 10px" : 0,
-            background: spotlightCombatEncounter ? "var(--tone-accent-soft, #eef2ff)" : "transparent",
-            boxShadow: spotlightCombatEncounter
-              ? "0 0 0 2px rgba(83,74,183,0.18), 0 12px 28px rgba(83,74,183,0.14)"
-              : "none",
-            animation: spotlightCombatEncounter ? "combatSpotlightPulse 1600ms ease-in-out infinite" : "none",
-            cursor: spotlightCombatEncounter ? "pointer" : "default",
-          } }}
+          className={[
+            "combat-encounter-intel",
+            spotlightCombatEncounter ? "is-spotlighted" : "",
+          ].filter(Boolean).join(" ")}
         >
           <button
             title={[
@@ -1699,130 +1716,148 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
               ...(enemy.monsterAffixes || []).map(affix => `${affix.name}: ${affix.description}`),
               ...(enemy.mechanics || []).map(mechanic => `${mechanic.name}: ${mechanic.description}`),
             ].filter(Boolean).join("\n")}
-            {...{ style: { margin: 0, fontWeight: "900", color: COLORS.dark, background: "none", border: "none", padding: 0, cursor: "help", display: "block", maxWidth: "100%" } }}
+            className="combat-encounter-intel__enemy-name"
           >
             {enemy.isBoss ? "BOSS " : ""}
             {enemy.name.toUpperCase()}
           </button>
           {enemyLegendaryDrops.length > 0 && (
-            <div {...{ style: { display: "flex", gap: "4px", flexWrap: "wrap", justifyContent: "center", marginTop: "6px" } }}>
+            <div className="combat-encounter-intel__legendary-summary">
               {missingEnemyPowers.length > 0 ? (
-                <span {...{ style: { fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-violet-soft, #f3e8ff)", color: "var(--tone-violet, #6d28d9)", border: "1px solid rgba(124,58,237,0.18)" } }}>
+                <FlBadge variant="pill" tone="arcane" size="xs">
                   Power faltante: {missingEnemyPowers.map(drop => drop.power?.name || drop.name).slice(0, 2).join(" / ")}
-                </span>
+                </FlBadge>
               ) : knownEnemyPowers.length > 0 ? (
-                <span {...{ style: { fontSize: "0.5rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-success-soft, #ecfdf5)", color: "var(--tone-success-strong, #047857)", border: "1px solid rgba(34,197,94,0.18)" } }}>
+                <FlBadge variant="pill" tone="success" size="xs">
                   Power conocido: {knownEnemyPowers.map(drop => drop.power?.name || drop.name).slice(0, 2).join(" / ")}
-                </span>
+                </FlBadge>
               ) : null}
             </div>
           )}
-          <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "center", alignItems: "center", marginTop: "6px" } }}>
-            {enemyIdentityLabel && (
-              <span {...{ style: { fontSize: "0.52rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--color-background-tertiary, #f1f5f9)", color: "var(--color-text-secondary, #475569)", border: "1px solid var(--color-border-primary, #e2e8f0)" } }}>
-                {enemyIdentityLabel}
-              </span>
-            )}
-            {abyssMutator && (
-              <span {...{ style: { fontSize: "0.52rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-accent-soft, #eef2ff)", color: "var(--tone-accent, #4338ca)", border: "1px solid rgba(99,102,241,0.18)" } }}>
-                {`Abismo ${enemy.abyssDepth} · ${abyssMutator.name}`}
-              </span>
-            )}
-            {bossDepthSummary && (
-              <span {...{ style: { fontSize: "0.52rem", fontWeight: "900", padding: "2px 6px", borderRadius: "999px", background: "var(--tone-warning-soft, #fff7ed)", color: "var(--tone-warning-strong, #c2410c)", border: "1px solid rgba(245,158,11,0.22)" } }}>
-                {bossDepthSummary}
-              </span>
-            )}
-            {(enemyIntelChips.length > 0 || abyssMutator || bossDepthSummary) && (
-              <button
-                onClick={() => togglePanel("enemyIntel")}
-                {...{ style: {
-                  border: "1px solid var(--color-border-primary, #e2e8f0)",
-                  background: "var(--color-background-secondary, #fff)",
-                  color: "var(--color-text-secondary, #475569)",
-                  borderRadius: "999px",
-                  padding: "3px 8px",
-                  fontSize: "0.52rem",
-                  fontWeight: "900",
-                  cursor: "pointer",
-                } }}
-              >
-                {isPanelCollapsed("enemyIntel") ? "VER INTEL" : "OCULTAR INTEL"}
-              </button>
-            )}
-          </div>
-          {!isPanelCollapsed("enemyIntel") && (
-            <div {...{ style: { display: "grid", gap: "8px", marginTop: "8px", width: "100%" } }}>
-              {abyssMutator && (
-                <div {...{ style: combatIntelPanelStyle }}>
-                  <div {...{ style: combatIntelTitleStyle }}>Anomalia del Ciclo</div>
-                  <div {...{ style: combatIntelEntryStyle }}>
-                    <div {...{ style: combatIntelLabelStyle }}>{abyssMutator.name}</div>
-                    <div {...{ style: combatIntelDescriptionStyle }}>{abyssMutator.description}</div>
-                    {enemy.isBoss && abyssMutator.bossClause && (
-                      <div {...{ style: { ...combatIntelDescriptionStyle, color: "var(--tone-accent, #4338ca)", fontWeight: "800" } }}>
-                        {abyssMutator.bossClause}
-                      </div>
-                    )}
-                  </div>
-                </div>
+          {(enemyIntelChips.length > 0 || abyssMutator || bossDepthSummary || enemyIdentityLabel) && (
+            <FlPanel
+              variant="compact"
+              className="combat-encounter-intel__panel"
+              header={(
+                <FlPanelHeader
+                  title="INTEL ENEMIGO"
+                  subtitle={enemy.isBoss ? "Analisis de boss" : "Analisis del objetivo"}
+                  copy="Seccion tactica de afijos, mecanicas y mutaciones activas para esta run."
+                  primaryAction={(
+                    <FlButton
+                      variant="secondary"
+                      size="xs"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        togglePanel("enemyIntel");
+                      }}
+                      className="combat-encounter-intel__toggle"
+                    >
+                      {isPanelCollapsed("enemyIntel") ? "VER INTEL" : "OCULTAR INTEL"}
+                    </FlButton>
+                  )}
+                />
               )}
-              {bossDepthSummary && (
-                <div {...{ style: combatIntelPanelStyle }}>
-                  <div {...{ style: combatIntelTitleStyle }}>Eco Abisal</div>
-                  <div {...{ style: combatIntelEntryStyle }}>
-                    <div {...{ style: combatIntelLabelStyle }}>{bossDepthSummary}</div>
-                    <div {...{ style: combatIntelDescriptionStyle }}>
-                      Mejoras seeded del boss para esta run. Se mantienen fijas hasta el proximo prestige.
+            >
+              <div className="combat-encounter-intel__meta">
+                {enemyIdentityLabel && (
+                  <FlBadge variant="pill" tone="neutral" size="xs">
+                    {enemyIdentityLabel}
+                  </FlBadge>
+                )}
+                {abyssMutator && (
+                  <FlBadge variant="pill" tone="arcane" size="xs">
+                    {`Abismo ${enemy.abyssDepth} · ${abyssMutator.name}`}
+                  </FlBadge>
+                )}
+                {bossDepthSummary && (
+                  <FlBadge variant="pill" tone="warning" size="xs">
+                    {bossDepthSummary}
+                  </FlBadge>
+                )}
+                {(enemyIntelChips || []).map(chip => (
+                  <FlTag key={chip.id} size="xs" tone="defense">
+                    {chip.label}
+                  </FlTag>
+                ))}
+              </div>
+
+              {!isPanelCollapsed("enemyIntel") && (
+                <div className="combat-encounter-intel__sections">
+                  {abyssMutator && (
+                    <div className="combat-encounter-intel__section">
+                      <div className="combat-encounter-intel__section-title">Anomalia del Ciclo</div>
+                      <div className="combat-encounter-intel__entry">
+                        <div className="combat-encounter-intel__entry-label">{abyssMutator.name}</div>
+                        <div className="combat-encounter-intel__entry-description">{abyssMutator.description}</div>
+                        {enemy.isBoss && abyssMutator.bossClause && (
+                          <div className="combat-encounter-intel__entry-description combat-encounter-intel__entry-description--accent">
+                            {abyssMutator.bossClause}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </div>
-              )}
-              {(enemy.monsterAffixes || []).length > 0 && (
-                <div {...{ style: combatIntelPanelStyle }}>
-                  <div {...{ style: combatIntelTitleStyle }}>Afijos</div>
-                  <div {...{ style: { display: "grid", gap: "6px" } }}>
-                    {(enemy.monsterAffixes || []).map(affix => {
-                      const sourceMeta = getIntelSourceMeta(affix.id, depthAffixIds, mutatorAffixIds);
-                      return (
-                      <div key={`affix-${affix.id || affix.name}`} {...{ style: combatIntelEntryStyle }}>
-                        <div {...{ style: { display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" } }}>
-                          <div {...{ style: combatIntelLabelStyle }}>{affix.name}</div>
-                          <span {...{ style: { fontSize: "0.5rem", fontWeight: "900", borderRadius: "999px", padding: "2px 6px", background: sourceMeta.colors.bg, color: sourceMeta.colors.fg, border: `1px solid ${sourceMeta.colors.border}` } }}>
-                            {sourceMeta.label}
-                          </span>
+                  )}
+                  {bossDepthSummary && (
+                    <div className="combat-encounter-intel__section">
+                      <div className="combat-encounter-intel__section-title">Eco Abisal</div>
+                      <div className="combat-encounter-intel__entry">
+                        <div className="combat-encounter-intel__entry-label">{bossDepthSummary}</div>
+                        <div className="combat-encounter-intel__entry-description">
+                          Mejoras seeded del boss para esta run. Se mantienen fijas hasta el proximo prestige.
                         </div>
-                        {affix.description && (
-                          <div {...{ style: combatIntelDescriptionStyle }}>{affix.description}</div>
-                        )}
                       </div>
-                    )})}
-                  </div>
+                    </div>
+                  )}
+                  {(enemy.monsterAffixes || []).length > 0 && (
+                    <div className="combat-encounter-intel__section">
+                      <div className="combat-encounter-intel__section-title">Afijos</div>
+                      <div className="combat-encounter-intel__list">
+                        {(enemy.monsterAffixes || []).map(affix => {
+                          const sourceMeta = getIntelSourceMeta(affix.id, depthAffixIds, mutatorAffixIds);
+                          return (
+                            <div key={`affix-${affix.id || affix.name}`} className="combat-encounter-intel__entry">
+                              <div className="combat-encounter-intel__entry-head">
+                                <div className="combat-encounter-intel__entry-label">{affix.name}</div>
+                                <FlBadge variant="pill" tone={sourceMeta.tone} size="xs">
+                                  {sourceMeta.label}
+                                </FlBadge>
+                              </div>
+                              {affix.description && (
+                                <div className="combat-encounter-intel__entry-description">{affix.description}</div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {(enemy.mechanics || []).length > 0 && (
+                    <div className="combat-encounter-intel__section">
+                      <div className="combat-encounter-intel__section-title">Mecanicas</div>
+                      <div className="combat-encounter-intel__list">
+                        {(enemy.mechanics || []).map(mechanic => {
+                          const sourceMeta = getIntelSourceMeta(mechanic.id, depthMechanicIds, mutatorMechanicIds);
+                          return (
+                            <div key={`mech-${mechanic.id || mechanic.name}`} className="combat-encounter-intel__entry">
+                              <div className="combat-encounter-intel__entry-head">
+                                <div className="combat-encounter-intel__entry-label">{mechanic.name}</div>
+                                <FlBadge variant="pill" tone={sourceMeta.tone} size="xs">
+                                  {sourceMeta.label}
+                                </FlBadge>
+                              </div>
+                              {mechanic.description && (
+                                <div className="combat-encounter-intel__entry-description">{mechanic.description}</div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-              {(enemy.mechanics || []).length > 0 && (
-                <div {...{ style: combatIntelPanelStyle }}>
-                  <div {...{ style: combatIntelTitleStyle }}>Mecanicas</div>
-                  <div {...{ style: { display: "grid", gap: "6px" } }}>
-                    {(enemy.mechanics || []).map(mechanic => {
-                      const sourceMeta = getIntelSourceMeta(mechanic.id, depthMechanicIds, mutatorMechanicIds);
-                      return (
-                      <div key={`mech-${mechanic.id || mechanic.name}`} {...{ style: combatIntelEntryStyle }}>
-                        <div {...{ style: { display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" } }}>
-                          <div {...{ style: combatIntelLabelStyle }}>{mechanic.name}</div>
-                          <span {...{ style: { fontSize: "0.5rem", fontWeight: "900", borderRadius: "999px", padding: "2px 6px", background: sourceMeta.colors.bg, color: sourceMeta.colors.fg, border: `1px solid ${sourceMeta.colors.border}` } }}>
-                            {sourceMeta.label}
-                          </span>
-                        </div>
-                        {mechanic.description && (
-                          <div {...{ style: combatIntelDescriptionStyle }}>{mechanic.description}</div>
-                        )}
-                      </div>
-                    )})}
-                  </div>
-                </div>
-              )}
-            </div>
+            </FlPanel>
           )}
         </div>
         )}
@@ -2255,50 +2290,62 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
       </section>
       )}
 
-      <section className="overlay-cols-2-4 combat-stat-grid" {...{ style: { gap: 8, minWidth: 0 } }}>
-        <StatCard
-          label="Dano"
-          value={effectiveDamageInCombat}
-          hint={effectiveDamageInCombat !== baseStats.damage ? `Base ${baseStats.damage}` : null}
-        />
-        <StatCard
-          label="Defensa"
-          value={effectiveDefenseInCombat}
-          hint={effectiveDefenseInCombat !== baseStats.defense ? `Base ${baseStats.defense}` : null}
-        />
-        <StatCard
-          label="Critico"
-          value={`${Math.round(effectiveCritChanceInCombat * 100)}%`}
-          hint={effectiveCritChanceInCombat !== baseStats.critChance ? `Base ${Math.round(baseStats.critChance * 100)}%` : null}
-        />
-        <StatCard
-          label="Velocidad"
-          value={`${Math.round(effectiveAttackSpeedInCombat * 100)}%`}
-          hint={effectiveAttackSpeedInCombat !== baseStats.attackSpeed ? `Base ${Math.round(baseStats.attackSpeed * 100)}%` : null}
-        />
-      </section>
+      <FlPanel variant="compact" className="combat-stat-module fl-stat-module">
+        <div className="combat-stat-module__row">
+          <StatCard
+            label="Dano"
+            value={effectiveDamageInCombat}
+            hint={effectiveDamageInCombat !== baseStats.damage ? `Base ${baseStats.damage}` : null}
+          />
+          <StatCard
+            label="Defensa"
+            value={effectiveDefenseInCombat}
+            hint={effectiveDefenseInCombat !== baseStats.defense ? `Base ${baseStats.defense}` : null}
+          />
+          <StatCard
+            label="Critico"
+            value={`${Math.round(effectiveCritChanceInCombat * 100)}%`}
+            hint={effectiveCritChanceInCombat !== baseStats.critChance ? `Base ${Math.round(baseStats.critChance * 100)}%` : null}
+          />
+          <StatCard
+            label="Velocidad"
+            value={`${Math.round(effectiveAttackSpeedInCombat * 100)}%`}
+            hint={effectiveAttackSpeedInCombat !== baseStats.attackSpeed ? `Base ${Math.round(baseStats.attackSpeed * 100)}%` : null}
+          />
+        </div>
+      </FlPanel>
 
       {showSessionFraming && (
-        <section className="combat-session-panel" {...{ style: sessionCardCompactStyle }}>
-          <CardHeader
-            tag="Contrato activo"
-            title={featuredExpeditionContract?.title || featuredExpeditionContract?.goal?.name || "Selecciona un contrato"}
-            badge={featuredExpeditionContract?.laneLabel || "Sin contrato"}
-            badgeTone="var(--tone-accent, #4338ca)"
-            badgeSurface="var(--tone-accent-soft, #eef2ff)"
-            dense={isSessionDenseMobile}
-          />
+        <FlPanel
+          variant="compact"
+          className={`combat-session-panel${isSessionDenseMobile ? " combat-session-panel--dense" : ""}`}
+          header={(
+            <FlPanelHeader
+              title="Contrato activo"
+              subtitle={featuredExpeditionContract?.title || featuredExpeditionContract?.goal?.name || "Selecciona un contrato"}
+            />
+          )}
+        >
+
+          <div className="fl-panel-meta-row">
+            <FlBadge
+              variant="pill"
+              tone="arcane"
+              size={isSessionDenseMobile ? "xs" : "sm"}
+            >
+              {featuredExpeditionContract?.laneLabel || "Sin contrato"}
+            </FlBadge>
+            <FlBadge
+              variant="pill"
+              tone={resolveFlToneFromObjectiveStatus(expeditionStatusMeta.status)}
+              size={isSessionDenseMobile ? "xs" : "sm"}
+            >
+              {expeditionStatusMeta.label}
+            </FlBadge>
+          </div>
 
           <div
-            {...{ style: {
-              fontSize: sessionCopySize,
-              color: "var(--color-text-secondary, #475569)",
-              lineHeight: 1.35,
-              display: "-webkit-box",
-              WebkitLineClamp: isSessionDenseMobile ? 2 : 3,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            } }}
+            className={`combat-session-copy${isSessionDenseMobile ? " combat-session-copy--dense" : ""}`}
           >
             {featuredExpeditionContract
               ? (featuredExpeditionContract.objectiveDescription || featuredExpeditionContract.goal?.hint || featuredExpeditionContract.goal?.description || "Cumple el objetivo antes de extraer para cobrar recursos de Santuario.")
@@ -2306,208 +2353,104 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
           </div>
 
           {featuredExpeditionContract && (
-            <ProgressBar
+            <FlProgressBar
+              size={isSessionDenseMobile ? "xs" : "sm"}
+              type={resolveFlProgressTypeFromObjectiveStatus(expeditionStatusMeta.status)}
               percent={featuredExpeditionContract.progress?.percent || 0}
-              tone={expeditionStatusMeta.progressTone}
-              dense={isSessionDenseMobile}
+              showValue={false}
             />
           )}
 
-          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" } }}>
-            <span {...{ style: { fontSize: sessionMetaSize, color: "var(--color-text-secondary, #64748b)", fontWeight: "900" } }}>
+          <div className="combat-session-footer fl-panel-footer-row">
+            <span className={`combat-session-footer__meta${isSessionDenseMobile ? " combat-session-footer__meta--dense" : ""}`}>
               {featuredExpeditionContract
                 ? `${Number(featuredExpeditionContract.progress?.current || 0)}/${Number(featuredExpeditionContract.progress?.target || 1)} · ${formatExpeditionContractReward(featuredExpeditionContract.reward || {}) || "Sin recompensa definida."}`
                 : "Sin contrato seleccionado."}
             </span>
-            <div {...{ style: { display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" } }}>
+            <div className="combat-session-footer__actions">
               {canClaimExpeditionContract ? (
-                <InlineAction
+                <FlButton
                   onClick={() => dispatch({ type: "CLAIM_EXPEDITION_CONTRACT", contractId: featuredExpeditionContract.id })}
-                  tone="var(--tone-success, #10b981)"
-                  surface="var(--tone-success-soft, #ecfdf5)"
-                  dense={isSessionDenseMobile}
-                  filled
+                  variant="success"
+                  size={isSessionDenseMobile ? "xs" : "sm"}
                 >
                   Reclamar contrato
-                </InlineAction>
+                </FlButton>
               ) : (
-                <StatusChip label={expeditionStatusMeta.label} tone={expeditionStatusMeta.tone} surface={expeditionStatusMeta.surface} dense={isSessionDenseMobile} />
+                <FlBadge
+                  variant="pill"
+                  tone={resolveFlToneFromObjectiveStatus(expeditionStatusMeta.status)}
+                  size={isSessionDenseMobile ? "xs" : "sm"}
+                >
+                  {expeditionStatusMeta.label}
+                </FlBadge>
               )}
             </div>
           </div>
-        </section>
+        </FlPanel>
       )}
 
       {showWeeklyLedgerCard && (
-        <section
-          className="combat-session-panel"
-          {...{ style: {
-            position: "relative",
-            ...(sessionCardCompactStyle || {}),
-          } }}
-        >
-          {showWeeklyCardEdgeArrows && (
-            <>
-              <button
-                onClick={() => cycleWeeklyContract(-1)}
-                {...{ style: {
-                  position: "absolute",
-                  top: isSessionDenseMobile ? "4px" : "6px",
-                  left: isSessionDenseMobile ? "6px" : "8px",
-                  width: isSessionDenseMobile ? "26px" : "30px",
-                  height: isSessionDenseMobile ? "26px" : "30px",
-                  borderRadius: "999px",
-                  border: "1px solid var(--color-border-primary, #e2e8f0)",
-                  background: "var(--color-background-tertiary, #f8fafc)",
-                  color: "var(--color-text-secondary, #475569)",
-                  fontWeight: "900",
-                  cursor: "pointer",
-                  zIndex: 2,
-                } }}
-                aria-label="Weekly anterior"
-                title="Weekly anterior"
-              >
-                {"<"}
-              </button>
-              <button
-                onClick={() => cycleWeeklyContract(1)}
-                {...{ style: {
-                  position: "absolute",
-                  top: isSessionDenseMobile ? "4px" : "6px",
-                  right: isSessionDenseMobile ? "6px" : "8px",
-                  width: isSessionDenseMobile ? "26px" : "30px",
-                  height: isSessionDenseMobile ? "26px" : "30px",
-                  borderRadius: "999px",
-                  border: "1px solid var(--color-border-primary, #e2e8f0)",
-                  background: "var(--color-background-tertiary, #f8fafc)",
-                  color: "var(--color-text-secondary, #475569)",
-                  fontWeight: "900",
-                  cursor: "pointer",
-                  zIndex: 2,
-                } }}
-                aria-label="Weekly siguiente"
-                title="Weekly siguiente"
-              >
-                {">"}
-              </button>
-            </>
-          )}
-          {showWeeklyCardEdgeArrows && (
-            <div
-              {...{ style: {
-                minHeight: isSessionDenseMobile ? "26px" : "30px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "flex-start",
-                paddingLeft: isSessionDenseMobile ? "34px" : "38px",
-                paddingRight: isSessionDenseMobile ? "34px" : "38px",
-                marginBottom: "2px",
-              } }}
-            >
-              <div
-                {...{ style: {
-                  fontSize: sessionSectionTagSize,
-                  fontWeight: "900",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  color: "var(--tone-warning, #f59e0b)",
-                } }}
-              >
-                Weekly ledger
-              </div>
-            </div>
-          )}
-          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" } }}>
-            <div {...{ style: { minWidth: 0, display: "flex", alignItems: "center", gap: "6px" } }}>
-              {showWeeklySelectorArrows && !showWeeklyCardEdgeArrows && (
-                <button
-                  onClick={() => cycleWeeklyContract(-1)}
-                  {...{ style: {
-                    width: isSessionDenseMobile ? "22px" : "24px",
-                    height: isSessionDenseMobile ? "22px" : "24px",
-                    borderRadius: "999px",
-                    border: "1px solid var(--color-border-primary, #e2e8f0)",
-                    background: "var(--color-background-tertiary, #f8fafc)",
-                    color: "var(--color-text-secondary, #475569)",
-                    fontWeight: "900",
-                    cursor: "pointer",
-                    flexShrink: 0,
-                  } }}
-                >
-                  {"<"}
-                </button>
-              )}
-              <div {...{ style: { minWidth: 0 } }}>
-              {!showWeeklyCardEdgeArrows && (
-                <div {...{ style: { fontSize: sessionSectionTagSize, fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" } }}>
-                  Weekly ledger
+        <FlPanel
+          variant="compact"
+          tone="defense"
+          className={`combat-session-panel combat-session-panel--weekly${isSessionDenseMobile ? " combat-session-panel--dense" : ""}`}
+          header={(
+            <FlPanelHeader
+              tone="weekly"
+              title="Weekly ledger"
+              subtitle={featuredWeeklyContract?.goal?.name || (weeklyAllClaimed ? "Todos los contratos reclamados" : "Sin contrato activo")}
+              className={isSessionDenseMobile ? "fl-panel-header-block--dense" : ""}
+              actions={showWeeklySelectorArrows ? (
+                <div className="combat-weekly-arrows-top">
+                  <FlButton
+                    onClick={() => cycleWeeklyContract(-1)}
+                    variant="secondary"
+                    size="xs"
+                    className="combat-weekly-arrow combat-weekly-arrow--inline"
+                    aria-label="Weekly anterior"
+                    title="Weekly anterior"
+                  >
+                    {"‹"}
+                  </FlButton>
+                  <FlButton
+                    onClick={() => cycleWeeklyContract(1)}
+                    variant="secondary"
+                    size="xs"
+                    className="combat-weekly-arrow combat-weekly-arrow--inline"
+                    aria-label="Weekly siguiente"
+                    title="Weekly siguiente"
+                  >
+                    {"›"}
+                  </FlButton>
                 </div>
-              )}
-              <div
-                {...{ style: {
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  flexWrap: "wrap",
-                  marginTop: showWeeklyCardEdgeArrows ? "0" : "4px",
-                } }}
-              >
-                <span
-                  {...{ style: {
-                    fontSize: "0.5rem",
-                    fontWeight: "900",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    color: "var(--tone-warning, #f59e0b)",
-                    background: "var(--tone-warning-soft, #fff7ed)",
-                    border: "1px solid rgba(245,158,11,0.25)",
-                    borderRadius: "999px",
-                    padding: "3px 7px",
-                  } }}
-                >
-                  {featuredWeeklyContract?.laneLabel || (weeklyAllClaimed ? "Ledger semanal" : "Contrato semanal")}
-                </span>
-                <span {...{ style: { fontSize: sessionTitleSize, fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
-                  {featuredWeeklyContract?.goal?.name || (weeklyAllClaimed ? "Todos los contratos reclamados" : "Sin contrato activo")}
-                </span>
-              </div>
-              </div>
-              {showWeeklySelectorArrows && !showWeeklyCardEdgeArrows && (
-                <button
-                  onClick={() => cycleWeeklyContract(1)}
-                  {...{ style: {
-                    width: isSessionDenseMobile ? "22px" : "24px",
-                    height: isSessionDenseMobile ? "22px" : "24px",
-                    borderRadius: "999px",
-                    border: "1px solid var(--color-border-primary, #e2e8f0)",
-                    background: "var(--color-background-tertiary, #f8fafc)",
-                    color: "var(--color-text-secondary, #475569)",
-                    fontWeight: "900",
-                    cursor: "pointer",
-                    flexShrink: 0,
-                  } }}
-                >
-                  {">"}
-                </button>
-              )}
-            </div>
-            <span
-              {...{ style: {
-                fontSize: sessionMetaSize,
-                fontWeight: "900",
-                color: weeklyStatusMeta.tone,
-                whiteSpace: "nowrap",
-              } }}
+              ) : null}
+            />
+          )}
+        >
+          <div className="fl-panel-meta-row">
+            <FlBadge
+              variant="pill"
+              tone="arcane"
+              size="xs"
+            >
+              {featuredWeeklyContract?.laneLabel || (weeklyAllClaimed ? "Ledger semanal" : "Contrato semanal")}
+            </FlBadge>
+            <FlBadge
+              variant="pill"
+              tone={resolveFlToneFromObjectiveStatus(weeklyStatusMeta.status)}
+              size={isSessionDenseMobile ? "xs" : "sm"}
+              className="combat-weekly-status"
             >
               {claimableWeeklyContracts.length > 0
                 ? `${claimableWeeklyContracts.length} para reclamar`
                 : weeklyAllClaimed
                   ? "Weekly completada"
                 : `Semana ${state?.weeklyLedger?.weekKey || "-"}`}
-            </span>
+            </FlBadge>
           </div>
 
-          <div {...{ style: { fontSize: isSessionDenseMobile ? "0.56rem" : "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900" } }}>
+          <div className={`combat-weekly-index${isSessionDenseMobile ? " combat-weekly-index--dense" : ""}`}>
             {orderedWeeklyContracts.length > 0
               ? `${featuredWeeklyIndex + 1} / ${orderedWeeklyContracts.length}`
               : weeklyAllClaimed
@@ -2515,17 +2458,7 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
                 : "0 / 0"}
           </div>
 
-          <div
-            {...{ style: {
-              fontSize: sessionCopySize,
-              color: "var(--color-text-secondary, #475569)",
-              lineHeight: 1.35,
-              display: "-webkit-box",
-              WebkitLineClamp: isSessionDenseMobile ? 2 : 3,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            } }}
-          >
+          <div className={`combat-session-copy${isSessionDenseMobile ? " combat-session-copy--dense" : ""}`}>
             {featuredWeeklyContract
               ? (featuredWeeklyContract.objectiveDescription || featuredWeeklyContract.goal?.hint || featuredWeeklyContract.goal?.description || "Avanza jugando normal; el contrato acumula progreso semanal.")
               : weeklyAllClaimed
@@ -2534,52 +2467,28 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
           </div>
 
           {(featuredWeeklyContract || weeklyAllClaimed) && (
-            <div {...{ style: { height: sessionProgressBarHeight, borderRadius: "999px", overflow: "hidden", background: "var(--color-background-tertiary, #f1f5f9)", border: "1px solid var(--color-border-primary, #e2e8f0)" } }}>
-              <div
-                {...{ style: {
-                  width: weeklyAllClaimed
-                    ? "100%"
-                    : `${Math.max(0, Math.min(100, Number(featuredWeeklyContract?.progress?.percent || 0)))}%`,
-                  height: "100%",
-                  background: weeklyStatusMeta.progressTone,
-                } }}
-              />
-            </div>
+            <FlProgressBar
+              size={isSessionDenseMobile ? "xs" : "sm"}
+              type={resolveFlProgressTypeFromObjectiveStatus(weeklyStatusMeta.status)}
+              percent={
+                weeklyAllClaimed
+                  ? 100
+                  : Math.max(0, Math.min(100, Number(featuredWeeklyContract?.progress?.percent || 0)))
+              }
+              showValue={false}
+            />
           )}
 
-          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "center", flexWrap: "wrap" } }}>
-            <span {...{ style: { fontSize: sessionMetaSize, color: "var(--color-text-secondary, #64748b)", fontWeight: "900" } }}>
+          <div className="combat-session-footer fl-panel-footer-row">
+            <span className={`combat-session-footer__meta${isSessionDenseMobile ? " combat-session-footer__meta--dense" : ""}`}>
               {featuredWeeklyContract
                 ? `${Number(featuredWeeklyContract.progress?.current || 0)}/${Number(featuredWeeklyContract.progress?.target || 1)} · ${formatGoalReward(featuredWeeklyContract.reward || {})}`
                 : weeklyAllClaimed
                   ? `${claimedWeeklyContracts}/${weeklyTotalContracts} reclamados · Weekly cerrada`
                 : "Sin progreso semanal para mostrar."}
             </span>
-            <div {...{ style: { display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" } }}>
-              {featuredWeeklyContract?.progress?.completed && !featuredWeeklyContract?.claimed ? (
-                <button
-                  onClick={() => dispatch({ type: "CLAIM_WEEKLY_LEDGER_CONTRACT", contractId: featuredWeeklyContract.id })}
-                  {...{ style: {
-                    border: "none",
-                    background: "var(--tone-success, #10b981)",
-                    color: "#fff",
-                    borderRadius: "999px",
-                    padding: sessionActionPadding,
-                    fontSize: sessionMetaSize,
-                    fontWeight: "900",
-                    cursor: "pointer",
-                  } }}
-                >
-                  Reclamar weekly
-                </button>
-              ) : (
-                <span {...{ style: { fontSize: sessionHintSize, fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)" } }}>
-                  {featuredWeeklyContract
-                    ? weeklyStatusMeta.label
-                    : (weeklyAllClaimed ? "Todo reclamado" : "Sin datos")}
-                </span>
-              )}
-              <button
+            <div className="combat-session-footer__actions">
+              <FlButton
                 onClick={() => {
                   if (typeof window !== "undefined") {
                     try {
@@ -2593,66 +2502,67 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
                   }
                   dispatch({ type: "SET_TAB", tab: "account" });
                 }}
-                {...{ style: {
-                  border: "1px solid var(--color-border-primary, #e2e8f0)",
-                  background: "var(--color-background-secondary, #ffffff)",
-                  color: "var(--color-text-secondary, #475569)",
-                  borderRadius: "999px",
-                  padding: sessionActionPadding,
-                  fontSize: sessionMetaSize,
-                  fontWeight: "900",
-                  cursor: "pointer",
-                } }}
+                variant="secondary"
+                size={isSessionDenseMobile ? "xs" : "sm"}
               >
                 Ver weekly
-              </button>
+              </FlButton>
+              {featuredWeeklyContract?.progress?.completed && !featuredWeeklyContract?.claimed ? (
+                <FlButton
+                  onClick={() => dispatch({ type: "CLAIM_WEEKLY_LEDGER_CONTRACT", contractId: featuredWeeklyContract.id })}
+                  variant="success"
+                  size={isSessionDenseMobile ? "xs" : "sm"}
+                >
+                  Reclamar weekly
+                </FlButton>
+              ) : (
+                <FlBadge
+                  variant="pill"
+                  tone={resolveFlToneFromObjectiveStatus(weeklyStatusMeta.status)}
+                  size={isSessionDenseMobile ? "xs" : "sm"}
+                >
+                  {featuredWeeklyContract
+                    ? weeklyStatusMeta.label
+                    : (weeklyAllClaimed ? "Todo reclamado" : "Sin datos")}
+                </FlBadge>
+              )}
             </div>
           </div>
-        </section>
+        </FlPanel>
       )}
 
       {showWeeklyBossCard && (
-        <section className="combat-session-panel">
-          <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "start", flexWrap: "wrap" } }}>
-            <div {...{ style: { minWidth: 0 } }}>
-              <div {...{ style: { fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #ef4444)" } }}>
-                Boss semanal
-              </div>
-              <div {...{ style: { display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginTop: "4px" } }}>
-                <span
-                  {...{ style: {
-                    fontSize: "0.5rem",
-                    fontWeight: "900",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    color: "var(--tone-danger, #ef4444)",
-                    background: "rgba(239,68,68,0.12)",
-                    border: "1px solid rgba(239,68,68,0.26)",
-                    borderRadius: "999px",
-                    padding: "3px 7px",
-                  } }}
-                >
-                  Ciclo 22h · {weeklyBossOverview?.cycleKey || weeklyBossOverview?.weekKey || "-"}
-                </span>
-                <span {...{ style: { fontSize: "0.82rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
-                  {weeklyBossOverview?.boss?.name || "Sin jefe"}
-                </span>
-              </div>
-            </div>
-            <span {...{ style: { fontSize: "0.62rem", fontWeight: "900", color: "var(--color-text-secondary, #64748b)", whiteSpace: "nowrap" } }}>
+        <FlPanel
+          variant="compact"
+          tone="danger"
+          className={`combat-session-panel combat-session-panel--danger${isSessionDenseMobile ? " combat-session-panel--dense" : ""}`}
+          header={(
+            <FlPanelHeader
+              tone="danger"
+              title="Boss semanal"
+              subtitle={weeklyBossOverview?.boss?.name || "Sin jefe"}
+            />
+          )}
+        >
+
+          <div className="fl-panel-meta-row fl-panel-meta-row--danger">
+            <FlBadge variant="pill" tone="danger" size="xs">
+              Ciclo 22h · {weeklyBossOverview?.cycleKey || weeklyBossOverview?.weekKey || "-"}
+            </FlBadge>
+            <FlBadge variant="pill" tone="defense" size={isSessionDenseMobile ? "xs" : "sm"}>
               {Math.max(0, Number(weeklyBossOverview?.attemptsRemaining || 0))} intento(s) · reset {weeklyBossCycleRemainingLabel}
-            </span>
+            </FlBadge>
           </div>
 
-          <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4 } }}>
+          <div className={`combat-session-copy combat-session-copy--full${isSessionDenseMobile ? " combat-session-copy--dense" : ""}`}>
             {activeWeeklyBossEncounter
               ? `${activeWeeklyBossEncounter.bossName || weeklyBossOverview?.boss?.name || "Boss"} en combate (${activeWeeklyBossEncounter.difficultyLabel || "dificultad"}).`
               : (weeklyBossOverview?.boss?.intro || "Evento cíclico (22h) con mutaciones por dificultad.")}
           </div>
 
-          <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
+          <div className="combat-weekly-difficulty-grid">
             {weeklyBossDifficulties.map(difficulty => (
-              <button
+              <FlButton
                 key={difficulty.id}
                 onClick={() => {
                   dispatch({ type: "START_WEEKLY_BOSS_ENCOUNTER", difficultyId: difficulty.id, now: Date.now() });
@@ -2667,66 +2577,51 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
                   }
                 }}
                 disabled={!difficulty.canAttempt || difficulty.completed || Boolean(activeWeeklyBossEncounter)}
-                {...{ style: {
-                  display: "grid",
-                  gap: "2px",
-                  textAlign: "left",
-                  borderRadius: "10px",
-                  border: activeWeeklyBossEncounter?.difficultyId === difficulty.id
-                    ? "1px solid rgba(239,68,68,0.42)"
+                variant={
+                  activeWeeklyBossEncounter?.difficultyId === difficulty.id
+                    ? "danger"
                     : difficulty.completed
-                    ? "1px solid rgba(16,185,129,0.36)"
-                    : "1px solid var(--color-border-primary, #e2e8f0)",
-                  background: activeWeeklyBossEncounter?.difficultyId === difficulty.id
-                    ? "rgba(239,68,68,0.14)"
-                    : difficulty.completed
-                    ? "rgba(16,185,129,0.12)"
-                    : "var(--color-background-tertiary, #f8fafc)",
-                  color: activeWeeklyBossEncounter?.difficultyId === difficulty.id
-                    ? "var(--tone-danger, #ef4444)"
-                    : difficulty.completed
-                    ? "var(--tone-success-strong, #047857)"
-                    : "var(--color-text-secondary, #475569)",
-                  padding: "7px 9px",
-                  cursor: (!difficulty.canAttempt || difficulty.completed || activeWeeklyBossEncounter) ? "not-allowed" : "pointer",
-                  opacity: (!difficulty.canAttempt || difficulty.completed || activeWeeklyBossEncounter) ? 0.7 : 1,
-                  minWidth: "128px",
-                } }}
-              >
-                <span {...{ style: { fontSize: "0.62rem", fontWeight: "900" } }}>{difficulty.label}</span>
-                <span {...{ style: { fontSize: "0.56rem", fontWeight: "800", color: "var(--color-text-tertiary, #94a3b8)" } }}>
-                  {activeWeeklyBossEncounter?.difficultyId === difficulty.id
+                      ? "success"
+                      : "secondary"
+                }
+                size={isSessionDenseMobile ? "xs" : "sm"}
+                className="combat-weekly-difficulty-button"
+                selected={activeWeeklyBossEncounter?.difficultyId === difficulty.id}
+                cost={
+                  activeWeeklyBossEncounter?.difficultyId === difficulty.id
                     ? `En curso · ${Math.max(1, Number(activeWeeklyBossEncounter?.segmentCount || 1))} barras`
                     : difficulty.completed
-                    ? "Completado"
-                    : `${Math.round(Number(difficulty.projectedWinChance || 0) * 100)}% aprox · ${formatGoalReward(difficulty.reward || {})}`}
-                </span>
-              </button>
+                      ? "Completado"
+                      : `${Math.round(Number(difficulty.projectedWinChance || 0) * 100)}% aprox · ${formatGoalReward(difficulty.reward || {})}`
+                }
+              >
+                {difficulty.label}
+              </FlButton>
             ))}
           </div>
 
           {activeWeeklyBossEncounter && (
-            <div {...{ style: { fontSize: "0.6rem", color: "var(--tone-danger, #ef4444)", fontWeight: "900", lineHeight: 1.35 } }}>
+            <FlTag tone="danger">
               Encuentro activo: {activeWeeklyBossEncounter.bossName || "Boss semanal"} · {activeWeeklyBossEncounter.difficultyLabel || "dificultad"} · {Math.max(1, Number(activeWeeklyBossEncounter.segmentCount || 1))} barras de HP.
-            </div>
+            </FlTag>
           )}
 
-          <div {...{ style: { fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", lineHeight: 1.35 } }}>
+          <div className="combat-weekly-boss-mutations">
             {weeklyBossDifficulties
               .map(difficulty => `${difficulty.label}: ${difficulty.mutation}`)
               .join(" · ")}
           </div>
-        </section>
+        </FlPanel>
       )}
 
       {player.class && myTalents.length > 0 && (
-        <section {...{ style: { background: "var(--color-background-secondary, #fff)", borderRadius: "16px", padding: "10px", border: "1px solid var(--color-border-primary, #e2e8f0)" } }}>
-          <button onClick={() => togglePanel("talents")} {...{ style: sectionHeaderButtonStyle }}>
-            <span {...{ style: { fontSize: 9, color: COLORS.common, fontWeight: "900", letterSpacing: "1px" } }}>TALENTOS</span>
-            <span {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "900" } }}>{isPanelCollapsed("talents") ? `${activeTalentCount} ACTIVOS · ${myTalents.length}` : "OCULTAR"}</span>
+        <section className="combat-talents-panel">
+          <button onClick={() => togglePanel("talents")} className="combat-collapsible-header">
+            <span className="combat-collapsible-header__title">TALENTOS</span>
+            <span className="combat-collapsible-header__state">{isPanelCollapsed("talents") ? `${activeTalentCount} ACTIVOS · ${myTalents.length}` : "OCULTAR"}</span>
           </button>
           {!isPanelCollapsed("talents") && (
-            <div {...{ style: { display: "flex", flexDirection: "column", gap: 10, marginTop: "8px" } }}>
+            <div className="combat-talents-panel__list">
               {myTalents.map(talent => {
                 const activeState = activeTalentEffects.get(talent.id);
                 const progress = getTriggerProgress(talent, triggerCounters);
@@ -2734,27 +2629,14 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
                 const icon = TALENT_ICONS[talent.classId] || "TL";
 
                 return (
-                  <div key={talent.id} {...{ style: { display: "flex", flexDirection: "column", gap: 6 } }}>
-                    <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "start", gap: 8 } }}>
-                      <span {...{ style: { fontSize: 11, fontWeight: "900", color: COLORS.dark, lineHeight: 1.35 } }}>
+                  <div key={talent.id} className="combat-talents-panel__item">
+                    <div className="combat-talents-panel__item-head">
+                      <span className="combat-talents-panel__name">
                         {icon} {talent.name}{" "}
-                        <span {...{ style: { fontWeight: "normal", color: COLORS.common, fontSize: 10 } }}>{talent.description}</span>
+                        <span className="combat-talents-panel__desc">{talent.description}</span>
                       </span>
                       {activeState ? (
-                        <div
-                          {...{ style: {
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                            flexShrink: 0,
-                            padding: "2px 8px",
-                            borderRadius: "999px",
-                            background: `${COLORS.boss}15`,
-                            color: COLORS.boss,
-                            fontSize: 9,
-                            fontWeight: "900",
-                          } }}
-                        >
+                        <div className="combat-talents-panel__active-pill">
                           <span>ACTIVO</span>
                           {activeState.stacks > 1 && <span>x{activeState.stacks}</span>}
                           {activeState.maxDuration != null && <span>{activeState.maxDuration}s</span>}
@@ -2763,26 +2645,17 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
                     </div>
 
                     {progress && (
-                      <div {...{ style: { display: "flex", alignItems: "center", gap: 8 } }}>
-                        <div {...{ style: { ...barContainerStyle, flex: 1, height: 6 } }}>
+                      <div className="combat-talents-panel__progress-row">
+                        <div className="combat-talents-panel__progress-track">
                           <div
+                            className="combat-talents-panel__progress-fill"
                             {...{ style: {
                               width: `${isJustTriggered ? 100 : progress.percent}%`,
-                              height: "100%",
                               background: isJustTriggered ? COLORS.success : "var(--tone-accent, #534AB7)",
-                              transition: "all 0.3s ease",
                             } }}
                           />
                         </div>
-                        <span
-                          {...{ style: {
-                            fontSize: 9,
-                            fontWeight: "900",
-                            minWidth: 88,
-                            textAlign: "right",
-                            color: isJustTriggered ? COLORS.success : COLORS.common,
-                          } }}
-                        >
+                        <span className="combat-talents-panel__progress-label" {...{ style: { color: isJustTriggered ? COLORS.success : COLORS.common } }}>
                           {isJustTriggered ? "ACTIVADO" : `${progress.current} / ${progress.target} ${progress.label}`}
                         </span>
                       </div>
@@ -2795,88 +2668,67 @@ export default function Combat({ state, dispatch, sideActions = [], forgeLightTr
         </section>
       )}
 
-      <section
-        {...{ style: {
-          position: "relative",
-          background: "var(--color-background-secondary, #fff)",
-          borderRadius: "16px",
-          padding: "10px",
-          border: "1px solid var(--color-border-primary, #e2e8f0)",
-        } }}
-        className="combat-log-panel"
+      <FlPanel
+        variant="compact"
+        className={`combat-log-panel${isSessionDenseMobile ? " combat-session-panel--dense" : ""}`}
       >
-        <button onClick={() => togglePanel("log")} {...{ style: sectionHeaderButtonStyle }}>
-          <span {...{ style: logTitleStyle }}>REGISTRO DE COMBATE</span>
-          <span {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "900" } }}>{isPanelCollapsed("log") ? "VER" : "OCULTAR"}</span>
+        <button onClick={() => togglePanel("log")} className="combat-collapsible-header">
+          <span className="combat-collapsible-header__title">REGISTRO DE COMBATE</span>
+          <span className="combat-collapsible-header__state">{isPanelCollapsed("log") ? "VER" : "OCULTAR"}</span>
         </button>
         {!isPanelCollapsed("log") && (
           <>
-            <div {...{ style: { display: "flex", justifyContent: "space-between", marginBottom: 4, marginTop: "6px", gap: "8px", flexWrap: "wrap" } }}>
-              <span {...{ style: { fontSize: "0.58rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "900", textTransform: "uppercase" } }}>
+            <div className="combat-log-toolbar">
+              <span className="combat-log-toolbar__eyebrow">
                 Ultimos eventos
               </span>
-              <div {...{ style: { display: "flex", gap: "8px" } }}>
-                <button onClick={() => setLogExpanded(current => !current)} {...{ style: scrollTopBtnStyle }}>
+              <div className="combat-log-toolbar__actions">
+                <FlButton
+                  onClick={() => setLogExpanded(current => !current)}
+                  variant="secondary"
+                  size={isMobile ? "xs" : "sm"}
+                  className="combat-log-action"
+                >
                   {logExpanded ? "VER MENOS" : "VER MAS"}
-                </button>
-                <button
+                </FlButton>
+                <FlButton
                   onClick={() => logRef.current.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" })}
-                  {...{ style: scrollTopBtnStyle }}
+                  variant="secondary"
+                  size={isMobile ? "xs" : "sm"}
+                  className="combat-log-action"
                 >
                   RECIENTE
-                </button>
+                </FlButton>
               </div>
             </div>
             <div
               ref={logRef}
+              className="combat-log-list"
               {...{ style: {
-                background: "var(--color-background-primary, #0f172a)",
-                borderRadius: "12px",
-                padding: "10px",
-                maxHeight: logExpanded ? (isMobile ? 210 : 260) : (isMobile ? 94 : 112),
-                overflowY: "auto",
-                display: "flex",
-                flexDirection: "column",
-                gap: "4px",
-                border: "1px solid var(--color-border-primary, #22314d)",
+                "--combat-log-max-height": `${logExpanded ? (isMobile ? 210 : 260) : (isMobile ? 94 : 112)}px`,
               } }}
             >
               {(logExpanded ? combat.log.slice(-30) : combat.log.slice(-3)).map((line, index) => (
                 <p
                   key={index}
-                  {...{ style: {
-                    fontSize: 11,
-                    margin: 0,
-                    ...getLogEntryStyle(line),
-                    fontFamily: "monospace",
-                    padding: "2px 0",
-                    borderBottom: "1px solid var(--color-border-secondary, #1e293b33)",
-                  } }}
+                  className={`combat-log-line combat-log-line--${getLogEntryTone(line)}`}
                 >
-                  <span {...{ style: { opacity: 0.2, marginRight: 6 } }}>{">"}</span>
+                  <span className="combat-log-line__prompt">{">"}</span>
                   {line}
                 </p>
               ))}
             </div>
           </>
         )}
-      </section>
+      </FlPanel>
 
       <button
+        className="combat-reset-progress"
         onClick={() => {
           if (confirm("Borrar todo?")) {
             dispatch({ type: "RESET_ALL_PROGRESS" });
           }
         }}
-        {...{ style: {
-          background: "none",
-          border: "none",
-          color: COLORS.danger,
-          fontSize: 9,
-          cursor: "pointer",
-          opacity: 0.4,
-          alignSelf: "center",
-        } }}
       >
         REINICIAR PROGRESO
       </button>
@@ -2898,71 +2750,6 @@ const barContainerStyle = {
   borderRadius: "5px",
   overflow: "hidden",
   border: "1px solid var(--color-border-primary, #e2e8f0)",
-};
-
-const logTitleStyle = {
-  fontSize: 9,
-  color: COLORS.common,
-  fontWeight: "900",
-  letterSpacing: "1px",
-};
-
-const sectionHeaderButtonStyle = {
-  width: "100%",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "10px",
-  border: "none",
-  background: "transparent",
-  padding: 0,
-  cursor: "pointer",
-};
-
-const scrollTopBtnStyle = {
-  background: "var(--color-background-tertiary, #f8fafc)",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  color: COLORS.boss,
-  fontSize: 9,
-  fontWeight: "900",
-  cursor: "pointer",
-  borderRadius: "999px",
-  padding: "4px 8px",
-};
-
-const combatIntelPanelStyle = {
-  background: "var(--color-background-tertiary, #f8fafc)",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  borderRadius: "12px",
-  padding: "8px 10px",
-  textAlign: "left",
-};
-
-const combatIntelTitleStyle = {
-  fontSize: "0.54rem",
-  color: "var(--color-text-tertiary, #94a3b8)",
-  fontWeight: "900",
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  marginBottom: "6px",
-};
-
-const combatIntelEntryStyle = {
-  display: "grid",
-  gap: "2px",
-};
-
-const combatIntelLabelStyle = {
-  fontSize: "0.64rem",
-  color: "var(--color-text-primary, #1e293b)",
-  fontWeight: "900",
-};
-
-const combatIntelDescriptionStyle = {
-  fontSize: "0.6rem",
-  color: "var(--color-text-secondary, #475569)",
-  lineHeight: 1.35,
-  fontWeight: "800",
 };
 
 function getCombatFloatStyle(event = {}, index = 0) {
@@ -3035,14 +2822,16 @@ function CombatForgeTierTrack({
   const clampedProgressPct = Math.max(0, Math.min(100, Number(progressPct || 0)));
   return (
     <section className="combat-forge-tier" title={title}>
-      <button
+      <FlButton
         className="combat-forge-tier__nav"
         onClick={onPrevious}
         disabled={!canGoPrevious}
+        variant="secondary"
+        size="xs"
         aria-label="Tier anterior"
       >
         {"<"}
-      </button>
+      </FlButton>
       <div className="combat-forge-tier__center">
         <div className="combat-forge-tier__title">TIER {currentTier}</div>
         <div className="combat-forge-tier__zone">{zoneLabel}</div>
@@ -3072,28 +2861,30 @@ function CombatForgeTierTrack({
           ))}
         </div>
       </div>
-      <button
+      <FlButton
         className="combat-forge-tier__nav"
         onClick={onNext}
         disabled={!canGoNext}
+        variant="secondary"
+        size="xs"
         aria-label="Tier siguiente"
       >
         {">"}
-      </button>
+      </FlButton>
       {showAuto && (
-        <button
+        <FlSwitch
+          checked={autoAdvance}
+          onChange={onToggleAuto}
+          label="Auto"
+          size="sm"
+          variant="rect"
           className={[
-            "combat-forge-tier__auto",
-            autoAdvance ? "is-active" : "",
+            "combat-forge-tier__switch",
             spotlightAutoAdvance ? "is-spotlighted" : "",
           ].filter(Boolean).join(" ")}
-          onClick={onToggleAuto}
-          title={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
-          aria-label={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
           data-onboarding-target={spotlightAutoAdvance ? "auto-advance" : undefined}
-        >
-          AUTO
-        </button>
+          ariaLabel={autoAdvance ? "Auto-avance activado" : "Auto-avance desactivado"}
+        />
       )}
     </section>
   );
@@ -3176,14 +2967,18 @@ function CombatForgeSideActions({ actions = [] }) {
       {visibleActions.map(action => {
         const disabled = Boolean(action.disabled);
         return (
-          <button
+          <FlSideAction
             key={action.id}
-            type="button"
             className={[
               "combat-forge-side-action",
               disabled ? "is-disabled" : "",
               action.spotlight ? "is-spotlighted" : "",
             ].filter(Boolean).join(" ")}
+            size="xs"
+            variant={action.spotlight ? "primary" : "default"}
+            icon={action.icon || "more"}
+            label={action.label}
+            badge={action.badge}
             onClick={() => {
               if (disabled) return;
               action.onSelect?.(action.id, action);
@@ -3192,19 +2987,7 @@ function CombatForgeSideActions({ actions = [] }) {
             title={action.label}
             aria-label={action.label}
             data-onboarding-target={action.onboardingTarget}
-          >
-            {action.badge != null && (
-              <span className="combat-forge-side-action__badge">
-                {action.badge}
-              </span>
-            )}
-            <span className="combat-forge-side-action__icon" aria-hidden="true">
-              <ForgeIcon name={action.icon || "more"} size={23} />
-            </span>
-            <span className="combat-forge-side-action__label">
-              {action.label}
-            </span>
-          </button>
+          />
         );
       })}
     </div>
@@ -3397,34 +3180,21 @@ function getLootDecisionBadgeTone(decisionReason = "") {
 function StatCard({ label, value, hint = null }) {
   const displayValue = typeof value === "number" ? value.toLocaleString() : value;
   return (
-    <div className="combat-stat-card" {...{ style: { background: "var(--color-background-secondary, #fff)", borderRadius: "12px", padding: "7px 4px", border: "1px solid var(--color-border-primary, #e2e8f0)", textAlign: "center" } }}>
-      <p {...{ style: { fontSize: 8, color: COLORS.common, margin: "0 0 2px", fontWeight: "900" } }}>{label}</p>
-      <p {...{ style: { fontSize: "0.9rem", fontWeight: "900", margin: 0, color: COLORS.dark } }}>
+    <article className="combat-stat-card">
+      <span className="combat-stat-card__label">{label}</span>
+      <span className="combat-stat-card__value">
         {displayValue}
-      </p>
-      {hint && <p {...{ style: { fontSize: 8, color: "var(--color-text-secondary, #64748b)", margin: "2px 0 0", fontWeight: "800" } }}>{hint}</p>}
-    </div>
+      </span>
+      {hint && <span className="combat-stat-card__hint">{hint}</span>}
+    </article>
   );
 }
 
 function InlineStatusTray({ statuses = [], emptyLabel = "Sin estados", isMobile = false }) {
   return (
-    <div
-      className="combat-status-tray"
-      {...{ style: {
-        marginTop: "6px",
-        background: "var(--color-background-tertiary, #f8fafc)",
-        border: "1px solid var(--color-border-primary, #e2e8f0)",
-        borderRadius: "10px",
-        padding: "5px",
-        minHeight: isMobile ? 31 : 33,
-        overflowX: "auto",
-        overflowY: "hidden",
-        boxSizing: "border-box",
-      } }}
-    >
+    <div className="combat-status-tray" data-mobile={isMobile ? "true" : undefined}>
       {statuses.length > 0 ? (
-        <div {...{ style: { display: "flex", gap: "5px", alignItems: "stretch", minWidth: "max-content" } }}>
+        <div className="combat-status-tray__list">
           {statuses.map(status => (
             <StatusPill
               key={status.id}
@@ -3437,79 +3207,32 @@ function InlineStatusTray({ statuses = [], emptyLabel = "Sin estados", isMobile 
           ))}
         </div>
       ) : (
-        <div {...{ style: { fontSize: "0.6rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" } }}>{emptyLabel}</div>
+        <div className="combat-status-tray__empty">{emptyLabel}</div>
       )}
     </div>
   );
 }
 
 function StatusPill({ label, value, tone = "common", detail = "", description = "" }) {
-  const toneMap = {
-    success: {
-      color: "var(--tone-success-strong, #047857)",
-      background: "var(--tone-success-soft, #ecfdf5)",
-      border: "rgba(16,185,129,0.18)",
-    },
-    danger: {
-      color: "var(--tone-danger, #b91c1c)",
-      background: "var(--tone-danger-soft, #fff1f2)",
-      border: "rgba(244,63,94,0.18)",
-    },
-    warning: {
-      color: "var(--tone-warning, #b45309)",
-      background: "var(--tone-warning-soft, #fff7ed)",
-      border: "rgba(245,158,11,0.18)",
-    },
-    boss: {
-      color: "var(--tone-accent, #4338ca)",
-      background: "var(--tone-accent-soft, #eef2ff)",
-      border: "rgba(99,102,241,0.18)",
-    },
-    info: {
-      color: "var(--tone-info, #0369a1)",
-      background: "var(--tone-info-soft, #f0f9ff)",
-      border: "rgba(56,189,248,0.18)",
-    },
-    common: {
-      color: "var(--color-text-secondary, #475569)",
-      background: "var(--color-background-tertiary, #f8fafc)",
-      border: "var(--color-border-primary, #e2e8f0)",
-    },
-  };
-  const palette = toneMap[tone] || toneMap.common;
-  const pulseEnabled = tone !== "common";
+  const normalizedTone = tone || "common";
+  const pulseEnabled = normalizedTone !== "common";
   const animationOffsetMs = Array.from(String(label || ""))
     .reduce((sum, character) => sum + character.charCodeAt(0), 0) % 9 * 140;
   return (
     <span
       className="combat-status-pill"
+      data-tone={normalizedTone}
       title={description ? `${label}: ${description}${detail ? `\n${detail}` : ""}` : label}
-      {...{ style: {
-        display: "inline-flex",
-        alignItems: "center",
-        flex: "0 0 auto",
-        minWidth: "fit-content",
-        boxSizing: "border-box",
-        gap: "6px",
-        fontSize: "0.58rem",
-        fontWeight: "900",
-        color: palette.color,
-        background: palette.background,
-        border: `1px solid ${palette.border}`,
-        borderRadius: "999px",
-        padding: "4px 8px",
-        cursor: description ? "help" : "default",
-        whiteSpace: "nowrap",
-        boxShadow: pulseEnabled
-          ? "0 0 0 1px rgba(255,255,255,0.12), 0 1px 2px rgba(15,23,42,0.03)"
-          : "none",
-        animation: pulseEnabled ? "combatStatusPillPulse 3600ms ease-in-out infinite" : "none",
-        animationDelay: pulseEnabled ? `${animationOffsetMs}ms` : undefined,
-      } }}
+      data-pulse={pulseEnabled ? "true" : undefined}
+      {...{
+        style: pulseEnabled
+          ? { "--combat-pill-delay": `${animationOffsetMs}ms` }
+          : undefined,
+      }}
     >
       <span>{label}</span>
-      <span {...{ style: { opacity: 0.9 } }}>{value}</span>
-      {detail && <span {...{ style: { fontSize: "0.54rem", fontWeight: "800", opacity: 0.86 } }}>{detail}</span>}
+      <span className="combat-status-pill__value">{value}</span>
+      {detail && <span className="combat-status-pill__detail">{detail}</span>}
     </span>
   );
 }
@@ -3524,25 +3247,6 @@ function navBtnStyle(active) {
     color: active ? COLORS.dark : "var(--color-text-tertiary, #cbd5e1)",
     cursor: active ? "pointer" : "not-allowed",
     fontWeight: "bold",
-  };
-}
-
-function autoAdvanceBtnStyle(active) {
-  return {
-    width: "34px",
-    height: "34px",
-    borderRadius: "8px",
-    border: `2px solid ${active ? "var(--tone-success, #1D9E75)" : "var(--color-border-primary, #e2e8f0)"}`,
-    background: active ? "var(--tone-success-soft, #ecfdf5)" : "var(--color-background-secondary, #fff)",
-    color: active ? "var(--tone-success-strong, #047857)" : "var(--color-text-secondary, #64748b)",
-    cursor: "pointer",
-    fontWeight: "900",
-    fontSize: "0.95rem",
-    lineHeight: 1,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    boxShadow: active ? "0 0 0 2px rgba(29,158,117,0.14)" : "none",
   };
 }
 

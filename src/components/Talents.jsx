@@ -25,13 +25,6 @@ import {
   ONBOARDING_STEPS,
 } from "../engine/onboarding/onboardingEngine";
 
-const TYPE_COLORS = {
-  aura: "var(--tone-accent, #534AB7)",
-  triggered: "var(--tone-warning, #f59e0b)",
-  passive: "var(--tone-success, #1D9E75)",
-  stacking: "var(--tone-info, #2563eb)",
-};
-
 const TREE_COLORS = {
   warrior_general: "var(--tone-neutral-strong, #1e293b)",
   berserker: "var(--tone-danger, #D85A30)",
@@ -891,7 +884,6 @@ function TalentNodeCard({
   stitchTrialEnabled = false,
 }) {
   const displayType = getTalentDisplayType(nodeState.activeTalent);
-  const typeColor = TYPE_COLORS[displayType] || "var(--color-text-secondary, #64748b)";
   const isUnlocked = nodeState.currentLevel > 0;
   const canUpgrade = nodeState.canUnlockNext && !!nodeState.nextTalent;
   const isKeystone = (nodeState.activeTalent?.tags || []).includes("keystone");
@@ -909,23 +901,41 @@ function TalentNodeCard({
     isKeystone ? "talents-node-card--keystone" : "",
   ].filter(Boolean).join(" ");
   const nodeCtaClassName = [
-    "talents-node-cta",
-    compact ? "talents-node-cta--compact" : "talents-node-cta--regular",
-    nodeState.isMaxed ? "talents-node-cta--maxed" : canUpgrade ? "talents-node-cta--ready" : "talents-node-cta--disabled",
-    spotlight ? "talents-node-cta--spotlight" : "",
+    "forge-talent-buy-button",
+    canUpgrade ? "forge-talent-buy-button--ready" : "forge-talent-buy-button--disabled",
+    spotlight ? "forge-talent-buy-button--spotlight" : "",
   ].filter(Boolean).join(" ");
-  const spotlightCardShadow = stitchTrialEnabled
-    ? "0 0 0 1px rgba(208, 188, 255, 0.38), 0 8px 18px rgba(8, 5, 16, 0.4)"
-    : "0 0 0 2px rgba(99,102,241,0.18), 0 12px 28px rgba(99,102,241,0.18)";
-  const justUnlockedCardShadow = stitchTrialEnabled
-    ? "0 0 0 1px rgba(138, 92, 245, 0.4), 0 8px 16px rgba(8, 5, 16, 0.36)"
-    : "0 0 0 2px rgba(34,197,94,0.45), 0 0 22px rgba(34,197,94,0.35), 0 12px 24px rgba(29,158,117,0.24)";
-  const compactUnlockedCardShadow = stitchTrialEnabled
-    ? "0 0 0 1px rgba(138, 92, 245, 0.36), 0 6px 14px rgba(8, 5, 16, 0.33)"
-    : "0 0 0 2px rgba(34,197,94,0.42), 0 0 18px rgba(34,197,94,0.25)";
-  const spotlightButtonShadow = stitchTrialEnabled
-    ? "0 0 0 1px rgba(208, 188, 255, 0.32), 0 6px 14px rgba(8, 5, 16, 0.34)"
-    : "0 0 0 2px rgba(99,102,241,0.16), 0 8px 20px rgba(99,102,241,0.18)";
+  const nodeTypeClassName = [
+    "talents-node-type",
+    `talents-node-type--${displayType}`,
+  ].join(" ");
+  const compactNodeHeaderClassName = [
+    "talents-node-header",
+    "talents-node-header--compact",
+  ].join(" ");
+  const fullNodeHeaderClassName = [
+    "talents-node-header",
+    "talents-node-header--full",
+  ].join(" ");
+  const nodeRequirementsClassName = [
+    "talents-node-requirements",
+    nodeState.allRequirementsMet ? "talents-node-requirements--ok" : "talents-node-requirements--blocked",
+  ].join(" ");
+  const upgradeHintClassName = [
+    "talents-node-upgrade-hint",
+    nodeState.isMaxed ? "talents-node-upgrade-hint--maxed" : "",
+  ].filter(Boolean).join(" ");
+  const nodeStyleProps = {
+    style: {
+      "--talents-node-z-index": spotlight ? 2 : 1,
+    },
+  };
+  const spotlightProps = spotlight
+    ? { "data-talents-spotlight": stitchTrialEnabled ? "stitch" : "default" }
+    : {};
+  const justUnlockedProps = justUnlocked
+    ? { "data-talents-unlocked-effect": stitchTrialEnabled ? "stitch" : "default" }
+    : {};
 
   if (compact) {
     return (
@@ -933,98 +943,61 @@ function TalentNodeCard({
         className={nodeCardClassName}
         data-onboarding-node-id={node.talent.id}
         data-onboarding-target={spotlight ? "buy-talent-card" : undefined}
-        {...{ style: {
-          background: "var(--color-background-secondary, #fff)",
-          border: `1px solid ${justUnlocked ? "var(--tone-success, #22c55e)" : isUnlocked ? "var(--tone-success, #1D9E75)" : nodeState.allRequirementsMet ? "var(--color-border-primary, #e2e8f0)" : "var(--tone-danger, #fecaca)"}`,
-          borderRadius: "11px",
-          padding: "8px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "5px",
-          minWidth: 0,
-          position: spotlight ? "relative" : "static",
-          zIndex: spotlight ? 2 : 1,
-          boxShadow: spotlight
-            ? spotlightCardShadow
-            : justUnlocked
-              ? compactUnlockedCardShadow
-              : "none",
-          animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
-          transition: "all 0.2s ease",
-        } }}
+        {...nodeStyleProps}
+        {...spotlightProps}
+        {...justUnlockedProps}
       >
-        <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "7px" } }}>
-          <div {...{ style: { minWidth: 0, flex: 1 } }}>
-            <div {...{ style: { fontSize: "0.69rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 } }}>
+        <div className={compactNodeHeaderClassName}>
+          <div className="talents-node-header-copy">
+            <div className="talents-node-title talents-node-title--compact">
               {getNodeTitle(node)}
             </div>
-            <div {...{ style: { fontSize: "0.55rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", marginTop: "2px" } }}>{nodeState.tierLabel}</div>
+            <div className="talents-node-tier talents-node-tier--compact">{nodeState.tierLabel}</div>
           </div>
-          <button
+          <FlButton
             className={nodeCtaClassName}
             onClick={() => dispatch({ type: "UPGRADE_TALENT_NODE", nodeId: node.talent.id })}
             disabled={!canUpgrade}
             data-onboarding-target={spotlight ? "buy-talent" : undefined}
-            {...{ style: {
-              ...treeButtonStyle(nodeState.isMaxed, canUpgrade, true),
-              boxShadow: spotlight ? spotlightButtonShadow : "none",
-              animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
-            } }}
+            variant={nodeState.isMaxed ? "success" : canUpgrade ? "default" : "secondary"}
+            size="xs"
           >
             {compactButtonLabel}
-          </button>
+          </FlButton>
         </div>
 
-        <div {...{ style: { display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap" } }}>
+        <div className="talents-node-chips">
           {isKeystone && (
-            <div {...{ style: miniPillStyle("var(--tone-danger-strong, #9f1239)", "var(--tone-danger-soft, #fff1f2)") }}>
+            <div className="talents-node-pill talents-node-pill--danger">
               Keystone
             </div>
           )}
-          <div {...{ style: badgeStyle(typeColor) }}>{displayType.toUpperCase()}</div>
+          <div className={nodeTypeClassName}>{displayType.toUpperCase()}</div>
           {canUpgrade && (
-            <div {...{ style: miniPillStyle("var(--tone-success-strong, #166534)", "var(--tone-success-soft, #ecfdf5)") }}>
+            <div className="talents-node-pill talents-node-pill--success">
               Disponible
             </div>
           )}
-          <div {...{ style: miniPillStyle("var(--tone-accent, #4338ca)", "var(--tone-accent-soft, #eef2ff)") }}>
+          <div className="talents-node-pill talents-node-pill--arcane">
             LV {nodeState.currentLevel}/{nodeState.maxLevel}
           </div>
         </div>
 
-        <div
-          {...{ style: {
-            fontSize: "0.62rem",
-            color: "var(--color-text-secondary, #475569)",
-            lineHeight: 1.28,
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-          } }}
-        >
+        <div className="talents-node-description talents-node-description--compact">
           {buildTalentDescription(nodeState.activeTalent || node.talent)}
         </div>
 
-        <div {...{ style: { fontSize: "0.56rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800", lineHeight: 1.25 } }}>
+        <div className="talents-node-summary talents-node-summary--current">
           {nodeState.currentLevel > 0 ? `Actual: ${currentSummary}` : `Base: ${currentSummary}`}
         </div>
         {!nodeState.isMaxed && nodeState.nextTalent && (
-          <div {...{ style: { fontSize: "0.56rem", color: "var(--tone-accent, #4338ca)", fontWeight: "800", lineHeight: 1.25 } }}>
+          <div className="talents-node-summary talents-node-summary--next">
             {`Proximo: ${nextSummary}`}
           </div>
         )}
 
         {prereqText && (
-          <div
-            {...{ style: {
-              fontSize: "0.55rem",
-              color: nodeState.allRequirementsMet ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #D85A30)",
-              fontWeight: "800",
-              lineHeight: 1.25,
-              whiteSpace: "pre-line",
-            } }}
-          >
+          <div className={nodeRequirementsClassName}>
             {prereqText}
           </div>
         )}
@@ -1037,58 +1010,41 @@ function TalentNodeCard({
       className={nodeCardClassName}
       data-onboarding-node-id={node.talent.id}
       data-onboarding-target={spotlight ? "buy-talent-card" : undefined}
-      {...{ style: {
-        background: "var(--color-background-secondary, #fff)",
-        border: `1px solid ${justUnlocked ? "var(--tone-success, #22c55e)" : isUnlocked ? "var(--tone-success, #1D9E75)" : nodeState.allRequirementsMet ? "var(--color-border-primary, #e2e8f0)" : "var(--tone-danger, #fecaca)"}`,
-        borderRadius: "14px",
-        padding: isMobile ? "9px" : "10px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "7px",
-        minWidth: 0,
-        position: spotlight ? "relative" : "static",
-        zIndex: spotlight ? 2 : 1,
-        boxShadow: spotlight
-          ? spotlightCardShadow
-          : justUnlocked
-            ? justUnlockedCardShadow
-            : "none",
-        animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
-        transform: spotlight || (justUnlocked && !stitchTrialEnabled) ? "scale(1.01)" : "none",
-        transition: "all 0.2s ease",
-      } }}
+      {...nodeStyleProps}
+      {...spotlightProps}
+      {...justUnlockedProps}
     >
-      <div {...{ style: { display: "flex", justifyContent: "space-between", alignItems: "start", gap: "8px" } }}>
-        <div {...{ style: { minWidth: 0 } }}>
-          <div {...{ style: { fontSize: isMobile ? "0.74rem" : "0.84rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)", lineHeight: 1.15 } }}>
+      <div className={fullNodeHeaderClassName}>
+        <div className="talents-node-header-copy">
+          <div className={["talents-node-title", isMobile ? "talents-node-title--mobile" : ""].filter(Boolean).join(" ")}>
             {getNodeTitle(node)}
           </div>
-          <div {...{ style: { fontSize: isMobile ? "0.58rem" : "0.63rem", color: "var(--color-text-secondary, #64748b)", fontWeight: "800", marginTop: "3px" } }}>{nodeState.tierLabel}</div>
+          <div className={["talents-node-tier", isMobile ? "talents-node-tier--mobile" : ""].filter(Boolean).join(" ")}>{nodeState.tierLabel}</div>
         </div>
-        <div {...{ style: { display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" } }}>
-          {canUpgrade && <div {...{ style: miniPillStyle("var(--tone-success-strong, #166534)", "var(--tone-success-soft, #ecfdf5)") }}>Disponible</div>}
-          {isKeystone && <div {...{ style: miniPillStyle("var(--tone-danger-strong, #9f1239)", "var(--tone-danger-soft, #fff1f2)") }}>Keystone</div>}
-          <div {...{ style: badgeStyle(typeColor) }}>{displayType.toUpperCase()}</div>
+        <div className="talents-node-chips talents-node-chips--end">
+          {canUpgrade && <div className="talents-node-pill talents-node-pill--success">Disponible</div>}
+          {isKeystone && <div className="talents-node-pill talents-node-pill--danger">Keystone</div>}
+          <div className={nodeTypeClassName}>{displayType.toUpperCase()}</div>
         </div>
       </div>
 
-      <div {...{ style: { fontSize: isMobile ? "0.68rem" : "0.74rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.35 } }}>
+      <div className={["talents-node-description", isMobile ? "talents-node-description--mobile" : ""].filter(Boolean).join(" ")}>
         {buildTalentDescription(nodeState.activeTalent || node.talent)}
       </div>
 
-      <div {...{ style: { ...upgradeHintStyle, borderColor: nodeState.isMaxed ? "var(--tone-success, #86efac)" : "var(--color-border-primary, #e2e8f0)", background: nodeState.isMaxed ? "var(--tone-success-soft, rgba(34,197,94,0.08))" : "var(--color-background-tertiary, #f8fafc)" } }}>
-        <div {...{ style: { fontSize: "0.58rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase", marginBottom: "4px" } }}>
+      <div className={upgradeHintClassName}>
+        <div className="talents-node-upgrade-eyebrow">
           {nodeState.currentLevel > 0 ? `Actual ${nodeState.currentLevel}/${nodeState.maxLevel}` : "Base"}
         </div>
-        <div {...{ style: { fontSize: isMobile ? "0.66rem" : "0.72rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.3 } }}>
+        <div className={["talents-node-upgrade-value", isMobile ? "talents-node-upgrade-value--mobile" : ""].filter(Boolean).join(" ")}>
           {currentSummary}
         </div>
         {!nodeState.isMaxed && nodeState.nextTalent && (
-          <div {...{ style: { marginTop: "6px", paddingTop: "6px", borderTop: "1px dashed var(--color-border-primary, #e2e8f0)" } }}>
-            <div {...{ style: { fontSize: "0.58rem", fontWeight: "900", color: "var(--tone-accent, #4338ca)", textTransform: "uppercase", marginBottom: "4px" } }}>
+          <div className="talents-node-upgrade-next">
+            <div className="talents-node-upgrade-next-eyebrow">
               Proximo nivel
             </div>
-            <div {...{ style: { fontSize: isMobile ? "0.66rem" : "0.72rem", color: "var(--tone-accent, #4338ca)", lineHeight: 1.3 } }}>
+            <div className={["talents-node-upgrade-next-value", isMobile ? "talents-node-upgrade-next-value--mobile" : ""].filter(Boolean).join(" ")}>
               {nextSummary}
             </div>
           </div>
@@ -1096,32 +1052,21 @@ function TalentNodeCard({
       </div>
 
       {prereqText && (
-        <div
-          {...{ style: {
-            fontSize: "0.6rem",
-            fontWeight: "800",
-            color: nodeState.allRequirementsMet ? "var(--color-text-tertiary, #94a3b8)" : "var(--tone-danger, #D85A30)",
-            lineHeight: 1.25,
-            whiteSpace: "pre-line",
-          } }}
-        >
+        <div className={nodeRequirementsClassName}>
           {prereqText}
         </div>
       )}
 
-      <button
+      <FlButton
         className={nodeCtaClassName}
         onClick={() => dispatch({ type: "UPGRADE_TALENT_NODE", nodeId: node.talent.id })}
         disabled={!canUpgrade}
         data-onboarding-target={spotlight ? "buy-talent" : undefined}
-        {...{ style: {
-          ...treeButtonStyle(nodeState.isMaxed, canUpgrade),
-          boxShadow: spotlight ? spotlightButtonShadow : "none",
-          animation: spotlight ? "talentSpotlightPulse 1600ms ease-in-out infinite" : "none",
-        } }}
+        variant={nodeState.isMaxed ? "success" : canUpgrade ? "default" : "secondary"}
+        size="sm"
       >
         {getNodeActionLabel(nodeState)}
-      </button>
+      </FlButton>
     </div>
   );
 }
@@ -1339,27 +1284,24 @@ export default function Talents({ state, dispatch }) {
 
   if (!playerClass) {
     return (
-      <div {...{ style: emptyContainerStyle }}>
-        <h2 {...{ style: { color: "var(--color-text-tertiary, #9ca3af)", fontWeight: "900" } }}>CLASE REQUERIDA</h2>
-        <p {...{ style: { color: "var(--color-text-tertiary, #9ca3af)", fontSize: "0.9rem" } }}>Elegi una clase para ver tus talentos disponibles.</p>
+      <div className="talents-empty-state">
+        <h2 className="talents-empty-state__title">CLASE REQUERIDA</h2>
+        <p className="talents-empty-state__copy">Elegi una clase para ver tus talentos disponibles.</p>
       </div>
     );
   }
 
   return (
-    <div
-      className={talentsRootClassName}
-      {...{ style: { padding: "12px", display: "flex", flexDirection: "column", gap: "6px", color: "var(--color-text-primary, #1e293b)", minHeight: "100%" } }}
-    >
-      <div className="talents-header-stack" {...{ style: { display: "flex", flexDirection: "column", gap: "10px", paddingBottom: "4px" } }}>
-        <header className="talents-header" {...{ style: headerStyle }}>
+    <div className={[talentsRootClassName, "talents-root-shell"].join(" ")}>
+      <div className="talents-header-stack">
+        <header className="talents-header">
           <div className="talents-header-main">
             <span className="talents-header-emblem" aria-hidden="true">
               <ForgeIcon name={getTreeIconName(selectedTree?.tree, playerClass)} size={32} />
             </span>
             <div>
-              <div {...{ style: { fontSize: "0.6rem", fontWeight: "900", color: "var(--color-text-tertiary, #94a3b8)", textTransform: "uppercase" } }}>Talentos</div>
-              <div {...{ style: { fontSize: "1rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>{toTitleCaseLabel(playerClass)} {playerSpec && `- ${toTitleCaseLabel(playerSpec)}`}</div>
+              <div className="talents-header-eyebrow">Talentos</div>
+              <div className="talents-header-title">{toTitleCaseLabel(playerClass)} {playerSpec && `- ${toTitleCaseLabel(playerSpec)}`}</div>
             </div>
           </div>
           <FlTalentPointCounter
@@ -1370,96 +1312,72 @@ export default function Talents({ state, dispatch }) {
         </header>
 
         {treeData.length > 1 && (
-          <section className="talents-tabs-section" {...{ style: { position: "relative" } }}>
-            <div className="talents-tree-tabs" ref={treeTabsScrollerRef} {...{ style: tabsWrapStyle }}>
+          <section className="talents-tabs-section">
+            <div className="talents-tree-tabs" ref={treeTabsScrollerRef}>
               {treeData.map(({ tree, progress, nodes }) => {
                 const active = tree.id === selectedTreeId;
                 return (
-                  <button
-                    className={[
-                      "talents-tree-tab",
-                      active ? "talents-tree-tab--active" : "",
-                    ].filter(Boolean).join(" ")}
+                  <FlButton
+                    className="talents-tree-switch"
                     key={tree.id}
                     onClick={() => setSelectedTreeId(tree.id)}
-                    {...{ style: {
-                      ...tabStyle,
-                      background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #fff)",
-                      color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #475569)",
-                      borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
-                    } }}
+                    selected={active}
+                    variant={active ? "default" : "secondary"}
+                    size="sm"
                   >
-                    <span {...{ style: { fontWeight: "900" } }}>{tree.name}</span>
-                    {tree.isOffSpec && (
-                      <span {...{ style: { fontSize: "0.54rem", fontWeight: "900", color: "var(--tone-warning, #b45309)" } }}>
-                        Secundario x{OFF_SPEC_COST_MULTIPLIER}
-                      </span>
-                    )}
-                    <span {...{ style: { opacity: 0.75 } }}>{progress}/{nodes.length}</span>
-                  </button>
+                    <span className="talents-tree-switch__content">
+                      <span className="talents-tree-switch__name">{tree.name}</span>
+                      {tree.isOffSpec && (
+                        <span className="talents-tree-switch__meta talents-tree-switch__meta--warning">
+                          Secundario x{OFF_SPEC_COST_MULTIPLIER}
+                        </span>
+                      )}
+                      <span className="talents-tree-switch__meta">{progress}/{nodes.length}</span>
+                    </span>
+                  </FlButton>
                 );
               })}
             </div>
-            {canScrollTreesLeft && <div {...{ style: treeTabsFadeStyle("left") }} />}
-            {canScrollTreesRight && <div {...{ style: treeTabsFadeStyle("right") }} />}
-            {canScrollTreesLeft && <div {...{ style: treeTabsHintStyle("left") }}>←</div>}
-            {canScrollTreesRight && <div {...{ style: treeTabsHintStyle("right") }}>→</div>}
+            {canScrollTreesLeft && <div className="talents-tree-tabs-fade talents-tree-tabs-fade--left" />}
+            {canScrollTreesRight && <div className="talents-tree-tabs-fade talents-tree-tabs-fade--right" />}
+            {canScrollTreesLeft && <div className="talents-tree-tabs-hint talents-tree-tabs-hint--left">←</div>}
+            {canScrollTreesRight && <div className="talents-tree-tabs-hint talents-tree-tabs-hint--right">→</div>}
           </section>
         )}
       </div>
 
       {visibleTrees.map(({ tree, nodes, progress }) => (
-        <section key={tree.id} className="talents-tree-section" {...{ style: treeSectionWrapStyle }}>
+        <section key={tree.id} className="talents-tree-section">
           <div
             className="talents-tree-toolbar-wrap"
             data-onboarding-top-guard={spotlightTalentPurchase ? "true" : undefined}
-            {...{ style: {
-              marginInline: "-14px",
-              position: "sticky",
-              top: treeHeaderStickyTop,
-              zIndex: 48,
-              marginBottom: 0,
-              paddingTop: "6px",
-              background: "transparent",
-            } }}
+            style={{ "--talents-toolbar-sticky-top": treeHeaderStickyTop }}
           >
             <div
               className="talents-tree-toolbar"
-              {...{ style: {
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "end",
-                gap: "10px",
-                flexWrap: "wrap",
-                background: "var(--color-background-secondary, #fff)",
-                padding: "6px 14px 8px",
-                boxShadow: "0 12px 18px -18px rgba(15,23,42,0.5)",
-                border: "1px solid var(--color-border-primary, #e2e8f0)",
-                borderBottom: "1px solid var(--color-border-primary, #e2e8f0)",
-                borderRadius: "18px 18px 0 0",
-              } }}
+              style={{ "--talents-tree-accent": TREE_COLORS[tree.id] || "var(--fl-text-primary)" }}
             >
               <div>
-                <div {...{ style: { display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" } }}>
-                  <div {...{ style: { fontSize: "0.7rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: TREE_COLORS[tree.id] || "var(--tone-neutral-strong, #1e293b)" } }}>{tree.name}</div>
+                <div className="talents-tree-toolbar-row">
+                  <div className="talents-tree-toolbar-title">{tree.name}</div>
                   {tree.isOffSpec && (
-                    <span {...{ style: { fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-warning, #9a3412)", background: "var(--tone-warning-soft, #fff7ed)", border: "1px solid var(--tone-warning, #fdba74)", borderRadius: "999px", padding: "2px 7px" } }}>
+                    <span className="talents-tree-toolbar-chip talents-tree-toolbar-chip--warning">
                       SECUNDARIO x{OFF_SPEC_COST_MULTIPLIER}
                     </span>
                   )}
                   {selectedTreeBuyableNodes.length > 0 && (
-                    <span {...{ style: { fontSize: "0.56rem", fontWeight: "900", color: "var(--tone-success-strong, #166534)", background: "var(--tone-success-soft, #ecfdf5)", border: "1px solid var(--tone-success, #86efac)", borderRadius: "999px", padding: "2px 7px" } }}>
+                    <span className="talents-tree-toolbar-chip talents-tree-toolbar-chip--success">
                       {selectedTreeBuyableNodes.length} disponibles
                     </span>
                   )}
                 </div>
-                <div className="talents-tree-description" {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px", lineHeight: 1.35 } }}>
+                <div className="talents-tree-description">
                   {tree.description}
                 </div>
               </div>
-              <div {...{ style: { display: "grid", gap: "6px", justifyItems: "end" } }}>
+              <div className="talents-tree-toolbar-side">
                 <div className="talents-tree-actions">
-                  <div className="talents-tree-progress-summary" {...{ style: { fontSize: "0.68rem", color: "var(--color-text-tertiary, #94a3b8)", fontWeight: "800" } }}>{progress}/{nodes.length}</div>
+                  <div className="talents-tree-progress-summary">{progress}/{nodes.length}</div>
                   {progress > 0 && (
                     <FlButton
                       className="talents-reset-btn talents-reset-btn--tree"
@@ -1474,8 +1392,8 @@ export default function Talents({ state, dispatch }) {
               </div>
             </div>
           </div>
-
-          <div className="talents-tree-body" {...{ style: treeBodyStyle }}>
+ 
+          <div className="talents-tree-body">
           <div className={["forge-talents-panel", isMobile ? "forge-talents-panel--mobile" : "forge-talents-panel--desktop"].join(" ")}>
               <ForgeTalentTreeGrid
                 segments={forgeTalentSegments}
@@ -1502,173 +1420,3 @@ export default function Talents({ state, dispatch }) {
     </div>
   );
 }
-
-const emptyContainerStyle = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  height: "100%",
-  padding: "40px",
-  textAlign: "center",
-  gap: "10px",
-};
-
-const headerStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  background: "var(--color-background-secondary, #fff)",
-  padding: "12px 16px",
-  borderRadius: "15px",
-  boxShadow: "0 2px 4px var(--color-shadow, rgba(0,0,0,0.05))",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-};
-
-const treeSectionWrapStyle = {
-  position: "relative",
-};
-
-const treeBodyStyle = {
-  background: "var(--color-background-secondary, #ffffff)",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  borderTop: "none",
-  borderRadius: "0 0 18px 18px",
-  marginInline: "-14px",
-  padding: "12px 14px 14px",
-  boxShadow: "0 2px 6px var(--color-shadow, rgba(0,0,0,0.04))",
-};
-
-const tabsWrapStyle = {
-  display: "flex",
-  gap: "8px",
-  overflowX: "auto",
-  padding: "0 18px 2px 0",
-  scrollbarWidth: "none",
-  scrollBehavior: "smooth",
-};
-
-const tabStyle = {
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  borderRadius: "12px",
-  padding: "10px 12px",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "start",
-  gap: "3px",
-  fontSize: "0.7rem",
-  cursor: "pointer",
-  flexShrink: 0,
-  minWidth: "148px",
-};
-
-const treeTabsFadeStyle = (side = "right") => ({
-  position: "absolute",
-  top: 0,
-  bottom: 2,
-  [side]: 0,
-  width: "26px",
-  pointerEvents: "none",
-  background: side === "right"
-    ? "linear-gradient(90deg, rgba(248,250,252,0), var(--color-background-primary, #f8fafc))"
-    : "linear-gradient(270deg, rgba(248,250,252,0), var(--color-background-primary, #f8fafc))",
-});
-
-const treeTabsHintStyle = (side = "right") => ({
-  position: "absolute",
-  top: "50%",
-  transform: "translateY(-50%)",
-  [side]: "2px",
-  width: "18px",
-  height: "18px",
-  borderRadius: "999px",
-  background: "var(--color-background-primary, #f8fafc)",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  color: "var(--color-text-tertiary, #94a3b8)",
-  fontSize: "0.6rem",
-  fontWeight: "900",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  pointerEvents: "none",
-});
-
-const upgradeHintStyle = {
-  background: "var(--color-background-tertiary, #f8fafc)",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  borderRadius: "12px",
-  padding: "10px",
-};
-
-const mobileStageStyle = {
-  background: "var(--color-background-tertiary, #f8fafc)",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  borderRadius: "14px",
-  padding: "9px",
-};
-
-const mobileStageHeaderStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "8px",
-  marginBottom: "8px",
-  paddingBottom: "6px",
-  borderBottom: "1px solid var(--color-border-primary, #e2e8f0)",
-};
-
-const desktopStageStyle = {
-  width: "292px",
-  minWidth: "292px",
-  background: "var(--color-background-tertiary, #f8fafc)",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  borderRadius: "14px",
-  padding: "9px",
-};
-
-const desktopStageHeaderStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "8px",
-  marginBottom: "8px",
-  paddingBottom: "6px",
-  borderBottom: "1px solid var(--color-border-secondary, #dbe2ea)",
-};
-
-const badgeStyle = color => ({
-  fontSize: "0.55rem",
-  fontWeight: "900",
-  padding: "2px 6px",
-  borderRadius: "6px",
-  background: `${color}15`,
-  color,
-  border: `1px solid ${color}44`,
-  whiteSpace: "nowrap",
-  flexShrink: 0,
-});
-
-const miniPillStyle = (color, bg) => ({
-  fontSize: "0.52rem",
-  fontWeight: "900",
-  padding: "2px 6px",
-  borderRadius: "999px",
-  border: `1px solid ${color}44`,
-  color,
-  background: bg,
-});
-
-const treeButtonStyle = (isMaxed, canUnlock, compact = false) => ({
-  border: `1px solid ${isMaxed ? "var(--tone-success, #1D9E75)" : canUnlock ? "var(--tone-accent, #534AB7)" : "var(--color-border-primary, #e2e8f0)"}`,
-  borderRadius: "10px",
-  padding: compact ? "8px 10px" : "10px 12px",
-  fontSize: compact ? "0.66rem" : "0.72rem",
-  fontWeight: "900",
-  background: isMaxed ? "var(--tone-success-soft, #ecfdf5)" : canUnlock ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-tertiary, #f1f5f9)",
-  color: isMaxed ? "var(--tone-success-strong, #166534)" : canUnlock ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #64748b)",
-  cursor: isMaxed ? "default" : canUnlock ? "pointer" : "not-allowed",
-  whiteSpace: "nowrap",
-  letterSpacing: "0.02em",
-});
-
-

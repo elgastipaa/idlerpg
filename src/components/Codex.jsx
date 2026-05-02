@@ -19,6 +19,7 @@ import { getMaxRunSigilSlots } from "../engine/progression/abyssProgression";
 import { getCodexResearchDefinition } from "../engine/sanctuary/jobEngine";
 import HorizontalOptionSelector from "./HorizontalOptionSelector";
 import ForgeIcon from "./icons/ForgeIcon";
+import { FlBadge, FlMetricGrid, FlNavSelector, FlPanel, FlPanelHeader, FlPagination, FlPaginationDots } from "./ui/forge";
 
 const STAT_DESCRIPTIONS = [
   ["damage", "Dano base de tus golpes normales y de varias habilidades."],
@@ -426,6 +427,31 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
     () => getPaginatedSlice(huntFamilyEntries, listPages.huntFamilies, LIST_PAGE_SIZES.huntFamilies),
     [huntFamilyEntries, listPages.huntFamilies]
   );
+  const huntSectionItems = useMemo(
+    () => ([
+      {
+        id: "objectives",
+        label: "Objetivos revelados",
+        subtitle: `${availablePowerTargets.length} targets · ${routeBosses.length} bosses en ruta`,
+      },
+      {
+        id: "powers",
+        label: "Poderes legendarios",
+        subtitle: `${huntPowerEntries.length} descubiertos`,
+      },
+      {
+        id: "families",
+        label: "Familias reveladas",
+        subtitle: `${huntFamilyEntries.length} visibles en esta run`,
+      },
+    ]),
+    [availablePowerTargets.length, routeBosses.length, huntPowerEntries.length, huntFamilyEntries.length]
+  );
+  const [activeHuntSection, setActiveHuntSection] = useState("objectives");
+  const activeHuntSectionIndex = useMemo(
+    () => Math.max(0, huntSectionItems.findIndex(section => section.id === activeHuntSection)),
+    [huntSectionItems, activeHuntSection]
+  );
   const libraryPowersPaging = useMemo(
     () => getPaginatedSlice(orderedPowerEntries, listPages.libraryPowers, LIST_PAGE_SIZES.libraryPowers),
     [orderedPowerEntries, listPages.libraryPowers]
@@ -489,259 +515,240 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
   const codexRootClassName = [
     "codex-root",
     "codex-root--forge-light",
+    "codex-root-shell",
     isLibraryMode ? "codex-root--library" : "codex-root--hunt",
   ].join(" ");
 
   return (
-    <div className={codexRootClassName} {...{ style: { padding: "calc(0.85rem * var(--density-scale, 1))", display: "flex", flexDirection: "column", gap: "calc(0.8rem * var(--density-scale, 1))", color: "var(--color-text-primary, #1e293b)" } }}>
-      <section className="codex-intro-panel" {...{ style: isLibraryMode ? libraryHeroPanelStyle : panelStyle }}>
-        {isLibraryMode ? (
-          <>
-            <div {...{ style: { display: "grid", gap: "12px", alignItems: "start" } }}>
-              <div {...{ style: { minWidth: 0 } }}>
-                <div {...{ style: { fontSize: "0.66rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-accent, #4338ca)" } }}>
-                  Biblioteca
-                </div>
-                <div {...{ style: { fontSize: "1.02rem", fontWeight: "900", marginTop: "4px" } }}>
-                  Archivo del Santuario
-                </div>
-                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px", lineHeight: 1.35, maxWidth: "56ch" } }}>
-                  Convierte kills y descubrimientos en progreso permanente con tinta y estudios de Biblioteca.
-                </div>
-              </div>
-            </div>
-
-            <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap" } }}>
-              <span {...{ style: libraryTopChipStyle("var(--tone-accent, #4338ca)") }}>
-                {activePowersCount}/{powerEntries.length} poderes
-              </span>
-              <span {...{ style: libraryTopChipStyle("var(--tone-success, #10b981)") }}>
-                {discoveredFamiliesCount} familias
-              </span>
-              <span {...{ style: libraryTopChipStyle("var(--tone-info, #0369a1)") }}>
-                {discoveredBossesCount} bosses
-              </span>
-            </div>
-
-            <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "8px" } }}>
-              <div {...{ style: libraryTopMetricCardStyle }}>
-                <div {...{ style: libraryTopMetricLabelStyle }}>Tinta</div>
-                <div {...{ style: libraryTopMetricValueStyle }}>{Math.floor(codexInk).toLocaleString()}</div>
-              </div>
-              <div {...{ style: libraryTopMetricCardStyle }}>
-                <div {...{ style: libraryTopMetricLabelStyle }}>Polvo</div>
-                <div {...{ style: libraryTopMetricValueStyle }}>{Math.floor(relicDust).toLocaleString()}</div>
-              </div>
-              <div {...{ style: libraryTopMetricCardStyle }}>
-                <div {...{ style: libraryTopMetricLabelStyle }}>En curso</div>
-                <div {...{ style: libraryTopMetricValueStyle }}>{runningResearchJobs.length}</div>
-              </div>
-              <div {...{ style: libraryTopMetricCardStyle }}>
-                <div {...{ style: libraryTopMetricLabelStyle }}>Listas</div>
-                <div {...{ style: libraryTopMetricValueStyle }}>{claimableResearchJobs.length}</div>
-              </div>
-              <div {...{ style: libraryTopMetricCardStyle }}>
-                <div {...{ style: libraryTopMetricLabelStyle }}>Hitos</div>
-                <div {...{ style: libraryTopMetricValueStyle }}>{Math.floor(unlockedMilestones).toLocaleString()}</div>
-              </div>
-            </div>
-
-            <div {...{ style: { display: "flex", gap: "6px", flexWrap: "wrap" } }}>
-              <button onClick={() => setActiveTab("mastery")} {...{ style: tabBtnStyle(activeTab === "mastery") }}>Archivo</button>
-              <button onClick={() => setActiveTab("glossary")} {...{ style: tabBtnStyle(activeTab === "glossary") }}>Glosario</button>
-            </div>
-
-            {onBack && (
-              <div {...{ style: { display: "flex", justifyContent: "flex-end" } }}>
-                <button onClick={onBack} {...{ style: overlayBackButtonStyle }}>
+    <div className={codexRootClassName}>
+      {isLibraryMode ? (
+        <FlPanel
+          variant="compact"
+          className="codex-intro-panel codex-intro-panel--library"
+          header={(
+            <FlPanelHeader
+              title="Biblioteca"
+              subtitle="Archivo del Santuario"
+              copy="Convierte kills y descubrimientos en progreso permanente con tinta y estudios de Biblioteca."
+              actions={onBack ? (
+                <button onClick={onBack} className="codex-overlay-back-button">
                   Volver
                 </button>
-              </div>
-            )}
-          </>
-        ) : (
+              ) : null}
+            />
+          )}
+        >
+          <div className="codex-intro-chip-row">
+            <span className="codex-intro-chip codex-intro-chip--arcane">
+              {activePowersCount}/{powerEntries.length} poderes
+            </span>
+            <span className="codex-intro-chip codex-intro-chip--success">
+              {discoveredFamiliesCount} familias
+            </span>
+            <span className="codex-intro-chip codex-intro-chip--defense">
+              {discoveredBossesCount} bosses
+            </span>
+          </div>
+
+          <FlMetricGrid
+            className="codex-intro-metric-grid"
+            columns={5}
+            mobileColumns={4}
+            items={[
+              { id: "ink", label: "Tinta", value: Math.floor(codexInk).toLocaleString(), tone: "arcane" },
+              { id: "dust", label: "Polvo", value: Math.floor(relicDust).toLocaleString(), tone: "warning" },
+              { id: "running", label: "En curso", value: runningResearchJobs.length, tone: "defense" },
+              { id: "ready", label: "Listas", value: claimableResearchJobs.length, tone: "success" },
+              { id: "milestones", label: "Hitos", value: Math.floor(unlockedMilestones).toLocaleString() },
+            ]}
+          />
+
+          <div className="codex-tab-row">
+            <button
+              onClick={() => setActiveTab("mastery")}
+              className={["codex-tab-button", activeTab === "mastery" ? "is-active" : ""].filter(Boolean).join(" ")}
+            >
+              Archivo
+            </button>
+            <button
+              onClick={() => setActiveTab("glossary")}
+              className={["codex-tab-button", activeTab === "glossary" ? "is-active" : ""].filter(Boolean).join(" ")}
+            >
+              Glosario
+            </button>
+          </div>
+        </FlPanel>
+      ) : (
+        <section className="codex-intro-panel codex-intro-panel--hunt">
           <>
-            <div {...{ style: titleStyle }}>Intel</div>
-            <div {...{ style: { fontSize: "0.78rem", color: "var(--color-text-secondary, #64748b)", marginTop: "4px" } }}>
+            <div className="codex-intro-title">Intel</div>
+            <div className="codex-intro-copy-secondary">
               Radar tactico de esta run: objetivos, bosses y powers utiles sin mezclar investigacion permanente.
             </div>
-            <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "8px", marginTop: "10px" } }}>
-              <div
-                {...{ style: {
-                  background: "var(--color-background-tertiary, #f8fafc)",
-                  border: "1px solid var(--color-border-primary, #e2e8f0)",
-                  borderRadius: "12px",
-                  padding: "10px 12px",
-                  display: "grid",
-                  gap: "4px",
-                } }}
-              >
-                <div {...{ style: { fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", color: "var(--color-text-tertiary, #94a3b8)" } }}>
+            <div className="codex-intro-card-grid">
+              <div className="codex-intro-card">
+                <div className="codex-intro-card-eyebrow">
                   Biblioteca
                 </div>
-                <div {...{ style: { fontSize: "0.78rem", fontWeight: "900" } }}>
+                <div className="codex-intro-card-title">
                   Progreso persistente del Santuario
                 </div>
-                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 } }}>
+                <div className="codex-intro-card-copy">
                   Tinta, hitos, investigaciones y bonus permanentes.
                 </div>
               </div>
-              <div
-                {...{ style: {
-                  background: "var(--tone-info-soft, #f0f9ff)",
-                  border: "1px solid var(--tone-info, #0369a1)",
-                  borderRadius: "12px",
-                  padding: "10px 12px",
-                  display: "grid",
-                  gap: "4px",
-                } }}
-              >
-                <div {...{ style: { fontSize: "0.58rem", fontWeight: "900", textTransform: "uppercase", color: "var(--tone-info, #0369a1)" } }}>
+              <div className="codex-intro-card codex-intro-card--intel">
+                <div className="codex-intro-card-eyebrow codex-intro-card-eyebrow--intel">
                   Intel
                 </div>
-                <div {...{ style: { fontSize: "0.78rem", fontWeight: "900" } }}>
+                <div className="codex-intro-card-title">
                   Lectura tactica para esta expedicion
                 </div>
-                <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4 } }}>
+                <div className="codex-intro-card-copy">
                   Bosses en ruta, familias vistas y targets ya accesibles hoy.
                 </div>
               </div>
             </div>
             {hasActiveRunSigilBias && (
-              <div {...{ style: { marginTop: "10px", padding: "8px 10px", borderRadius: "10px", background: "var(--color-background-tertiary, #f8fafc)", border: "1px solid var(--color-border-primary, #e2e8f0)", fontSize: "0.68rem", color: "var(--color-text-secondary, #475569)", lineHeight: 1.4, fontWeight: "800" } }}>
-                <strong {...{ style: { color: "var(--tone-accent, #4338ca)" } }}>{activeRunSigilLoadout}</strong> activo · {activeRunSigilSummary}
+              <div className="codex-intro-sigil-note">
+                <strong className="codex-intro-sigil-name">{activeRunSigilLoadout}</strong> activo · {activeRunSigilSummary}
               </div>
             )}
           </>
-        )}
-      </section>
+        </section>
+      )}
 
       {isHuntMode ? (
         <>
-          <section className="codex-radar-panel" {...{ style: huntHeroPanelStyle }}>
-            <div {...{ style: { display: "grid", gap: "12px" } }}>
-              <div className="codex-radar-head" {...{ style: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "start", flexWrap: "wrap" } }}>
-                <div className="codex-radar-copy" {...{ style: { display: "grid", gap: "6px" } }}>
-                  <div {...{ style: huntEyebrowStyle }}>Radar tactico</div>
-                  <div className="codex-radar-tier" {...{ style: { fontSize: "1.06rem", fontWeight: "900", color: "var(--color-text-primary, #1e293b)" } }}>
-                    {expeditionPhase === "active" ? `Tier ${currentTier} / ${maxUnlockedTier}` : "Fuera de expedicion"}
-                  </div>
-                  <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.4, maxWidth: "52ch" } }}>
-                    {expeditionPhase === "active"
-                      ? "Responde tres cosas rapido: que power puedes ir a buscar, que boss tienes en ruta y que familia ya viste."
-                      : "Deja lista la lectura tactica antes de salir, sin recomendar por vos."}
-                  </div>
-                  <div {...{ style: { fontSize: "0.64rem", color: "var(--tone-info, #0369a1)", fontWeight: "900", lineHeight: 1.35 } }}>
-                    Biblioteca guarda progreso permanente. Intel solo lee esta run.
-                  </div>
-                </div>
-                <div className="codex-radar-chips" {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" } }}>
-                  <span {...{ style: huntHeroChipStyle("var(--tone-accent, #4338ca)", "var(--tone-accent-soft, #eef2ff)") }}>
-                    {playerSpec ? `${playerSpec}` : playerClass ? `${playerClass}` : "Sin build"}
-                  </span>
-                  <span {...{ style: huntHeroChipStyle("var(--tone-info, #0369a1)", "var(--tone-info-soft, #f0f9ff)") }}>
-                    {routeBosses.length} bosses en ruta
-                  </span>
-                  <span {...{ style: huntHeroChipStyle("var(--tone-warning, #f59e0b)", "var(--tone-warning-soft, #fff7ed)") }}>
-                    {hiddenPowersCount} powers ocultos
-                  </span>
-                </div>
+          <FlPanel
+            variant="compact"
+            className="codex-radar-panel codex-radar-panel--hunt"
+            header={(
+              <FlPanelHeader
+                title="Radar tactico"
+                subtitle={expeditionPhase === "active" ? `Tier ${currentTier} / ${maxUnlockedTier}` : "Fuera de expedicion"}
+                copy={expeditionPhase === "active"
+                  ? "Responde tres cosas rapido: que power puedes ir a buscar, que boss tienes en ruta y que familia ya viste."
+                  : "Deja lista la lectura tactica antes de salir, sin recomendar por vos."}
+              />
+            )}
+          >
+            <div className="codex-radar-stack">
+              <div className="codex-radar-chips">
+                <FlBadge variant="pill" tone="arcane" size="xs">
+                  {playerSpec ? `${playerSpec}` : playerClass ? `${playerClass}` : "Sin build"}
+                </FlBadge>
+                <FlBadge variant="pill" tone="defense" size="xs">
+                  {routeBosses.length} bosses en ruta
+                </FlBadge>
+                <FlBadge variant="pill" tone="warning" size="xs">
+                  {hiddenPowersCount} powers ocultos
+                </FlBadge>
               </div>
 
-              <div className="codex-metric-grid" {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "8px" } }}>
-                <div className="codex-metric-card" {...{ style: huntMetricCardStyle }}>
-                  <div {...{ style: huntMetricLabelStyle }}>Targets revelados</div>
-                  <div {...{ style: huntMetricValueStyle }}>{availablePowerTargets.length}</div>
-                  <div {...{ style: huntMetricHintStyle }}>ya accesibles hoy</div>
-                </div>
-                <div className="codex-metric-card" {...{ style: huntMetricCardStyle }}>
-                  <div {...{ style: huntMetricLabelStyle }}>Bosses accesibles</div>
-                  <div {...{ style: huntMetricValueStyle }}>{accessibleBosses.length}</div>
-                  <div {...{ style: huntMetricHintStyle }}>dentro de tu frontera</div>
-                </div>
-                <div className="codex-metric-card" {...{ style: huntMetricCardStyle }}>
-                  <div {...{ style: huntMetricLabelStyle }}>Powers activos</div>
-                  <div {...{ style: huntMetricValueStyle }}>{activePowersCount}</div>
-                  <div {...{ style: huntMetricHintStyle }}>ya vistos historicamente</div>
-                </div>
-              </div>
-
-              <div className="codex-expedition-banner">
-                <div className="codex-expedition-emblem" aria-hidden="true">
-                  <ForgeIcon name="combat" size={46} />
-                </div>
-                <div className="codex-expedition-copy">
-                  <div className="codex-expedition-kicker">Expedicion</div>
-                  <div className="codex-expedition-state">
-                    {expeditionPhase === "active" ? "Activa" : expeditionPhase === "setup" ? "Setup" : "Santuario"}
-                  </div>
-                  <div className="codex-expedition-hint">
-                    {expeditionPhase === "active" ? `empujando Tier ${currentTier}` : "sin combate corriendo"}
-                  </div>
-                </div>
-                <div className="codex-expedition-book" aria-hidden="true">
-                  <ForgeIcon name="library" size={54} />
-                </div>
-              </div>
+              <FlMetricGrid
+                className="codex-metric-grid"
+                columns={3}
+                mobileColumns={3}
+                compact
+                items={[
+                  {
+                    id: "targets",
+                    label: "Targets revelados",
+                    value: availablePowerTargets.length,
+                    tone: "success",
+                  },
+                  {
+                    id: "bosses",
+                    label: "Bosses accesibles",
+                    value: accessibleBosses.length,
+                    tone: "defense",
+                  },
+                  {
+                    id: "powers",
+                    label: "Powers activos",
+                    value: activePowersCount,
+                    tone: "arcane",
+                  },
+                ]}
+              />
             </div>
-          </section>
+          </FlPanel>
 
-          <section {...{ style: panelStyle }}>
-            <div {...{ style: sectionStyle }}>Objetivos revelados</div>
-            <div {...{ style: { fontSize: "0.68rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45, marginBottom: "10px" } }}>
-              Solo objetivos tacticos ya disponibles para tu frontera actual. La capa de progreso permanente no aparece aca.
-            </div>
-            <div {...{ style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "10px" } }}>
-              <div {...{ style: cardStyle }}>
-                <div {...{ style: huntPanelTitleStyle }}>Powers ocultos accesibles ahora</div>
-                {availablePowerTargets.length > 0 ? availablePowerTargets.map(entry => (
-                  <div key={`power-now-${entry.id}`} {...{ style: huntRowStyle }}>
-                    <div>
-                      <div {...{ style: { fontSize: "0.72rem", fontWeight: "900" } }}>{entry.name}</div>
-                      <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" } }}>
-                        {entry.subtitle} · Tier {entry.tier} · {entry.undiscoveredCount} power{entry.undiscoveredCount === 1 ? "" : "s"}
-                      </div>
-                    </div>
-                    <button onClick={() => goToTier(entry.tier)} {...{ style: miniHuntButtonStyle }}>
-                      Ir
-                    </button>
-                  </div>
-                )) : (
-                  <div {...{ style: huntEmptyStyle }}>No tenes objetivos ya revelados con powers ocultos dentro de tu frontera actual.</div>
-                )}
+          <FlPanel
+            variant="compact"
+            className="codex-panel codex-hunt-unified-panel"
+            header={(
+              <div className="codex-hunt-unified-panel__header">
+                <FlNavSelector
+                  className="codex-hunt-unified-panel__selector"
+                  items={huntSectionItems}
+                  activeId={activeHuntSection}
+                  onChange={sectionId => setActiveHuntSection(sectionId)}
+                  ariaLabel="Navegacion de Intel tactico"
+                  wrap
+                />
+                <FlPaginationDots
+                  className="codex-hunt-unified-panel__dots"
+                  count={huntSectionItems.length}
+                  activeIndex={activeHuntSectionIndex}
+                  onChange={index => {
+                    const nextSection = huntSectionItems[index];
+                    if (!nextSection) return;
+                    setActiveHuntSection(nextSection.id);
+                  }}
+                  ariaLabel="Secciones de Intel tactico"
+                />
               </div>
-
-              <div {...{ style: cardStyle }}>
-                <div {...{ style: huntPanelTitleStyle }}>Bosses de esta seed</div>
-                {routeBosses.length > 0 ? routeBosses.map(entry => (
-                  <div key={`route-boss-${entry.id}`} {...{ style: huntRowStyle }}>
-                    <div>
-                      <div {...{ style: { fontSize: "0.72rem", fontWeight: "900" } }}>{entry.name}</div>
-                      <div {...{ style: { fontSize: "0.62rem", color: "var(--color-text-secondary, #64748b)", marginTop: "2px" } }}>
-                        Slot {entry.currentRunSlot} · {entry.bestUnlockedTier != null ? `Tier ${entry.bestUnlockedTier}` : `desbloquea en Tier ${entry.earliestCurrentRunTier}`}
+            )}
+          >
+            {activeHuntSection === "objectives" && (
+              <div className="codex-objectives-grid">
+                <div className="codex-objective-card">
+                  <div className="codex-objective-title">Powers ocultos accesibles ahora</div>
+                  {availablePowerTargets.length > 0 ? availablePowerTargets.map(entry => (
+                    <div key={`power-now-${entry.id}`} className="codex-row">
+                      <div>
+                        <div className="codex-row-title">{entry.name}</div>
+                        <div className="codex-row-subtitle">
+                          {entry.subtitle} · Tier {entry.tier} · {entry.undiscoveredCount} power{entry.undiscoveredCount === 1 ? "" : "s"}
+                        </div>
                       </div>
-                    </div>
-                    {entry.bestUnlockedTier != null ? (
-                      <button onClick={() => goToTier(entry.bestUnlockedTier)} {...{ style: miniHuntButtonStyle }}>
+                      <button onClick={() => goToTier(entry.tier)} className="codex-mini-button">
                         Ir
                       </button>
-                    ) : (
-                      <span {...{ style: huntMetaStyle }}>Aun no</span>
-                    )}
-                  </div>
-                )) : (
-                  <div {...{ style: huntEmptyStyle }}>Todavia no revelaste bosses suficientes de la ruta actual.</div>
-                )}
-              </div>
-            </div>
-          </section>
+                    </div>
+                  )) : (
+                    <div className="codex-empty-copy">No tenes objetivos ya revelados con powers ocultos dentro de tu frontera actual.</div>
+                  )}
+                </div>
 
-          <section {...{ style: panelStyle }}>
-            <button onClick={() => toggleSection("huntPowers")} {...{ style: compactToggleButtonStyle }}>
-              <span {...{ style: sectionStyle }}>Poderes legendarios</span>
-              <span {...{ style: collapseLabelStyle }}>{collapsedSections.huntPowers ? "+" : "-"}</span>
-            </button>
-            {!collapsedSections.huntPowers && (
+                <div className="codex-objective-card">
+                  <div className="codex-objective-title">Bosses de esta seed</div>
+                  {routeBosses.length > 0 ? routeBosses.map(entry => (
+                    <div key={`route-boss-${entry.id}`} className="codex-row">
+                      <div>
+                        <div className="codex-row-title">{entry.name}</div>
+                        <div className="codex-row-subtitle">
+                          Slot {entry.currentRunSlot} · {entry.bestUnlockedTier != null ? `Tier ${entry.bestUnlockedTier}` : `desbloquea en Tier ${entry.earliestCurrentRunTier}`}
+                        </div>
+                      </div>
+                      {entry.bestUnlockedTier != null ? (
+                        <button onClick={() => goToTier(entry.bestUnlockedTier)} className="codex-mini-button">
+                          Ir
+                        </button>
+                      ) : (
+                        <span className="codex-meta-chip">Aun no</span>
+                      )}
+                    </div>
+                  )) : (
+                    <div className="codex-empty-copy">Todavia no revelaste bosses suficientes de la ruta actual.</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeHuntSection === "powers" && (
               <div {...{ style: gridStyle }}>
                 {huntPowerEntries.length > 0 ? huntPowersPaging.entries
                   .map(entry => (
@@ -803,14 +810,8 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                 )}
               </div>
             )}
-          </section>
 
-          <section {...{ style: panelStyle }}>
-            <button onClick={() => toggleSection("huntFamilies")} {...{ style: compactToggleButtonStyle }}>
-              <span {...{ style: sectionStyle }}>Familias reveladas</span>
-              <span {...{ style: collapseLabelStyle }}>{collapsedSections.huntFamilies ? "+" : "-"}</span>
-            </button>
-            {!collapsedSections.huntFamilies && (
+            {activeHuntSection === "families" && (
               <div {...{ style: cardStyle }}>
                 <div {...{ style: huntPanelTitleStyle }}>Familias visibles en esta run</div>
                 {huntFamilyEntries.length > 0 ? huntFamiliesPaging.entries
@@ -846,7 +847,7 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
                 )}
               </div>
             )}
-          </section>
+          </FlPanel>
         </>
       ) : activeTab === "mastery" ? (
         <>
@@ -869,6 +870,7 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
 
           <section {...{ style: librarySecondaryPanelStyle }}>
             <HorizontalOptionSelector
+              variant="mastery"
               header={(
                 <div {...{ style: librarySectionHeadingWrapStyle }}>
                   <div {...{ style: librarySectionTitleStyle }}>{selectedMasteryGroupMeta.label}</div>
@@ -880,26 +882,6 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
               onSelect={group => setActiveMasteryGroup(group.id)}
               getOptionId={group => group.id}
               getOptionKey={group => `library-group-${group.id}`}
-              getArrowButtonStyle={({ disabled }) => ({
-                ...showMoreButtonStyle,
-                minWidth: "34px",
-                padding: "4px 0",
-                opacity: disabled ? 0.45 : 1,
-                cursor: disabled ? "not-allowed" : "pointer",
-              })}
-              getOptionButtonStyle={({ option: group, selected }) => ({
-                ...showMoreButtonStyle,
-                borderColor: selected ? group.accent : "var(--color-border-primary, #cbd5e1)",
-                background: selected ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #fff)",
-                color: selected ? group.accent : "var(--color-text-secondary, #64748b)",
-                textAlign: "left",
-                display: "grid",
-                gap: "2px",
-                minWidth: "132px",
-                justifyItems: "start",
-                padding: "6px 10px",
-                flexShrink: 0,
-              })}
               renderOption={({ option: group }) => (
                 <>
                   <span {...{ style: { fontSize: "0.64rem", fontWeight: "900" } }}>{group.label}</span>
@@ -1399,37 +1381,7 @@ export default function Codex({ state, dispatch, mode = "hunt", onBack }) {
 
 function PaginationControls({ page = 0, totalPages = 1, onPrevious, onNext }) {
   if (totalPages <= 1) return null;
-  const isFirst = page <= 0;
-  const isLast = page >= totalPages - 1;
-  return (
-    <div {...{ style: paginationBarStyle }}>
-      <button
-        onClick={onPrevious}
-        disabled={isFirst}
-        {...{ style: {
-          ...paginationButtonStyle,
-          opacity: isFirst ? 0.45 : 1,
-          cursor: isFirst ? "not-allowed" : "pointer",
-        } }}
-      >
-        -
-      </button>
-      <span {...{ style: paginationLabelStyle }}>
-        {page + 1}/{totalPages}
-      </span>
-      <button
-        onClick={onNext}
-        disabled={isLast}
-        {...{ style: {
-          ...paginationButtonStyle,
-          opacity: isLast ? 0.45 : 1,
-          cursor: isLast ? "not-allowed" : "pointer",
-        } }}
-      >
-        +
-      </button>
-    </div>
-  );
+  return <FlPagination page={page} totalPages={totalPages} onPrevious={onPrevious} onNext={onNext} />;
 }
 
 const panelStyle = {
@@ -1438,15 +1390,6 @@ const panelStyle = {
   borderRadius: "var(--dense-card-radius, 12px)",
   padding: "var(--dense-panel-padding, 10px)",
   boxShadow: "0 2px 10px var(--color-shadow, rgba(0,0,0,0.03))",
-};
-
-const libraryHeroPanelStyle = {
-  ...panelStyle,
-  borderTop: "3px solid var(--tone-accent, #4338ca)",
-  padding: "calc(var(--dense-panel-padding, 10px) + 2px)",
-  display: "grid",
-  gap: "var(--dense-panel-gap, 8px)",
-  boxShadow: "0 8px 24px var(--color-shadow, rgba(15,23,42,0.08))",
 };
 
 const librarySecondaryPanelStyle = {
@@ -1477,56 +1420,6 @@ const librarySectionSubtitleStyle = {
   lineHeight: 1.35,
 };
 
-const overlayBackButtonStyle = {
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  background: "var(--color-background-secondary, #ffffff)",
-  color: "var(--color-text-primary, #1e293b)",
-  borderRadius: "12px",
-  padding: "7px 11px",
-  fontSize: "0.68rem",
-  fontWeight: "900",
-  cursor: "pointer",
-  flex: "0 0 auto",
-};
-
-const libraryTopChipStyle = color => ({
-  display: "inline-flex",
-  alignItems: "center",
-  minHeight: "24px",
-  boxSizing: "border-box",
-  whiteSpace: "nowrap",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  background: "var(--color-background-tertiary, #f8fafc)",
-  color,
-  borderRadius: "999px",
-  padding: "4px 8px",
-  fontSize: "0.62rem",
-  fontWeight: "900",
-  lineHeight: 1,
-});
-
-const libraryTopMetricCardStyle = {
-  background: "var(--color-background-tertiary, #f8fafc)",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  borderRadius: "12px",
-  padding: "8px 10px",
-  display: "grid",
-  gap: "2px",
-};
-
-const libraryTopMetricLabelStyle = {
-  fontSize: "0.56rem",
-  fontWeight: "900",
-  textTransform: "uppercase",
-  color: "var(--color-text-tertiary, #94a3b8)",
-};
-
-const libraryTopMetricValueStyle = {
-  fontSize: "0.88rem",
-  fontWeight: "900",
-  color: "var(--color-text-primary, #1e293b)",
-};
-
 const compactToggleButtonStyle = {
   width: "100%",
   display: "flex",
@@ -1553,12 +1446,6 @@ const collapseLabelStyle = {
   color: "var(--color-text-primary, #1e293b)",
   fontWeight: "900",
   lineHeight: 1,
-};
-
-const titleStyle = {
-  fontSize: "1rem",
-  fontWeight: "900",
-  color: "var(--color-text-primary, #1e293b)",
 };
 
 const sectionStyle = {
@@ -1595,88 +1482,6 @@ const showMoreButtonStyle = {
   fontWeight: "900",
   lineHeight: 1,
   cursor: "pointer",
-};
-
-const paginationBarStyle = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "8px",
-  justifySelf: "end",
-};
-
-const paginationButtonStyle = {
-  minWidth: "32px",
-  height: "28px",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  background: "var(--color-background-secondary, #ffffff)",
-  color: "var(--color-text-primary, #1e293b)",
-  borderRadius: "8px",
-  fontSize: "0.74rem",
-  fontWeight: "900",
-  lineHeight: 1,
-};
-
-const paginationLabelStyle = {
-  fontSize: "0.62rem",
-  fontWeight: "900",
-  color: "var(--color-text-secondary, #64748b)",
-  minWidth: "48px",
-  textAlign: "center",
-};
-
-const huntHeroPanelStyle = {
-  ...panelStyle,
-  background:
-    "linear-gradient(135deg, var(--tone-accent-soft, #eef2ff) 0%, var(--color-background-secondary, #ffffff) 58%, var(--tone-info-soft, #f0f9ff) 100%)",
-};
-
-const huntEyebrowStyle = {
-  fontSize: "0.62rem",
-  fontWeight: "900",
-  textTransform: "uppercase",
-  letterSpacing: "0.12em",
-  color: "var(--tone-accent, #4338ca)",
-};
-
-const huntHeroChipStyle = (tone, surface) => ({
-  border: `1px solid ${tone}`,
-  background: surface,
-  color: tone,
-  borderRadius: "999px",
-  padding: "6px 10px",
-  fontSize: "0.6rem",
-  fontWeight: "900",
-  textTransform: "uppercase",
-  letterSpacing: "0.04em",
-});
-
-const huntMetricCardStyle = {
-  background: "var(--color-surface-overlay, rgba(255,255,255,0.92))",
-  border: "1px solid var(--color-border-primary, #e2e8f0)",
-  borderRadius: "14px",
-  padding: "12px",
-  display: "grid",
-  gap: "4px",
-  boxShadow: "0 10px 24px var(--color-shadow, rgba(15,23,42,0.08))",
-};
-
-const huntMetricLabelStyle = {
-  fontSize: "0.62rem",
-  color: "var(--color-text-tertiary, #94a3b8)",
-  fontWeight: "900",
-  textTransform: "uppercase",
-  letterSpacing: "0.08em",
-};
-
-const huntMetricValueStyle = {
-  fontSize: "1.1rem",
-  fontWeight: "900",
-  color: "var(--color-text-primary, #1e293b)",
-};
-
-const huntMetricHintStyle = {
-  fontSize: "0.66rem",
-  color: "var(--color-text-secondary, #64748b)",
 };
 
 const huntFocusStackStyle = {
@@ -1766,18 +1571,6 @@ const huntSignalValueStyle = {
   lineHeight: 1.4,
   fontWeight: "800",
 };
-
-const tabBtnStyle = (active) => ({
-  border: "1px solid",
-  borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #e2e8f0)",
-  background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #fff)",
-  color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #64748b)",
-  borderRadius: "999px",
-  padding: "6px 10px",
-  fontSize: "0.64rem",
-  fontWeight: "900",
-  cursor: "pointer",
-});
 
 const huntButtonStyle = {
   marginTop: "10px",

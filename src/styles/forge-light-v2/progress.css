@@ -2,39 +2,393 @@
 .app-shell-root--forge-light-v2 .combat-forge-resourcebar__track {
   background: rgba(10, 13, 18, 0.82);
   border-color: rgba(198, 161, 91, 0.32);
-  border-radius: var(--fl2-radius-sm) !important;
+  border-radius: var(--fl-radius-sm) !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-progress,
+.app-shell-root--forge-light-v2 .fl-progress,
 .app-shell-root--forge-light-v2 :where(.fl-progress, .fl-crafting-preview-entropy-track, .fl-crafting-upgrade-progress, .forge-character-bar-track, .forge-attribute-track, .fl-sanctuary-progress-wrap .fl-progress-track) {
   background: rgba(10, 13, 18, 0.84) !important;
-  border: 1px solid var(--fl2-gold-muted) !important;
-  border-radius: var(--fl2-radius-sm) !important;
+  border: 1px solid var(--fl-gold-muted) !important;
+  border-radius: var(--fl-radius-sm) !important;
   overflow: hidden;
 }
 
-.app-shell-root--forge-light-v2 .fl2-progress__fill,
+.app-shell-root--forge-light-v2 .fl-progress__fill,
 .app-shell-root--forge-light-v2 :where(.fl-progress-fill, .fl-crafting-preview-entropy-current, .fl-crafting-track-current, .forge-character-bar-fill, .forge-attribute-track-fill) {
-  background: linear-gradient(90deg, #4a2e0a, #8b5a1a, var(--fl2-gold), var(--fl2-gold-strong)) !important;
+  background: linear-gradient(90deg, #4a2e0a, #8b5a1a, var(--fl-gold-glow), var(--fl-gold-hover)) !important;
   box-shadow: inset 0 0 10px rgba(198, 161, 91, 0.2);
   transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-shell-root--forge-light-v2 .forge-attribute-track.forge-attribute-track--frameless {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
 }
 
 .app-shell-root--forge-light-v2 .fl-progress__fill {
   width: var(--fl-progress-percent, 0%);
 }
 
+.app-shell-root--forge-light-v2 .fl-progress {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+}
+
+.app-shell-root--forge-light-v2 .fl-progress__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fl-space-3);
+  color: var(--fl-text-muted);
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-shell-root--forge-light-v2 .fl-progress__track {
+  position: relative;
+  height: 14px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.42), rgba(255, 255, 255, 0.02)),
+    var(--fl-bg-card-deep);
+  border: 1px solid var(--fl-gold-muted);
+  border-radius: var(--fl-radius-sm);
+  box-shadow:
+    inset 0 2px 8px rgba(0, 0, 0, 0.72),
+    inset 0 0 0 1px rgba(255, 232, 180, 0.025);
+}
+
+.app-shell-root--forge-light-v2 .fl-progress--xs .fl-progress__track { height: 6px; }
+.app-shell-root--forge-light-v2 .fl-progress--sm .fl-progress__track { height: 10px; }
+.app-shell-root--forge-light-v2 .fl-progress--lg .fl-progress__track { height: 20px; }
+
+.app-shell-root--forge-light-v2 .fl-progress__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  min-width: 0;
+  border-radius: inherit;
+}
+
+.app-shell-root--forge-light-v2 .fl-progress__fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 62%);
+}
+
+.app-shell-root--forge-light-v2 .fl-progress__label {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.86);
+}
+
 .app-shell-root--forge-light-v2 .fl-progress__milestone {
+  position: absolute;
+  top: 50%;
   left: var(--fl-progress-milestone-left, 0%);
+  z-index: 3;
+  width: 10px;
+  height: 10px;
+  background: var(--fl-bg-main);
+  border: 2px solid var(--fl-gold-muted);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.app-shell-root--forge-light-v2 .fl-progress--hp .fl-progress__fill,
+.app-shell-root--forge-light-v2 .fl-progress--danger .fl-progress__fill,
+.app-shell-root--forge-light-v2 .fl-progress--error .fl-progress__fill {
+  background: linear-gradient(90deg, #8b1f1f, #c43232, var(--fl-danger)) !important;
+  box-shadow: inset 0 0 12px rgba(224, 90, 90, 0.3), 0 0 10px rgba(224, 90, 90, 0.22);
+}
+
+.app-shell-root--forge-light-v2 .fl-progress--xp .fl-progress__fill,
+.app-shell-root--forge-light-v2 .fl-progress--defense .fl-progress__fill {
+  background: linear-gradient(90deg, #1a3a6e, #2d5fa3, var(--fl-defense)) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-progress--success .fl-progress__fill {
+  background: linear-gradient(90deg, #1a5e35, #2d9e5d, var(--fl-success)) !important;
+  box-shadow: 0 0 8px rgba(79, 209, 139, 0.3);
+}
+
+.app-shell-root--forge-light-v2 .fl-progress--arcane .fl-progress__fill {
+  background: linear-gradient(90deg, #38205e, #5e37a0, var(--fl-arcane)) !important;
+  box-shadow: var(--fl-glow-arcane);
+}
+
+.app-shell-root--forge-light-v2 .fl-progress--reward .fl-progress__fill {
+  background: linear-gradient(90deg, #4a2e0a, #8b5a1a, var(--fl-reward), var(--fl-gold-hover)) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-progress--loading .fl-progress__fill {
+  width: 100%;
+  background: linear-gradient(90deg, #4a2e0a, var(--fl-gold-border), var(--fl-gold-hover), var(--fl-gold-border)) !important;
+  background-size: 200% 100% !important;
+  animation: fl-progress-shimmer 1.5s linear infinite;
+}
+
+@keyframes fl-progress-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress__track,
+.app-shell-root--forge-light-v2 .fl-milestone-progress__labels {
+  margin-inline: 8px;
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fl-space-3);
+  color: var(--fl-text-muted);
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress__track {
+  position: relative;
+  overflow: visible;
+  height: 8px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.42), rgba(255, 255, 255, 0.02)),
+    var(--fl-bg-card-deep);
+  border: 1px solid var(--fl-gold-muted);
+  border-radius: var(--fl-radius-sm);
+  box-shadow:
+    inset 0 2px 8px rgba(0, 0, 0, 0.72),
+    inset 0 0 0 1px rgba(255, 232, 180, 0.025);
+  z-index: 0;
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress--sm .fl-milestone-progress__track { height: 7px; }
+.app-shell-root--forge-light-v2 .fl-milestone-progress--lg .fl-milestone-progress__track { height: 10px; }
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--fl-milestone-progress-percent, 0%);
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #4a2e0a, #8b5a1a, var(--fl-gold-glow), var(--fl-gold-hover));
+  box-shadow: inset 0 0 10px rgba(198, 161, 91, 0.2);
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 2;
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress__preview {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--fl-milestone-progress-preview-percent, 0%);
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(242, 184, 75, 0.2), rgba(224, 90, 90, 0.32));
+  box-shadow: inset 0 0 8px rgba(224, 90, 90, 0.18);
+  z-index: 1;
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress__fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 62%);
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress__label {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress__milestones {
+  position: absolute;
+  inset: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress__milestone {
+  position: absolute;
+  left: var(--fl-milestone-left, 0%);
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  background: var(--fl-bg-main);
+  border: 2px solid var(--fl-text-muted);
+  transform: translate(-50%, -50%) rotate(45deg);
+  transition: border-color 0.3s, background-color 0.3s;
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress__milestone.is-reached {
+  border-color: var(--fl-gold-glow);
+  background: var(--fl-gold-border);
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress__milestone.is-preview {
+  border-color: var(--fl-gold-glow);
+  background: rgba(242, 184, 75, 0.42);
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress__labels {
+  position: relative;
+  margin-top: 8px;
+  min-height: 12px;
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress__milestone-label {
+  position: absolute;
+  left: var(--fl-milestone-left, 0%);
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--fl-text-muted);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress--hp .fl-milestone-progress__fill,
+.app-shell-root--forge-light-v2 .fl-milestone-progress--danger .fl-milestone-progress__fill,
+.app-shell-root--forge-light-v2 .fl-milestone-progress--error .fl-milestone-progress__fill {
+  background: linear-gradient(90deg, #8b1f1f, #c43232, var(--fl-danger));
+  box-shadow: inset 0 0 12px rgba(224, 90, 90, 0.3), 0 0 10px rgba(224, 90, 90, 0.22);
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress--xp .fl-milestone-progress__fill {
+  background: linear-gradient(90deg, #1a3a6e, #2d5fa3, var(--fl-defense));
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress--success .fl-milestone-progress__fill {
+  background: linear-gradient(90deg, #1a5e35, #2d9e5d, var(--fl-success));
+  box-shadow: 0 0 8px rgba(79, 209, 139, 0.3);
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress--arcane .fl-milestone-progress__fill {
+  background: linear-gradient(90deg, #38205e, #5e37a0, var(--fl-arcane));
+  box-shadow: var(--fl-glow-arcane);
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress--reward .fl-milestone-progress__fill {
+  background: linear-gradient(90deg, #4a2e0a, #8b5a1a, var(--fl-reward), var(--fl-gold-hover));
+}
+
+.app-shell-root--forge-light-v2 .fl-milestone-progress--loading .fl-milestone-progress__fill {
+  width: 100%;
+  background: linear-gradient(90deg, #4a2e0a, var(--fl-gold-border), var(--fl-gold-hover), var(--fl-gold-border));
+  background-size: 200% 100%;
+  animation: fl-progress-shimmer 1.5s linear infinite;
+}
+
+.app-shell-root--forge-light-v2 .fl-entropy-track {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  min-height: 34px;
+}
+
+.app-shell-root--forge-light-v2 .fl-entropy-track--compact {
+  gap: 4px;
+  min-height: 30px;
+}
+
+.app-shell-root--forge-light-v2 .fl-entropy-track__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fl-text-muted);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.1;
+}
+
+.app-shell-root--forge-light-v2 .fl-entropy-track__meta strong {
+  color: var(--fl-text-primary);
+  letter-spacing: 0.01em;
+}
+
+.app-shell-root--forge-light-v2 .fl-entropy-track__meta em {
+  color: var(--fl-gold-glow);
+  font-style: normal;
+}
+
+.app-shell-root--forge-light-v2 .fl-entropy-track__bar {
+  position: relative;
+  overflow: hidden;
+  height: 10px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.42), rgba(255, 255, 255, 0.02)),
+    var(--fl-bg-card-deep);
+  border: 0;
+  border-radius: var(--fl-radius-sm);
+  box-shadow:
+    inset 0 2px 8px rgba(0, 0, 0, 0.72);
+}
+
+.app-shell-root--forge-light-v2 .fl-entropy-track--compact .fl-entropy-track__bar {
+  height: 9px;
+}
+
+.app-shell-root--forge-light-v2 .fl-entropy-track__next,
+.app-shell-root--forge-light-v2 .fl-entropy-track__current {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+}
+
+.app-shell-root--forge-light-v2 .fl-entropy-track__next {
+  width: var(--fl-entropy-next, 0%);
+  background: linear-gradient(90deg, rgba(242, 184, 75, 0.2), rgba(224, 90, 90, 0.32));
+}
+
+.app-shell-root--forge-light-v2 .fl-entropy-track__current {
+  width: var(--fl-entropy-current, 0%);
+  background: linear-gradient(90deg, #4a2e0a, #8b5a1a, var(--fl-gold-glow), var(--fl-gold-hover));
+  box-shadow: inset 0 0 10px rgba(198, 161, 91, 0.2);
 }
 
 .app-shell-root--forge-light-v2 :where(.forge-character-bar--hp .forge-character-bar-fill, .combat-forge-hpbar__fill) {
-  background: linear-gradient(90deg, #8b1f1f, #c43232, var(--fl2-danger)) !important;
+  background: linear-gradient(90deg, #8b1f1f, #c43232, var(--fl-danger)) !important;
   box-shadow: inset 0 0 12px rgba(224, 90, 90, 0.3);
 }
 
 .app-shell-root--forge-light-v2 :where(.forge-character-bar--xp .forge-character-bar-fill, .combat-forge-resourcebar__fill) {
-  background: linear-gradient(90deg, #1a3a6e, #2d5fa3, var(--fl2-defense)) !important;
+  background: linear-gradient(90deg, #1a3a6e, #2d5fa3, var(--fl-defense)) !important;
 }
 
 .app-shell-root--forge-light-v2 .job-progress {
@@ -51,7 +405,7 @@
   height: var(--job-progress-height, 7px);
   overflow: hidden;
   background: var(--job-progress-track, rgba(10, 13, 18, 0.84));
-  border: 1px solid var(--fl2-gold-muted);
+  border: 1px solid var(--fl-gold-muted);
   border-radius: 999px;
 }
 
@@ -63,8 +417,8 @@
   background:
     linear-gradient(
       90deg,
-      var(--job-progress-tone, var(--fl2-defense)) 0%,
-      var(--job-progress-tone, var(--fl2-defense)) 58%,
+      var(--job-progress-tone, var(--fl-defense)) 0%,
+      var(--job-progress-tone, var(--fl-defense)) 58%,
       rgba(255, 255, 255, 0.86) 100%
     );
   border-radius: 999px;
@@ -97,7 +451,7 @@
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  color: var(--fl2-text-secondary);
+  color: var(--fl-text-secondary);
   font-size: 0.62rem;
   font-weight: 900;
   line-height: 1.2;

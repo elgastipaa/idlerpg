@@ -1,105 +1,130 @@
 .app-shell-root--forge-light-v2 {
-  font-family: var(--fl2-font-ui);
-  color: var(--fl2-text);
+  font-family: var(--fl-font-ui);
+  color: var(--fl-text-primary);
   font-size: 15px;
   line-height: 1.4;
 }
 
-.app-shell-root--forge-light-v2 :where(h1, h2, h3, .fl2-title, .fl-sanctuary-title, .forge-character-title, .fl-crafting-title) {
-  font-family: var(--fl2-font-display) !important;
-  color: var(--fl2-gold) !important;
+.app-shell-root--forge-light-v2 :where(h1, h2, h3, .fl-title, .fl-sanctuary-title, .forge-character-title, .fl-crafting-title) {
+  font-family: var(--fl-font-display) !important;
+  color: var(--fl-gold-glow) !important;
   letter-spacing: 0.04em;
 }
 
-.app-shell-root--forge-light-v2 :where(.fl2-kicker, .fl-sanctuary-kicker, .fl-sanctuary-panel__eyebrow, .forge-character-kicker, .fl-crafting-drawer-kicker, .codex-radar-kicker) {
-  font-family: var(--fl2-font-ui) !important;
-  color: var(--fl2-gold) !important;
+.app-shell-root--forge-light-v2 :where(.fl-kicker, .fl-sanctuary-kicker, .fl-sanctuary-panel__eyebrow, .fl-crafting-drawer-kicker, .codex-radar-kicker) {
+  font-family: var(--fl-font-ui) !important;
+  color: var(--fl-gold-glow) !important;
   font-size: 0.72rem !important;
   font-weight: 700 !important;
   letter-spacing: 0.18em !important;
   text-transform: uppercase !important;
 }
 
-.app-shell-root--forge-light-v2 :where(.fl2-copy, p, .fl-sanctuary-panel__subtitle, .fl-sanctuary-row-detail, .forge-character-description, .talents-tree-description) {
-  color: var(--fl2-text-secondary) !important;
+.app-shell-root--forge-light-v2 :where(.fl-copy, p, .fl-sanctuary-panel__subtitle, .fl-sanctuary-row-detail, .talents-tree-description) {
+  color: var(--fl-text-secondary) !important;
 }
 
-.app-shell-root--forge-light-v2 :where(.fl2-label, .fl-inventory-section-title, .forge-character-section-title, .forge-skills-section-header, .talents-tree-progress-summary) {
-  color: var(--fl2-text-muted) !important;
-  font-family: var(--fl2-font-ui) !important;
+.app-shell-root--forge-light-v2 :where(.fl-label, .fl-inventory-section-title, .talents-tree-progress-summary) {
+  color: var(--fl-text-muted) !important;
+  font-family: var(--fl-font-ui) !important;
   font-weight: 800 !important;
   letter-spacing: 0.08em !important;
   text-transform: uppercase;
 }
 
-.app-shell-root--forge-light-v2 :where(.fl2-number, .combat-stat-card p:nth-child(2), .prestige-metric-card strong, .codex-metric-card strong) {
-  color: var(--fl2-text) !important;
+.app-shell-root--forge-light-v2 :where(
+  .fl-panel__title,
+  .fl-card__title,
+  .fl-sanctuary-panel__eyebrow,
+  .codex-intro-title,
+  .prestige-summary-title
+) {
+  font-family: var(--fl-font-ui) !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase;
+  font-weight: 800 !important;
+}
+
+.app-shell-root--forge-light-v2 :where(
+  .fl-panel__subtitle,
+  .fl-card__subtitle,
+  .fl-sanctuary-panel__subtitle,
+  .codex-intro-subtitle,
+  .prestige-summary-subtitle
+) {
+  color: var(--fl-text-secondary) !important;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.app-shell-root--forge-light-v2 :where(.fl-number, .combat-stat-card p:nth-child(2), .prestige-metric-card strong, .codex-metric-card strong) {
+  color: var(--fl-text-primary) !important;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
 }
 
-.app-shell-root--forge-light-v2 .fl2-card-title-quiet {
-  color: var(--fl2-text-muted);
-  font-family: var(--fl2-font-ui);
+.app-shell-root--forge-light-v2 .fl-card-title-quiet {
+  color: var(--fl-text-muted);
+  font-family: var(--fl-font-ui);
   font-size: 0.68rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.app-shell-root--forge-light-v2 .fl2-card-title-prominent {
-  color: var(--fl2-text);
-  font-family: var(--fl2-font-display);
+.app-shell-root--forge-light-v2 .fl-card-title-prominent {
+  color: var(--fl-text-primary);
+  font-family: var(--fl-font-display);
   font-size: 1.02rem;
   font-weight: 900;
   letter-spacing: 0.04em;
 }
 
-.app-shell-root--forge-light-v2 .fl2-card-title-subtitle {
+.app-shell-root--forge-light-v2 .fl-card-title-subtitle {
   margin-top: 4px;
-  color: var(--fl2-text-secondary);
+  color: var(--fl-text-secondary);
   font-size: 0.68rem;
   line-height: 1.35;
 }
 
-.app-shell-root--forge-light-v2 .fl2-card-heading-stack {
+.app-shell-root--forge-light-v2 .fl-card-heading-stack {
   min-width: 0;
 }
 
-.app-shell-root--forge-light-v2 .fl2-card-eyebrow {
-  color: var(--fl2-gold);
-  font-family: var(--fl2-font-ui);
+.app-shell-root--forge-light-v2 .fl-card-eyebrow {
+  color: var(--fl-gold-glow);
+  font-family: var(--fl-font-ui);
   font-size: 0.62rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.app-shell-root--forge-light-v2 .fl2-card-eyebrow--warning {
-  color: var(--fl2-warning);
+.app-shell-root--forge-light-v2 .fl-card-eyebrow--warning {
+  color: var(--fl-warning);
 }
 
-.app-shell-root--forge-light-v2 .fl2-card-title-neutral {
+.app-shell-root--forge-light-v2 .fl-card-title-neutral {
   margin-top: 4px;
-  color: var(--fl2-text);
-  font-family: var(--fl2-font-ui);
+  color: var(--fl-text-primary);
+  font-family: var(--fl-font-ui);
   font-size: 1rem;
   font-weight: 900;
   letter-spacing: 0;
 }
 
-.app-shell-root--forge-light-v2 .fl2-card-title-neutral--compact {
+.app-shell-root--forge-light-v2 .fl-card-title-neutral--compact {
   margin-top: 2px;
   font-size: 0.9rem;
 }
 
-.app-shell-root--forge-light-v2 .fl2-card-title-line {
+.app-shell-root--forge-light-v2 .fl-card-title-line {
   position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   color: #d8c39c;
-  font-family: var(--fl2-font-display);
+  font-family: var(--fl-font-display);
   font-size: 0.98rem;
   font-weight: 900;
   letter-spacing: 0.03em;
@@ -107,7 +132,7 @@
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8), 0 0 14px rgba(243, 198, 95, 0.1);
 }
 
-.app-shell-root--forge-light-v2 .fl2-card-title-line::after {
+.app-shell-root--forge-light-v2 .fl-card-title-line::after {
   content: "";
   flex: 1 1 auto;
   height: 1px;

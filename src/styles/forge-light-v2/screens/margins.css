@@ -1,0 +1,137 @@
+.app-shell-root--forge-light-v2 {
+  --fl-screen-edge-pad: 10px;
+  --fl-screen-top-pad: var(--fl-screen-edge-pad);
+}
+
+/* 1) Canonical outer gutter: only on first-level screen shells. */
+.app-shell-root--forge-light-v2[data-fl-screen] .app-primary-viewport > :is(
+  .sanctuary-root,
+  .sanctuary-root--forge-light,
+  .expedition-root,
+  .hero-view,
+  .registry-view,
+  .prestige-root,
+  .prestige-root--forge-light,
+  .account-progress-view,
+  .achievements-root
+) {
+  padding-top: var(--fl-screen-top-pad, 10px);
+  padding-left: var(--fl-screen-edge-pad, 10px) !important;
+  padding-right: var(--fl-screen-edge-pad, 10px) !important;
+}
+
+/* 1b) Direct-open screens that bypass .app-primary-viewport (e.g. ?open=crafting). */
+.app-shell-root--forge-light-v2[data-fl-screen] > .app-shell-content > :is(
+  .crafting-root,
+  .crafting-root--forge-light
+) {
+  padding-top: var(--fl-screen-top-pad, 10px);
+  padding-left: var(--fl-screen-edge-pad, 10px);
+  padding-right: var(--fl-screen-edge-pad, 10px);
+}
+
+/* 2) Nested app shells inside those screens should not add extra horizontal gutter. */
+.app-shell-root--forge-light-v2[data-fl-screen] :is(
+  .hero-view-content,
+  .registry-view-content,
+  .character-root,
+  .character-root--forge-light,
+  .skills-root,
+  .skills-root--forge-light,
+  .talents-root,
+  .talents-root--forge-light,
+  .inventory-root,
+  .inventory-root--forge-light,
+  .crafting-root,
+  .crafting-root--forge-light,
+  .combat-root,
+  .combat-root--forge-light-prueba,
+  .codex-root,
+  .codex-root--forge-light,
+  .stats-root,
+  .account-progress-root,
+  .achievements-root
+) {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* 3) Talents must stay full width and follow same gutter as Hero shell. */
+.app-shell-root--forge-light-v2[data-fl-screen="talents"] .talents-root--forge-light {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* 4) Station overlays use same gutter as app shells. */
+.app-shell-root--forge-light-v2[data-fl-screen] :is(
+  .overlay-station-body,
+  .overlay-station-body--forge,
+  .overlay-station-body--forge-crafting
+) {
+  padding-left: var(--fl-screen-edge-pad, 10px) !important;
+  padding-right: var(--fl-screen-edge-pad, 10px) !important;
+}
+
+/* 5) Prevent double gutter when an overlay contains one of our screen roots. */
+.app-shell-root--forge-light-v2[data-fl-screen] :is(
+  .overlay-station-body,
+  .overlay-station-body--forge,
+  .overlay-station-body--forge-crafting
+) :is(
+  .sanctuary-root,
+  .sanctuary-root--forge-light,
+  .inventory-root,
+  .inventory-root--forge-light,
+  .crafting-root,
+  .crafting-root--forge-light,
+  .character-root,
+  .character-root--forge-light,
+  .skills-root,
+  .skills-root--forge-light,
+  .talents-root,
+  .talents-root--forge-light,
+  .prestige-root,
+  .prestige-root--forge-light,
+  .codex-root,
+  .codex-root--forge-light,
+  .stats-root,
+  .account-progress-root,
+  .account-progress-view,
+  .achievements-root,
+  .registry-view,
+  .registry-view-content,
+  .hero-view,
+  .hero-view-content,
+  .expedition-root,
+  .expedition-root--inventory,
+  .expedition-root--inventory-mobile,
+  .expedition-root--codex,
+  .expedition-root--combat-mobile,
+  .combat-root
+) {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* 6) Sanctuary station-open container must not add side gutter on top of overlay. */
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-root.fl-sanctuary-root--station-open {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* 6b) Embedded station screens inside Sanctuary share the same top pad baseline. */
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-root.fl-sanctuary-root--station-open :is(
+  .overlay-station-body,
+  .overlay-station-body--forge,
+  .overlay-station-body--forge-crafting
+) {
+  padding-top: var(--fl-screen-top-pad, 10px);
+}
+
+@media (max-width: 760px) {
+  .app-shell-root--forge-light-v2 {
+    --fl-screen-edge-pad: 8px;
+  }
+}

@@ -1,6 +1,6 @@
 import React from "react";
 import ForgeIcon from "../../icons/ForgeIcon";
-import FlIconFrame from "./FlIconFrame.jsx";
+import FlAsset from "./FlAsset.jsx";
 
 const VALID_TYPES = new Set(["gold", "essence", "fire", "echo", "material", "points", "xp", "health", "talent"]);
 const VALID_SIZES = new Set(["sm", "md", "lg"]);
@@ -67,16 +67,15 @@ const FlResourceCounter = React.forwardRef(function FlResourceCounter(
       data-resource={normalizedType}
       aria-busy={loading ? "true" : undefined}
     >
-      <FlIconFrame
-        className="fl-resource-counter__icon"
-        size={compact ? "sm" : "md"}
-        kind="system"
-        asset={asset}
-        assetId={assetId || iconName}
-        icon={iconName}
-      >
-        {icon && typeof icon !== "string" ? icon : <ForgeIcon name={iconName} size={18} />}
-      </FlIconFrame>
+      <span className="fl-resource-counter__icon" aria-hidden="true">
+        {icon && typeof icon !== "string" ? (
+          icon
+        ) : asset || assetId ? (
+          <FlAsset kind="system" asset={asset} assetId={assetId || iconName} size="sm" fallbackIcon={iconName} alt="" />
+        ) : (
+          <ForgeIcon name={iconName} size={18} />
+        )}
+      </span>
       <div className="fl-resource-counter__copy">
         {label && !compact && <span className="fl-resource-counter__label">{label}</span>}
         <strong className="fl-resource-counter__value">

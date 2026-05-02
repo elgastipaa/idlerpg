@@ -1,13 +1,648 @@
 .app-shell-root--forge-light-v2 .app-header-shell {
+  --fl-header-shell-floating-offset: 6px;
   background: rgba(11, 15, 20, 0.82) !important;
-  border-bottom-color: var(--fl2-gold-muted) !important;
+  border-bottom-color: var(--fl-gold-muted) !important;
   backdrop-filter: blur(12px);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.24);
 }
 
+.app-shell-root--forge-light-v2 .fl-header-bar.app-header-shell {
+  position: fixed;
+  top: var(--fl-header-shell-floating-offset, 6px);
+  left: 0;
+  z-index: 5000;
+  width: min(calc(100% - 14px), 1280px);
+  height: var(--app-header-offset, 56px);
+  margin: 0 auto;
+  right: 0;
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  color: var(--fl-text-primary);
+  background:
+    var(--fl-texture-noise),
+    linear-gradient(180deg, rgba(12, 16, 22, 0.96), rgba(8, 10, 13, 0.98)) !important;
+  border: 1px solid var(--fl-border-dark);
+  border-radius: var(--fl-radius-md);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.78),
+    inset 0 0 0 1px rgba(198, 161, 91, 0.14),
+    inset 0 1px 0 rgba(255, 236, 184, 0.08),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.52),
+    0 8px 24px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(12px);
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__hero {
+  min-width: 0;
+  max-width: min(48vw, 420px);
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__portrait {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  background: var(--fl-bg-card-deep);
+  border: 2px solid var(--fl-gold-border);
+  border-radius: 50%;
+  box-shadow: 0 0 18px rgba(198, 161, 91, 0.14), inset 0 0 12px rgba(0, 0, 0, 0.38);
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__portrait-asset,
+.app-shell-root--forge-light-v2 .fl-header-bar__portrait-asset .fl-asset__img,
+.app-shell-root--forge-light-v2 .fl-header-bar__portrait-asset .forge-icon {
+  width: 30px;
+  height: 30px;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__level {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 19px;
+  height: 19px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fl-gold-glow);
+  font-family: var(--fl-font-number);
+  font-size: 0.56rem;
+  font-weight: 900;
+  line-height: 1;
+  background: var(--fl-gold-deep);
+  border: 1.5px solid var(--fl-gold-border);
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__copy {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fl-text-primary);
+  font-family: var(--fl-font-display);
+  font-size: clamp(0.92rem, 2.4vw, 1.08rem);
+  font-weight: 900;
+  line-height: 1.08;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 0 12px rgba(230, 196, 122, 0.16);
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__class {
+  width: fit-content;
+  max-width: 100%;
+  padding: 1px 6px;
+  overflow: hidden;
+  color: var(--fl-text-muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--fl-bg-card-deep);
+  border: 1px solid var(--fl-gold-muted);
+  border-radius: 999px;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__meta {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 0 0 1px;
+  overflow: hidden;
+  color: var(--fl-text-muted);
+  font-family: var(--fl-font-ui);
+  font-size: 0.56rem;
+  font-weight: 800;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__badge {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  color: var(--fl-arcane);
+  font-size: 0.56rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+  background: rgba(138, 91, 232, 0.12);
+  border: 1px solid rgba(138, 91, 232, 0.34);
+  border-radius: 999px;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__resources {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__resources::-webkit-scrollbar {
+  display: none;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__resource {
+  min-width: 0;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  color: var(--fl-text-secondary);
+  font-family: var(--fl-font-ui);
+  background:
+    linear-gradient(180deg, rgba(255, 236, 184, 0.045), transparent 46%),
+    rgba(10, 13, 18, 0.95);
+  border: 1px solid var(--fl-border-dark);
+  border-radius: 20px;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.76),
+    inset 0 0 0 1px rgba(198, 161, 91, 0.13),
+    inset 0 1px 0 rgba(255, 236, 184, 0.07),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.48);
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__resource--action {
+  cursor: pointer;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__resource-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__resource-icon .fl-asset,
+.app-shell-root--forge-light-v2 .fl-header-bar__resource-icon .fl-asset__img,
+.app-shell-root--forge-light-v2 .fl-header-bar__resource-icon .forge-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__resource-glyph {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__resource-label {
+  display: none;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__resource-value {
+  color: var(--fl-text-primary);
+  font-family: var(--fl-font-number);
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__resource--gold {
+  border-color: var(--fl-border-dark);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.8),
+    inset 0 0 0 1px rgba(198, 161, 91, 0.22),
+    inset 0 1px 0 rgba(255, 236, 184, 0.09),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+    0 0 9px rgba(230, 196, 122, 0.09);
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__resource--gold .fl-header-bar__resource-value {
+  color: var(--fl-gold-glow);
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__resource--arcane {
+  border-color: var(--fl-border-dark);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.8),
+    inset 0 0 0 1px rgba(138, 91, 232, 0.28),
+    inset 0 1px 0 rgba(214, 194, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__resource--arcane .fl-header-bar__resource-value {
+  color: var(--fl-arcane);
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__resource-plus {
+  color: var(--fl-gold-border);
+  font-size: 0.88rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__menu {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fl-gold-hover);
+  background: var(--fl-bg-card-deep);
+  border: 1px solid var(--fl-gold-muted);
+  border-radius: var(--fl-radius-sm);
+  box-shadow: inset 0 0 10px rgba(198, 161, 91, 0.05);
+  cursor: pointer;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__menu:hover {
+  border-color: var(--fl-gold-border);
+  background: rgba(198, 161, 91, 0.08);
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__grid {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, 5px);
+  grid-template-rows: repeat(2, 5px);
+  gap: 4px;
+}
+
+.app-shell-root--forge-light-v2 .fl-header-bar__grid span {
+  background: var(--fl-gold-border);
+  border-radius: 1px;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--with-arrows {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs__track {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs__step {
+  position: relative;
+  width: 30px;
+  min-width: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fl-text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--fl-radius-sm);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs__step:hover:not(:disabled) {
+  color: var(--fl-gold-glow);
+  background: rgba(198, 161, 91, 0.055);
+  border-color: rgba(198, 161, 91, 0.26);
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs__step:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs__step--prev {
+  margin-left: 4px;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs__step--next {
+  margin-right: 4px;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--scrollable {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--scrollable::-webkit-scrollbar {
+  display: none;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--with-arrows.fl-tabs--scrollable {
+  overflow: visible;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--with-arrows.fl-tabs--scrollable .fl-tabs__track {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--with-arrows.fl-tabs--scrollable .fl-tabs__track::-webkit-scrollbar {
+  display: none;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--full .fl-tabs__tab {
+  flex: 1 1 0;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs__tab {
+  position: relative;
+  min-height: 38px;
+  min-width: max-content;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 14px;
+  color: var(--fl-text-muted);
+  font-family: var(--fl-font-ui);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs__tab:hover:not(:disabled) {
+  color: var(--fl-text-secondary);
+  background: rgba(198, 161, 91, 0.04);
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs__tab--selected {
+  color: var(--fl-gold-hover);
+  border-bottom-color: var(--fl-gold-border);
+  background: rgba(198, 161, 91, 0.065);
+  text-shadow: 0 0 16px rgba(230, 196, 122, 0.28);
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs__tab:disabled,
+.app-shell-root--forge-light-v2 .fl-tabs__tab--disabled {
+  color: var(--fl-text-disabled);
+  cursor: not-allowed;
+  opacity: 0.64;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--segmented {
+  gap: 2px;
+  padding: 4px;
+  overflow: hidden;
+  background: var(--fl-bg-card-deep);
+  border: 1px solid var(--fl-gold-muted);
+  border-radius: var(--fl-radius-md);
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.52);
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--forge {
+  gap: 2px;
+  padding: 4px;
+  overflow: hidden;
+  background: var(--fl-bg-card-deep);
+  border: 1px solid var(--fl-gold-muted);
+  border-radius: var(--fl-radius-md);
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.52);
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--forge .fl-tabs__tab {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 34px;
+  padding: 8px 4px;
+  color: var(--fl-text-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  border: 1px solid transparent;
+  border-radius: var(--fl-radius-sm);
+  border-bottom-width: 1px;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--forge .fl-tabs__tab:hover:not(:disabled) {
+  color: var(--fl-text-secondary);
+  background: rgba(198, 161, 91, 0.055);
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--forge .fl-tabs__tab--selected {
+  color: var(--fl-gold-glow);
+  background: rgba(198, 161, 91, 0.12);
+  border-color: var(--fl-gold-border);
+  box-shadow: inset 0 0 0 1px rgba(255, 232, 180, 0.04);
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--segmented .fl-tabs__tab {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 34px;
+  padding: 8px 4px;
+  color: var(--fl-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  border: 1px solid transparent;
+  border-radius: var(--fl-radius-sm);
+  border-bottom-width: 1px;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--segmented .fl-tabs__tab--selected {
+  color: var(--fl-gold-glow);
+  border-color: var(--fl-gold-border);
+  background: rgba(198, 161, 91, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 232, 180, 0.04);
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs.fl-subtabs-segmented {
+  gap: 2px;
+  padding: 4px;
+  overflow: hidden;
+  background: var(--fl-bg-card-deep);
+  border: 1px solid var(--fl-gold-muted);
+  border-radius: var(--fl-radius-md);
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.52);
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs.fl-subtabs-segmented .fl-tabs__tab {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 34px;
+  padding: 8px 4px;
+  gap: 0;
+  color: var(--fl-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  border: 1px solid transparent;
+  border-radius: var(--fl-radius-sm);
+  border-bottom-width: 1px;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs.fl-subtabs-segmented .fl-tabs__icon {
+  display: none;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs.fl-subtabs-segmented .fl-tabs__tab:hover:not(:disabled) {
+  color: var(--fl-text-secondary);
+  background: rgba(198, 161, 91, 0.055);
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs.fl-subtabs-segmented .fl-tabs__tab--selected {
+  color: var(--fl-gold-glow);
+  border-color: var(--fl-gold-border);
+  background: rgba(198, 161, 91, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 232, 180, 0.04);
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--compact .fl-tabs__tab,
+.app-shell-root--forge-light-v2 .fl-tabs--sm .fl-tabs__tab {
+  min-height: 32px;
+  padding: 7px 10px;
+  font-size: 0.66rem;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--sm.fl-tabs--with-arrows,
+.app-shell-root--forge-light-v2 .fl-tabs--compact.fl-tabs--with-arrows {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--sm.fl-tabs--with-arrows .fl-tabs__step,
+.app-shell-root--forge-light-v2 .fl-tabs--compact.fl-tabs--with-arrows .fl-tabs__step {
+  width: 26px;
+  min-width: 26px;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--sm.fl-tabs--with-arrows .fl-tabs__step--prev,
+.app-shell-root--forge-light-v2 .fl-tabs--compact.fl-tabs--with-arrows .fl-tabs__step--prev {
+  margin-left: 3px;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs--sm.fl-tabs--with-arrows .fl-tabs__step--next,
+.app-shell-root--forge-light-v2 .fl-tabs--compact.fl-tabs--with-arrows .fl-tabs__step--next {
+  margin-right: 3px;
+}
+
+/* Tab 10 - Secondary / Segmented (canonical for forge subtabs) */
+.app-shell-root--forge-light-v2 .fl-tabs.fl-subtabs-segmented.fl-tabs--sm .fl-tabs__tab {
+  min-height: 34px;
+  padding: 8px 4px;
+  gap: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  line-height: 1;
+  border: 1px solid transparent;
+  border-radius: var(--fl-radius-sm);
+  box-shadow: none;
+  text-shadow: none;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs.fl-subtabs-segmented.fl-tabs--sm .fl-tabs__tab:not(.fl-tabs__tab--selected) {
+  color: var(--fl-text-muted);
+  background: transparent;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs.fl-subtabs-segmented.fl-tabs--sm .fl-tabs__tab:hover:not(:disabled):not(.fl-tabs__tab--selected) {
+  color: var(--fl-text-muted);
+  background: rgba(198, 161, 91, 0.05);
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs.fl-subtabs-segmented.fl-tabs--sm .fl-tabs__tab--selected {
+  color: var(--fl-gold-glow);
+  background: rgba(198, 161, 91, 0.12);
+  border-color: var(--fl-gold-border);
+  box-shadow: inset 0 0 0 1px rgba(255, 232, 180, 0.04);
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs__icon {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.app-shell-root--forge-light-v2 .fl-primary-tab-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.52));
+}
+
+.app-shell-root--forge-light-v2 .fl-primary-tab-icon--active {
+  color: var(--fl-gold-hover);
+}
+
+.app-shell-root--forge-light-v2 .fl-primary-tab-icon .fl-asset,
+.app-shell-root--forge-light-v2 .fl-primary-tab-icon .fl-asset__img,
+.app-shell-root--forge-light-v2 .fl-primary-tab-icon .forge-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.app-shell-root--forge-light-v2 .fl-tabs__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .app-shell-root--forge-light-v2 .app-header-title {
-  color: var(--fl2-text) !important;
-  font-family: var(--fl2-font-display) !important;
+  color: var(--fl-text-primary) !important;
+  font-family: var(--fl-font-display) !important;
 }
 
 .app-shell-root--forge-light-v2 .app-header-identity,
@@ -35,7 +670,7 @@
 .app-shell-root--forge-light-v2 .app-header-reforge-badge {
   flex-shrink: 0;
   padding: 3px 7px;
-  color: var(--fl2-arcane);
+  color: var(--fl-arcane);
   font-size: 0.58rem;
   font-weight: 900;
   letter-spacing: 0.06em;
@@ -55,37 +690,197 @@
 
 .app-shell-root--forge-light-v2 .app-header-kicker,
 .app-shell-root--forge-light-v2 .app-header-power {
-  color: var(--fl2-text-muted) !important;
+  color: var(--fl-text-muted) !important;
 }
 
 .app-shell-root--forge-light-v2 .app-header-avatar {
-  border-color: var(--fl2-gold) !important;
+  border-color: var(--fl-gold-glow) !important;
   background: rgba(13, 17, 24, 0.86) !important;
-  box-shadow: var(--fl2-glow-gold-soft);
+  box-shadow: var(--fl-glow-gold-soft);
 }
 
 .app-shell-root--forge-light-v2 .app-header-level {
-  background: var(--fl2-gold-deep) !important;
-  border-color: var(--fl2-gold) !important;
-  color: var(--fl2-gold-strong) !important;
+  background: var(--fl-gold-glow-deep) !important;
+  border-color: var(--fl-gold-glow) !important;
+  color: var(--fl-gold-hover) !important;
 }
 
 .app-shell-root--forge-light-v2 .app-desktop-primary-tabs,
-.app-shell-root--forge-light-v2 .app-mobile-primary-tabs,
+.app-shell-root--forge-light-v2 .app-mobile-primary-tabs:not(.fl-bottom-nav),
 .app-shell-root--forge-light-v2 .subtab-dock--mobile {
   background: rgba(11, 15, 20, 0.88) !important;
-  border-color: var(--fl2-gold-muted) !important;
+  border-color: var(--fl-gold-muted) !important;
   box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.32) !important;
   backdrop-filter: blur(12px);
 }
 
-.app-shell-root--forge-light-v2 .app-desktop-primary-tabs {
-  border-radius: var(--fl2-radius-lg) !important;
-  margin-bottom: 12px;
-  padding: 10px 12px;
+.app-shell-root--forge-light-v2 .fl-bottom-nav.app-mobile-primary-tabs {
+  position: fixed;
+  left: 50%;
+  bottom: max(6px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 4700;
+  width: min(calc(100% - 14px), 420px);
+  min-height: 66px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0;
+  padding: 0 !important;
+  overflow: hidden;
+  background:
+    var(--fl-texture-noise),
+    linear-gradient(180deg, #080b10, #0e131a) !important;
+  border: 1px solid var(--fl-border-dark) !important;
+  border-top-width: 2px !important;
+  border-radius: var(--fl-radius-lg) !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.78),
+    inset 0 0 0 1px rgba(198, 161, 91, 0.11),
+    inset 0 2px 8px rgba(0, 0, 0, 0.5),
+    0 8px 16px rgba(0, 0, 0, 0.42) !important;
 }
 
-.app-shell-root--forge-light-v2 .app-mobile-primary-tabs {
+.app-shell-root--forge-light-v2 .fl-bottom-nav__item {
+  position: relative;
+  min-width: 0;
+  min-height: 64px;
+  flex: 1 1 0;
+  margin: 0;
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--fl-text-secondary);
+  font-family: var(--fl-font-ui);
+  background: transparent !important;
+  border: 0 !important;
+  border-top: 1px solid transparent !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.01), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.app-shell-root--forge-light-v2 .fl-bottom-nav__item:hover:not(:disabled) {
+  color: var(--fl-text-primary);
+  background: rgba(198, 161, 91, 0.05) !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-bottom-nav__item--active {
+  color: var(--fl-gold-hover);
+  background: linear-gradient(180deg, rgba(230, 196, 122, 0.105), rgba(198, 161, 91, 0.035) 42%, rgba(0, 0, 0, 0.14)) !important;
+  border-top-color: rgba(185, 135, 60, 0.62) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 236, 184, 0.14), inset 0 -1px 0 rgba(0, 0, 0, 0.32);
+}
+
+.app-shell-root--forge-light-v2 .fl-bottom-nav__item--disabled,
+.app-shell-root--forge-light-v2 .fl-bottom-nav__item:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
+.app-shell-root--forge-light-v2 .fl-bottom-nav__icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 22px;
+  color: currentColor;
+  background: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  clip-path: none !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-bottom-nav__icon .fl-primary-tab-icon,
+.app-shell-root--forge-light-v2 .fl-bottom-nav__icon .fl-primary-tab-asset,
+.app-shell-root--forge-light-v2 .fl-bottom-nav__icon .fl-primary-tab-asset .fl-asset__img,
+.app-shell-root--forge-light-v2 .fl-bottom-nav__icon .fl-primary-tab-asset .forge-icon,
+.app-shell-root--forge-light-v2 .fl-bottom-nav__icon .forge-icon {
+  width: 22px;
+  height: 22px;
+  color: currentColor;
+}
+
+.app-shell-root--forge-light-v2 .fl-bottom-nav__label {
+  flex: 0 0 auto;
+  display: block !important;
+  max-width: 100%;
+  overflow: visible;
+  color: currentColor !important;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-align: center;
+  text-overflow: clip;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.app-shell-root--forge-light-v2 .fl-bottom-nav__badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  transform: translate(0, 0);
+  clip-path: none !important;
+}
+
+.app-shell-root--forge-light-v2 .fl-bottom-nav__item--spotlight {
+  z-index: 2;
+  animation: fl2SpotlightPulse 1600ms ease-in-out infinite;
+}
+
+.app-shell-root--forge-light-v2 .fl-bottom-nav--icon-label .fl-bottom-nav__item {
+  min-height: 64px;
+}
+
+.app-shell-root--forge-light-v2 .app-desktop-primary-tabs {
+  border: 1px solid var(--fl-gold-muted) !important;
+  border-radius: var(--fl-radius-md) !important;
+  margin-bottom: 12px;
+  padding: 7px 10px;
+  background:
+    var(--fl-texture-noise),
+    linear-gradient(180deg, rgba(17, 22, 30, 0.92), rgba(8, 11, 16, 0.96)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 236, 184, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+    0 6px 16px rgba(0, 0, 0, 0.44) !important;
+}
+
+.app-shell-root--forge-light-v2 .app-desktop-primary-tabs .fl-tabs--forge {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.app-shell-root--forge-light-v2 .app-desktop-primary-tabs .fl-tabs--forge .fl-tabs__tab {
+  min-height: 36px;
+  border-radius: var(--fl-radius-sm);
+  border: 1px solid transparent;
+}
+
+.app-shell-root--forge-light-v2 .app-desktop-primary-tabs .fl-tabs--forge .fl-tabs__tab--selected {
+  border-color: var(--fl-gold-border);
+  background:
+    var(--fl-texture-metal),
+    linear-gradient(180deg, rgba(198, 161, 91, 0.16), rgba(198, 161, 91, 0.06));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 236, 184, 0.14),
+    0 0 10px rgba(230, 196, 122, 0.14);
+}
+
+.app-shell-root--forge-light-v2 .app-mobile-primary-tabs:not(.fl-bottom-nav) {
   position: fixed;
   left: 0;
   right: 0;
@@ -104,15 +899,13 @@
   border-radius: 0 !important;
 }
 
-.app-shell-root--forge-light-v2 .app-desktop-primary-tabs__nav,
-.app-shell-root--forge-light-v2 .subtab-dock--desktop,
-.app-shell-root--forge-light-v2 .subtab-dock--desktop .subtab-dock-row {
+.app-shell-root--forge-light-v2 .app-desktop-primary-tabs__nav {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.app-shell-root--forge-light-v2 .app-mobile-primary-tabs .app-primary-tab-button {
+.app-shell-root--forge-light-v2 .app-mobile-primary-tabs:not(.fl-bottom-nav) .app-primary-tab-button {
   position: relative;
   flex: 1 1 0;
   min-width: 56px;
@@ -129,10 +922,10 @@
   background: transparent !important;
 }
 
-.app-shell-root--forge-light-v2 .app-mobile-primary-tabs .app-primary-tab-button--active {
+.app-shell-root--forge-light-v2 .app-mobile-primary-tabs:not(.fl-bottom-nav) .app-primary-tab-button--active {
   background: rgba(198, 161, 91, 0.06) !important;
-  border-top-color: var(--fl2-gold) !important;
-  color: var(--fl2-gold-strong) !important;
+  border-top-color: var(--fl-gold-glow) !important;
+  color: var(--fl-gold-hover) !important;
 }
 
 .app-shell-root--forge-light-v2 .app-primary-tab-button--spotlight,
@@ -148,7 +941,7 @@
 }
 
 .app-shell-root--forge-light-v2 .app-mobile-primary-tab-label {
-  color: var(--fl2-text-muted);
+  color: var(--fl-text-muted);
   font-size: 0.56rem;
   font-weight: 900;
   letter-spacing: 0.04em;
@@ -156,7 +949,7 @@
 }
 
 .app-shell-root--forge-light-v2 .app-primary-tab-button--active .app-mobile-primary-tab-label {
-  color: var(--fl2-gold-strong);
+  color: var(--fl-gold-hover);
 }
 
 .app-shell-root--forge-light-v2 .app-primary-tab-badge,
@@ -188,18 +981,23 @@
 
 .app-shell-root--forge-light-v2 .app-primary-tab-badge--danger,
 .app-shell-root--forge-light-v2 .subtab-dock-badge[data-tone="danger"] {
-  background: var(--fl2-danger);
+  background: var(--fl-danger);
 }
 
 .app-shell-root--forge-light-v2 .app-primary-tab-badge--warning,
 .app-shell-root--forge-light-v2 .subtab-dock-badge[data-tone="warning"] {
-  background: var(--fl2-warning);
+  background: var(--fl-warning);
 }
 
 .app-shell-root--forge-light-v2 .app-primary-tab-badge--success,
 .app-shell-root--forge-light-v2 .subtab-dock-badge[data-tone="success"] {
-  background: var(--fl2-success);
+  background: var(--fl-success);
   color: #08140d;
+}
+
+.app-shell-root--forge-light-v2 .subtab-dock {
+  width: 100%;
+  min-width: 0;
 }
 
 .app-shell-root--forge-light-v2 .subtab-dock--mobile {
@@ -209,12 +1007,26 @@
   bottom: calc(var(--app-bottom-nav-offset, 72px) + env(safe-area-inset-bottom));
   z-index: 4900;
   padding: 8px;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none;
 }
 
 .app-shell-root--forge-light-v2 .subtab-dock-row {
   display: flex;
   width: 100%;
-  gap: 8px;
+  gap: 2px;
+  padding: 4px;
+  overflow: hidden;
+  background: var(--fl-bg-card-deep);
+  border: 1px solid var(--fl-gold-muted);
+  border-radius: var(--fl-radius-md);
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.52);
+}
+
+.app-shell-root--forge-light-v2 .subtab-dock--desktop .subtab-dock-row {
+  flex-wrap: nowrap;
 }
 
 .app-shell-root--forge-light-v2 .subtab-dock--mobile .subtab-dock-row {
@@ -234,14 +1046,56 @@
 }
 
 .app-shell-root--forge-light-v2 .subtab-dock-button {
-  min-width: 110px;
-  flex: 0 0 auto;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 34px;
+  padding: 8px 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fl-text-muted);
+  font-family: var(--fl-font-ui);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  border-radius: var(--fl-radius-sm);
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+
+.app-shell-root--forge-light-v2 .subtab-dock-button:hover:not(:disabled) {
+  color: var(--fl-text-secondary);
+  background: rgba(198, 161, 91, 0.055);
+}
+
+.app-shell-root--forge-light-v2 .subtab-dock-button:focus-visible {
+  outline: none;
+  box-shadow: var(--fl-focus-ring);
+}
+
+.app-shell-root--forge-light-v2 .subtab-dock-button--active {
+  color: var(--fl-gold-glow);
+  border-color: var(--fl-gold-border);
+  background: rgba(198, 161, 91, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 232, 180, 0.04);
+}
+
+.app-shell-root--forge-light-v2 .subtab-dock-button--disabled,
+.app-shell-root--forge-light-v2 .subtab-dock-button:disabled {
+  color: var(--fl-text-disabled);
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .app-shell-root--forge-light-v2 .subtab-dock--mobile .subtab-dock-button {
   min-width: 0;
   flex: 1 1 0;
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .app-shell-root--forge-light-v2 .subtab-dock--mobile.subtab-dock--scrollable .subtab-dock-button {
@@ -251,8 +1105,10 @@
 }
 
 .app-shell-root--forge-light-v2 .subtab-dock-button-content {
-  display: inline-flex;
+  width: 100%;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
 }
 
@@ -261,7 +1117,6 @@
 .app-shell-root--forge-light-v2 .expedition-root {
   display: grid;
   gap: 10px;
-  padding: 10px;
 }
 
 .app-shell-root--forge-light-v2 .expedition-subview-content {
@@ -269,74 +1124,36 @@
   min-width: 0;
 }
 
-.app-shell-root--forge-light-v2 .expedition-mobile-hint {
-  display: grid;
-  gap: 8px;
-  padding: 10px;
-  color: var(--fl2-text-secondary);
-  background: var(--fl2-surface-bg);
-  border: 1px solid var(--fl2-surface-border);
-  border-radius: var(--fl2-radius-lg);
-  box-shadow: var(--fl2-surface-shadow);
+.app-shell-root--forge-light-v2 .expedition-subview-hero {
+  margin-bottom: 2px;
 }
 
-.app-shell-root--forge-light-v2 .expedition-mobile-hint__top {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.app-shell-root--forge-light-v2 .expedition-mobile-hint__chips {
-  display: inline-flex;
-  align-items: center;
+.app-shell-root--forge-light-v2 .expedition-subview-hero .fl-screen-header__chips {
   gap: 6px;
-  flex-wrap: wrap;
 }
 
-.app-shell-root--forge-light-v2 .expedition-mobile-hint__chip {
-  padding: 2px 6px;
-  color: var(--fl2-text-muted);
-  font-size: 0.58rem;
-  font-weight: 900;
-  border: 1px solid var(--fl2-gold-muted);
-  border-radius: 999px;
+.app-shell-root--forge-light-v2 .expedition-subview-hero .fl-screen-header__subtitle {
+  color: var(--fl-text-primary);
 }
 
-.app-shell-root--forge-light-v2 .expedition-mobile-hint__chip--success {
-  color: var(--fl2-success);
-  background: rgba(79, 209, 139, 0.1);
-  border-color: color-mix(in srgb, var(--fl2-success) 52%, transparent);
+.app-shell-root--forge-light-v2 .expedition-subview-hero .fl-screen-header__description {
+  max-width: 72ch;
 }
 
-.app-shell-root--forge-light-v2 .expedition-mobile-hint__back {
-  padding: 6px 10px;
-  color: var(--fl2-gold);
-  font-size: 0.62rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  background: rgba(13, 17, 24, 0.78);
-  border: 1px solid var(--fl2-gold-muted);
-  border-radius: var(--fl2-radius-md);
-  cursor: pointer;
-}
-
-.app-shell-root--forge-light-v2 .expedition-mobile-hint__copy {
-  color: var(--fl2-text-secondary);
-  font-size: 0.62rem;
-  line-height: 1.35;
+.app-shell-root--forge-light-v2 .expedition-subview-hero__back-button.fl-button {
+  --fl-button-min-height: 30px;
+  --fl-button-pad-x: 10px;
 }
 
 .app-shell-root--forge-light-v2 .subview-loading-card {
   padding: 14px 12px;
-  color: var(--fl2-text-secondary);
+  color: var(--fl-text-secondary);
   font-size: 0.72rem;
   font-weight: 900;
-  background: var(--fl2-surface-bg);
-  border: 1px solid var(--fl2-surface-border);
-  border-radius: var(--fl2-radius-lg);
-  box-shadow: var(--fl2-surface-shadow);
+  background: var(--fl-surface-bg);
+  border: 1px solid var(--fl-surface-border);
+  border-radius: var(--fl-radius-lg);
+  box-shadow: var(--fl-surface-shadow);
 }
 
 @keyframes fl2SpotlightPulse {
@@ -352,7 +1169,65 @@
 }
 
 @media (max-width: 760px) {
-  .app-shell-root--forge-light-v2 .app-header-resource-wrap {
-    max-width: calc(100vw - 120px);
+  .app-shell-root--forge-light-v2 .fl-header-bar.app-header-shell {
+    top: 4px;
+    width: calc(100% - 8px);
+    grid-template-columns: minmax(0, 1fr) minmax(96px, auto) 32px;
+    gap: 7px;
+    padding-inline: 7px;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-header-bar__hero {
+    max-width: none;
+    gap: 8px;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-header-bar__portrait {
+    width: 40px;
+    height: 40px;
+    flex-basis: 40px;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-header-bar__portrait-asset,
+  .app-shell-root--forge-light-v2 .fl-header-bar__portrait-asset .fl-asset__img,
+  .app-shell-root--forge-light-v2 .fl-header-bar__portrait-asset .forge-icon {
+    width: 27px;
+    height: 27px;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-header-bar__badge,
+  .app-shell-root--forge-light-v2 .fl-header-bar__resource-label,
+  .app-shell-root--forge-light-v2 .fl-header-bar__meta {
+    display: none;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-header-bar__resources {
+    gap: 5px;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-header-bar__resource {
+    min-height: 30px;
+    padding: 5px 6px;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-header-bar__resource-value {
+    font-size: 0.72rem;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-bottom-nav__label {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+  }
+
+  html.app-forge-crafting-overlay-active .app-shell-root--forge-light-v2 .fl-tabs.fl-subtabs-segmented.fl-subtabs-segmented--mobile-sticky {
+    position: fixed;
+    left: calc(env(safe-area-inset-left) + 8px);
+    right: calc(env(safe-area-inset-right) + 8px);
+    bottom: calc(env(safe-area-inset-bottom) + 8px);
+    z-index: 7660;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    box-sizing: border-box;
   }
 }

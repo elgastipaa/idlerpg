@@ -4,6 +4,8 @@ import { isHuntUnlocked, isInventorySubviewUnlocked, ONBOARDING_STEPS } from "..
 import { getMaxRunSigilSlots } from "../engine/progression/abyssProgression";
 import RunSigilCallout from "./RunSigilCallout";
 import SubtabDock from "./ui/SubtabDock";
+import ForgeIcon from "./icons/ForgeIcon";
+import { FlBadge, FlButton, FlHeroModule } from "./ui/forge";
 
 const SUBVIEW_META = {
   combat: { label: "Combate" },
@@ -135,35 +137,36 @@ export default function ExpeditionView({ state, dispatch }) {
         />
       )}
 
-      {isMobile && !isCombatSubview && (
-        <div className="expedition-mobile-hint">
-          <div className="expedition-mobile-hint__top">
-            <div className="expedition-mobile-hint__chips">
-              <span className="expedition-mobile-hint__chip">
+      {isMobile && !isCombatSubview && resolvedSubview !== "inventory" && (
+        <FlHeroModule
+          variant="sanctuary-v2"
+          className="expedition-subview-hero"
+          eyebrow="Expedición activa"
+          title={SUBVIEW_META[resolvedSubview]?.label || "Vista"}
+          subtitle={resolvedSubview === "codex" ? "Intel revisada" : ""}
+          description={subviewActionHint || ""}
+          chips={(
+            <>
+              <FlBadge variant="pill" tone="neutral" size="xs">
                 T{runTier}
-              </span>
-              <span className="expedition-mobile-hint__chip">
+              </FlBadge>
+              <FlBadge variant="pill" tone="warning" size="xs">
                 Boss {runBossKills}
-              </span>
-              {resolvedSubview === "inventory" && inventoryUpgrades > 0 && (
-                <span className="expedition-mobile-hint__chip expedition-mobile-hint__chip--success">
-                  +{inventoryUpgrades} upgrade(s)
-                </span>
-              )}
-            </div>
-            <button
-              className="expedition-mobile-hint__back"
+              </FlBadge>
+            </>
+          )}
+          end={(
+            <FlButton
+              className="expedition-subview-hero__back-button"
               onClick={() => dispatch({ type: "SET_TAB", tab: "combat" })}
+              variant="default"
+              size="sm"
+              icon={<ForgeIcon name="combat" size={14} />}
             >
               Volver a combate
-            </button>
-          </div>
-          {subviewActionHint && (
-            <div className="expedition-mobile-hint__copy">
-              {subviewActionHint}
-            </div>
+            </FlButton>
           )}
-        </div>
+        />
       )}
 
       <div className="expedition-subview-content">

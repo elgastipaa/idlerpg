@@ -28,8 +28,8 @@ function panelStyle() {
 function chipStyle({ active = false, tone = "var(--tone-accent, #4338ca)" } = {}) {
   return {
     border: "1px solid",
-    borderColor: active ? tone : "var(--fl2-surface-border, var(--color-border-primary, #e2e8f0))",
-    background: active ? "var(--fl2-surface-bg, var(--tone-accent-soft, #eef2ff))" : "var(--fl2-surface-bg-soft, var(--color-background-secondary, #ffffff))",
+    borderColor: active ? tone : "var(--fl-surface-border, var(--color-border-primary, #e2e8f0))",
+    background: active ? "var(--fl-surface-bg, var(--tone-accent-soft, #eef2ff))" : "var(--fl-surface-bg-soft, var(--color-background-secondary, #ffffff))",
     color: active ? tone : "var(--color-text-primary, #1e293b)",
     borderRadius: "12px",
     padding: "10px 12px",
@@ -66,8 +66,8 @@ function actionButtonStyle({ primary = false, disabled = false } = {}) {
 
 function metricCardStyle() {
   return {
-    background: "var(--fl2-surface-bg-soft, var(--color-background-tertiary, #f8fafc))",
-    border: "1px solid var(--fl2-surface-border, var(--color-border-primary, #e2e8f0))",
+    background: "var(--fl-surface-bg-soft, var(--color-background-tertiary, #f8fafc))",
+    border: "1px solid var(--fl-surface-border, var(--color-border-primary, #e2e8f0))",
     borderRadius: "12px",
     padding: "10px 12px",
     display: "grid",
@@ -79,8 +79,8 @@ function chipLabelStyle(color = "var(--tone-accent, #4338ca)") {
   return {
     padding: "4px 8px",
     borderRadius: "999px",
-    border: "1px solid var(--fl2-surface-border, var(--color-border-primary, #e2e8f0))",
-    background: "var(--fl2-surface-bg-soft, var(--color-background-tertiary, #f8fafc))",
+    border: "1px solid var(--fl-surface-border, var(--color-border-primary, #e2e8f0))",
+    background: "var(--fl-surface-bg-soft, var(--color-background-tertiary, #f8fafc))",
     color,
     fontSize: "0.62rem",
     fontWeight: "900",
@@ -293,7 +293,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
         </div>
 
         {deepForgeSession && !sessionMatchesSelection && (
-          <section className="fl2-inline-panel" {...{ style: panelStyle() }}>
+          <section className="fl-inline-panel" {...{ style: panelStyle() }}>
             <div {...{ style: { fontSize: "0.68rem", fontWeight: "900", color: "var(--tone-violet, #6d28d9)" } }}>
               Hay una reforge profunda pendiente en otro proyecto.
             </div>
@@ -304,7 +304,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
         )}
 
         <section className="overlay-split-45-55">
-          <div className="fl2-inline-panel" {...{ style: panelStyle() }}>
+          <div className="fl-inline-panel" {...{ style: panelStyle() }}>
             <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" } }}>
               <div>
                 <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #7c3aed)" } }}>
@@ -350,7 +350,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
             )}
           </div>
 
-          <div className="fl2-inline-panel" {...{ style: panelStyle() }}>
+          <div className="fl-inline-panel" {...{ style: panelStyle() }}>
             {!selectedProject ? (
               <div {...{ style: { fontSize: "0.72rem", color: "var(--color-text-secondary, #64748b)", lineHeight: 1.45 } }}>
                 Selecciona un proyecto del stash para abrir sus opciones persistentes.
@@ -407,7 +407,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
                   </div>
                 </div>
 
-                <section className="fl2-inline-panel" {...{ style: panelStyle() }}>
+                <section className="fl-inline-panel" {...{ style: panelStyle() }}>
                   <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" } }}>
                     <div>
                       <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #D85A30)" } }}>
@@ -484,7 +484,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
                   </div>
                 </section>
 
-                <section className="fl2-inline-panel" {...{ style: panelStyle() }}>
+                <section className="fl-inline-panel" {...{ style: panelStyle() }}>
                   <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" } }}>
                     <div>
                       <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-warning, #f59e0b)" } }}>
@@ -503,7 +503,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
                   </div>
 
                   {selectedProject?.rarity === "legendary" && (
-                    <div className="fl2-inline-note" {...{ style: { display: "grid", gap: "8px", padding: "10px", borderRadius: "12px" } }}>
+                    <div className="fl-inline-note" {...{ style: { display: "grid", gap: "8px", padding: "10px", borderRadius: "12px" } }}>
                       <div {...{ style: { fontSize: "0.64rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-danger, #9a3412)" } }}>
                         Injerto de poder legendario
                       </div>
@@ -564,7 +564,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
                   </div>
                 </section>
 
-                <section className="fl2-inline-panel" {...{ style: panelStyle() }}>
+                <section className="fl-inline-panel" {...{ style: panelStyle() }}>
                   <div {...{ style: { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" } }}>
                     <div>
                       <div {...{ style: { fontSize: "0.62rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-info, #0369a1)" } }}>
@@ -599,7 +599,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
                   </div>
 
                   {selectedAffix && (
-                    <div className="fl2-inline-note" {...{ style: { display: "grid", gap: "8px", padding: "10px", borderRadius: "12px" } }}>
+                    <div className="fl-inline-note" {...{ style: { display: "grid", gap: "8px", padding: "10px", borderRadius: "12px" } }}>
                       <div {...{ style: { display: "grid", gap: "6px", paddingBottom: "8px", borderBottom: "1px dashed var(--color-border-primary, #e2e8f0)" } }}>
                         <div {...{ style: { display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" } }}>
                           <button
@@ -651,7 +651,7 @@ export default function DeepForgeOverlay({ state, dispatch, isMobile = false, on
                   )}
 
                   {sessionMatchesSelection && (
-                    <div className="fl2-inline-note" {...{ style: { display: "grid", gap: "8px", padding: "10px", borderRadius: "12px" } }}>
+                    <div className="fl-inline-note" {...{ style: { display: "grid", gap: "8px", padding: "10px", borderRadius: "12px" } }}>
                       <div {...{ style: { fontSize: "0.64rem", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--tone-violet, #6d28d9)" } }}>
                         Reforge profunda abierta
                       </div>

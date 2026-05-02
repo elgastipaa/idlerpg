@@ -1,13 +1,13 @@
 .app-shell-root--forge-light-v2 {
   --color-background-primary: transparent !important;
-  --color-background-secondary: var(--fl2-surface-soft) !important;
+  --color-background-secondary: var(--fl-surface-soft) !important;
   --color-background-tertiary: rgba(5, 8, 10, 0.26) !important;
   --color-background-info: rgba(74, 143, 231, 0.12) !important;
-  --color-surface-overlay: var(--fl2-surface-strong) !important;
-  --color-text-primary: var(--fl2-text) !important;
-  --color-text-secondary: var(--fl2-text-secondary) !important;
-  --color-text-tertiary: var(--fl2-text-muted) !important;
-  --color-text-info: var(--fl2-defense) !important;
+  --color-surface-overlay: var(--fl-surface-strong) !important;
+  --color-text-primary: var(--fl-text-primary) !important;
+  --color-text-secondary: var(--fl-text-secondary) !important;
+  --color-text-tertiary: var(--fl-text-muted) !important;
+  --color-text-info: var(--fl-defense) !important;
   --color-border-primary: rgba(198, 161, 91, 0.24) !important;
   --color-border-secondary: rgba(198, 161, 91, 0.18) !important;
   --color-border-tertiary: rgba(198, 161, 91, 0.14) !important;
@@ -16,18 +16,18 @@
   --tone-warning-soft: rgba(242, 184, 75, 0.11) !important;
   --tone-violet-soft: rgba(138, 91, 232, 0.12) !important;
   --tone-accent-soft: rgba(74, 143, 231, 0.12) !important;
-  --fl2-screen-scrim:
+  --fl-screen-scrim:
     linear-gradient(180deg, rgba(0, 0, 0, 0.44) 0%, rgba(0, 0, 0, 0.12) 36%, rgba(0, 0, 0, 0.56) 100%),
     linear-gradient(90deg, rgba(0, 0, 0, 0.26), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.26)),
     radial-gradient(circle at 50% calc(var(--app-header-offset, 54px) + 40px), rgba(243, 198, 95, 0.08), transparent 34%),
     radial-gradient(circle at 50% 58%, transparent 0%, transparent 46%, rgba(0, 0, 0, 0.26) 100%);
-  --fl2-content-scrim:
+  --fl-content-scrim:
     linear-gradient(180deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.22)),
     radial-gradient(circle at 50% 12%, rgba(243, 198, 95, 0.045), transparent 34%),
     radial-gradient(circle at 50% 82%, rgba(0, 0, 0, 0.2), transparent 46%);
-  background: var(--fl2-bg-deep) !important;
-  color: var(--fl2-text);
-  font-family: var(--fl2-font-ui);
+  background: var(--fl-bg-deep) !important;
+  color: var(--fl-text-primary);
+  font-family: var(--fl-font-ui);
   position: relative;
   isolation: isolate;
   min-height: 100dvh;
@@ -37,7 +37,7 @@ html:has(.app-shell-root--forge-light-v2),
 body:has(.app-shell-root--forge-light-v2),
 #root:has(.app-shell-root--forge-light-v2) {
   min-height: 100%;
-  background: var(--fl2-bg-deep, #05080a) !important;
+  background: var(--fl-bg-deep, #05080a) !important;
 }
 
 .app-shell-root--forge-light-v2::before {
@@ -47,8 +47,8 @@ body:has(.app-shell-root--forge-light-v2),
   z-index: 0;
   pointer-events: none;
   background:
-    var(--fl2-screen-bg, url("/assets/backgrounds/screens/screen_sanctuary_forge.webp")) center top / cover no-repeat fixed,
-    var(--fl2-bg-deep);
+    var(--fl-screen-bg, url("/assets/backgrounds/screens/screen_sanctuary_forge.webp")) center top / cover no-repeat fixed,
+    var(--fl-bg-deep);
 }
 
 .app-shell-root--forge-light-v2::after {
@@ -57,12 +57,16 @@ body:has(.app-shell-root--forge-light-v2),
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: var(--fl2-screen-scrim), var(--fl2-content-scrim);
+  background: var(--fl-screen-scrim), var(--fl-content-scrim);
 }
 
 .app-shell-root--forge-light-v2 > .app-shell-content {
   position: relative;
   z-index: 1;
+  padding-top: calc(
+    var(--app-header-offset, 62px) +
+    var(--fl-header-shell-floating-offset, 6px)
+  );
 }
 
 .app-shell-root--forge-light-v2 .app-primary-viewport {
@@ -83,49 +87,49 @@ body:has(.app-shell-root--forge-light-v2),
   z-index: 1;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="combat"] {
-  --fl2-screen-bg: url("/assets/backgrounds/screens/screen_combat_ruins.webp");
+.app-shell-root--forge-light-v2[data-fl-screen="combat"] {
+  --fl-screen-bg: url("/assets/backgrounds/screens/screen_combat_ruins.webp");
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] {
-  --fl2-screen-bg: url("/assets/backgrounds/screens/screen_sanctuary_forge.webp");
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] {
+  --fl-screen-bg: url("/assets/backgrounds/screens/screen_sanctuary_forge.webp");
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] {
-  --fl2-screen-bg: url("/assets/backgrounds/screens/screen_inventory_armory.webp");
-  --fl2-screen-scrim:
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] {
+  --fl-screen-bg: url("/assets/backgrounds/screens/screen_inventory_armory.webp");
+  --fl-screen-scrim:
     linear-gradient(180deg, rgba(0, 0, 0, 0.28) 0%, rgba(0, 0, 0, 0.08) 36%, rgba(0, 0, 0, 0.42) 100%),
     linear-gradient(90deg, rgba(0, 0, 0, 0.18), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.18)),
     radial-gradient(circle at 50% calc(var(--app-header-offset, 54px) + 40px), rgba(243, 198, 95, 0.08), transparent 34%),
     radial-gradient(circle at 50% 62%, transparent 0%, transparent 54%, rgba(0, 0, 0, 0.18) 100%);
-  --fl2-content-scrim:
+  --fl-content-scrim:
     linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.12)),
     radial-gradient(circle at 50% 12%, rgba(243, 198, 95, 0.04), transparent 34%);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="crafting"] {
-  --fl2-screen-bg: url("/assets/backgrounds/screens/screen_crafting_workshop.webp");
+.app-shell-root--forge-light-v2[data-fl-screen="crafting"] {
+  --fl-screen-bg: url("/assets/backgrounds/screens/screen_crafting_workshop.webp");
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="character"],
-.app-shell-root--forge-light-v2[data-fl2-screen="skills"] {
-  --fl2-screen-bg: url("/assets/backgrounds/screens/screen_character_hall.webp");
+.app-shell-root--forge-light-v2[data-fl-screen="character"],
+.app-shell-root--forge-light-v2[data-fl-screen="skills"] {
+  --fl-screen-bg: url("/assets/backgrounds/screens/screen_character_hall.webp");
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="talents"] {
-  --fl2-screen-bg: url("/assets/backgrounds/screens/screen_talents_sigil.webp");
+.app-shell-root--forge-light-v2[data-fl-screen="talents"] {
+  --fl-screen-bg: url("/assets/backgrounds/screens/screen_talents_sigil.webp");
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="prestige"] {
-  --fl2-screen-bg: url("/assets/backgrounds/screens/screen_prestige_altar.webp");
+.app-shell-root--forge-light-v2[data-fl-screen="prestige"] {
+  --fl-screen-bg: url("/assets/backgrounds/screens/screen_prestige_altar.webp");
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="stats"],
-.app-shell-root--forge-light-v2[data-fl2-screen="account"],
-.app-shell-root--forge-light-v2[data-fl2-screen="achievements"],
-.app-shell-root--forge-light-v2[data-fl2-screen="system"],
-.app-shell-root--forge-light-v2[data-fl2-screen="codex"] {
-  --fl2-screen-bg: url("/assets/backgrounds/screens/screen_stats_archive.webp");
+.app-shell-root--forge-light-v2[data-fl-screen="stats"],
+.app-shell-root--forge-light-v2[data-fl-screen="account"],
+.app-shell-root--forge-light-v2[data-fl-screen="achievements"],
+.app-shell-root--forge-light-v2[data-fl-screen="system"],
+.app-shell-root--forge-light-v2[data-fl-screen="codex"] {
+  --fl-screen-bg: url("/assets/backgrounds/screens/screen_stats_archive.webp");
 }
 
 .app-shell-root--forge-light-v2 .app-shell-content,

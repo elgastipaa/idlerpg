@@ -1,7 +1,8 @@
 import React from "react";
 import FlBadge from "./FlBadge.jsx";
+import ForgeIcon from "../../icons/ForgeIcon";
 
-const VALID_VARIANTS = new Set(["primary", "secondary", "compact", "segmented", "icon"]);
+const VALID_VARIANTS = new Set(["primary", "secondary", "compact", "segmented", "forge", "icon"]);
 const VALID_SIZES = new Set(["sm", "md", "lg"]);
 
 function cx(...parts) {
@@ -40,6 +41,10 @@ const FlTabs = React.forwardRef(function FlTabs(
     className = "",
     tabClassName = "",
     renderLabel,
+    showStepArrows = false,
+    stepWrap = true,
+    prevAriaLabel = "Tab anterior",
+    nextAriaLabel = "Tab siguiente",
     ...rest
   },
   ref
@@ -51,6 +56,7 @@ const FlTabs = React.forwardRef(function FlTabs(
   const selectedIndex = safeItems.findIndex((item, index) => getItemId(item, index) === String(activeId));
   const fallbackIndex = safeItems.findIndex(item => !item?.disabled && !item?.loading);
   const currentIndex = selectedIndex >= 0 ? selectedIndex : fallbackIndex;
+  const hasEnabledItems = safeItems.some(item => !item?.disabled && !item?.loading);
 
   const selectItem = (item, index) => {
     if (disabled || item?.disabled || item?.loading) return;
@@ -61,6 +67,30 @@ const FlTabs = React.forwardRef(function FlTabs(
     if (index < 0) return;
     const id = getItemId(safeItems[index], index);
     buttonRefs.current.get(id)?.focus();
+  };
+
+  const getStepIndex = direction => {
+    if (!hasEnabledItems) return -1;
+    if (currentIndex < 0) {
+      return safeItems.findIndex(item => !item?.disabled && !item?.loading);
+    }
+    if (stepWrap) {
+      return getEnabledIndex(safeItems, currentIndex, direction);
+    }
+    let index = currentIndex + direction;
+    while (index >= 0 && index < safeItems.length) {
+      if (!safeItems[index]?.disabled && !safeItems[index]?.loading) return index;
+      index += direction;
+    }
+    return -1;
+  };
+
+  const prevIndex = getStepIndex(-1);
+  const nextIndex = getStepIndex(1);
+
+  const selectByIndex = index => {
+    if (index < 0 || index >= safeItems.length) return;
+    selectItem(safeItems[index], index);
   };
 
   const handleKeyDown = event => {
@@ -98,8 +128,9 @@ const FlTabs = React.forwardRef(function FlTabs(
         "fl-tabs",
         `fl-tabs--${normalizedVariant}`,
         `fl-tabs--${normalizedSize}`,
-        scrollable && "fl-tabs--scrollable",
+        scrollable && !showStepArrows && "fl-tabs--scrollable",
         fullWidth && "fl-tabs--full",
+        showStepArrows && "fl-tabs--with-arrows",
         disabled && "fl-tabs--disabled",
         className
       )}
@@ -109,52 +140,78 @@ const FlTabs = React.forwardRef(function FlTabs(
       data-active-id={currentIndex >= 0 ? getItemId(safeItems[currentIndex], currentIndex) : undefined}
       onKeyDown={handleKeyDown}
     >
-      {safeItems.map((item, index) => {
-        const itemId = getItemId(item, index);
-        const selected = index === currentIndex;
-        const itemDisabled = disabled || Boolean(item.disabled) || Boolean(item.loading);
-        const badgeValue = item.badge ?? item.count ?? null;
+      {showStepArrows && (
+        <button
+          type="button"
+          className="fl-tabs__step fl-tabs__step--prev"
+          aria-label={prevAriaLabel}
+          disabled={disabled || prevIndex < 0}
+          onClick={() => selectByIndex(prevIndex)}
+        >
+          <ForgeIcon name="chevron-left" size={14} />
+        </button>
+      )}
 
-        return (
-          <button
-            key={item.key || itemId}
-            ref={node => {
-              if (node) buttonRefs.current.set(itemId, node);
-              else buttonRefs.current.delete(itemId);
-            }}
-            type="button"
-            className={cx(
-              "fl-tabs__tab",
-              selected && "fl-tabs__tab--selected",
-              itemDisabled && "fl-tabs__tab--disabled",
-              itemClassName(item),
-              tabClassName
-            )}
-            role="tab"
-            aria-selected={selected ? "true" : "false"}
-            aria-controls={item.panelId || item.controls}
-            aria-disabled={itemDisabled ? "true" : undefined}
-            tabIndex={selected && !itemDisabled ? 0 : -1}
-            disabled={itemDisabled}
-            data-tab-id={itemId}
-            data-state={item.loading ? "loading" : item.state || "default"}
-            data-selected={selected ? "true" : undefined}
-            data-onboarding-target={item.onboardingTarget}
-            onClick={() => selectItem(item, index)}
-          >
-            {item.icon && <span className="fl-tabs__icon" aria-hidden="true">{item.icon}</span>}
-            <span className="fl-tabs__label">
-              {typeof renderLabel === "function" ? renderLabel({ item, index, selected }) : item.label ?? itemId}
-            </span>
-            {badgeValue != null && badgeValue !== "" && (
-              <FlBadge className="fl-tabs__badge" variant="count" tone={item.badgeTone || item.tone || "neutral"} size="sm">
-                {badgeValue}
-              </FlBadge>
-            )}
-            {item.loading && <span className="fl-tabs__spinner" aria-hidden="true" />}
-          </button>
-        );
-      })}
+      <div className="fl-tabs__track">
+        {safeItems.map((item, index) => {
+          const itemId = getItemId(item, index);
+          const selected = index === currentIndex;
+          const itemDisabled = disabled || Boolean(item.disabled) || Boolean(item.loading);
+          const badgeValue = item.badge ?? item.count ?? null;
+
+          return (
+            <button
+              key={item.key || itemId}
+              ref={node => {
+                if (node) buttonRefs.current.set(itemId, node);
+                else buttonRefs.current.delete(itemId);
+              }}
+              type="button"
+              className={cx(
+                "fl-tabs__tab",
+                selected && "fl-tabs__tab--selected",
+                itemDisabled && "fl-tabs__tab--disabled",
+                itemClassName(item),
+                tabClassName
+              )}
+              role="tab"
+              aria-selected={selected ? "true" : "false"}
+              aria-controls={item.panelId || item.controls}
+              aria-disabled={itemDisabled ? "true" : undefined}
+              tabIndex={selected && !itemDisabled ? 0 : -1}
+              disabled={itemDisabled}
+              data-tab-id={itemId}
+              data-state={item.loading ? "loading" : item.state || "default"}
+              data-selected={selected ? "true" : undefined}
+              data-onboarding-target={item.onboardingTarget}
+              onClick={() => selectItem(item, index)}
+            >
+              {item.icon && <span className="fl-tabs__icon" aria-hidden="true">{item.icon}</span>}
+              <span className="fl-tabs__label">
+                {typeof renderLabel === "function" ? renderLabel({ item, index, selected }) : item.label ?? itemId}
+              </span>
+              {badgeValue != null && badgeValue !== "" && (
+                <FlBadge className="fl-tabs__badge" variant="count" tone={item.badgeTone || item.tone || "neutral"} size="sm">
+                  {badgeValue}
+                </FlBadge>
+              )}
+              {item.loading && <span className="fl-tabs__spinner" aria-hidden="true" />}
+            </button>
+          );
+        })}
+      </div>
+
+      {showStepArrows && (
+        <button
+          type="button"
+          className="fl-tabs__step fl-tabs__step--next"
+          aria-label={nextAriaLabel}
+          disabled={disabled || nextIndex < 0}
+          onClick={() => selectByIndex(nextIndex)}
+        >
+          <ForgeIcon name="chevron-right" size={14} />
+        </button>
+      )}
     </div>
   );
 });

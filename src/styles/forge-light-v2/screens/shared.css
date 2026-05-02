@@ -15,38 +15,8 @@
   .hero-view-content,
   .expedition-root
 ) {
-  background: transparent !important;
-  color: var(--fl2-text) !important;
-}
-
-.app-shell-root--forge-light-v2 :where(
-  .fl-sanctuary-panel,
-  .fl-inventory-section,
-  .fl-inventory-loot-filter,
-  .fl-inventory-bulk-panel,
-  .fl-crafting-showcase,
-  .fl-crafting-result-card,
-  .fl-crafting-material-panel,
-  .fl-crafting-stat-panel,
-  .fl-crafting-feedback,
-  .forge-character-overview,
-  .forge-character-section,
-  .forge-attributes-panel,
-  .forge-skills-reading,
-  .talents-header,
-  .talents-tree-toolbar,
-  .forge-talents-panel,
-  .prestige-summary-panel,
-  .codex-intro-panel,
-  .codex-radar-panel,
-  .codex-metric-card
-) {
-  color: var(--fl2-text) !important;
-  background:
-    radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.05), transparent 24%),
-    linear-gradient(180deg, rgba(8, 10, 11, 0.58), rgba(5, 8, 10, 0.54)) !important;
-  border-color: rgba(198, 161, 91, 0.2) !important;
-  box-shadow: var(--fl2-surface-shadow) !important;
+  background: transparent;
+  color: var(--fl-text-primary);
 }
 
 .app-shell-root--forge-light-v2 :where(.fl-sanctuary-panel, .prestige-summary-panel, .codex-intro-panel, .codex-radar-panel) + :where(.fl-sanctuary-panel, .prestige-summary-panel, .codex-intro-panel, .codex-radar-panel) {
@@ -60,7 +30,7 @@
   right: 8px;
   top: -9px;
   height: 1px;
-  background: var(--fl2-divider-line);
+  background: var(--fl-divider-line);
   pointer-events: none;
 }
 
@@ -71,102 +41,310 @@
   top: -12px;
   width: 5px;
   height: 5px;
-  background: var(--fl2-gold);
+  background: var(--fl-gold-glow);
   border: 1px solid rgba(255, 232, 166, 0.48);
   box-shadow: 0 0 10px rgba(243, 198, 95, 0.26);
   transform: translateX(-50%) rotate(45deg);
   pointer-events: none;
 }
 
-.app-shell-root--forge-light-v2 :is(
-  .sanctuary-root--forge-light,
-  .inventory-root--forge-light,
-  .crafting-root--forge-light,
-  .character-root--forge-light,
-  .skills-root--forge-light,
-  .talents-root--forge-light,
-  .prestige-root--forge-light,
-  .codex-root--forge-light,
-  .account-progress-view,
-  .achievements-root,
-  .registry-view,
-  .registry-view-content,
-  .hero-view,
-  .hero-view-content,
-  .expedition-root,
-  .expedition-root--inventory,
-  .expedition-root--inventory-mobile,
-  .expedition-root--codex,
-  .expedition-root--combat-mobile,
-  .expedition-subview-content,
+.app-shell-root--forge-light-v2 :where(
   .overlay-station-body--forge-crafting,
   .overlay-station-shell--forge-crafting,
-  .overlay-station-surface--forge,
-  .combat-root
+  .overlay-station-surface--forge
 ) {
-  background: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
+  background: transparent;
 }
 
-.app-shell-root--forge-light-v2 :is(
-  .fl-sanctuary-panel,
-  .fl-inventory-section,
-  .fl-inventory-loot-filter,
-  .fl-inventory-bulk-panel,
-  .fl-inventory-equipped-card,
-  .fl-inventory-row-card,
-  .fl-inventory-loot-rule-card,
-  .fl-inventory-bulk-card,
-  .fl-crafting-showcase,
-  .fl-crafting-stage,
-  .fl-crafting-item-card,
-  .fl-crafting-item-drawer,
-  .fl-crafting-drawer-item,
-  .fl-crafting-legacy-workbench,
-  .fl-crafting-inventory-panel,
-  .fl-crafting-result-card,
-  .fl-crafting-material-panel,
-  .fl-crafting-stat-panel,
-  .fl-crafting-feedback,
-  .forge-character-overview,
-  .forge-character-section,
-  .forge-attributes-panel,
-  .forge-skills-reading,
-  .talents-header,
-  .talents-tree-toolbar,
-  .forge-talents-panel,
-  .prestige-summary-panel,
-  .codex-intro-panel,
-  .codex-radar-panel,
-  .codex-metric-card,
-  .account-progress-panel,
-  .account-progress-card,
-  .achievements-panel,
-  .achievement-card,
-  .expedition-mobile-hint,
-  .subview-loading-card
-) {
-  color: var(--fl2-text) !important;
-  background: var(--fl2-surface-bg) !important;
-  border-color: rgba(198, 161, 91, 0.2) !important;
-  box-shadow: var(--fl2-surface-shadow) !important;
+.app-shell-root--forge-light-v2 .fl-offline-modal {
+  width: min(100%, 500px);
+  margin: 0 auto 12px;
+  background:
+    var(--fl-texture-noise),
+    linear-gradient(180deg, rgba(20, 26, 35, 0.98), rgba(10, 14, 19, 0.99));
+  border: 1px solid rgba(0, 0, 0, 0.82);
+  border-radius: var(--fl-radius-lg);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    inset 0 0 0 1px rgba(198, 161, 91, 0.58),
+    inset 0 1px 0 rgba(255, 236, 184, 0.12),
+    0 28px 70px rgba(0, 0, 0, 0.68),
+    var(--fl-glow-gold-soft);
+  overflow: hidden;
 }
 
-.app-shell-root--forge-light-v2 :where(
-  [style*="background: var(--color-background-primary"],
-  [style*="background:var(--color-background-primary"],
-  [style*="background: transparent"],
-  [style*="background:transparent"]
-) {
-  background: transparent !important;
+.app-shell-root--forge-light-v2 .fl-offline-header {
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--fl-gold-muted);
+  background:
+    var(--fl-texture-panel-fine),
+    linear-gradient(180deg, rgba(198, 161, 91, 0.08) 0%, rgba(0, 0, 0, 0) 100%);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
 }
 
-.app-shell-root--forge-light-v2 :where(
-  [style*="background: var(--color-background-secondary"],
-  [style*="background:var(--color-background-secondary"],
-  [style*="background: var(--color-background-tertiary"],
-  [style*="background:var(--color-background-tertiary"]
-) {
-  background: var(--fl2-surface-bg-soft) !important;
+.app-shell-root--forge-light-v2 .fl-offline-title {
+  font-family: var(--fl-font-display);
+  font-size: 1.62rem;
+  line-height: 1.1;
+  color: var(--fl-gold-glow);
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-close {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: var(--fl-radius-sm);
+  border: 1px solid rgba(0, 0, 0, 0.84);
+  background:
+    var(--fl-texture-noise),
+    linear-gradient(180deg, #121821 0%, #090d12 100%);
+  color: var(--fl-text-secondary);
+  font-family: var(--fl-font-ui);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.84),
+    inset 0 0 0 1px rgba(198, 161, 91, 0.24),
+    inset 0 1px 0 rgba(255, 236, 184, 0.12);
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-close:hover {
+  color: var(--fl-text-primary);
+  border-color: rgba(198, 161, 91, 0.4);
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-close:active {
+  transform: translateY(1px);
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-body {
+  padding: 18px 22px 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-headline {
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--fl-text-secondary);
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-time {
+  margin-top: -8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--fl-text-muted);
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-bar {
+  display: grid;
+  gap: 8px;
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-bar-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--fl-text-muted);
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-bar-value {
+  color: var(--fl-text-primary);
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-bar-track {
+  height: 10px;
+  border-radius: var(--fl-radius-sm);
+  overflow: hidden;
+  background: rgba(7, 10, 14, 0.96);
+  border: 1px solid var(--fl-gold-muted);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.42);
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-bar-fill {
+  width: var(--fl-offline-progress, 0%);
+  height: 100%;
+  border-radius: inherit;
+  transition: width 180ms ease;
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-bar-track--progress .fl-offline-bar-fill {
+  background: linear-gradient(90deg, #4a2e0a, #8b5a1a, #c6a15b, #e6c47a);
+  box-shadow:
+    inset 0 0 10px rgba(198, 161, 91, 0.22),
+    0 0 8px rgba(198, 161, 91, 0.2);
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-rewards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-reward-cell,
+.app-shell-root--forge-light-v2 .fl-offline-best-drop {
+  position: relative;
+  background:
+    var(--fl-texture-panel-fine),
+    linear-gradient(180deg, rgba(12, 16, 22, 0.98), rgba(8, 12, 17, 0.98));
+  border: 1px solid rgba(0, 0, 0, 0.8);
+  border-radius: var(--fl-radius-md);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.85),
+    inset 0 0 0 1px rgba(198, 161, 91, 0.16),
+    inset 0 1px 0 rgba(255, 236, 184, 0.07);
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-reward-cell {
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-reward-icon {
+  font-size: 1.36rem;
+  line-height: 1;
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-reward-copy {
+  min-width: 0;
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-reward-label {
+  display: block;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fl-text-muted);
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-reward-value {
+  display: block;
+  font-size: 1.28rem;
+  line-height: 1.05;
+  font-weight: 800;
+  color: var(--fl-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-reward-cell[data-tone="gold"] .fl-offline-reward-value { color: var(--fl-reward); }
+.app-shell-root--forge-light-v2 .fl-offline-reward-cell[data-tone="xp"] .fl-offline-reward-value,
+.app-shell-root--forge-light-v2 .fl-offline-reward-cell[data-tone="essence"] .fl-offline-reward-value { color: var(--fl-arcane); }
+.app-shell-root--forge-light-v2 .fl-offline-reward-cell[data-tone="success"] .fl-offline-reward-value { color: var(--fl-success); }
+
+.app-shell-root--forge-light-v2 .fl-offline-best-drop {
+  padding: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-best-drop--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-best-drop-frame {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  border-radius: var(--fl-radius-md);
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 42% 32%, rgba(255, 255, 255, 0.06), transparent 56%),
+    linear-gradient(180deg, rgba(9, 11, 14, 0.94), rgba(6, 8, 11, 0.98));
+  border: 1px solid rgba(0, 0, 0, 0.82);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.86),
+    inset 0 0 0 1px rgba(180, 85, 232, 0.44),
+    0 0 14px rgba(180, 85, 232, 0.26);
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-best-drop-asset {
+  width: 100%;
+  height: 100%;
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-best-drop-copy {
+  min-width: 0;
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-best-drop-label {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fl-success);
+  margin-bottom: 3px;
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-best-drop-name {
+  font-size: 1.02rem;
+  font-weight: 700;
+  font-family: var(--fl-font-display);
+  color: var(--fl-text-primary);
+  line-height: 1.12;
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-best-drop-rarity {
+  font-size: 0.78rem;
+  margin-top: 2px;
+  font-weight: 700;
+}
+
+.app-shell-root--forge-light-v2 .fl-offline-best-drop-rarity[data-rarity="common"] { color: var(--fl-rarity-common); }
+.app-shell-root--forge-light-v2 .fl-offline-best-drop-rarity[data-rarity="magic"] { color: var(--fl-rarity-magic); }
+.app-shell-root--forge-light-v2 .fl-offline-best-drop-rarity[data-rarity="rare"] { color: var(--fl-rarity-rare); }
+.app-shell-root--forge-light-v2 .fl-offline-best-drop-rarity[data-rarity="epic"] { color: var(--fl-rarity-epic); }
+.app-shell-root--forge-light-v2 .fl-offline-best-drop-rarity[data-rarity="legendary"] { color: var(--fl-rarity-legendary); }
+
+@media (max-width: 700px) {
+  .app-shell-root--forge-light-v2 .fl-offline-modal {
+    width: min(100%, 96vw);
+  }
+
+  .app-shell-root--forge-light-v2 .fl-offline-header,
+  .app-shell-root--forge-light-v2 .fl-offline-body {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-offline-title {
+    font-size: 1.28rem;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-offline-rewards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-offline-reward-cell {
+    padding: 8px;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-offline-reward-icon {
+    font-size: 1.08rem;
+  }
+
+  .app-shell-root--forge-light-v2 .fl-offline-reward-value {
+    font-size: 1rem;
+  }
 }

@@ -23,7 +23,7 @@ export const FORGE_MODE_TOOLTIPS = {
   },
 };
 
-export const FORGE_MODE_ORDER = ["upgrade", "polish", "reforge", "ascend", "extract"];
+export const FORGE_MODE_ORDER = ["upgrade", "polish", "reforge", "ascend"];
 export const RUN_MODE_ORDER = ["extract"];
 
 export const FORGE_MODE_META = {

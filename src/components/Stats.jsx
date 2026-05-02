@@ -813,7 +813,7 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
   };
 
   return (
-    <div className="stats-root" {...{ style: { padding: 0, display: "flex", flexDirection: "column", gap: "12px", color: "var(--color-text-primary, #1e293b)" } }}>
+    <div className="stats-root stats-root-shell">
       {isLab && (
         <section {...{ style: { display: "grid", gridTemplateColumns: "1fr", gap: "10px" } }}>
           <div {...{ style: lightPanelStyle }}>
@@ -837,24 +837,12 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
               </div>
             </div>
             <HorizontalOptionSelector
-              rootStyle={{ marginTop: "10px" }}
+              className="stats-lab-focus-selector"
+              variant="chips"
               options={LAB_FOCUS_OPTIONS}
               selectedId={labFocus}
               onSelect={option => setLabFocus(option.id)}
               getOptionId={option => option.id}
-              getArrowButtonStyle={({ disabled }) => ({
-                ...focusChipButtonStyle(false),
-                minWidth: "34px",
-                padding: "4px 0",
-                opacity: disabled ? 0.45 : 1,
-                cursor: disabled ? "not-allowed" : "pointer",
-              })}
-              getOptionButtonStyle={({ selected }) => ({
-                ...focusChipButtonStyle(selected),
-                textAlign: "center",
-                padding: "6px 9px",
-                flexShrink: 0,
-              })}
               renderOption={({ option }) => (
                 <span {...{ style: { fontSize: "0.66rem", fontWeight: "900" } }}>{option.label}</span>
               )}
@@ -1013,47 +1001,21 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
           <>
             <div {...{ style: { display: "grid", gap: "8px", marginTop: "10px", marginBottom: "10px" } }}>
               <HorizontalOptionSelector
-                rootStyle={{}}
+                variant="chips"
                 options={TELEMETRY_VIEW_OPTIONS}
                 selectedId={analyticsReportMode}
                 onSelect={option => setAnalyticsReportMode(option.id)}
                 getOptionId={option => option.id}
-                getArrowButtonStyle={({ disabled }) => ({
-                  ...focusChipButtonStyle(false),
-                  minWidth: "30px",
-                  padding: "3px 0",
-                  opacity: disabled ? 0.45 : 1,
-                  cursor: disabled ? "not-allowed" : "pointer",
-                })}
-                getOptionButtonStyle={({ selected }) => ({
-                  ...focusChipButtonStyle(selected),
-                  textAlign: "center",
-                  padding: "5px 8px",
-                  flexShrink: 0,
-                })}
                 renderOption={({ option }) => (
                   <span {...{ style: { fontSize: "0.62rem", fontWeight: "900" } }}>{option.label}</span>
                 )}
               />
               <HorizontalOptionSelector
-                rootStyle={{}}
+                variant="chips"
                 options={PAYLOAD_VIEW_OPTIONS}
                 selectedId={analyticsPayloadMode}
                 onSelect={option => setAnalyticsPayloadMode(option.id)}
                 getOptionId={option => option.id}
-                getArrowButtonStyle={({ disabled }) => ({
-                  ...focusChipButtonStyle(false),
-                  minWidth: "30px",
-                  padding: "3px 0",
-                  opacity: disabled ? 0.45 : 1,
-                  cursor: disabled ? "not-allowed" : "pointer",
-                })}
-                getOptionButtonStyle={({ selected }) => ({
-                  ...focusChipButtonStyle(selected),
-                  textAlign: "center",
-                  padding: "5px 8px",
-                  flexShrink: 0,
-                })}
                 renderOption={({ option }) => (
                   <span {...{ style: { fontSize: "0.62rem", fontWeight: "900" } }}>{option.label}</span>
                 )}
@@ -1437,47 +1399,21 @@ export default function Stats({ state, dispatch, mode = "stats" }) {
           <>
             <div {...{ style: { display: "grid", gap: "8px", marginTop: "10px", marginBottom: "10px" } }}>
               <HorizontalOptionSelector
-                rootStyle={{}}
+                variant="chips"
                 options={TELEMETRY_VIEW_OPTIONS}
                 selectedId={analyticsReportMode}
                 onSelect={option => setAnalyticsReportMode(option.id)}
                 getOptionId={option => option.id}
-                getArrowButtonStyle={({ disabled }) => ({
-                  ...focusChipButtonStyle(false),
-                  minWidth: "30px",
-                  padding: "3px 0",
-                  opacity: disabled ? 0.45 : 1,
-                  cursor: disabled ? "not-allowed" : "pointer",
-                })}
-                getOptionButtonStyle={({ selected }) => ({
-                  ...focusChipButtonStyle(selected),
-                  textAlign: "center",
-                  padding: "5px 8px",
-                  flexShrink: 0,
-                })}
                 renderOption={({ option }) => (
                   <span {...{ style: { fontSize: "0.62rem", fontWeight: "900" } }}>{option.label}</span>
                 )}
               />
               <HorizontalOptionSelector
-                rootStyle={{}}
+                variant="chips"
                 options={PAYLOAD_VIEW_OPTIONS}
                 selectedId={analyticsPayloadMode}
                 onSelect={option => setAnalyticsPayloadMode(option.id)}
                 getOptionId={option => option.id}
-                getArrowButtonStyle={({ disabled }) => ({
-                  ...focusChipButtonStyle(false),
-                  minWidth: "30px",
-                  padding: "3px 0",
-                  opacity: disabled ? 0.45 : 1,
-                  cursor: disabled ? "not-allowed" : "pointer",
-                })}
-                getOptionButtonStyle={({ selected }) => ({
-                  ...focusChipButtonStyle(selected),
-                  textAlign: "center",
-                  padding: "5px 8px",
-                  flexShrink: 0,
-                })}
                 renderOption={({ option }) => (
                   <span {...{ style: { fontSize: "0.62rem", fontWeight: "900" } }}>{option.label}</span>
                 )}
@@ -1574,17 +1510,17 @@ function MetricPill({ label, value }) {
 }
 
 const lightPanelStyle = {
-  background: "var(--fl2-surface-bg, var(--color-surface-overlay, rgba(255,255,255,0.92)))",
+  background: "var(--fl-surface-bg, var(--color-surface-overlay, rgba(255,255,255,0.92)))",
   padding: "0.9rem",
   borderRadius: "16px",
-  border: "1px solid var(--fl2-surface-border, var(--color-border-secondary, #dbe7e3))",
-  boxShadow: "var(--fl2-surface-shadow, 0 8px 24px var(--color-shadow, rgba(15,23,42,0.05)))",
+  border: "1px solid var(--fl-surface-border, var(--color-border-secondary, #dbe7e3))",
+  boxShadow: "var(--fl-surface-shadow, 0 8px 24px var(--color-shadow, rgba(15,23,42,0.05)))",
   backdropFilter: "blur(8px)",
 };
 
 const tableStyle = {
-  background: "var(--fl2-surface-bg-soft, var(--color-background-tertiary, #f8fafc))",
-  border: "1px solid var(--fl2-surface-border, var(--color-border-primary, #e2e8f0))",
+  background: "var(--fl-surface-bg-soft, var(--color-background-tertiary, #f8fafc))",
+  border: "1px solid var(--fl-surface-border, var(--color-border-primary, #e2e8f0))",
   borderRadius: "10px",
   padding: "0 10px",
 };
@@ -1630,18 +1566,6 @@ const pillStyle = (background, color, border) => ({
   background,
   color,
   border,
-});
-
-const focusChipButtonStyle = active => ({
-  border: "1px solid",
-  borderColor: active ? "var(--tone-accent, #4338ca)" : "var(--color-border-primary, #cbd5e1)",
-  background: active ? "var(--tone-accent-soft, #eef2ff)" : "var(--color-background-secondary, #ffffff)",
-  color: active ? "var(--tone-accent, #4338ca)" : "var(--color-text-secondary, #475569)",
-  borderRadius: "999px",
-  padding: "6px 9px",
-  fontSize: "0.62rem",
-  fontWeight: "900",
-  cursor: "pointer",
 });
 
 const actionBtnStyle = (background, color, border = "none") => ({

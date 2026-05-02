@@ -1,86 +1,73 @@
 .app-shell-root--forge-light-v2 {
-  --fl2-rarity-color: var(--fl2-gold);
+  --fl-rarity-color: var(--fl-gold-glow);
 }
 
-.app-shell-root--forge-light-v2 .fl2-rarity-badge,
-.app-shell-root--forge-light-v2 :where(.fl-badge--rarity, .fl-crafting-item-rarity),
-.app-shell-root--forge-light-v2 .fl-inventory-rarity-badge {
+.app-shell-root--forge-light-v2 .fl-rarity-badge,
+.app-shell-root--forge-light-v2 :where(.fl-badge--rarity, .fl-crafting-item-rarity) {
   display: inline-flex !important;
   align-items: center !important;
   padding: 4px 10px !important;
-  border: 1px solid var(--inventory-rarity-color, var(--fl2-rarity-color)) !important;
-  border-radius: var(--fl2-radius-sm) !important;
+  border: 1px solid var(--inventory-rarity-color, var(--fl-rarity-color)) !important;
+  border-radius: var(--fl-radius-sm) !important;
   background: rgba(13, 17, 24, 0.92) !important;
-  color: var(--inventory-rarity-color, var(--fl2-rarity-color)) !important;
-  font-family: var(--fl2-font-ui) !important;
+  color: var(--inventory-rarity-color, var(--fl-rarity-color)) !important;
+  font-family: var(--fl-font-ui) !important;
   font-size: 0.62rem !important;
   font-weight: 800 !important;
   letter-spacing: 0.13em !important;
   line-height: 1 !important;
   text-transform: uppercase !important;
   white-space: nowrap !important;
+  clip-path: none !important;
 }
 
-.app-shell-root--forge-light-v2 .fl2-rarity-badge--common {
-  --fl2-rarity-color: var(--fl2-rarity-common);
+.app-shell-root--forge-light-v2 .fl-badge--rarity.fl-badge--xs {
+  min-height: 16px !important;
+  padding: 1px 6px !important;
+  font-size: 0.56rem !important;
+  letter-spacing: 0 !important;
 }
 
 .app-shell-root--forge-light-v2 :where(.fl-rarity--common, [data-rarity="common"]) {
-  --fl2-rarity-color: var(--fl2-rarity-common);
-}
-
-.app-shell-root--forge-light-v2 .fl2-rarity-badge--magic {
-  --fl2-rarity-color: var(--fl2-rarity-magic);
+  --fl-rarity-color: var(--fl-rarity-common);
 }
 
 .app-shell-root--forge-light-v2 :where(.fl-rarity--magic, [data-rarity="magic"]) {
-  --fl2-rarity-color: var(--fl2-rarity-magic);
-}
-
-.app-shell-root--forge-light-v2 .fl2-rarity-badge--rare {
-  --fl2-rarity-color: var(--fl2-rarity-rare);
+  --fl-rarity-color: var(--fl-rarity-magic);
 }
 
 .app-shell-root--forge-light-v2 :where(.fl-rarity--rare, [data-rarity="rare"]) {
-  --fl2-rarity-color: var(--fl2-rarity-rare);
-}
-
-.app-shell-root--forge-light-v2 .fl2-rarity-badge--epic {
-  --fl2-rarity-color: var(--fl2-rarity-epic);
+  --fl-rarity-color: var(--fl-rarity-rare);
 }
 
 .app-shell-root--forge-light-v2 :where(.fl-rarity--epic, [data-rarity="epic"]) {
-  --fl2-rarity-color: var(--fl2-rarity-epic);
-}
-
-.app-shell-root--forge-light-v2 .fl2-rarity-badge--legendary {
-  --fl2-rarity-color: var(--fl2-rarity-legendary);
+  --fl-rarity-color: var(--fl-rarity-epic);
 }
 
 .app-shell-root--forge-light-v2 :where(.fl-rarity--legendary, [data-rarity="legendary"]) {
-  --fl2-rarity-color: var(--fl2-rarity-legendary);
+  --fl-rarity-color: var(--fl-rarity-legendary);
 }
 
-.app-shell-root--forge-light-v2 .fl2-loot-badge {
+.app-shell-root--forge-light-v2 .fl-loot-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  color: var(--fl2-text);
+  color: var(--fl-text-primary);
   background: rgba(13, 17, 24, 0.9);
-  border: 1px solid var(--fl2-rarity-color);
-  border-radius: var(--fl2-radius-sm);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--fl2-rarity-color) 22%, transparent);
+  border: 1px solid var(--fl-rarity-color);
+  border-radius: var(--fl-radius-sm);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--fl-rarity-color) 22%, transparent);
 }
 
-.app-shell-root--forge-light-v2 :where(.fl-inventory-row-art, .fl-inventory-equipped-art, .fl-crafting-item-art, .best-drop-frame) {
-  border-color: var(--inventory-rarity-color, var(--fl2-gold-muted)) !important;
-  box-shadow: 0 0 14px color-mix(in srgb, var(--inventory-rarity-color, var(--fl2-gold)) 28%, transparent) !important;
+.app-shell-root--forge-light-v2 :where(.fl-inventory-row-art, .fl-inventory-equipped-art, .best-drop-frame) {
+  border-color: var(--inventory-rarity-color, var(--fl-gold-muted)) !important;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--inventory-rarity-color, var(--fl-gold-glow)) 28%, transparent) !important;
 }
 
 .app-shell-root--forge-light-v2 :where(.fl-inventory-stat-pill, .fl-inventory-compare-pill, .afix-chip) {
   background: rgba(13, 17, 24, 0.86) !important;
   border: 1px solid rgba(198, 161, 91, 0.25) !important;
-  border-radius: var(--fl2-radius-sm) !important;
-  color: var(--fl2-text-secondary) !important;
+  border-radius: var(--fl-radius-sm) !important;
+  color: var(--fl-text-secondary) !important;
 }

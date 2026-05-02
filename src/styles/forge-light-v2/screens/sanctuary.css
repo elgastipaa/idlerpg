@@ -1,92 +1,149 @@
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .fl-sanctuary-hero {
-  color: var(--fl2-text) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-root {
+  display: grid;
+  gap: calc(0.5rem * var(--density-scale, 1));
+  color: var(--fl-text-primary);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .fl-sanctuary-row + .fl-sanctuary-row {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-hero-cta {
+  min-height: 30px !important;
+  min-width: 0;
+  padding: 6px 10px !important;
+  gap: 5px;
+  font-size: 0.58rem !important;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-hero-cta .forge-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-row + .fl-sanctuary-row {
   border-top-color: rgba(198, 161, 91, 0.09) !important;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .fl-sanctuary-row-title,
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .fl-sanctuary-panel__title {
-  color: var(--fl2-text) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-row-title,
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-panel__title {
+  color: var(--fl-text-primary) !important;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .fl-sanctuary-row-icon {
-  border-color: var(--fl2-gold-muted) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-row-title--common {
+  color: var(--fl-rarity-common) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-row-title--magic {
+  color: var(--fl-rarity-magic) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-row-title--rare {
+  color: var(--fl-rarity-rare) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-row-title--epic {
+  color: var(--fl-rarity-epic) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-row-title--legendary {
+  color: var(--fl-rarity-legendary) !important;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-row-icon {
+  border-color: var(--fl-gold-muted) !important;
   background: rgba(13, 17, 24, 0.78) !important;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-expedition-cta .fl-sanctuary-cta-button {
+  min-width: 210px;
+}
+
+@media (max-width: 760px) {
+  .app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-hero-cta {
+    min-height: 28px !important;
+    padding: 5px 8px !important;
+    font-size: 0.54rem !important;
+  }
+
+  .app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-expedition-cta .fl-sanctuary-cta-button {
+    min-width: 0;
+    width: min(74vw, 250px);
+  }
+
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector {
   display: grid;
   gap: 12px;
   padding: 16px;
-  color: var(--fl2-text);
-  background: var(--fl2-surface-bg);
-  border: 1px solid var(--fl2-surface-border);
-  border-top: 3px solid var(--fl2-defense);
-  border-radius: var(--fl2-radius-lg);
-  box-shadow: var(--fl2-surface-shadow);
+  color: var(--fl-text-primary);
+  background: var(--fl-surface-bg);
+  border: 1px solid var(--fl-surface-border);
+  border-top: 3px solid var(--fl-defense);
+  border-radius: var(--fl-radius-lg);
+  box-shadow: var(--fl-surface-shadow);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector--choosing {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector--choosing {
   animation: fl2SpotlightPulse 1600ms ease-in-out infinite;
   box-shadow:
     0 0 0 2px rgba(74, 143, 231, 0.14),
     0 12px 30px rgba(74, 143, 231, 0.16),
-    var(--fl2-surface-shadow);
+    var(--fl-surface-shadow);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector__eyebrow {
-  color: var(--fl2-defense);
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector__eyebrow {
+  color: var(--fl-defense);
   font-size: 0.62rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector__copy {
-  color: var(--fl2-text-secondary);
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector__copy {
+  color: var(--fl-text-secondary);
   font-size: 0.74rem;
   line-height: 1.45;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector__grid {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector--mobile:not(.sanctuary-class-selector--choosing) .sanctuary-class-selector__grid {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector--mobile:not(.sanctuary-class-selector--choosing) .sanctuary-class-selector__grid {
   grid-template-columns: 1fr;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector--narrow .sanctuary-class-selector__grid {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector--narrow .sanctuary-class-selector__grid {
   gap: 8px;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector__option {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector__option {
   position: relative;
   z-index: 1;
   display: grid;
   gap: 8px;
   padding: 14px;
-  color: var(--fl2-text);
+  color: var(--fl-text-primary);
   text-align: left;
   cursor: pointer;
   background:
     radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.04), transparent 24%),
     linear-gradient(180deg, rgba(8, 10, 11, 0.58), rgba(5, 8, 10, 0.54));
   border: 1px solid rgba(198, 161, 91, 0.2);
-  border-radius: var(--fl2-radius-lg);
-  box-shadow: var(--fl2-surface-shadow);
+  border-radius: var(--fl-radius-lg);
+  box-shadow: var(--fl-surface-shadow);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector--narrow.sanctuary-class-selector--choosing .sanctuary-class-selector__option {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector--narrow.sanctuary-class-selector--choosing .sanctuary-class-selector__option {
   gap: 6px;
   padding: 10px;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector--choosing .sanctuary-class-selector__option {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector--choosing .sanctuary-class-selector__option {
   z-index: 2;
   transform: translateY(-1px);
   animation: fl2SpotlightPulse 1600ms ease-in-out infinite;
@@ -94,66 +151,207 @@
     0 0 0 2px rgba(74, 143, 231, 0.22),
     0 0 0 8px rgba(74, 143, 231, 0.08),
     0 16px 36px rgba(74, 143, 231, 0.22),
-    var(--fl2-surface-shadow);
+    var(--fl-surface-shadow);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector__option-head {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector__option-head {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector__icon {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector__icon {
   font-size: 1.4rem;
   line-height: 1;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector--narrow.sanctuary-class-selector--choosing .sanctuary-class-selector__icon {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector--narrow.sanctuary-class-selector--choosing .sanctuary-class-selector__icon {
   font-size: 1.1rem;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector__option-title-wrap {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector__option-title-wrap {
   min-width: 0;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector__option-title {
-  color: var(--fl2-text);
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector__option-title {
+  color: var(--fl-text-primary);
   font-size: 0.92rem;
   font-weight: 900;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector--narrow.sanctuary-class-selector--choosing .sanctuary-class-selector__option-title {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector--narrow.sanctuary-class-selector--choosing .sanctuary-class-selector__option-title {
   font-size: 0.8rem;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector__option-meta {
-  color: var(--fl2-text-muted);
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector__option-meta {
+  color: var(--fl-text-muted);
   font-size: 0.62rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector--narrow.sanctuary-class-selector--choosing .sanctuary-class-selector__option-meta {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector--narrow.sanctuary-class-selector--choosing .sanctuary-class-selector__option-meta {
   font-size: 0.56rem;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector__option-desc {
-  color: var(--fl2-text-secondary);
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector__option-desc {
+  color: var(--fl-text-secondary);
   font-size: 0.72rem;
   line-height: 1.4;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector--narrow.sanctuary-class-selector--choosing .sanctuary-class-selector__option-desc {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector--narrow.sanctuary-class-selector--choosing .sanctuary-class-selector__option-desc {
   font-size: 0.64rem;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector__option-note {
-  color: var(--fl2-gold);
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector__option-note {
+  color: var(--fl-gold-glow);
   font-size: 0.66rem;
   font-weight: 900;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="sanctuary"] .sanctuary-class-selector--narrow.sanctuary-class-selector--choosing .sanctuary-class-selector__option-note {
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .sanctuary-class-selector--narrow.sanctuary-class-selector--choosing .sanctuary-class-selector__option-note {
   font-size: 0.6rem;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-overlay-loading {
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 900;
+  color: var(--fl-text-secondary);
+  background: var(--fl-bg-card);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-station-view {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-station-view .overlay-shell--embedded,
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-station-view .overlay-shell__surface--embedded {
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-root.fl-sanctuary-root--station-open {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-root.fl-sanctuary-root--station-open .overlay-station-body--forge-crafting {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-root.fl-sanctuary-root--station-open .crafting-root--forge-light {
+    padding-left: var(--fl-screen-edge-pad, 4px) !important;
+    padding-right: var(--fl-screen-edge-pad, 4px) !important;
+  }
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-state {
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: var(--fl-radius-md);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-card--accent {
+  border-top: 3px solid var(--fl-arcane);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-card--info {
+  border-top: 3px solid var(--fl-defense);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-copy--lg-gap {
+  gap: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-eyebrow {
+  font-size: 0.62rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-eyebrow--accent {
+  color: var(--fl-arcane);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-eyebrow--info {
+  color: var(--fl-defense);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-title {
+  font-size: 1rem;
+  font-weight: 900;
+  color: var(--fl-text-primary);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-subtitle {
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: var(--fl-text-primary);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-body {
+  font-size: 0.74rem;
+  color: var(--fl-text-secondary);
+  line-height: 1.45;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-note {
+  font-size: 0.68rem;
+  font-weight: 900;
+  color: var(--fl-arcane);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-cta {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-cta-button {
+  border: 1px solid var(--fl-arcane);
+  background: color-mix(in srgb, var(--fl-arcane) 14%, transparent);
+  color: var(--fl-arcane);
+  border-radius: var(--fl-radius-md);
+  padding: 7px 10px;
+  font-size: 0.7rem;
+  line-height: 1.15;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 0 0 2px rgba(83, 74, 183, 0.16), 0 12px 28px rgba(83, 74, 183, 0.14);
+  animation: sanctuarySpotlightPulse 1600ms ease-in-out infinite;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="sanctuary"] .fl-sanctuary-empty-loading {
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: var(--fl-text-secondary);
+}
+
+@keyframes sanctuarySpotlightPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px rgba(83, 74, 183, 0.16), 0 12px 28px rgba(83, 74, 183, 0.14);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(83, 74, 183, 0.18), 0 16px 34px rgba(83, 74, 183, 0.22);
+  }
 }

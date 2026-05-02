@@ -37,6 +37,7 @@ function unlockBodyScroll() {
 export function OverlaySurface({
   isMobile = false,
   variant = "default",
+  embedded = false,
   maxWidth = "1220px",
   paddingMobile = "12px 10px 16px",
   paddingDesktop = "14px 14px 16px",
@@ -59,6 +60,7 @@ export function OverlaySurface({
     <div
       className={[
         "overlay-shell__surface",
+        embedded ? "overlay-shell__surface--embedded" : "",
         variant !== "default" ? `overlay-shell__surface--${variant}` : "",
         className,
       ].filter(Boolean).join(" ")}
@@ -74,6 +76,7 @@ export default function OverlayShell({
   isMobile = false,
   mode = "soft",
   variant = "default",
+  embedded = false,
   className = "",
   respectHeader = mode === "soft",
   blockBackgroundScroll = true,
@@ -98,13 +101,13 @@ export default function OverlayShell({
   );
 
   useEffect(() => {
-    if (!blockBackgroundScroll) return undefined;
+    if (embedded || !blockBackgroundScroll) return undefined;
     lockBodyScroll();
     return () => unlockBodyScroll();
-  }, [blockBackgroundScroll]);
+  }, [blockBackgroundScroll, embedded]);
 
   useEffect(() => {
-    if (!closeOnEscape || typeof onDismiss !== "function") return undefined;
+    if (embedded || !closeOnEscape || typeof onDismiss !== "function") return undefined;
     const handleKeyDown = event => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -116,6 +119,7 @@ export default function OverlayShell({
   }, [closeOnEscape, onDismiss]);
 
   const handleBackdropClick = event => {
+    if (embedded) return;
     if (!dismissOnBackdrop || typeof onDismiss !== "function") return;
     if (event.target !== event.currentTarget) return;
     onDismiss();
@@ -131,14 +135,15 @@ export default function OverlayShell({
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
+      role={embedded ? "region" : "dialog"}
+      aria-modal={embedded ? undefined : "true"}
       aria-label={contentLabel}
       data-overlay-shell-mode={mode}
       data-overlay-shell-variant={variant}
       onClick={handleBackdropClick}
       className={[
         "overlay-shell",
+        embedded ? "overlay-shell--embedded" : "",
         variant !== "default" ? `overlay-shell--${variant}` : "",
         className,
       ].filter(Boolean).join(" ")}

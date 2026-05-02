@@ -1,76 +1,1107 @@
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] :where(
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] :where(
   .expedition-root,
   .expedition-root--inventory,
   .expedition-root--inventory-mobile,
   .expedition-subview-content
 ) {
-  background: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .fl-inventory-header {
-  border-bottom-color: var(--fl2-gold-muted) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] :where(.fl-inventory-equipped-name, .fl-inventory-row-name-line) {
+  color: var(--fl-text-primary);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] :where(.fl-inventory-title, .fl-inventory-filter-title, .fl-inventory-equipped-name, .fl-inventory-row-name-line) {
-  color: var(--fl2-text) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] :where(.fl-inventory-row-family, .fl-inventory-detail-hint) {
+  color: var(--fl-text-muted);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] :where(.fl-inventory-subtitle, .fl-inventory-filter-copy, .fl-inventory-row-family, .fl-inventory-detail-hint) {
-  color: var(--fl2-text-muted) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-row-stats-wrap {
+  border-top-color: rgba(198, 161, 91, 0.12);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .fl-inventory-row-stats-wrap {
-  border-top-color: rgba(198, 161, 91, 0.12) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-rule-panel,
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-bulk-panel-card {
+  background: rgba(13, 17, 24, 0.56);
+  border-color: var(--fl-panel-border);
+  box-shadow: var(--fl-shadow-card);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .fl-inventory-loot-rule-card,
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .fl-inventory-bulk-card {
-  background: rgba(13, 17, 24, 0.56) !important;
-  border-color: var(--inventory-rarity-color, var(--fl2-gold-muted)) !important;
-  box-shadow: 0 0 12px color-mix(in srgb, var(--inventory-rarity-color, var(--fl2-gold)) 16%, transparent) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light {
+  --inventory-fl-panel: rgba(7, 10, 11, 0.58);
+  --inventory-fl-panel-2: rgba(15, 18, 19, 0.52);
+  background: transparent;
+  box-shadow: none;
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light {
-  --inventory-fl-panel: rgba(7, 10, 11, 0.58) !important;
-  --inventory-fl-panel-2: rgba(15, 18, 19, 0.52) !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light > section[style*="background"] {
-  color: var(--fl2-text) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light > section[style*="background"] {
+  color: var(--fl-text-primary);
   background:
     radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.05), transparent 24%),
-    linear-gradient(180deg, rgba(8, 10, 11, 0.42), rgba(5, 8, 10, 0.38)) !important;
-  border-color: rgba(198, 161, 91, 0.22) !important;
-  box-shadow: var(--fl2-surface-shadow) !important;
+    linear-gradient(180deg, rgba(8, 10, 11, 0.42), rgba(5, 8, 10, 0.38));
+  border-color: rgba(198, 161, 91, 0.22);
+  box-shadow: var(--fl-surface-shadow);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-equipped-card,
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-loot-filter,
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-loot-rule-card,
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-row-card,
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-bulk-card {
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light .fl-inventory-equipped-card,
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light .fl-inventory-loot-rule-panel,
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light .fl-inventory-row-card,
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light .fl-inventory-bulk-panel-card {
   background:
     radial-gradient(circle at 8% 18%, rgba(243, 198, 95, 0.055), transparent 32%),
-    linear-gradient(180deg, rgba(13, 16, 17, 0.42), rgba(5, 8, 10, 0.38)) !important;
-  border-color: rgba(198, 161, 91, 0.24) !important;
-  box-shadow: var(--fl2-surface-shadow) !important;
+    linear-gradient(180deg, rgba(13, 16, 17, 0.42), rgba(5, 8, 10, 0.38));
+  border-color: var(--fl-panel-border);
+  box-shadow: var(--fl-surface-shadow);
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-equipped-art,
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-row-art-button {
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light .fl-inventory-equipped-art,
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light .fl-inventory-row-art-button {
   background:
-    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--inventory-rarity-color, var(--fl2-gold)) 16%, transparent), transparent 54%),
-    linear-gradient(180deg, rgba(17, 19, 19, 0.48), rgba(3, 5, 6, 0.44)) !important;
+    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--inventory-rarity-color, var(--fl-gold-glow)) 16%, transparent), transparent 54%),
+    linear-gradient(180deg, rgba(17, 19, 19, 0.48), rgba(3, 5, 6, 0.44));
 }
 
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-filter-pills span,
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-filter-presets button,
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-loot-rule-card button,
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-row-action,
-.app-shell-root--forge-light-v2[data-fl2-screen="inventory"] .inventory-root--forge-light .fl-inventory-gear-button {
-  background: rgba(8, 10, 10, 0.48) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light .fl-inventory-filter-pills span,
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light .fl-inventory-filter-presets button,
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light .fl-inventory-loot-rule-panel button,
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light .fl-inventory-row-action,
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light .fl-inventory-gear-button {
+  background: rgba(8, 10, 10, 0.48);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light .fl-inventory-empty-state {
+  margin-top: 4px;
+  min-height: 182px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-hero {
+  margin-bottom: 10px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-section-title {
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-hero .fl-screen-header__subtitle {
+  margin-top: 2px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--fl-text-muted);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-hero-cta {
+  min-width: 132px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-overflow-note {
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-overflow-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-overflow-eyebrow {
+  font-size: 0.58rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fl-warning);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-overflow-title {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: var(--fl-text-primary);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-overflow-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-overflow-copy {
+  font-size: 0.64rem;
+  color: var(--fl-text-secondary);
+  line-height: 1.45;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-overflow-summary {
+  font-size: 0.62rem;
+  color: var(--fl-text-muted);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-section-title {
+  margin: 0;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-equipped-list,
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-item-grid {
+  gap: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] :where(.fl-inventory-equipped-panel, .fl-inventory-loot-filter-panel) {
+  margin-bottom: 0.8rem;
+  border-radius: 12px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light :where(.fl-inventory-equipped-panel, .fl-inventory-loot-filter-panel) {
+  background: var(--fl-texture-noise), linear-gradient(180deg, #131a1f 0%, #0b1117 100%);
+  border: 1px solid var(--fl-border-dark);
+  box-shadow: var(--fl-shadow-card);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] :where(.fl-inventory-equipped-panel, .fl-inventory-loot-filter-panel) .fl-panel__header {
+  padding: 10px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-equipped-panel .fl-panel__body {
+  padding: 10px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-filter-panel .fl-panel__body {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-gear-button {
+  min-height: 30px;
+  padding-inline: 10px;
+  clip-path: none;
+  border-radius: var(--fl-radius-sm);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] :where(.fl-inventory-filter-pills, .fl-inventory-filter-presets) {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-filter-summary {
+  font-size: 0.6rem;
+  color: var(--fl-text-secondary);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-filter-summary--muted {
+  color: var(--fl-text-muted);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-filter-rarity-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  grid-template-columns: none;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-rule-panel {
+  min-width: 92px;
+  flex: 0 0 92px;
+  overflow: hidden;
+  padding: 0;
+  border-radius: var(--fl-radius-sm);
+  clip-path: none;
+  box-shadow: var(--fl-shadow-card);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-rule-head {
+  min-width: 0;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-rarity-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-rule-panel .fl-panel__header {
+  padding: 7px 8px;
+  border-bottom-color: var(--fl-panel-border-soft);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-rule-panel .fl-panel__body {
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+  background: transparent;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-rule-actions {
+  display: grid;
+  gap: 4px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-rule-action {
+  border: 1px solid var(--fl-gold-muted);
+  background: rgba(8, 10, 10, 0.48);
+  color: var(--fl-text-secondary);
+  border-radius: 8px;
+  padding: 5px 0;
+  font-size: 0.56rem;
+  font-weight: 900;
+  width: 100%;
+  text-align: center;
+  line-height: 1;
+  cursor: pointer;
+  clip-path: none;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-rule-action.is-active {
+  color: var(--fl-text-primary);
+  border-color: var(--fl-gold-border);
+  box-shadow: var(--fl-glow-gold-soft);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-rule-action--sell.is-active {
+  color: color-mix(in srgb, var(--fl-danger) 88%, #ffd5d5);
+  border-color: color-mix(in srgb, var(--fl-danger) 65%, transparent);
+  box-shadow: var(--fl-glow-danger);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light .fl-inventory-filter-pills :where(.fl-tag, span),
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light .fl-inventory-filter-presets :where(.fl-button, button) {
+  clip-path: none;
+  border-radius: var(--fl-radius-sm);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .inventory-root--forge-light .fl-inventory-loot-rule-panel::after {
+  content: none;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-list-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-visible-count {
+  font-size: 0.66rem;
+  color: var(--fl-text-muted);
+  font-weight: 800;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-bulk-panel {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 0.8rem;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-bulk-caption {
+  font-size: 0.64rem;
+  color: var(--fl-text-secondary);
+  font-weight: 900;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-bulk-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-bulk-panel-card {
+  width: 100%;
+  appearance: none;
+  border-radius: 10px;
+  font-size: 0.58rem;
+  font-weight: 900;
+  display: block;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-bulk-panel-card .fl-panel__header {
+  padding: 6px 7px 5px;
+  border-bottom-color: var(--fl-panel-border-soft);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-bulk-panel-card .fl-panel__body {
+  padding: 7px;
+  display: grid;
+  gap: 4px;
+  align-items: center;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-bulk-panel-card.is-empty {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-bulk-panel-card.is-pending {
+  border-color: color-mix(in srgb, var(--fl-danger) 65%, transparent);
+  box-shadow: var(--fl-glow-danger);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-rule-panel[data-rarity="common"],
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-bulk-panel-card[data-rarity="common"] { --inventory-rarity-color: var(--fl-rarity-common); }
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-rule-panel[data-rarity="magic"],
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-bulk-panel-card[data-rarity="magic"] { --inventory-rarity-color: var(--fl-rarity-magic); }
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-rule-panel[data-rarity="rare"],
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-bulk-panel-card[data-rarity="rare"] { --inventory-rarity-color: var(--fl-rarity-rare); }
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-rule-panel[data-rarity="epic"],
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-bulk-panel-card[data-rarity="epic"] { --inventory-rarity-color: var(--fl-rarity-epic); }
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-bulk-value {
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-bulk-gold {
+  font-size: 0.56rem;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-pagination-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 7000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, var(--inventory-loot-backdrop-alpha, 0.55));
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-backdrop.is-mobile {
+  align-items: flex-end;
+  padding: 0;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-card {
+  width: min(720px, 100%);
+  max-height: 82vh;
+  border-radius: 18px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-card.is-mobile {
+  width: 100%;
+  max-height: 88vh;
+  border-radius: 18px 18px 0 0;
+  transform: translateY(var(--inventory-loot-sheet-offset, 0px));
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-card.is-mobile.is-dragging {
+  transition: none;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-drag-handle-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-drag-handle {
+  width: 42px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.65);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-title {
+  font-size: 0.95rem;
+  font-weight: 900;
+  color: var(--fl-text-primary);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-copy {
+  margin-top: 4px;
+  font-size: 0.64rem;
+  color: var(--fl-text-secondary);
+  line-height: 1.4;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-close {
+  border: 1px solid var(--fl-gold-muted);
+  background: var(--fl-bg-card-deep);
+  color: var(--fl-text-primary);
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-body {
+  display: grid;
+  gap: 10px;
+  max-height: 58vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-backdrop.is-mobile .fl-inventory-loot-modal-body {
+  max-height: 70vh;
+  padding-right: 0;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-section {
+  background: var(--fl-surface-bg-soft);
+  border: 1px solid var(--fl-surface-border);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-section-title {
+  font-size: 0.58rem;
+  color: var(--fl-text-muted);
+  text-transform: uppercase;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-chip-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-chip-row--selected {
+  margin-bottom: 10px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-modal-pill {
+  border: 1px solid var(--fl-gold-muted);
+  background: rgba(8, 10, 10, 0.48);
+  color: var(--fl-text-secondary);
+  border-radius: 999px;
+  padding: 6px 9px;
+  font-size: 0.62rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-modal-pill.is-active,
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-modal-pill--success {
+  border-color: color-mix(in srgb, var(--fl-success) 52%, transparent);
+  color: var(--fl-success);
+  box-shadow: var(--fl-glow-success);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-empty {
+  font-size: 0.62rem;
+  color: var(--fl-text-muted);
+  font-weight: 800;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-help {
+  margin-top: 8px;
+  font-size: 0.62rem;
+  color: var(--fl-text-secondary);
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-help--mb {
+  margin: 0 0 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-loot-modal-clear {
+  border: none;
+  background: none;
+  color: var(--fl-defense);
+  font-size: 0.62rem;
+  font-weight: 900;
+  cursor: pointer;
+  padding: 0;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-item-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 7000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding:
+    calc(var(--app-header-offset, 62px) + 12px)
+    18px
+    calc(var(--app-bottom-nav-offset, 0px) + env(safe-area-inset-bottom) + 14px);
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-item-detail-modal {
+  position: relative;
+  width: min(468px, 100%);
+  max-height: calc(
+    100dvh -
+    var(--app-header-offset, 62px) -
+    var(--app-bottom-nav-offset, 0px) -
+    env(safe-area-inset-bottom) -
+    26px
+  );
+  display: flex;
+  flex-direction: column;
+  background:
+    var(--fl-texture-leather),
+    linear-gradient(90deg, rgba(198, 161, 91, 0.03), transparent 30%),
+    linear-gradient(135deg, var(--fl-bg-card), var(--fl-bg-surface) 58%, var(--fl-bg-card-deep));
+  border: 1px solid var(--fl-border-dark);
+  border-radius: var(--fl-radius-lg);
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.86),
+    inset 0 0 0 1px rgba(198, 161, 91, 0.22),
+    inset 0 1px 0 rgba(255, 236, 184, 0.07),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.56),
+    0 24px 60px rgba(0, 0, 0, 0.68),
+    var(--fl-glow-gold-soft);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-item-detail-modal::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 8%;
+  right: 8%;
+  height: 1px;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 232, 160, 0.16), transparent);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid rgba(198, 161, 91, 0.24);
+  background: linear-gradient(180deg, rgba(198, 161, 91, 0.06) 0%, transparent 100%);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-frame {
+  width: 70px;
+  height: 70px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  border-radius: var(--fl-radius-md);
+  color: var(--fl-text-primary);
+  border: 2px solid rgba(198, 161, 91, 0.3);
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 236, 184, 0.075), transparent 32%),
+    var(--fl-texture-metal),
+    linear-gradient(180deg, #171e28, #080b10);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.82),
+    inset 0 0 0 1px rgba(198, 161, 91, 0.18),
+    inset 0 1px 0 rgba(255, 236, 184, 0.1),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.58),
+    0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-frame.rare {
+  border-color: var(--fl-rarity-rare);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.82), inset 0 0 0 1px rgba(74, 143, 231, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -2px 0 rgba(0, 0, 0, 0.58), 0 0 10px rgba(74, 143, 231, 0.22);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-frame.epic {
+  border-color: var(--fl-rarity-epic);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.82), inset 0 0 0 1px rgba(180, 85, 232, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -2px 0 rgba(0, 0, 0, 0.58), 0 0 13px rgba(180, 85, 232, 0.24);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-frame.legendary {
+  border-color: var(--fl-rarity-legendary);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.82), inset 0 0 0 1px rgba(242, 154, 46, 0.52), inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -2px 0 rgba(0, 0, 0, 0.58), 0 0 16px rgba(242, 154, 46, 0.28);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-identity {
+  min-width: 0;
+  flex: 1;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-top-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 5px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-level-chip {
+  font-family: var(--fl-font-display);
+  font-size: 12px;
+  color: var(--fl-gold-glow);
+  border: 1px solid rgba(0, 0, 0, 0.7);
+  border-radius: 3px;
+  padding: 2px 8px;
+  background: linear-gradient(180deg, rgba(198, 161, 91, 0.14), rgba(198, 161, 91, 0.05));
+  box-shadow: inset 0 0 0 1px rgba(198, 161, 91, 0.4);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-equip-chip {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fl-gold-glow);
+  border: 1px solid rgba(198, 161, 91, 0.52);
+  border-radius: 999px;
+  padding: 2px 6px;
+  background: rgba(198, 161, 91, 0.12);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-name {
+  margin-bottom: 3px;
+  color: var(--fl-text-primary);
+  font-family: var(--fl-font-display);
+  font-size: 1.06rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-sub {
+  margin-bottom: 6px;
+  color: var(--fl-text-muted);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-power {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-power-l {
+  color: var(--fl-gold-border);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-power-n {
+  color: var(--fl-text-primary);
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-power-delta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 15px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  line-height: 1;
+  font-size: 0.6rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-power-delta.pos {
+  color: var(--fl-success);
+  background: rgba(79, 209, 139, 0.12);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-power-delta.neg {
+  color: var(--fl-danger);
+  background: rgba(224, 90, 90, 0.12);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-power-delta.neu {
+  color: var(--fl-text-muted);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-close {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fl-text-muted);
+  background: var(--fl-bg-card-deep);
+  border: 1px solid var(--fl-gold-muted);
+  border-radius: var(--fl-radius-sm);
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 232, 160, 0.05);
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-close:hover {
+  color: var(--fl-text-primary);
+  border-color: var(--fl-gold-border);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  overflow-y: auto;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-body-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.96fr);
+  gap: 8px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-body-panel {
+  min-width: 0;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-section-title {
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fl-gold-border);
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-section-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--fl-gold-muted), transparent);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-stat-col {
+  display: grid;
+  gap: 5px;
+  padding: 6px;
+  background: var(--fl-bg-card-deep);
+  border: 1px solid rgba(198, 161, 91, 0.12);
+  border-radius: var(--fl-radius-sm);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-stat-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fl-text-muted);
+  font-size: 0.6rem;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-stat-values {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-stat-value {
+  color: var(--fl-text-primary);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-delta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 14px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  line-height: 1;
+  font-size: 0.58rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-delta.pos {
+  color: var(--fl-success);
+  background: rgba(79, 209, 139, 0.12);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-delta.neg {
+  color: var(--fl-danger);
+  background: rgba(224, 90, 90, 0.12);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-delta.neu {
+  color: var(--fl-text-muted);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-affix-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-affix-toggle {
+  border: 1px solid rgba(198, 161, 91, 0.3);
+  border-radius: 999px;
+  padding: 3px 7px;
+  background: var(--fl-bg-card-deep);
+  color: var(--fl-text-secondary);
+  font-size: 0.54rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-affix-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-affix {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px;
+  background: var(--fl-bg-card-deep);
+  border: 1px solid rgba(198, 161, 91, 0.12);
+  border-radius: var(--fl-radius-sm);
+  box-shadow: inset 0 1px 0 rgba(255, 232, 160, 0.03);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-affix--excellent {
+  border-color: rgba(242, 184, 75, 0.5);
+  background: linear-gradient(180deg, rgba(242, 184, 75, 0.14), rgba(13, 17, 24, 0.8));
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-affix-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-affix-name {
+  color: var(--fl-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-affix-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-affix-tag {
+  font-size: 0.56rem;
+  font-weight: 900;
+  border-radius: 999px;
+  padding: 2px 6px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-affix-tag--excellent {
+  color: #fcd34d;
+  background: rgba(217, 119, 6, 0.24);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-affix-tag--wishlist {
+  color: #5eead4;
+  background: rgba(13, 148, 136, 0.24);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-affix-val {
+  color: var(--fl-text-primary);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-affix-meta {
+  color: var(--fl-text-muted);
+  font-size: 0.62rem;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-legendary {
+  margin: 0;
+  padding: 8px;
+  border: 1px solid rgba(138, 91, 232, 0.36);
+  border-radius: var(--fl-radius-sm);
+  background: linear-gradient(180deg, rgba(138, 91, 232, 0.14), rgba(10, 13, 18, 0.9));
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-legendary-name {
+  color: var(--fl-text-primary);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-legendary-description {
+  margin-top: 4px;
+  color: var(--fl-text-secondary);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 9px 12px;
+  border-top: 1px solid rgba(198, 161, 91, 0.24);
+  background:
+    linear-gradient(180deg, rgba(11, 15, 20, 0.96) 0%, rgba(7, 11, 16, 0.98) 100%);
+  box-shadow: 0 -8px 18px rgba(0, 0, 0, 0.34);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-footer .fl-button {
+  width: 100%;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-item-detail-spotlight-action {
+  animation: inventorySpotlightPulse 1600ms ease-in-out infinite;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-equipped-empty-shell {
+  display: flex;
+  justify-content: center;
+  min-height: 76px;
+  border: 1px dashed var(--color-border-secondary, #cbd5e1);
+  background: var(--color-background-tertiary, #f8fafc);
+  color: var(--color-text-tertiary, #94a3b8);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-equipped-empty-label {
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 760px) {
+  .app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-gear-button {
+    justify-content: flex-end;
+  }
+
+  .app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-inventory-item-modal-backdrop {
+    padding:
+      calc(var(--app-header-offset, 62px) + 8px)
+      8px
+      calc(var(--app-bottom-nav-offset, 72px) + env(safe-area-inset-bottom) + 8px);
+    align-items: flex-start;
+  }
+
+  .app-shell-root--forge-light-v2[data-fl-screen="inventory"] .fl-item-detail-modal {
+    max-height: calc(
+      100dvh -
+      var(--app-header-offset, 62px) -
+      var(--app-bottom-nav-offset, 72px) -
+      env(safe-area-inset-bottom) -
+      16px
+    );
+    border-bottom-left-radius: var(--fl-radius-lg);
+    border-bottom-right-radius: var(--fl-radius-lg);
+  }
+
+  .app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-frame {
+    width: 62px;
+    height: 62px;
+    font-size: 26px;
+  }
+
+  .app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-name {
+    font-size: 0.94rem;
+  }
+
+  .app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-power-n {
+    font-size: 16px;
+  }
+
+  .app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-body-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.96fr);
+    gap: 6px;
+  }
+
+  .app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-stat-grid,
+  .app-shell-root--forge-light-v2[data-fl-screen="inventory"] .idm-affix-list {
+    grid-template-columns: 1fr;
+  }
 }

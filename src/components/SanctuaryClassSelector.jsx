@@ -1,5 +1,6 @@
 import React from "react";
 import { CLASSES } from "../data/classes";
+import { FlCard } from "./ui/forge";
 
 export default function SanctuaryClassSelector({
   choosingClass = false,
@@ -27,10 +28,12 @@ export default function SanctuaryClassSelector({
       )}
       <div className="sanctuary-class-selector__grid">
         {CLASSES.map(clase => (
-          <button
+          <FlCard
             className="sanctuary-class-selector__option"
             key={clase.id}
             onClick={() => onSelectClass?.(clase.id)}
+            interactive
+            variant="premium"
             data-onboarding-target={choosingClass ? "choose-class" : undefined}
           >
             <div className="sanctuary-class-selector__option-head">
@@ -50,7 +53,7 @@ export default function SanctuaryClassSelector({
                 ? "Impacto frontal, aguante y curva mas estable."
                 : "Caster mas fragil al inicio, pero con mas precision y control."}
             </div>
-          </button>
+          </FlCard>
         ))}
       </div>
     </section>

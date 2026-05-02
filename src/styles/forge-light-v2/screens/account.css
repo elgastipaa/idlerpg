@@ -1,9 +1,33 @@
-.app-shell-root--forge-light-v2[data-fl2-screen="account"] :where(.account-progress-root, .account-progress-panel, .account-progress-card),
-.app-shell-root--forge-light-v2[data-fl2-screen="achievements"] :where(.achievements-root, .achievements-panel, .achievement-card),
-.app-shell-root--forge-light-v2[data-fl2-screen="system"] :where(.account-progress-root, .account-progress-panel, .account-progress-card) {
-  background:
-    radial-gradient(circle at 9% 50%, rgba(243, 198, 95, 0.05), transparent 24%),
-    linear-gradient(180deg, rgba(8, 10, 11, 0.56), rgba(5, 8, 10, 0.52)) !important;
-  border-color: rgba(198, 161, 91, 0.18) !important;
-  color: var(--fl2-text) !important;
+.app-shell-root--forge-light-v2[data-fl-screen="account"] .account-progress-view,
+.app-shell-root--forge-light-v2[data-fl-screen="system"] .account-progress-view {
+  color: var(--fl-text-primary);
+  display: grid;
+  gap: 10px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="account"] .progress-panel,
+.app-shell-root--forge-light-v2[data-fl-screen="system"] .progress-panel {
+  border-color: var(--fl-surface-border);
+  background: var(--fl-surface-bg);
+  box-shadow: var(--fl-shadow-card);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="account"] .progress-panel > .fl-panel__header,
+.app-shell-root--forge-light-v2[data-fl-screen="system"] .progress-panel > .fl-panel__header {
+  background: var(--fl-panel-header-surface-module);
+  border-bottom: 1px solid var(--fl-panel-border-soft);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="account"] .progress-panel > .fl-panel__body,
+.app-shell-root--forge-light-v2[data-fl-screen="system"] .progress-panel > .fl-panel__body {
+  padding: 12px;
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="account"] .account-progress-header,
+.app-shell-root--forge-light-v2[data-fl-screen="system"] .account-progress-header {
+  color: var(--fl-text-primary);
+}
+
+.app-shell-root--forge-light-v2[data-fl-screen="achievements"] .achievements-root {
+  color: var(--fl-text-primary);
 }
